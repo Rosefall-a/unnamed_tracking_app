@@ -70,6 +70,9 @@ class AppIntegrationSettings(Base):
     branding_logo_png: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
     branding_favicon_png: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
 
+    nginx_realip_header: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    nginx_realip_trusted_proxies: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     updated_at: Mapped[int] = mapped_column(
         BigInteger, nullable=False, default=time.time, onupdate=time.time
     )

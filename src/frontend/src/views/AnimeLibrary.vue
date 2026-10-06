@@ -12,6 +12,7 @@ import {
 } from "../services/anime";
 import type { SeasonUpdateInput } from "../services/anime";
 import type { Anime, AnimeStatus } from "../types/anime";
+import { localMediaImage } from "../utils/mediaImages";
 import MediaLibraryView from "../components/library/MediaLibraryView.vue";
 import { displayTitle } from "../utils/displayTitle";
 import { statusBucket, bucketToReal } from "../utils/mediaStatus";
@@ -88,7 +89,7 @@ function toVM(show: Anime): LibraryCardVM {
   return {
     id: show.id,
     title: displayTitle(show),
-    poster: show.posterUrl,
+    poster: localMediaImage("anime", show.id, "poster", show.posterUrl),
     status: show.status,
     favorite: show.favorite,
     score: show.ratingOverall,
@@ -119,6 +120,7 @@ const items = computed(() => shows.value.map(toVM));
 let loadRequest = 0;
 const total = ref(0);
 const statusCounts = ref<Record<string, number>>({});
+const scoreRanks = ref<Record<string, number>>({});
 const pageSize = 100;
 const currentSearch = ref("");
 async function load(search = "") {
@@ -131,6 +133,7 @@ async function load(search = "") {
     shows.value = page.items;
     total.value = page.total;
     statusCounts.value = page.statusCounts;
+    scoreRanks.value = page.scoreRanks;
   } catch (e) {
     error.value = e instanceof Error ? e.message : "Failed to load anime.";
   } finally {
@@ -344,6 +347,7 @@ function detailRoute(id: string): string {
     :items="items"
     :total="total"
     :status-counts="statusCounts"
+    :score-ranks="scoreRanks"
     :loading="loading"
     :error="error"
     :detail-route="detailRoute"
@@ -434,7 +438,7 @@ function detailRoute(id: string): string {
   z-index: 100;
   display: grid;
   place-items: center;
-  background: rgba(0, 0, 0, 0.7);
+  background: color-mix(in srgb, var(--ui-bg) 70%, transparent);
 }
 .import-modal {
   width: min(520px, calc(100vw - 32px));
@@ -457,7 +461,7 @@ function detailRoute(id: string): string {
   width: 100%;
   box-sizing: border-box;
   padding: 10px;
-  border-radius: 7px;
+  border-radius: var(--ui-radius-control);
   border: 1px solid color-mix(in srgb, var(--ui-text) 15%, transparent);
   background: var(--ui-surface);
   color: var(--ui-text);
@@ -487,7 +491,7 @@ function detailRoute(id: string): string {
 }
 .import-actions button {
   padding: 8px 14px;
-  border-radius: 7px;
+  border-radius: var(--ui-radius-control);
   cursor: pointer;
 }
 </style>

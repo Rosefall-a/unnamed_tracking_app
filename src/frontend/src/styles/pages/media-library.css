@@ -89,7 +89,7 @@
   background: var(--ui-surface);
   border: 1px solid var(--ui-border);
   color: var(--ui-text);
-  border-radius: 7px;
+  border-radius: var(--ui-radius-control);
   padding: 7px 10px;
   font-family: inherit;
   font-size: 0.82rem;
@@ -479,7 +479,7 @@
   color: var(--ui-faint);
   width: var(--ui-control-height);
   min-height: var(--ui-control-height);
-  border-radius: 7px;
+  border-radius: var(--ui-radius-control);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -566,8 +566,8 @@
 .select-checkbox {
   width: 26px;
   height: 26px;
-  border-radius: 7px;
-  background: rgba(10, 10, 10, 0.8);
+  border-radius: var(--ui-radius-control);
+  background: color-mix(in srgb, var(--ui-bg) 80%, transparent);
   border: 1.5px solid color-mix(in srgb, var(--ui-text) 45%, transparent);
   display: flex;
   align-items: center;
@@ -601,6 +601,8 @@
   gap: 8px;
 }
 .list-row {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 76px;
   display: grid;
   grid-template-columns:
     76px minmax(180px, 1fr)
@@ -1024,7 +1026,7 @@
 }
 .board-art-wrap {
   position: relative;
-  border-radius: 7px;
+  border-radius: var(--ui-radius-control);
   overflow: hidden;
   margin-bottom: 8px;
 }
@@ -1383,7 +1385,7 @@
 .qa-form-art {
   width: 64px;
   aspect-ratio: 2 / 3;
-  border-radius: 7px;
+  border-radius: var(--ui-radius-control);
   background-size: cover;
   background-position: center;
   background-color: var(--ui-surface);

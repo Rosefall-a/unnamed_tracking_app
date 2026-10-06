@@ -33,6 +33,11 @@ nav:
       - Plugins: user-guide/plugins.md
       - Notification Providers: user-guide/notification-providers.md
       - Games: user-guide/games.md
+      - Game Media and Files: user-guide/game-media.md
+      - Game Notes: user-guide/game-notes.md
+      - Game Page Settings: user-guide/game-page-settings.md
+      - Collections and Lists: user-guide/collections-and-lists.md
+      - Movie, TV and Anime Libraries: user-guide/media-libraries.md
       - Anime: user-guide/anime.md
       - AniList Import: user-guide/anilist.md
       - TV Shows: user-guide/tv-shows.md

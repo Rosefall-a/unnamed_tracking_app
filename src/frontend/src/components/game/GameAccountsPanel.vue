@@ -63,6 +63,7 @@ const {
   cancelEditItem,
   moveChecklistItem,
   removeChecklistItem,
+  tieAchievements,
   onDropError,
   onPreviewMedia,
   mediaLoading,
@@ -382,7 +383,7 @@ const {
               v-for="item in accountMediaFiltered"
               :key="item.id"
               :item="item"
-              :achievements="game.achievements"
+              :achievements="tieAchievements"
               :profiles="profiles"
               @preview="onPreviewMedia($event.url)"
               @delete="removeMedia"

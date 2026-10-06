@@ -1,5 +1,6 @@
 """Fallback artwork for games that do not have stored cover art."""
 
+import asyncio
 import hashlib
 from html import escape
 from typing import Annotated
@@ -13,6 +14,7 @@ from src.api.routes.games import _DATA_ROOT, ALLOWED_ASSET_KINDS, _get_game_or_4
 from src.core.auth import get_current_user
 from src.database.models.user import User
 from src.database.session import get_db
+from src.helpers.asset_previews import ensure_preview, preview_path
 from src.helpers.save_game_asset import ASSET_FILENAMES, AssetKind
 
 router = APIRouter(
@@ -93,8 +95,11 @@ async def get_game_asset_with_fallback(
     asset_kind: AssetKind,
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[User, Depends(get_current_user)],
+    # Preview stored artwork at the requested display width.
+    w: Annotated[int | None, Query(ge=64, le=4096)] = None,
 ) -> Response:
-    """Serve stored artwork, falling back to generated cover art when needed."""
+    """Serve stored artwork (or a resized JPEG of it with `w`), falling back to
+    generated cover art when needed."""
     if asset_kind not in ALLOWED_ASSET_KINDS:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -111,9 +116,19 @@ async def get_game_asset_with_fallback(
     )
 
     if asset_path.is_file():
+        media_type = "image/png"
+        if w is not None:
+            asset_path, media_type = await asyncio.to_thread(
+                ensure_preview,
+                asset_path,
+                preview_path(
+                    _DATA_ROOT / str(game.user_id) / ".cache", str(game_id), asset_kind, w
+                ),
+                w,
+            )
         return FileResponse(
             asset_path,
-            media_type="image/png",
+            media_type=media_type,
             headers={"Cache-Control": "private, max-age=3600, must-revalidate"},
         )
 

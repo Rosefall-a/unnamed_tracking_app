@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import TrustedProxyControls from "../components/settings/TrustedProxyControls.vue";
 import { computed, onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import {
@@ -582,6 +583,12 @@ async function submit() {
                     @update:model-value="setField(field, $event)"
                   />
 
+                  <TrustedProxyControls
+                    v-else-if="field.name === 'NGINX_REALIP_TRUSTED_PROXIES'"
+                    :model-value="textFieldValue(field)"
+                    :disabled="field.locked"
+                    @update:model-value="setField(field, $event)"
+                  />
                   <input
                     v-else
                     :value="inputValue(field)"
@@ -655,7 +662,7 @@ async function submit() {
   min-height: 100vh;
   background: var(--ui-bg);
   color: var(--ui-text);
-  font-family: system-ui, sans-serif;
+  font-family: var(--ui-font-family);
   padding: 24px 16px;
   display: flex;
   justify-content: center;
@@ -740,7 +747,7 @@ async function submit() {
 }
 .section-choice {
   border: 1px solid var(--ui-border);
-  border-radius: 10px;
+  border-radius: var(--ui-radius-row);
   padding: 14px;
   display: flex;
   align-items: center;

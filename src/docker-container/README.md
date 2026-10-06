@@ -2,7 +2,7 @@
 
 This directory contains the single-container production packaging for Unnamed Tracking. It is separate from the development frontend/backend images.
 
-The image contains the compiled Vue frontend, FastAPI, Nginx, and the independent startup/diagnostic layer. FastAPI listens only on the container loopback interface; Nginx is the public edge.
+The image contains the compiled Vue frontend, FastAPI, Nginx, and the independent startup/diagnostic layer. The combined image asks FastAPI for the effective real-IP configuration before rendering Nginx; the split development frontend/backend images remain independent and do not use this handoff. FastAPI listens only on the container loopback interface; Nginx is the public edge.
 
 ## Startup and readiness
 
@@ -33,6 +33,16 @@ The Compose deployment persists `./data:/data` and PostgreSQL’s named volume. 
 ## Nginx
 
 The production configuration keeps the startup diagnostics available after readiness. API requests are proxied to FastAPI with Host, client-address, forwarded-for, and forwarded-protocol headers. Proxy timeouts are bounded.
+
+### Restoring the real client IP
+
+Production Nginx enables the ngx_http_realip_module by default. X-Forwarded-For is used recursively, but only when the immediate proxy address belongs to the trusted-proxy set. The default trusted set is only IPv4/IPv6 loopback (127.0.0.1/32 and ::1/128). Cloudflare, local/private, CGNAT/VPS, and custom ranges are opt-in through Settings/setup or deployment environment variables. Nginx's real-IP module only trusts addresses explicitly listed with set_real_ip_from; recursive processing selects the last non-trusted address in the forwarded chain. See the NGINX real-IP documentation at https://nginx.org/en/docs/http/ngx_http_realip_module.html and Cloudflare's published IP ranges at https://www.cloudflare.com/ips/.
+
+Set NGINX_REALIP_HEADER to use a different header, such as CF-Connecting-IP for a deployment that wants Cloudflare's single-value client-IP header.
+
+NGINX_REALIP_TRUSTED_PROXIES is a space-separated list of addresses/CIDRs. A non-empty environment value overrides the saved/default list; when it is unset, Settings/setup can persist the selected ranges. This is useful when the container is behind a different proxy/load-balancer topology or when the operator wants a deliberately narrower trust boundary.
+
+Only trusted proxy source addresses can cause the configured header to replace Nginx's client address. Do not add public or untrusted networks to the override merely to make forwarded IPs appear correct.
 
 Nginx hides its version and emits security headers for the production frontend/HTTPS edge. HSTS is emitted only by the HTTPS server.
 

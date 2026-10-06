@@ -1,17 +1,5 @@
-import { matchesShortcut } from "../state/shortcuts";
-import {
-  displayFileName,
-  sortedAchievements,
-  deriveTier,
-  formatUnlockedAt,
-  formatPlaytime,
-} from "../utils/gameDetailDisplay";
-import { useGameNotes } from "./useGameNotes";
-
-import { documentReaderUrl } from "../state/pluginExtensions";
+import { useGameChecklist } from "./useGameChecklist";
 import { usePageTitle } from "../state/pageTitle";
-import { formatDisplayDate } from "../utils/dates";
-import { activePriority, priorityLabel } from "../utils/priority";
 import { computed, ref, watch, onMounted, onUnmounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import {
@@ -19,19 +7,32 @@ import {
   fetchGame,
   fetchGameVariants,
   fetchGameAchievements,
+  fetchContentCounts,
+  peekGame,
   fetchGameFieldChanges,
   fetchGames,
   setFavorite,
+  setRatings,
+  setStatus,
   setResumeNote,
   setPlaytimeSeconds,
 } from "../services/games";
-import type { FieldChange } from "../services/games";
+import type { FieldChange, GameRatings } from "../services/games";
 import { peekAdjacentGameId } from "../state/libraryNav";
+import {
+  HERO_WIDTH,
+  POSTER_WIDTH,
+  preloadImage,
+  sizedAssetUrl,
+} from "../utils/gameImages";
 import {
   uploadGameScreenshots,
   listGameScreenshots,
   deleteGameScreenshot,
   updateMediaItem,
+  updateGameFile,
+  detectMediaDates,
+  saveClipThumbnail,
   uploadGameFiles,
   listGameFiles,
   deleteGameFile,
@@ -42,39 +43,22 @@ import {
 } from "../services/media";
 import type {
   MediaItem,
+  FileDetails,
+  MediaItemUpdate,
   GameFile,
+  GameFileUpdate,
   GameFileKind,
   TrashedMediaItem,
   TrashedGameFile,
 } from "../services/media";
-import {
-  listGameProfiles,
-  createGameProfile,
-  renameGameProfile,
-  updateGameProfile,
-  deleteGameProfile,
-  syncProfileWiseOldMan,
-  fetchProfileStatHistory,
-  listChecklist,
-  createChecklistItem,
-  updateChecklistItem,
-  deleteChecklistItem,
-  reorderChecklist,
-} from "../services/gameProfiles";
-import type {
-  GameProfile,
-  ChecklistItem,
-  StatSnapshot,
-} from "../services/gameProfiles";
+import {} from "../services/gameProfiles";
 import {
   fetchArchives,
   createArchive,
   addArchiveVersion,
-  renameArchive,
+  updateArchive,
   deleteArchive,
   deleteArchiveVersion,
-  worldMapViewUrl,
-  worldMapThumbnailUrl,
   fetchArchiveTrash,
   restoreArchive,
 } from "../services/gameArchives";
@@ -83,7 +67,13 @@ import type {
   ArchiveVersion,
   TrashedArchive,
 } from "../services/gameArchives";
-
+import { isGuess, unlockSeconds } from "../utils/mediaDate";
+import { normalizePlatformFamily } from "../utils/platforms";
+import { frameFromSource } from "../utils/videoThumbnail";
+import { preferences, preferencesLoaded } from "../state/preferences";
+import { OPTIONAL_TABS, resolvePage, planTabs } from "../utils/gamePage";
+import type { OptionalTab } from "../utils/gamePage";
+import type { ContentCounts } from "../utils/gamePage";
 import {
   startTask,
   updateTask,
@@ -92,12 +82,15 @@ import {
   addFeedItem,
   setTaskRetry,
 } from "../state/taskProgress";
-import type { Game } from "../types/game";
-
+import type { Achievement, Game, GameStatus } from "../types/game";
+import { isUnlocked } from "../utils/achievements";
 import { computeScore } from "../utils/scoring";
 import DOMPurify from "dompurify";
 import { useConfirm, usePrompt } from "../state/dialog";
+import { matchesShortcut } from "../state/shortcuts";
+import { useGameProfiles } from "./useGameProfiles";
 import { useGameWorldMaps } from "./useGameWorldMaps";
+import { useGameAchievements } from "./useGameAchievements";
 export function useGameDetail() {
   const confirm = useConfirm();
   const prompt = usePrompt();
@@ -123,27 +116,6 @@ export function useGameDetail() {
   const deleteError = ref<string | null>(null);
   const showDeleteConfirm = ref(false);
 
-  const {
-    noteNames,
-    noteMode,
-    viewingNoteName,
-    editingNoteName,
-    draftName,
-    draftContent,
-    noteLoading,
-    noteSaving,
-    noteError,
-    hasDraft,
-    renderedNoteHtml,
-    startNewNote,
-    viewNote,
-    editFromView,
-    backToList,
-    saveDraft,
-    deleteNote,
-    loadNotes,
-  } = useGameNotes(game);
-
   // Steam's "About This Game" section is rich HTML (headers, screenshots,
   // gifs), sanitize it instead of stripping it down to plain text so that
   // content survives
@@ -151,6 +123,11 @@ export function useGameDetail() {
     if (!game.value?.description) return "";
     return DOMPurify.sanitize(game.value.description);
   });
+
+  const descriptionExpanded = ref(false);
+  const descriptionOverflows = computed(
+    () => descriptionHtml.value.replace(/<[^>]*>/g, "").length > 320,
+  );
 
   // resolved separately from game.value.parentGameId (which is only an id),
   // see loadGame()
@@ -169,335 +146,45 @@ export function useGameDetail() {
   // the parent-breadcrumb link above.
   const variants = ref<Game[]>([]);
 
-  // --- Profiles (e.g. separate OSRS accounts) --------------------------------
-  // shared across the Notes checklist and the Screenshots/Clips/Soundtrack
-  // gallery, one "which account am I looking at" selector, not two, so a
-  // game with several accounts doesn't need everything dug through together.
-  const profiles = ref<GameProfile[]>([]);
-  const profilesLoadedFor = ref<string | null>(null);
-  // null = "General" (unscoped), the default, matching how most games (no
-  // multi-account concept) never need to touch this at all
-  const activeProfileId = ref<string | null>(null);
-  const newProfileName = ref("");
-  const profileError = ref<string | null>(null);
-
-  async function loadProfiles() {
-    if (!game.value || profilesLoadedFor.value === game.value.id) return;
-    try {
-      profiles.value = await listGameProfiles(game.value.id);
-      profilesLoadedFor.value = game.value.id;
-    } catch (err) {
-      profileError.value =
-        err instanceof Error ? err.message : "Failed to load profiles";
-    }
-  }
-
-  async function addProfile() {
-    if (!game.value) return;
-    const name = newProfileName.value.trim();
-    if (!name) return;
-    profileError.value = null;
-    try {
-      const created = await createGameProfile(game.value.id, name);
-      profiles.value = [...profiles.value, created];
-      newProfileName.value = "";
-      activeProfileId.value = created.id;
-    } catch (err) {
-      profileError.value =
-        err instanceof Error ? err.message : "Failed to create profile";
-    }
-  }
-
-  async function promptRenameProfile(profile: GameProfile) {
-    const name = await prompt({
-      title: "Rename account",
-      message: "Account name",
-      defaultValue: profile.name,
-      confirmLabel: "Rename",
-    });
-    if (name) void renameProfile(profile, name);
-  }
-
-  async function renameProfile(profile: GameProfile, name: string) {
-    if (!game.value) return;
-    const trimmed = name.trim();
-    if (!trimmed || trimmed === profile.name) return;
-    try {
-      const updated = await renameGameProfile(
-        game.value.id,
-        profile.id,
-        trimmed,
-      );
-      const idx = profiles.value.findIndex((p) => p.id === profile.id);
-      if (idx !== -1) profiles.value[idx] = updated;
-    } catch (err) {
-      profileError.value =
-        err instanceof Error ? err.message : "Failed to rename profile";
-    }
-  }
-
-  async function removeProfile(profile: GameProfile) {
-    if (!game.value) return;
-    try {
-      await deleteGameProfile(game.value.id, profile.id);
-      profiles.value = profiles.value.filter((p) => p.id !== profile.id);
-      if (activeProfileId.value === profile.id) activeProfileId.value = null;
-    } catch (err) {
-      profileError.value =
-        err instanceof Error ? err.message : "Failed to delete profile";
-    }
-  }
-
-  // --- Accounts tab: selected account's note/stats/WiseOldMan sync -----------
-  // null activeProfileId means the sidebar's "General" entry, there's no
-  // GameProfile row for that, so note/stats/WiseOldMan simply don't apply
-  const selectedProfile = computed(
-    () => profiles.value.find((p) => p.id === activeProfileId.value) ?? null,
-  );
-
-  const profileNoteDraft = ref("");
-  const profileNoteSaving = ref(false);
-  watch(selectedProfile, (profile) => {
-    profileNoteDraft.value = profile?.note ?? "";
-  });
-
-  async function saveProfileNote() {
-    if (!game.value || !selectedProfile.value) return;
-    profileNoteSaving.value = true;
-    try {
-      const updated = await updateGameProfile(
-        game.value.id,
-        selectedProfile.value.id,
-        {
-          note: profileNoteDraft.value.trim() || null,
-        },
-      );
-      const idx = profiles.value.findIndex((p) => p.id === updated.id);
-      if (idx !== -1) profiles.value[idx] = updated;
-    } catch (err) {
-      profileError.value =
-        err instanceof Error ? err.message : "Failed to save note";
-    } finally {
-      profileNoteSaving.value = false;
-    }
-  }
-
-  interface StatRow {
-    key: string;
-    value: string;
-  }
-  const statRows = ref<StatRow[]>([]);
-  // display mode by default (a clean read-only grid), editing mode swaps in
-  // the raw label/value rows, entered explicitly rather than always showing
-  // 30+ input pairs for an account with a full WiseOldMan sync
-  const editingStats = ref(false);
-  watch(selectedProfile, (profile) => {
-    statRows.value = profile
-      ? Object.entries(profile.stats).map(([key, value]) => ({ key, value }))
-      : [];
-    editingStats.value = false;
-  });
-  function startEditStats() {
-    if (selectedProfile.value) {
-      statRows.value = Object.entries(selectedProfile.value.stats).map(
-        ([key, value]) => ({ key, value }),
-      );
-    }
-    editingStats.value = true;
-  }
-  function cancelEditStats() {
-    if (selectedProfile.value) {
-      statRows.value = Object.entries(selectedProfile.value.stats).map(
-        ([key, value]) => ({ key, value }),
-      );
-    }
-    editingStats.value = false;
-  }
-  function addStatRow() {
-    statRows.value = [...statRows.value, { key: "", value: "" }];
-  }
-  function removeStatRow(index: number) {
-    statRows.value = statRows.value.filter((_, i) => i !== index);
-  }
-  async function saveProfileStats() {
-    if (!game.value || !selectedProfile.value) return;
-    const stats: Record<string, string> = {};
-    for (const row of statRows.value) {
-      const key = row.key.trim();
-      if (key) stats[key] = row.value.trim();
-    }
-    try {
-      const updated = await updateGameProfile(
-        game.value.id,
-        selectedProfile.value.id,
-        { stats },
-      );
-      const idx = profiles.value.findIndex((p) => p.id === updated.id);
-      if (idx !== -1) profiles.value[idx] = updated;
-      statRows.value = Object.entries(updated.stats).map(([key, value]) => ({
-        key,
-        value,
-      }));
-      editingStats.value = false;
-      if (showStatHistory.value) await loadStatHistory();
-    } catch (err) {
-      profileError.value =
-        err instanceof Error ? err.message : "Failed to save stats";
-    }
-  }
-
-  const womUsername = ref("");
-  watch(selectedProfile, (profile) => {
-    womUsername.value = profile?.wiseoldman_username ?? "";
-  });
-  const womSyncing = ref(false);
-  const womError = ref<string | null>(null);
-  async function syncWiseOldMan() {
-    if (!game.value || !selectedProfile.value) return;
-    const username = womUsername.value.trim();
-    if (!username) {
-      womError.value = "Enter a RuneScape username first.";
-      return;
-    }
-    womSyncing.value = true;
-    womError.value = null;
-    try {
-      const updated = await syncProfileWiseOldMan(
-        game.value.id,
-        selectedProfile.value.id,
-        username,
-      );
-      const idx = profiles.value.findIndex((p) => p.id === updated.id);
-      if (idx !== -1) profiles.value[idx] = updated;
-      statRows.value = Object.entries(updated.stats).map(([key, value]) => ({
-        key,
-        value,
-      }));
-      await loadStatHistory();
-    } catch (err) {
-      womError.value =
-        err instanceof Error ? err.message : "Failed to sync WiseOldMan";
-    } finally {
-      womSyncing.value = false;
-    }
-  }
-
-  // --- Stat history: dated snapshots, so progression is visible over time ----
-  const statHistory = ref<StatSnapshot[]>([]);
-  const statHistoryLoading = ref(false);
-  const showStatHistory = ref(false);
-  const historyShowAll = ref(false);
-  const HISTORY_PAGE_SIZE = 12;
-  watch(selectedProfile, () => {
-    statHistory.value = [];
-    showStatHistory.value = false;
-    historyShowAll.value = false;
-  });
-  async function loadStatHistory() {
-    if (!game.value || !selectedProfile.value) return;
-    statHistoryLoading.value = true;
-    try {
-      statHistory.value = await fetchProfileStatHistory(
-        game.value.id,
-        selectedProfile.value.id,
-      );
-    } catch {
-      // history is a nice-to-have alongside the live stats, not worth
-      // failing the whole Stats card over
-    } finally {
-      statHistoryLoading.value = false;
-    }
-  }
-  async function toggleStatHistory() {
-    showStatHistory.value = !showStatHistory.value;
-    if (showStatHistory.value && !statHistory.value.length)
-      await loadStatHistory();
-  }
-  function formatSnapshotDate(epochSeconds: number): string {
-    return new Date(epochSeconds * 1000).toLocaleDateString(undefined, {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
-  }
-
-  // "on this day" gains, each snapshot compared against the next-older one
-  // in the list (statHistory is newest-first) using the raw xp/kc integers,
-  // not the display-string levels (a single level can span tens of
-  // thousands of XP, so diffing levels would be meaningless). A manually-
-  // edited snapshot has empty xp/kc, so it simply contributes no gain lines
-  //, nothing to divide by zero on, just nothing to show.
-  const statGains = computed<Record<string, string[]>>(() => {
-    const gains: Record<string, string[]> = {};
-    const list = statHistory.value;
-    for (let i = 0; i < list.length; i++) {
-      const current = list[i];
-      const older = list[i + 1];
-      if (!older) {
-        gains[current.id] = [];
-        continue;
-      }
-      const lines: string[] = [];
-      for (const [skill, xp] of Object.entries(current.xp)) {
-        const oldXp = older.xp[skill];
-        if (oldXp !== undefined && xp > oldXp) {
-          lines.push(`+${(xp - oldXp).toLocaleString()} ${skill} XP`);
-        }
-      }
-      for (const [boss, kc] of Object.entries(current.kc)) {
-        const oldKc = older.kc[boss];
-        if (oldKc !== undefined && kc > oldKc) {
-          lines.push(`+${kc - oldKc} ${boss} KC`);
-        }
-      }
-      gains[current.id] = lines;
-    }
-    return gains;
-  });
-  const visibleHistory = computed(() =>
-    historyShowAll.value
-      ? statHistory.value
-      : statHistory.value.slice(0, HISTORY_PAGE_SIZE),
-  );
-
-  // grouped for display: Overall/Combat as headline tiles, boss kill counts
-  // (WOM always formats these as "N KC") in their own section instead of
-  // mixed in alphabetically with skill levels
-  const HEADLINE_STAT_KEYS = ["Overall", "Combat"];
-  const headlineStats = computed(() =>
-    HEADLINE_STAT_KEYS.filter((key) => selectedProfile.value?.stats[key]).map(
-      (key) => ({
-        key,
-        value: selectedProfile.value!.stats[key],
-      }),
-    ),
-  );
-  const skillStats = computed(() =>
-    Object.entries(selectedProfile.value?.stats ?? {}).filter(
-      ([key, value]) =>
-        !HEADLINE_STAT_KEYS.includes(key) && !value.endsWith(" KC"),
-    ),
-  );
-  const bossStats = computed(() =>
-    Object.entries(selectedProfile.value?.stats ?? {}).filter(([, value]) =>
-      value.endsWith(" KC"),
-    ),
-  );
-
-  // real OSRS Wiki icons for skills/Overall/Combat, the wiki's own
-  // "<Name>_icon.png" naming is reliable for these (verified: 22/23 skills
-  // match directly, "Runecrafting" is the one renamed in-game to
-  // "Runecraft"). Boss/activity icons on the same wiki follow no reliable
-  // pattern (spot-checked well under half of ~60 names resolve), so those
-  // get one shared generic icon instead of a wall of broken images.
-  const SKILL_ICON_OVERRIDES: Record<string, string> = {
-    Runecrafting: "Runecraft",
-    Overall: "Stats",
-  };
-  function skillIconUrl(label: string): string {
-    const name = SKILL_ICON_OVERRIDES[label] ?? label;
-    return `https://oldschool.runescape.wiki/images/${encodeURIComponent(name.replace(/ /g, "_"))}_icon.png`;
-  }
+  const {
+    profiles,
+    profilesLoadedFor,
+    activeProfileId,
+    newProfileName,
+    profileError,
+    loadProfiles,
+    addProfile,
+    promptRenameProfile,
+    removeProfile,
+    selectedProfile,
+    profileNoteDraft,
+    profileNoteSaving,
+    saveProfileNote,
+    statRows,
+    editingStats,
+    startEditStats,
+    cancelEditStats,
+    addStatRow,
+    removeStatRow,
+    saveProfileStats,
+    womUsername,
+    womSyncing,
+    womError,
+    syncWiseOldMan,
+    statHistory,
+    statHistoryLoading,
+    showStatHistory,
+    historyShowAll,
+    HISTORY_PAGE_SIZE,
+    toggleStatHistory,
+    formatSnapshotDate,
+    statGains,
+    visibleHistory,
+    headlineStats,
+    skillStats,
+    bossStats,
+    skillIconUrl,
+  } = useGameProfiles(game, prompt);
 
   // --- Accounts tab: gallery, split by kind + free-form category (tag) -------
   const ACCOUNT_MEDIA_KINDS = ["screenshot", "clip", "soundtrack"] as const;
@@ -528,208 +215,28 @@ export function useGameDetail() {
       : accountMediaByKind.value,
   );
 
-  // --- Checklist (per-game, or per-profile when one account is selected) -----
-  const checklistItems = ref<ChecklistItem[]>([]);
-  const checklistLoading = ref(false);
-  const checklistError = ref<string | null>(null);
-  const newChecklistText = ref("");
-  const editingItemId = ref<string | null>(null);
-  const editingText = ref("");
-
-  const checklistProgress = computed(() => {
-    const real = checklistItems.value.filter((i) => !i.is_header);
-    return { done: real.filter((i) => i.done).length, total: real.length };
-  });
-
-  // groups the flat, already-ordered list into sections at each header row,
-  // a header just being another row in the same sort order, not a separate
-  // table, keeps "move an item above/below a header" a plain reorder
-  interface ChecklistSection {
-    header: ChecklistItem | null;
-    items: ChecklistItem[];
-  }
-  const checklistSections = computed<ChecklistSection[]>(() => {
-    const sections: ChecklistSection[] = [{ header: null, items: [] }];
-    for (const item of checklistItems.value) {
-      if (item.is_header) {
-        sections.push({ header: item, items: [] });
-      } else {
-        sections[sections.length - 1].items.push(item);
-      }
-    }
-    return sections.filter((s) => s.header !== null || s.items.length > 0);
-  });
-
-  // collapsed section state, per game, remembered across visits
-  const collapsedSections = ref<Set<string>>(new Set());
-  function collapsedStorageKey(gameId: string) {
-    return `checklist-collapsed-${gameId}`;
-  }
-  function loadCollapsedSections() {
-    if (!game.value) return;
-    try {
-      const raw = localStorage.getItem(collapsedStorageKey(game.value.id));
-      collapsedSections.value = new Set(
-        raw ? (JSON.parse(raw) as string[]) : [],
-      );
-    } catch {
-      collapsedSections.value = new Set();
-    }
-  }
-  function saveCollapsedSections() {
-    if (!game.value) return;
-    try {
-      localStorage.setItem(
-        collapsedStorageKey(game.value.id),
-        JSON.stringify([...collapsedSections.value]),
-      );
-    } catch {
-      // best-effort, a checklist with no persisted collapse state just
-      // starts fully expanded next time, not worth failing over
-    }
-  }
-  function toggleSectionCollapsed(headerId: string) {
-    if (collapsedSections.value.has(headerId))
-      collapsedSections.value.delete(headerId);
-    else collapsedSections.value.add(headerId);
-    collapsedSections.value = new Set(collapsedSections.value);
-    saveCollapsedSections();
-  }
-  function sectionProgress(section: ChecklistSection) {
-    return {
-      done: section.items.filter((i) => i.done).length,
-      total: section.items.length,
-    };
-  }
-
-  async function loadChecklist() {
-    if (!game.value) return;
-    checklistLoading.value = true;
-    checklistError.value = null;
-    loadCollapsedSections();
-    try {
-      checklistItems.value = await listChecklist(
-        game.value.id,
-        activeProfileId.value,
-      );
-    } catch (err) {
-      checklistError.value =
-        err instanceof Error ? err.message : "Failed to load checklist";
-    } finally {
-      checklistLoading.value = false;
-    }
-  }
-
-  async function addChecklistItem() {
-    if (!game.value) return;
-    const text = newChecklistText.value.trim();
-    if (!text) return;
-    try {
-      const created = await createChecklistItem(
-        game.value.id,
-        text,
-        activeProfileId.value,
-      );
-      checklistItems.value = [...checklistItems.value, created];
-      newChecklistText.value = "";
-    } catch (err) {
-      checklistError.value =
-        err instanceof Error ? err.message : "Failed to add item";
-    }
-  }
-
-  async function addChecklistSection() {
-    if (!game.value) return;
-    const name = await prompt({
-      title: "New section",
-      message: 'Section name (e.g. "Quest cape reqs")',
-      confirmLabel: "Add",
-    });
-    const text = name?.trim();
-    if (!text) return;
-    createChecklistItem(game.value.id, text, activeProfileId.value, true)
-      .then((created) => {
-        checklistItems.value = [...checklistItems.value, created];
-      })
-      .catch((err) => {
-        checklistError.value =
-          err instanceof Error ? err.message : "Failed to add section";
-      });
-  }
-
-  async function toggleChecklistItem(item: ChecklistItem) {
-    if (!game.value) return;
-    const next = !item.done;
-    item.done = next;
-    try {
-      await updateChecklistItem(game.value.id, item.id, { done: next });
-    } catch (err) {
-      item.done = !next;
-      checklistError.value =
-        err instanceof Error ? err.message : "Failed to update item";
-    }
-  }
-
-  function startEditItem(item: ChecklistItem) {
-    editingItemId.value = item.id;
-    editingText.value = item.text;
-  }
-
-  async function commitEditItem(item: ChecklistItem) {
-    if (!game.value) return;
-    const text = editingText.value.trim();
-    editingItemId.value = null;
-    if (!text || text === item.text) return;
-    item.text = text;
-    try {
-      await updateChecklistItem(game.value.id, item.id, { text });
-    } catch (err) {
-      checklistError.value =
-        err instanceof Error ? err.message : "Failed to rename item";
-    }
-  }
-
-  function cancelEditItem() {
-    editingItemId.value = null;
-  }
-
-  async function moveChecklistItem(item: ChecklistItem, direction: -1 | 1) {
-    if (!game.value) return;
-    const list = checklistItems.value;
-    const index = list.indexOf(item);
-    const targetIndex = index + direction;
-    if (index === -1 || targetIndex < 0 || targetIndex >= list.length) return;
-    const reordered = [...list];
-    [reordered[index], reordered[targetIndex]] = [
-      reordered[targetIndex],
-      reordered[index],
-    ];
-    checklistItems.value = reordered;
-    try {
-      await reorderChecklist(
-        game.value.id,
-        activeProfileId.value,
-        reordered.map((i) => i.id),
-      );
-    } catch (err) {
-      checklistError.value =
-        err instanceof Error ? err.message : "Failed to reorder checklist";
-      await loadChecklist();
-    }
-  }
-
-  async function removeChecklistItem(item: ChecklistItem) {
-    if (!game.value) return;
-    try {
-      await deleteChecklistItem(game.value.id, item.id);
-      checklistItems.value = checklistItems.value.filter(
-        (i) => i.id !== item.id,
-      );
-    } catch (err) {
-      checklistError.value =
-        err instanceof Error ? err.message : "Failed to delete item";
-    }
-  }
+  const {
+    checklistItems,
+    checklistLoading,
+    checklistError,
+    newChecklistText,
+    editingItemId,
+    editingText,
+    checklistProgress,
+    checklistSections,
+    collapsedSections,
+    toggleSectionCollapsed,
+    sectionProgress,
+    loadChecklist,
+    addChecklistItem,
+    addChecklistSection,
+    toggleChecklistItem,
+    startEditItem,
+    commitEditItem,
+    cancelEditItem,
+    moveChecklistItem,
+    removeChecklistItem,
+  } = useGameChecklist(game, activeProfileId, prompt);
 
   // the Accounts tab's sidebar selection, reload that account's checklist
   // and media whenever it changes
@@ -739,9 +246,116 @@ export function useGameDetail() {
     void reloadMediaForCurrentTab();
   });
 
+  // Opening a game: forget what belonged to the one before, and have whichever
+  // tab is showing start loading its own things.
+  function resetForGame() {
+    mediaItems.value = [];
+    mediaLoadedFor.value = null;
+    mediaTrash.value = [];
+    showMediaTrash.value = false;
+    fieldChanges.value = [];
+    fieldChangesError.value = null;
+    docsFiles.value = [];
+    modpackFiles.value = [];
+    filesLoaded.value = { doc: null, modpack: null };
+    docsTrash.value = [];
+    modpackTrash.value = [];
+    showDocsTrash.value = false;
+    showModpackTrash.value = false;
+    saveArchives.value = [];
+    saveArchivesLoaded.value = false;
+    saveTrash.value = [];
+    showSaveTrash.value = false;
+    stopWorldMapPolling();
+    worldMaps.value = [];
+    worldMapsLoaded.value = false;
+    worldTrash.value = [];
+    showWorldTrash.value = false;
+    activeMapArchiveId.value = null;
+    profiles.value = [];
+    profilesLoadedFor.value = null;
+    activeProfileId.value = null;
+    checklistItems.value = [];
+    if (
+      activeTab.value === "Screenshots" ||
+      activeTab.value === "Clips" ||
+      activeTab.value === "Soundtrack"
+    ) {
+      void loadProfiles();
+      void loadMedia();
+      void refreshMediaTrash();
+    }
+    if (activeTab.value === "Accounts") {
+      void loadProfiles();
+      void loadChecklist();
+      void reloadMediaForCurrentTab();
+    }
+    if (activeTab.value === "Saves") {
+      void refreshSaveArchives();
+      void refreshSaveTrash();
+    }
+    if (activeTab.value === "Docs") {
+      void loadGameFiles("doc");
+      void refreshFileTrash("doc");
+    }
+    if (activeTab.value === "World Map") {
+      void loadGameFiles("modpack");
+      void refreshFileTrash("modpack");
+      void refreshWorldMaps();
+      void refreshWorldTrash();
+    }
+  }
+
   async function loadGame(id: string) {
-    loading.value = true;
     error.value = null;
+    // the hero picture is big, so it starts downloading now rather than once the
+    // game's details have come back
+    preloadImage(sizedAssetUrl(`/api/game/${id}/assets/banner`, HERO_WIDTH));
+    preloadImage(sizedAssetUrl(`/api/game/${id}/assets/key_art`, POSTER_WIDTH));
+    // true when this only refreshes the game already on screen (after an edit)
+    const refresh = game.value?.id === id;
+    // everything the page fills in on its own is asked for at once, so none of
+    // it waits for the game or for each other
+    let achievements: Achievement[] | null = null;
+    const applyAchievements = () => {
+      if (route.params.id !== id || !game.value || !achievements) return;
+      game.value.achievements = achievements;
+      game.value.achievementTotal = achievements.length;
+      game.value.achievementPercent = achievements.length
+        ? Math.round(
+            (achievements.filter(isUnlocked).length / achievements.length) *
+              100,
+          )
+        : 0;
+    };
+    void fetchGameAchievements(id)
+      .then((list) => {
+        achievements = list;
+        applyAchievements();
+      })
+      .catch(() => {
+        // achievements are a nice-to-have overlay, a failure here
+        // shouldn't block the rest of the game page from rendering
+      });
+    if (!refresh) variants.value = [];
+    void fetchGameVariants(id)
+      .then((list) => {
+        if (route.params.id === id) variants.value = list;
+      })
+      .catch(() => {
+        // variants section just doesn't show, not worth failing the page
+      });
+
+    // a game seen before is on screen straight away, and refreshed behind it
+    const seen = refresh ? undefined : peekGame(id);
+    if (seen) {
+      game.value = seen;
+      resetForGame();
+      parentGameTitle.value = null;
+      loading.value = false;
+    } else if (!refresh) {
+      loading.value = true;
+    }
     try {
       const fetched = await fetchGame(id);
       // the route can change again while this was in flight (fast
@@ -750,98 +364,27 @@ export function useGameDetail() {
       // must not overwrite the newer one that may have already loaded
       if (route.params.id !== id) return;
       game.value = fetched;
-      if (game.value) {
-        try {
-          const achievements = await fetchGameAchievements(id);
-          if (route.params.id !== id) return;
-          game.value.achievements = achievements;
-          game.value.achievementTotal = achievements.length;
-          game.value.achievementPercent = achievements.length
-            ? Math.round(
-                (achievements.filter((a) => a.unlockedAt !== null).length /
-                  achievements.length) *
-                  100,
-              )
-            : 0;
-        } catch {
-          // achievements are a nice-to-have overlay, a failure here
-          // shouldn't block the rest of the game page from rendering
-        }
-        mediaItems.value = [];
-        mediaLoadedFor.value = null;
-        mediaTrash.value = [];
-        showMediaTrash.value = false;
-        fieldChanges.value = [];
-        fieldChangesError.value = null;
-        docsFiles.value = [];
-        modpackFiles.value = [];
-        filesLoaded.value = { doc: null, modpack: null };
-        docsTrash.value = [];
-        modpackTrash.value = [];
-        showDocsTrash.value = false;
-        showModpackTrash.value = false;
-        saveArchives.value = [];
-        saveArchivesLoaded.value = false;
-        saveTrash.value = [];
-        showSaveTrash.value = false;
-        stopWorldMapPolling();
-        worldMaps.value = [];
-        worldMapsLoaded.value = false;
-        worldTrash.value = [];
-        showWorldTrash.value = false;
-        activeMapArchiveId.value = null;
-        profiles.value = [];
-        profilesLoadedFor.value = null;
-        activeProfileId.value = null;
-        checklistItems.value = [];
-        if (
-          activeTab.value === "Screenshots" ||
-          activeTab.value === "Clips" ||
-          activeTab.value === "Soundtrack"
-        ) {
-          void loadProfiles();
-          void loadMedia();
-          void refreshMediaTrash();
-        }
-        if (activeTab.value === "Accounts") {
-          void loadProfiles();
-          void loadChecklist();
-          void reloadMediaForCurrentTab();
-        }
-        if (activeTab.value === "Saves") {
-          void refreshSaveArchives();
-          void refreshSaveTrash();
-        }
-        if (activeTab.value === "Docs") {
-          void loadGameFiles("doc");
-          void refreshFileTrash("doc");
-        }
-        if (activeTab.value === "World Map") {
-          void loadGameFiles("modpack");
-          void refreshFileTrash("modpack");
-          void refreshWorldMaps();
-          void refreshWorldTrash();
-        }
-
+      if (fetched && !seen && !refresh) {
+        resetForGame();
         parentGameTitle.value = null;
-        if (game.value.parentGameId) {
-          try {
-            const parent = await fetchGame(game.value.parentGameId);
-            parentGameTitle.value = parent?.title ?? null;
-          } catch {
+      }
+      applyAchievements();
+      if (fetched?.parentGameId) {
+        const parentId = fetched.parentGameId;
+        void fetchGame(parentId)
+          .then((parent) => {
+            if (route.params.id === id)
+              parentGameTitle.value = parent?.title ?? null;
+          })
+          .catch(() => {
             // breadcrumb just doesn't show a name, not worth failing the page
-          }
-        }
-
-        variants.value = [];
-        try {
-          variants.value = await fetchGameVariants(id);
-        } catch {
-          // variants section just doesn't show, not worth failing the page
-        }
+          });
       }
     } catch (err) {
-      error.value = err instanceof Error ? err.message : "Failed to load game";
+      // with the game already showing, a failed refresh is not worth an error page
+      if (!seen && !refresh)
+        error.value =
+          err instanceof Error ? err.message : "Failed to load game";
     } finally {
       loading.value = false;
     }
@@ -959,12 +502,7 @@ export function useGameDetail() {
     )
       return;
     if (isTypingTarget(e.target)) return;
-    if (
-      showEditModal.value ||
-      showDeleteConfirm.value ||
-      showCollectionPicker.value
-    )
-      return;
+    if (showEditModal.value || showDeleteConfirm.value) return;
     if (!game.value) return;
     const next = matchesShortcut("games.next", e);
     if (next || matchesShortcut("games.previous", e)) {
@@ -989,10 +527,45 @@ export function useGameDetail() {
     }
   }
 
-  const showCollectionPicker = ref(false);
+  const STATUS_OPTIONS: GameStatus[] = [
+    "playing",
+    "beaten",
+    "mastered",
+    "played",
+    "on hold",
+    "dropped",
+    "backlog",
+    "wishlist",
+  ];
+  async function changeStatus(next: GameStatus) {
+    if (!game.value || next === game.value.status) return;
+    const previous = game.value.status;
+    game.value.status = next;
+    try {
+      await setStatus(game.value.id, next);
+    } catch {
+      game.value.status = previous;
+    }
+  }
 
-  async function onCollectionAdded() {
-    await loadGame(route.params.id as string);
+  function onCollectionsChanged(collections: string[]) {
+    if (game.value) game.value.collections = collections;
+  }
+
+  async function onRatingsChange(ratings: GameRatings) {
+    if (!game.value) return;
+    const previous = {
+      ratingOverall: game.value.ratingOverall,
+      ratingStory: game.value.ratingStory,
+      ratingGameplay: game.value.ratingGameplay,
+      ratingSound: game.value.ratingSound,
+    };
+    Object.assign(game.value, ratings);
+    try {
+      await setRatings(game.value.id, ratings);
+    } catch {
+      Object.assign(game.value, previous);
+    }
   }
 
   function onDeleteFromModal() {
@@ -1018,59 +591,129 @@ export function useGameDetail() {
 
   // re-fetches automatically if you ever navigate from one game's page
   // straight to another, not just on the first load
-  watch(() => route.params.id as string, loadGame, { immediate: true });
-  watch(
-    () => game.value?.id,
-    () => {
-      if (game.value) {
-        void loadNotes();
-      }
-    },
-  );
-
+  watch(() => route.params.id as string, loadGame);
   const recentActivity = computed(() => game.value?.lastPlayedAt ?? null);
 
   const tally = computed(() => (game.value ? computeScore(game.value) : null));
 
-  const statsPlaytimeMinutes = computed(() =>
-    game.value
-      ? game.value.platforms.reduce((sum, p) => sum + p.playtimeMinutes, 0)
-      : 0,
-  );
-  const statsPlaytimeLabel = computed(() => {
-    const minutes = statsPlaytimeMinutes.value;
-    const hours = Math.floor(minutes / 60);
-    const mins = minutes % 60;
-    if (hours === 0) return `${mins}m`;
-    return `${hours}h ${mins}m`;
-  });
-  const unlockedAchievements = computed(
-    () => game.value?.achievements.filter((a) => a.unlockedAt !== null) ?? [],
-  );
-  const firstUnlockedAt = computed(() => {
-    const dates = unlockedAchievements.value
-      .map((a) => a.unlockedAt)
-      .filter((d): d is string => d !== null);
-    return dates.length
-      ? dates.reduce((earliest, d) => (d < earliest ? d : earliest))
-      : null;
-  });
-  const lastUnlockedAt = computed(() => {
-    const dates = unlockedAchievements.value
-      .map((a) => a.unlockedAt)
-      .filter((d): d is string => d !== null);
-    return dates.length
-      ? dates.reduce((latest, d) => (d > latest ? d : latest))
-      : null;
-  });
-  function formatStatsDate(iso: string | null): string {
-    if (!iso) return "N/A";
-    return formatDisplayDate(iso, {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
+  // the developer and publisher sit by the title, the way Media shows an
+  // alternate name, instead of in the details
+  const heroCredits = computed(() => [
+    ...new Set(
+      [game.value?.developer, game.value?.publisher].filter(
+        (x): x is string => !!x,
+      ),
+    ),
+  ]);
+
+  // A genre, developer, publisher, platform or series is a link to the library
+  // with that filter on: click FromSoftware and see all their games.
+  type LibraryFilter = "tag" | "company" | "platform" | "series";
+  function libraryLink(filter: LibraryFilter, value: string) {
+    return {
+      path: "/games",
+      query: {
+        [filter]:
+          filter === "platform" ? normalizePlatformFamily(value) : value,
+      },
+    };
   }
+
+  // The parts of the score you have rated, named, in the order they're listed
+  // elsewhere. Whole numbers show without a ".0".
+  const ratingParts = computed(() => {
+    const g = game.value;
+    if (!g || pageSettings.value.hide_rating) return [];
+    const shown = (n: number) => String(Number(n.toFixed(1)));
+    return [
+      { name: "Atmosphere", value: g.ratingOverall },
+      { name: "Story", value: g.ratingStory },
+      { name: "Gameplay", value: g.ratingGameplay },
+      { name: "Sound", value: g.ratingSound },
+    ]
+      .filter((r): r is { name: string; value: number } => r.value !== null)
+      .map((r) => ({ name: r.name, value: shown(r.value) }));
+  });
+
+  // Where this game sits among everything you have rated, highest score first,
+  // the same ranking the library shows. Only for a game that has a score.
+  const libraryRank = computed(() => {
+    const g = game.value;
+    if (!g || !tally.value || !libraryGames.value.length) return null;
+    const others = libraryGames.value
+      .filter((x) => x.id !== g.id)
+      .map((x) => computeScore(x)?.sum)
+      .filter((sum): sum is number => typeof sum === "number");
+    return 1 + others.filter((sum) => sum > tally.value!.sum).length;
+  });
+
+  // The few figures worth seeing first, like the row at the top of a Media
+  // title: the first five of these that apply, in this order. Score, rank and
+  // playtime always show, with a dash when empty. Everything else is under "More details".
+  type TabName = (typeof tabs)[number];
+  const overviewFacts = computed(() => {
+    const g = game.value;
+    if (!g) return [];
+    const facts: {
+      label: string;
+      value: string;
+      accent?: boolean;
+      muted?: boolean;
+      tab?: TabName;
+    }[] = [];
+    // your verdict first (score and where it ranks), then how you played it;
+    // the individual ratings get their own row under these
+    if (!pageSettings.value.hide_rating) {
+      facts.push(
+        tally.value
+          ? {
+              label: "Your score",
+              value: tally.value.sum.toFixed(1),
+              accent: true,
+            }
+          : { label: "Your score", value: "–", muted: true },
+      );
+      facts.push(
+        libraryRank.value !== null
+          ? { label: "Rank", value: `#${libraryRank.value}` }
+          : { label: "Rank", value: "–", muted: true },
+      );
+    }
+    const minutes = g.platforms.reduce((sum, p) => sum + p.playtimeMinutes, 0);
+    facts.push(
+      minutes > 0
+        ? { label: "Playtime", value: formatPlaytime(minutes) }
+        : { label: "Playtime", value: "–", muted: true },
+    );
+    if (g.achievementTotal > 0 && achievementsOn.value)
+      facts.push({
+        label: "Achievements",
+        value: `${g.achievementPercent}%`,
+        tab: "Achievements",
+      });
+    // the furthest you are through it on any platform
+    const completions = g.platforms
+      .map((p) => p.completionPercent)
+      .filter((c): c is number => c !== null);
+    if (completions.length)
+      facts.push({
+        label: "Completion",
+        value: `${Math.max(...completions)}%`,
+      });
+    if (g.platforms.length)
+      facts.push({
+        label: g.platforms.length === 1 ? "Platform" : "Platforms",
+        value: g.platforms.map((p) => p.platform).join(", "),
+      });
+    return facts.slice(0, 5);
+  });
+
+  // only the main genres up top; the rest of the tags are under "More details"
+  const MAIN_TAG_COUNT = 6;
+  const mainTags = computed(
+    () => game.value?.tags.slice(0, MAIN_TAG_COUNT) ?? [],
+  );
+  const moreTags = computed(() => game.value?.tags.slice(MAIN_TAG_COUNT) ?? []);
 
   const tabs = [
     "Overview",
@@ -1084,7 +727,6 @@ export function useGameDetail() {
     "Notes",
     "Accounts",
     "Stats",
-    "History",
   ] as const;
   const activeTab = ref<(typeof tabs)[number]>("Overview");
 
@@ -1097,12 +739,90 @@ export function useGameDetail() {
     const parentTitle = parentGameTitle.value ?? "";
     return /minecraft/i.test(title) || /minecraft/i.test(parentTitle);
   });
-  const visibleTabs = computed(() =>
+  // ---- what this page shows: the defaults from Settings, then this game's own
+  // overrides. A tab can be shown, hidden, or shown once it has something in it.
+  const contentCounts = ref<ContentCounts | null>(null);
+  async function refreshCounts() {
+    if (!game.value) return;
+    const id = game.value.id;
+    try {
+      const counts = await fetchContentCounts(id);
+      if (game.value?.id === id) contentCounts.value = counts;
+    } catch {
+      // the tabs just stay as they are until the next try
+    }
+  }
+  const pageSettings = computed(() =>
+    resolvePage(preferences.value.game_page, game.value?.pageSettings),
+  );
+  const baseTabs = computed(() =>
     tabs.filter(
       (tab) =>
         (tab !== "World Map" || isMinecraftGame.value) &&
         (tab !== "Accounts" || game.value?.profilesEnabled),
     ),
+  );
+  const tabPlan = computed(() =>
+    game.value
+      ? planTabs(
+          baseTabs.value,
+          pageSettings.value,
+          contentCounts.value,
+          game.value,
+          activeTab.value,
+        )
+      : { visible: [...baseTabs.value] as string[], more: [] as string[] },
+  );
+  const visibleTabs = computed(
+    () => tabPlan.value.visible as (typeof tabs)[number][],
+  );
+  const moreTabs = computed(
+    () => tabPlan.value.more as (typeof tabs)[number][],
+  );
+  const showMoreTabs = ref(false);
+  function closeMoreTabs() {
+    showMoreTabs.value = false;
+  }
+  onMounted(() => document.addEventListener("click", closeMoreTabs));
+  onUnmounted(() => document.removeEventListener("click", closeMoreTabs));
+  function openMoreTab(tab: (typeof tabs)[number]) {
+    showMoreTabs.value = false;
+    activeTab.value = tab;
+  }
+  // With no Achievements tab there is nothing to tie things to or count, so
+  // everything that depends on achievements steps aside too.
+  const achievementsOn = computed(() => {
+    const mode = pageSettings.value.tabs.Achievements;
+    if (mode === "hide") return false;
+    if (mode === "show") return true;
+    return !!game.value && game.value.achievementTotal > 0;
+  });
+  const tieAchievements = computed(() =>
+    achievementsOn.value ? (game.value?.achievements ?? []) : [],
+  );
+
+  // Opens on the tab the page settings name (or the one a link asked for), once
+  // for each game, when both the game and the settings have arrived.
+  let openedFor: string | null = null;
+  watch(
+    () => [game.value?.id, preferencesLoaded.value] as const,
+    ([id, ready]) => {
+      if (!id || !ready || openedFor === id) return;
+      openedFor = id;
+      void refreshCounts();
+      const asked = route.query.tab as string | undefined;
+      const wanted = asked ?? pageSettings.value.default_tab;
+      const hidden =
+        (OPTIONAL_TABS as readonly string[]).includes(wanted) &&
+        pageSettings.value.tabs[wanted as OptionalTab] === "hide";
+      if (
+        (tabs as readonly string[]).includes(wanted) &&
+        !(hidden && !asked) &&
+        baseTabs.value.includes(wanted as (typeof tabs)[number])
+      )
+        activeTab.value = wanted as (typeof tabs)[number];
+    },
+    { immediate: true },
   );
 
   // Screenshots/Clips/Soundtrack/Saves/Docs/World Map all share the same
@@ -1181,10 +901,37 @@ export function useGameDetail() {
     }
   }
 
+  // media tied to an achievement shows on that achievement's row, so the
+  // Achievements tab needs the media list too
+  const mediaByAchievement = computed(() => {
+    const map = new Map<string, MediaItem[]>();
+    for (const m of mediaItems.value) {
+      if (!m.linked_achievement_id) continue;
+      const list = map.get(m.linked_achievement_id) ?? [];
+      list.push(m);
+      map.set(m.linked_achievement_id, list);
+    }
+    return map;
+  });
+  const achMediaOpen = ref<string | null>(null);
+  function toggleAchMedia(a: Achievement) {
+    achMediaOpen.value = achMediaOpen.value === a.id ? null : a.id;
+  }
+
   watch(activeTab, (tab) => {
+    if (
+      tab === "Achievements" &&
+      game.value &&
+      mediaLoadedFor.value !== game.value.id
+    ) {
+      void loadMedia();
+    }
     if (tab === "Screenshots" || tab === "Clips" || tab === "Soundtrack") {
       void loadProfiles();
-      void loadMedia();
+      // Screenshots, Clips and Soundtrack are one list, so it is loaded once for
+      // the game and switching between them does not reload (and flash) it
+      if (!game.value || mediaLoadedFor.value !== game.value.id)
+        void loadMedia();
       void refreshMediaTrash();
     }
     if (tab === "Accounts") {
@@ -1209,6 +956,7 @@ export function useGameDetail() {
   async function onMediaFilesSelected(files: File[]) {
     if (!files.length || !game.value) return;
     const gameId = game.value.id;
+    mediaError.value = null;
     uploadingMedia.value = true;
     const taskId = startTask(
       `Uploading ${files.length} file${files.length === 1 ? "" : "s"}`,
@@ -1247,6 +995,9 @@ export function useGameDetail() {
           completeTask(taskId, summary);
         }
         await reloadMediaForCurrentTab();
+        // clips get their preview picture now, from the file in hand, so it is
+        // saved before anyone has to load the video to see it
+        void makeClipThumbnails(files, results);
       } catch (err) {
         // a network blip shouldn't force re-picking files from scratch
         errorTask(taskId, err instanceof Error ? err.message : "Upload failed");
@@ -1256,6 +1007,42 @@ export function useGameDetail() {
       }
     };
     await attempt();
+  }
+
+  function openAchievement(achievementId: string) {
+    if (game.value)
+      router.push(`/games/${game.value.id}/achievements/${achievementId}`);
+  }
+
+  const thumbnailing = new Set<string>();
+  function applyClip(updated: MediaItem) {
+    const i = mediaItems.value.findIndex((m) => m.id === updated.id);
+    if (i !== -1) mediaItems.value[i] = updated;
+  }
+  async function keepThumbnail(item: MediaItem, blob: Blob, duration: number) {
+    if (!game.value || thumbnailing.has(item.id)) return;
+    thumbnailing.add(item.id);
+    try {
+      applyClip(
+        await saveClipThumbnail(game.value.id, item.id, blob, duration),
+      );
+    } catch {
+      // the picture is a nicety; the clip still plays and will be tried again
+      thumbnailing.delete(item.id);
+    }
+  }
+  async function makeClipThumbnails(
+    files: File[],
+    results: { filename: string; status: string; kind?: string }[],
+  ) {
+    for (let i = 0; i < results.length; i++) {
+      const r = results[i];
+      if (r.status !== "saved" || r.kind !== "clip") continue;
+      const item = mediaItems.value.find((m) => m.filename === r.filename);
+      if (!item || item.thumbnail_url) continue;
+      const frame = await frameFromSource(files[i]);
+      if (frame) await keepThumbnail(item, frame.blob, frame.duration);
+    }
   }
 
   async function removeMedia(item: MediaItem) {
@@ -1312,34 +1099,98 @@ export function useGameDetail() {
     }
   }
 
-  async function saveMediaItem(
-    item: MediaItem,
-    tags: string[],
-    note: string | null,
-    linkedAchievementId: string | null,
-    profileId: string | null,
-  ) {
+  async function saveMediaItem(item: MediaItem, patch: MediaItemUpdate) {
     if (!game.value) return;
     try {
-      const updated = await updateMediaItem(game.value.id, item.id, {
-        tags,
-        note,
-        linked_achievement_id: linkedAchievementId,
-        profile_id: profileId,
-      });
+      const updated = await updateMediaItem(game.value.id, item.id, patch);
       const index = mediaItems.value.findIndex((m) => m.id === item.id);
       if (index !== -1) mediaItems.value[index] = updated;
       // the item may have just moved out of the Accounts tab's currently
       // selected scope (or into it), refetch so the gallery reflects that
       if (
         activeTab.value === "Accounts" &&
-        (activeProfileId.value !== null || profileId !== null)
+        "profile_id" in patch &&
+        (activeProfileId.value !== null || patch.profile_id !== null)
       ) {
         await reloadMediaForCurrentTab();
       }
     } catch (err) {
       mediaError.value = err instanceof Error ? err.message : "Failed to save";
     }
+  }
+
+  async function bulkSaveMedia(
+    updates: { id: string; patch: MediaItemUpdate }[],
+  ) {
+    if (!game.value) return;
+    const gameId = game.value.id;
+    try {
+      const updated = await Promise.all(
+        updates.map((u) => updateMediaItem(gameId, u.id, u.patch)),
+      );
+      for (const u of updated) {
+        const index = mediaItems.value.findIndex((m) => m.id === u.id);
+        if (index !== -1) mediaItems.value[index] = u;
+      }
+    } catch (err) {
+      mediaError.value = err instanceof Error ? err.message : "Failed to save";
+    }
+  }
+
+  async function bulkDeleteMedia(items: MediaItem[]) {
+    for (const item of items) await removeMedia(item);
+  }
+
+  // Finds the real date for the given files. The file's own data and name come
+  // first; a file that has neither takes the unlock time of the achievement it is
+  // tied to, as long as its current date is only a guess. Resolves with where
+  // the date came from, per file.
+  async function detectDates(
+    ids: string[],
+  ): Promise<Map<string, "file" | "achievement" | "none">> {
+    const outcome = new Map<string, "file" | "achievement" | "none">();
+    for (const id of ids) outcome.set(id, "none");
+    if (!game.value) return outcome;
+    try {
+      const found = await detectMediaDates(game.value.id, ids);
+      for (const u of found) {
+        const index = mediaItems.value.findIndex((m) => m.id === u.id);
+        if (index !== -1) mediaItems.value[index] = u;
+        outcome.set(u.id, "file");
+      }
+      for (const id of ids) {
+        if (outcome.get(id) === "file") continue;
+        const item = mediaItems.value.find((m) => m.id === id);
+        if (!item?.linked_achievement_id || !isGuess(item)) continue;
+        const when = unlockSeconds(
+          game.value.achievements.find(
+            (a) => a.id === item.linked_achievement_id,
+          ),
+        );
+        if (when === null) continue;
+        await saveMediaItem(item, {
+          taken_at: when,
+          taken_source: "achievement",
+        });
+        outcome.set(id, "achievement");
+      }
+    } catch (err) {
+      mediaError.value =
+        err instanceof Error ? err.message : "Failed to detect dates";
+    }
+    return outcome;
+  }
+  async function detectOne(item: FileDetails) {
+    return (await detectDates([item.id])).get(item.id) ?? "none";
+  }
+  async function detectMany(ids: string[]) {
+    const outcome = await detectDates(ids);
+    const values = [...outcome.values()];
+    const file = values.filter((v) => v === "file").length;
+    const achievement = values.filter((v) => v === "achievement").length;
+    const none = values.length - file - achievement;
+    if (!none) return;
+    mediaError.value = `${none} file${none === 1 ? " has" : "s have"} no date in ${none === 1 ? "it" : "them"} and no unlocked achievement to take one from. Set those by hand.`;
   }
 
   // --- Docs / Modpack ---------------------------------------------------------
@@ -1377,6 +1228,7 @@ export function useGameDetail() {
   }
 
   watch(activeTab, (tab) => {
+    void refreshCounts();
     if (tab === "Docs") {
       void loadGameFiles("doc");
       void refreshFileTrash("doc");
@@ -1391,8 +1243,10 @@ export function useGameDetail() {
       void refreshWorldMaps();
       void refreshWorldTrash();
     }
-    if (tab === "History") {
+    if (tab === "Stats") {
       void loadFieldChanges();
+      if (game.value && mediaLoadedFor.value !== game.value.id)
+        void loadMedia();
     }
   });
 
@@ -1412,27 +1266,6 @@ export function useGameDetail() {
       fieldChangesLoading.value = false;
     }
   }
-  const FIELD_CHANGE_LABELS: Record<string, string> = {
-    developer: "Developer",
-    publisher: "Publisher",
-    series: "Series",
-    tags: "Tags",
-    features: "Features",
-    description: "Description",
-    age_rating: "Age rating",
-    release_date: "Release date",
-    time_to_beat_hours: "Time to beat",
-  };
-  function formatFieldChangeDate(iso: string): string {
-    return new Date(iso).toLocaleString(undefined, {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-    });
-  }
-
   async function onGameFilesSelected(files: File[], kind: FlatFileKind) {
     if (!files.length || !game.value) return;
     const gameId = game.value.id;
@@ -1483,12 +1316,52 @@ export function useGameDetail() {
     await attempt();
   }
 
-  async function removeGameFile(kind: FlatFileKind, file: GameFile) {
+  async function saveGameFile(
+    kind: FlatFileKind,
+    file: FileDetails,
+    patch: MediaItemUpdate,
+  ) {
+    if (!game.value) return;
+    try {
+      // only the fields that changed: a missing key means "leave it alone"
+      const changes: GameFileUpdate = {};
+      if ("title" in patch) changes.title = patch.title;
+      if ("note" in patch) changes.note = patch.note;
+      if ("tags" in patch) changes.tags = patch.tags;
+      if ("taken_at" in patch) {
+        changes.taken_at = patch.taken_at;
+        changes.taken_source = patch.taken_source;
+      }
+      const updated = await updateGameFile(
+        game.value.id,
+        kind,
+        file.id,
+        changes,
+      );
+      const list = filesRefFor(kind);
+      const index = list.value.findIndex((f) => f.id === updated.id);
+      if (index !== -1) list.value[index] = updated;
+    } catch (err) {
+      filesError.value = err instanceof Error ? err.message : "Failed to save";
+    }
+  }
+
+  async function bulkSaveFiles(
+    kind: FlatFileKind,
+    updates: { id: string; patch: MediaItemUpdate }[],
+  ) {
+    for (const u of updates) {
+      const file = filesRefFor(kind).value.find((f) => f.id === u.id);
+      if (file) await saveGameFile(kind, file, u.patch);
+    }
+  }
+
+  async function removeGameFile(kind: FlatFileKind, file: FileDetails) {
     if (!game.value) return;
     try {
       await deleteGameFile(game.value.id, kind, file.filename);
       filesRefFor(kind).value = filesRefFor(kind).value.filter(
-        (f) => f !== file,
+        (f) => f.filename !== file.filename,
       );
       await refreshFileTrash(kind);
     } catch (err) {
@@ -1554,7 +1427,6 @@ export function useGameDetail() {
   // --- Saves (named, versioned archives) --------------------------------------
   const saveArchives = ref<GameArchiveData[]>([]);
   const saveArchivesLoaded = ref(false);
-  const expandedSaveId = ref<string | null>(null);
   const saveUploading = ref<Set<string>>(new Set()); // archive id, or '' for "new save"
 
   async function refreshSaveArchives() {
@@ -1633,22 +1505,61 @@ export function useGameDetail() {
     await attempt();
   }
 
-  async function onRenameArchive(archive: GameArchiveData, isWorld: boolean) {
+  // The save or world being edited. Held by id, so the dialog reads the current
+  // copy from the list and shows a version as soon as it is added or removed.
+  const editingArchive = ref<{ id: string; isWorld: boolean } | null>(null);
+  const editingArchiveLive = computed(() => {
+    const e = editingArchive.value;
+    if (!e) return null;
+    const list: GameArchiveData[] = e.isWorld
+      ? worldMaps.value
+      : saveArchives.value;
+    return list.find((a) => a.id === e.id) ?? null;
+  });
+  function openArchiveEdit(archive: GameArchiveData, isWorld: boolean) {
+    editingArchive.value = { id: archive.id, isWorld };
+  }
+
+  async function saveArchiveDetails(
+    archive: GameArchiveData,
+    isWorld: boolean,
+    patch: { name?: string; note?: string | null; tags?: string[] },
+  ) {
     if (!game.value) return;
-    const name = await prompt({
-      title: "Rename",
-      message: "Name",
-      defaultValue: archive.name,
-      confirmLabel: "Rename",
-    });
-    if (!name || !name.trim() || name.trim() === archive.name) return;
     try {
-      await renameArchive(game.value.id, archive.id, name.trim());
+      await updateArchive(game.value.id, archive.id, patch);
       if (isWorld) await refreshWorldMaps();
       else await refreshSaveArchives();
     } catch (err) {
+      filesError.value = err instanceof Error ? err.message : "Failed to save";
+    }
+  }
+
+  async function bulkDeleteArchives(
+    items: GameArchiveData[],
+    isWorld: boolean,
+  ) {
+    if (!game.value || !items.length) return;
+    const ok = await confirm({
+      title: "Move to trash",
+      message: `Move ${items.length} ${isWorld ? "world" : "save"}${items.length === 1 ? "" : "s"} to trash? ${items.length === 1 ? "It stays" : "They stay"} recoverable for 7 days, then ${items.length === 1 ? "is" : "are"} purged for good.`,
+      confirmLabel: "Move to trash",
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      for (const archive of items)
+        await deleteArchive(game.value.id, archive.id);
+      if (isWorld) {
+        await refreshWorldMaps();
+        await refreshWorldTrash();
+      } else {
+        await refreshSaveArchives();
+        await refreshSaveTrash();
+      }
+    } catch (err) {
       filesError.value =
-        err instanceof Error ? err.message : "Failed to rename";
+        err instanceof Error ? err.message : "Failed to delete";
     }
   }
 
@@ -1703,10 +1614,6 @@ export function useGameDetail() {
     } catch {
       // same as above
     }
-  }
-
-  function daysUntil(unixSeconds: number): number {
-    return Math.max(0, Math.ceil((unixSeconds - Date.now() / 1000) / 86400));
   }
 
   async function onRestoreArchive(archive: TrashedArchive, isWorld: boolean) {
@@ -1767,30 +1674,41 @@ export function useGameDetail() {
     viewWorldMap,
   } = useGameWorldMaps(game, saveUploading, filesError, prompt);
 
-  const isPlatinumEarned = computed(
-    () =>
-      !!game.value &&
-      game.value.achievements.length > 0 &&
-      game.value.achievements.every((a) => a.unlockedAt !== null),
-  );
-
-  const trophyCounts = computed(() => {
-    const counts = { bronze: 0, silver: 0, gold: 0 };
-    if (!game.value) return counts;
-    for (const a of game.value.achievements) {
-      if (a.unlockedAt !== null) counts[deriveTier(a)]++;
-    }
-    return counts;
-  });
+  const {
+    descriptionOf,
+    achFilter,
+    achProvider,
+    achSearch,
+    achLocal,
+    noteOpen,
+    noteDraft,
+    overallOpen,
+    overallDraft,
+    isPinned,
+    togglePin,
+    isHiddenLocked,
+    revealAchievement,
+    hideAchievement,
+    toggleNote,
+    saveNote,
+    clearNote,
+    toggleOverall,
+    saveOverall,
+    unlockedCount,
+    achFilterOptions,
+    sortBy,
+    sortMark,
+    ariaSort,
+    mobileSort,
+    achProviders,
+    shownAchievements,
+    achStats,
+    formatPlaytime,
+  } = useGameAchievements(game, () => loadGame(route.params.id as string));
 
   return {
-    documentReaderUrl,
-    formatDisplayDate,
-    activePriority,
-    priorityLabel,
-    worldMapViewUrl,
-    worldMapThumbnailUrl,
     confirm,
+    route,
     router,
     goBackToLibrary,
     game,
@@ -1800,24 +1718,9 @@ export function useGameDetail() {
     deleting,
     deleteError,
     showDeleteConfirm,
-    noteNames,
-    noteMode,
-    viewingNoteName,
-    editingNoteName,
-    draftName,
-    draftContent,
-    noteLoading,
-    noteSaving,
-    noteError,
-    hasDraft,
-    renderedNoteHtml,
-    startNewNote,
-    viewNote,
-    editFromView,
-    backToList,
-    saveDraft,
-    deleteNote,
     descriptionHtml,
+    descriptionExpanded,
+    descriptionOverflows,
     parentGameTitle,
     RELATIONSHIP_LABELS,
     variants,
@@ -1891,67 +1794,80 @@ export function useGameDetail() {
     logPlaytime,
     similarGames,
     toggleFavorite,
-    showCollectionPicker,
-    onCollectionAdded,
+    STATUS_OPTIONS,
+    changeStatus,
+    onCollectionsChanged,
+    onRatingsChange,
     onDeleteFromModal,
     confirmDelete,
     recentActivity,
-    tally,
-    statsPlaytimeLabel,
-    unlockedAchievements,
-    firstUnlockedAt,
-    lastUnlockedAt,
-    formatStatsDate,
-    tabs,
+    heroCredits,
+    libraryLink,
+    ratingParts,
+    overviewFacts,
+    mainTags,
+    moreTags,
     activeTab,
+    pageSettings,
     visibleTabs,
-    panelMode,
+    moreTabs,
+    showMoreTabs,
+    openMoreTab,
+    achievementsOn,
+    tieAchievements,
     onDropError,
     onPreviewMedia,
+    mediaItems,
     mediaLoading,
     mediaError,
+    mediaLoadedFor,
     screenshots,
     clips,
     soundtrackItems,
     lightboxUrl,
+    mediaByAchievement,
+    achMediaOpen,
+    toggleAchMedia,
     uploadingMedia,
     onMediaFilesSelected,
+    openAchievement,
+    keepThumbnail,
     removeMedia,
-    showMediaTrash,
     activeTabTrash,
     restoreMediaItem,
     saveMediaItem,
+    bulkSaveMedia,
+    bulkDeleteMedia,
+    detectOne,
+    detectMany,
     docsFiles,
     modpackFiles,
+    filesLoaded,
     filesError,
     uploadingFiles,
     fieldChanges,
     fieldChangesLoading,
     fieldChangesError,
-    FIELD_CHANGE_LABELS,
-    formatFieldChangeDate,
     onGameFilesSelected,
+    saveGameFile,
+    bulkSaveFiles,
     removeGameFile,
     docsTrash,
     modpackTrash,
-    showDocsTrash,
-    showModpackTrash,
     restoreFileItem,
-    formatFileSize,
-    formatArchiveDate,
     saveArchives,
     saveArchivesLoaded,
-    expandedSaveId,
     saveUploading,
     onNewSaveSelected,
     onAddSaveVersion,
-    onRenameArchive,
+    editingArchive,
+    editingArchiveLive,
+    openArchiveEdit,
+    saveArchiveDetails,
+    bulkDeleteArchives,
     onDeleteArchive,
     saveTrash,
     worldTrash,
-    showSaveTrash,
-    showWorldTrash,
-    daysUntil,
     onRestoreArchive,
     onDeleteVersion,
     worldMaps,
@@ -1962,12 +1878,34 @@ export function useGameDetail() {
     onAddWorldVersion,
     startWorldMapRender,
     viewWorldMap,
-    displayFileName,
-    sortedAchievements,
-    deriveTier,
-    isPlatinumEarned,
-    trophyCounts,
-    formatUnlockedAt,
+    descriptionOf,
+    achFilter,
+    achProvider,
+    achSearch,
+    achLocal,
+    noteOpen,
+    noteDraft,
+    overallOpen,
+    overallDraft,
+    isPinned,
+    togglePin,
+    isHiddenLocked,
+    revealAchievement,
+    hideAchievement,
+    toggleNote,
+    saveNote,
+    clearNote,
+    toggleOverall,
+    saveOverall,
+    unlockedCount,
+    achFilterOptions,
+    sortBy,
+    sortMark,
+    ariaSort,
+    mobileSort,
+    achProviders,
+    shownAchievements,
+    achStats,
     formatPlaytime,
   };
 }

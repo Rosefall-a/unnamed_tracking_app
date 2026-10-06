@@ -15,6 +15,7 @@ import SettingsNav from "../components/settings/SettingsNav.vue";
 import type { SettingsGroup } from "../components/settings/SettingsNav.vue";
 import SaveStatus from "../components/settings/SaveStatus.vue";
 import ProfileSection from "../components/settings/ProfileSection.vue";
+import GamePageSection from "../components/settings/GamePageSection.vue";
 import AppearanceSection from "../components/settings/AppearanceSection.vue";
 import BrandingSection from "../components/settings/BrandingSection.vue";
 import LibrarySettings from "../components/settings/LibrarySettings.vue";
@@ -72,6 +73,7 @@ const coreSectionIds = new Set([
   "profile",
   "interface",
   "appearance",
+  "game-page",
   "app-installation",
   "branding",
   "api-keys",
@@ -167,6 +169,7 @@ const groups = computed<SettingsGroup[]>(() => {
       sections: [
         { id: "appearance", label: "Appearance & interface" },
         { id: "app-installation", label: "App installation" },
+        { id: "game-page", label: "Game page" },
         { id: "notifications", label: "Notifications" },
         { id: "calendar", label: "Calendar" },
         { id: "shortcuts", label: "Keyboard Shortcuts" },
@@ -468,6 +471,7 @@ function backToArea() {
           :aria-label="sectionTitle"
         >
           <ProfileSection v-if="activeSection === 'profile'" />
+          <GamePageSection v-else-if="activeSection === 'game-page'" />
           <AppearanceSection v-else-if="activeSection === 'appearance'" />
           <PwaSettingsSection
             v-else-if="activeSection === 'app-installation'"

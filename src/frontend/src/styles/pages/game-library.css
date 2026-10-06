@@ -381,7 +381,7 @@
   background: var(--accent-soft);
   border: 1px solid var(--accent-line);
   color: var(--accent);
-  border-radius: 7px;
+  border-radius: var(--ui-radius-control);
   padding: 5px 10px;
   font-family: inherit;
   font-size: 0.75rem;
@@ -591,8 +591,8 @@
 .select-checkbox {
   width: 26px;
   height: 26px;
-  border-radius: 7px;
-  background: rgba(10, 10, 10, 0.8);
+  border-radius: var(--ui-radius-control);
+  background: color-mix(in srgb, var(--ui-bg) 80%, transparent);
   border: 1.5px solid color-mix(in srgb, var(--ui-text) 45%, transparent);
   display: flex;
   align-items: center;
@@ -672,7 +672,7 @@
   align-items: center;
   gap: 10px;
   padding-top: 6px;
-  border-top: 1px solid #232323;
+  border-top: 1px solid var(--ui-surface-2);
   margin-top: 4px;
 }
 .toggle-chip {
@@ -753,6 +753,8 @@
 }
 .list-header,
 .list-row {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 76px;
   display: grid;
   grid-template-columns:
     76px minmax(200px, 1fr)
@@ -841,7 +843,7 @@
   color: var(--text-faint);
   width: 28px;
   height: 28px;
-  border-radius: 7px;
+  border-radius: var(--ui-radius-control);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -968,7 +970,7 @@
   background: var(--surface-2);
   color: var(--text-faint);
   border: 1px solid var(--border);
-  border-radius: 7px;
+  border-radius: var(--ui-radius-control);
   width: 30px;
   height: 30px;
   flex-shrink: 0;

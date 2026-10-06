@@ -12,7 +12,9 @@ Endpoints used here:
 - Search:       https://store.steampowered.com/api/storesearch
 """
 
+import html
 import re
+import threading
 import time
 
 import requests
@@ -143,6 +145,107 @@ def get_schema_for_game(api_key: str, app_id: int) -> dict[str, dict]:
     return {entry["name"]: entry for entry in achievements if entry.get("name")}
 
 
+def _xml_text(tag: str, block: str) -> str | None:
+    match = re.search(rf"<{tag}>(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?</{tag}>", block, re.S)
+    return html.unescape(match.group(1)).strip() if match else None
+
+
+# Steam rate-limits its community pages, and a refresh asks for one per game
+# with several in flight at once, so requests to it are spaced out through one
+# lock and retried when Steam says to slow down. Without this most of a big
+# library's requests were refused, and a refusal looks like "no descriptions".
+_COMMUNITY_LOCK = threading.Lock()
+_COMMUNITY_MIN_GAP = 0.6  # seconds between requests
+_COMMUNITY_RETRIES = 4
+_community_last_request = 0.0
+
+
+def _community_get(url: str, params: dict[str, str]) -> requests.Response:
+    global _community_last_request  # pylint: disable=global-statement
+    resp = None
+    for attempt in range(_COMMUNITY_RETRIES):
+        with _COMMUNITY_LOCK:
+            wait = _COMMUNITY_MIN_GAP - (time.monotonic() - _community_last_request)
+            if wait > 0:
+                time.sleep(wait)
+            _community_last_request = time.monotonic()
+            resp = SESSION.get(url, params=params, timeout=20)
+        if resp.status_code not in (429, 503) or attempt == _COMMUNITY_RETRIES - 1:
+            break
+        try:
+            delay = float(resp.headers.get("Retry-After", ""))
+        except ValueError:
+            delay = 2.0 ** (attempt + 1)
+        time.sleep(min(delay, 30.0))
+    assert resp is not None
+    return resp
+
+
+def get_community_descriptions(steam_id: str, app_id: int) -> dict[str, str]:
+    """Each achievement's description, keyed by its internal `apiname` in
+    lowercase (the feed and the schema don't agree on case: `ach00` against
+    `ACH00`, so look it up with `.lower()`), from
+    Steam's public community stats feed for this player. The Web API leaves out
+    the description of a hidden achievement, but this feed (what Steam's own
+    profile page shows) has it. It needs the player's game details to be
+    public; when they aren't, or on any failure, the result is just empty: the
+    descriptions are an extra, not worth failing a refresh over."""
+    try:
+        resp = _community_get(
+            f"https://steamcommunity.com/profiles/{steam_id}/stats/{app_id}/",
+            {"xml": "1", "l": "english"},
+        )
+        if resp.status_code >= 400 or len(resp.content) > 2_000_000:
+            return {}
+        body = resp.text
+    except requests.RequestException:
+        return {}
+    descriptions: dict[str, str] = {}
+    for block in re.findall(r'<achievement closed="\d">(.*?)</achievement>', body, re.S):
+        api_name = _xml_text("apiname", block)
+        description = _xml_text("description", block)
+        if api_name and description:
+            descriptions[api_name.lower()] = description
+    if not descriptions and "<achievement" not in body:
+        # Some games get the profile web page here instead of the XML. It has
+        # no internal names, so each description is keyed by the display name
+        # ("name:" + lowercase). It lists every achievement you have unlocked,
+        # hidden ones included, but only a "+N hidden" count for the locked
+        # ones: Steam does not reveal those anywhere until you unlock them.
+        for title, description in re.findall(
+            r"<h3[^>]*>(.*?)</h3>\s*<h5[^>]*>(.*?)</h5>", body, re.S
+        ):
+            title, description = html.unescape(title).strip(), html.unescape(description).strip()
+            if title and description:
+                descriptions[f"name:{title.lower()}"] = description
+    return descriptions
+
+
+def get_global_percentages(app_id: int) -> dict[str, float]:
+    """The share of all players who have each achievement, keyed by its
+    internal `apiname`. A public call (no key needed); an app without
+    achievements, or any failure, is just an empty result: the percentages are
+    an extra, not worth failing a refresh over."""
+    try:
+        resp = SESSION.get(
+            f"{_WEB_API_BASE}/ISteamUserStats/GetGlobalAchievementPercentagesForApp/v2/",
+            params={"gameid": str(app_id)},
+            timeout=20,
+        )
+        if resp.status_code >= 400:
+            return {}
+        entries = resp.json().get("achievementpercentages", {}).get("achievements", [])
+    except (requests.RequestException, ValueError):
+        return {}
+    percentages: dict[str, float] = {}
+    for entry in entries:
+        try:
+            percentages[entry["name"]] = round(float(entry["percent"]), 2)
+        except (KeyError, TypeError, ValueError):
+            continue
+    return percentages
+
+
 def get_player_achievements(steam_id: str, api_key: str, app_id: int) -> list[dict]:
     """Which achievements this player has unlocked for one app. Many games
     have no achievement schema at all — that's a normal empty result, not
@@ -150,7 +253,10 @@ def get_player_achievements(steam_id: str, api_key: str, app_id: int) -> list[di
     try:
         resp = SESSION.get(
             f"{_WEB_API_BASE}/ISteamUserStats/GetPlayerAchievements/v1/",
-            params={"key": api_key, "steamid": steam_id, "appid": str(app_id)},
+            # `l` makes Steam include each achievement's name and description,
+            # which for a hidden one you've unlocked is the only place the
+            # description shows up: the schema leaves it out
+            params={"key": api_key, "steamid": steam_id, "appid": str(app_id), "l": "english"},
             timeout=20,
         )
     except requests.RequestException as exc:

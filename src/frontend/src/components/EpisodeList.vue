@@ -476,7 +476,7 @@ function goToPage(p: number) {
   background: var(--ui-surface);
   border: 1px solid var(--ui-border);
   color: var(--ui-text);
-  border-radius: 7px;
+  border-radius: var(--ui-radius-control);
   padding: 6px 14px;
   font-family: inherit;
   font-size: 0.8rem;
@@ -500,7 +500,7 @@ function goToPage(p: number) {
   background: var(--ui-surface);
   border: 1px solid var(--ui-border);
   color: var(--ui-text);
-  border-radius: 7px;
+  border-radius: var(--ui-radius-control);
   padding: 6px 10px;
   font-family: inherit;
   font-size: 0.8rem;
@@ -533,7 +533,7 @@ function goToPage(p: number) {
   background: none;
   border: 1px solid var(--ui-border);
   color: var(--ui-faint);
-  border-radius: 7px;
+  border-radius: var(--ui-radius-control);
   padding: 5px 10px;
   font-family: inherit;
   font-size: 0.72rem;
@@ -766,8 +766,9 @@ function goToPage(p: number) {
 .episode-thumb {
   width: 140px;
   aspect-ratio: 16 / 9;
-  border-radius: 7px;
+  border-radius: var(--ui-radius-control);
   background-size: cover;
+  background-repeat: no-repeat;
   background-position: center;
   background-color: var(--ui-surface-2);
   flex-shrink: 0;

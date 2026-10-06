@@ -10,6 +10,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.page_settings import DEFAULT_PAGE_SETTINGS, validate_page_settings
 from src.database.models.user_preferences import UserPreferences
 from src.helpers.shortcut_keys import validate_shortcut_overrides
 
@@ -51,6 +52,11 @@ DEFAULTS: dict[str, Any] = {
     "anilist_import_interval_minutes": 24 * 60,
     "anilist_import_update_existing": False,
     "anilist_import_last_run_at": None,
+    # genres from the tags Steam players vote on (Souls-like, Open World ...)
+    # instead of only Steam's broad official genres
+    "steam_user_tags": True,
+    # what every game page shows (tabs, buttons); a game can override it
+    "game_page": DEFAULT_PAGE_SETTINGS,
 }
 
 _CHOICES: dict[str, tuple[Any, ...]] = {
@@ -120,6 +126,8 @@ def validate_preference(key: str, value: Any) -> Any:
         return _validate_custom_palette(value)
     if key == "keyboard_shortcut_overrides":
         return validate_shortcut_overrides(value)
+    if key == "game_page":
+        return validate_page_settings(value, partial=False)
     if key in _SET_CHOICES:
         allowed = _SET_CHOICES[key]
         if not isinstance(value, list) or any(v not in allowed for v in value):

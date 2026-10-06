@@ -1,0 +1,63 @@
+.poster-preview {
+  width: 100%;
+  max-height: 220px;
+  object-fit: cover;
+  border-radius: var(--ui-radius-control);
+  border: 1px solid var(--ui-border);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  flex: 1;
+  min-width: 0;
+}
+
+.field span {
+  font-size: 0.78rem;
+  color: var(--ui-dim);
+}
+
+.field-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.field-row > .field {
+  flex: 1 1 120px;
+}
+
+.checkbox-field {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.checkbox-field span {
+  font-size: 0.85rem;
+  color: var(--ui-text);
+}
+
+.text-input {
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
+  color: var(--ui-text);
+  padding: 8px 10px;
+  font-size: 0.85rem;
+  font-family: inherit;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.text-input:focus {
+  outline: 2px solid var(--ui-accent-text);
+  outline-offset: 1px;
+}
+
+.textarea-input {
+  resize: vertical;
+  min-height: 60px;
+}

@@ -1,14 +1,33 @@
 <script setup lang="ts">
 import PluginExtensionSlot from "../components/plugins/PluginExtensionSlot.vue";
 import PluginContextualActions from "../components/plugins/PluginContextualActions.vue";
-import UploadDropzone from "../components/UploadDropzone.vue";
-import ViewUploadSidebar from "../components/ViewUploadSidebar.vue";
+import { formatDisplayDate } from "../utils/dates";
+import { activePriority, priorityLabel } from "../utils/priority";
+import { HERO_WIDTH, POSTER_WIDTH, sizedAssetUrl } from "../utils/gameImages";
+import type { TrashedGameFile } from "../services/media";
 import SkeletonBlock from "../components/SkeletonBlock.vue";
-import MediaTile from "../components/MediaTile.vue";
+import GameMediaPanel from "../components/GameMediaPanel.vue";
+import { normalizePlatformFamily } from "../utils/platforms";
+import GameArchivesPanel from "../components/GameArchivesPanel.vue";
+import ArchiveCard from "../components/ArchiveCard.vue";
+import ArchiveEditDialog from "../components/ArchiveEditDialog.vue";
+import GameNotesPanel from "../components/GameNotesPanel.vue";
+import GameStatsPanel from "../components/GameStatsPanel.vue";
+import type { GameStatus } from "../types/game";
 import GameFormModal from "../components/GameFormModal.vue";
-import CollectionPickerModal from "../components/CollectionPickerModal.vue";
+import GameRatingPicker from "../components/GameRatingPicker.vue";
+import GameCollectionsButton from "../components/GameCollectionsButton.vue";
 import BackButton from "../components/BackButton.vue";
-import AccountChip from "../components/AccountChip.vue";
+import GameTopBar from "../components/GameTopBar.vue";
+import HeartIcon from "../components/HeartIcon.vue";
+import SegmentedTabs from "../components/SegmentedTabs.vue";
+import {
+  isUnlocked,
+  formatPercent,
+  unlockedOn,
+  KIND_LABEL,
+} from "../utils/achievements";
+import type { AchFilter } from "../composables/useGameAchievements";
 import GameAccountsPanel from "../components/game/GameAccountsPanel.vue";
 import GameWorldMapPanel from "../components/game/GameWorldMapPanel.vue";
 import { provide } from "vue";
@@ -17,10 +36,7 @@ import { gameDetailKey } from "../composables/gameDetailContext";
 const model = useGameDetail();
 provide(gameDetailKey, model);
 const {
-  documentReaderUrl,
-  formatDisplayDate,
-  activePriority,
-  priorityLabel,
+  route,
   goBackToLibrary,
   game,
   loading,
@@ -29,24 +45,9 @@ const {
   deleting,
   deleteError,
   showDeleteConfirm,
-  noteNames,
-  noteMode,
-  viewingNoteName,
-  editingNoteName,
-  draftName,
-  draftContent,
-  noteLoading,
-  noteSaving,
-  noteError,
-  hasDraft,
-  renderedNoteHtml,
-  startNewNote,
-  viewNote,
-  editFromView,
-  backToList,
-  saveDraft,
-  deleteNote,
   descriptionHtml,
+  descriptionExpanded,
+  descriptionOverflows,
   parentGameTitle,
   RELATIONSHIP_LABELS,
   variants,
@@ -62,112 +63,176 @@ const {
   logPlaytime,
   similarGames,
   toggleFavorite,
-  showCollectionPicker,
-  onCollectionAdded,
+  STATUS_OPTIONS,
+  changeStatus,
+  onCollectionsChanged,
+  onRatingsChange,
   onDeleteFromModal,
   confirmDelete,
   recentActivity,
-  tally,
-  statsPlaytimeLabel,
-  unlockedAchievements,
-  firstUnlockedAt,
-  lastUnlockedAt,
-  formatStatsDate,
+  heroCredits,
+  libraryLink,
+  ratingParts,
+  overviewFacts,
+  mainTags,
+  moreTags,
   activeTab,
+  pageSettings,
   visibleTabs,
-  panelMode,
-  onDropError,
-  onPreviewMedia,
-  mediaLoading,
+  moreTabs,
+  showMoreTabs,
+  openMoreTab,
+  achievementsOn,
+  tieAchievements,
+  mediaItems,
   mediaError,
+  mediaLoadedFor,
   screenshots,
   clips,
   soundtrackItems,
   lightboxUrl,
+  mediaByAchievement,
+  achMediaOpen,
+  toggleAchMedia,
   uploadingMedia,
   onMediaFilesSelected,
+  openAchievement,
+  keepThumbnail,
   removeMedia,
-  showMediaTrash,
   activeTabTrash,
   restoreMediaItem,
   saveMediaItem,
+  bulkSaveMedia,
+  bulkDeleteMedia,
+  detectOne,
+  detectMany,
   docsFiles,
+  filesLoaded,
   filesError,
   uploadingFiles,
   fieldChanges,
   fieldChangesLoading,
   fieldChangesError,
-  FIELD_CHANGE_LABELS,
-  formatFieldChangeDate,
   onGameFilesSelected,
+  saveGameFile,
+  bulkSaveFiles,
   removeGameFile,
   docsTrash,
-  showDocsTrash,
   restoreFileItem,
-  formatFileSize,
-  formatArchiveDate,
   saveArchives,
   saveArchivesLoaded,
-  expandedSaveId,
   saveUploading,
   onNewSaveSelected,
   onAddSaveVersion,
-  onRenameArchive,
+  editingArchive,
+  editingArchiveLive,
+  openArchiveEdit,
+  saveArchiveDetails,
+  bulkDeleteArchives,
   onDeleteArchive,
   saveTrash,
-  showSaveTrash,
-  daysUntil,
   onRestoreArchive,
   onDeleteVersion,
-  displayFileName,
-  sortedAchievements,
-  deriveTier,
-  isPlatinumEarned,
-  trophyCounts,
-  formatUnlockedAt,
+  onAddWorldVersion,
+  descriptionOf,
+  achFilter,
+  achProvider,
+  achSearch,
+  achLocal,
+  noteOpen,
+  noteDraft,
+  overallOpen,
+  overallDraft,
+  isPinned,
+  togglePin,
+  isHiddenLocked,
+  revealAchievement,
+  hideAchievement,
+  toggleNote,
+  saveNote,
+  clearNote,
+  toggleOverall,
+  saveOverall,
+  unlockedCount,
+  achFilterOptions,
+  sortBy,
+  sortMark,
+  ariaSort,
+  mobileSort,
+  achProviders,
+  shownAchievements,
+  achStats,
   formatPlaytime,
 } = model;
 </script>
 <template>
-  <main v-if="loading" class="game-detail-page detail loading-state">
-    <div class="detail-skeleton">
-      <SkeletonBlock height="320px" radius="0" />
-      <div class="detail-skeleton-body">
-        <SkeletonBlock width="45%" height="28px" />
-        <div class="detail-skeleton-pills">
-          <SkeletonBlock width="80px" height="24px" radius="999px" />
-          <SkeletonBlock width="100px" height="24px" radius="999px" />
-          <SkeletonBlock width="70px" height="24px" radius="999px" />
+  <main
+    v-if="loading"
+    class="game-detail-page detail loading-state"
+    aria-busy="true"
+  >
+    <GameTopBar active="games" />
+    <!-- the shape of the real page: hero with poster, title, badges and
+         buttons, then the tabs, then the first block of content -->
+    <section class="hero">
+      <div class="hero-overlay"></div>
+      <div class="hero-content">
+        <SkeletonBlock width="212px" height="307px" radius="8px" />
+        <div class="hero-text detail-skeleton-text">
+          <SkeletonBlock width="30%" height="12px" />
+          <SkeletonBlock width="60%" height="40px" />
+          <div class="game-detail-page detail-skeleton-row">
+            <SkeletonBlock
+              v-for="w in [64, 96, 80, 72]"
+              :key="w"
+              :width="`${w}px`"
+              height="24px"
+              radius="999px"
+            />
+          </div>
+          <div class="game-detail-page detail-skeleton-row">
+            <SkeletonBlock width="88px" height="36px" radius="8px" />
+            <SkeletonBlock width="36px" height="36px" radius="8px" />
+            <SkeletonBlock width="36px" height="36px" radius="8px" />
+          </div>
         </div>
-        <div class="detail-skeleton-tabs">
-          <SkeletonBlock
-            v-for="i in 6"
-            :key="i"
-            width="70px"
-            height="30px"
-            radius="8px"
-          />
-        </div>
-        <SkeletonBlock height="140px" />
       </div>
+    </section>
+    <div class="tabbar-wrap">
+      <SkeletonBlock width="470px" height="44px" radius="10px" />
+    </div>
+    <div class="game-detail-page detail-skeleton-body">
+      <div class="game-detail-page detail-skeleton-row">
+        <SkeletonBlock
+          v-for="i in 4"
+          :key="i"
+          width="120px"
+          height="44px"
+          radius="8px"
+        />
+      </div>
+      <SkeletonBlock height="14px" />
+      <SkeletonBlock height="14px" width="92%" />
+      <SkeletonBlock height="14px" width="70%" />
     </div>
   </main>
 
   <main v-else-if="error" class="game-detail-page detail error-state">
+    <GameTopBar active="games" />
     <p>{{ error }}</p>
   </main>
 
   <main v-else-if="game" class="game-detail-page detail">
-    <!-- heavily blurred, dimmed copy of the cover image behind the whole page,
-         separate from the sharp version used in .hero itself -->
-    <div
-      class="ambient-bg"
-      :style="{ backgroundImage: `url(${game.bannerImageUrl})` }"
-    ></div>
+    <PluginExtensionSlot
+      slot-id="game.overview.after-header"
+      :context="{ host_page: 'game.overview', game_id: game.id }"
+    />
+    <PluginContextualActions
+      :context="{ kind: 'game', resource_id: game.id }"
+    />
+    <GameTopBar active="games" />
 
-    <BackButton fixed @click="goBackToLibrary" />
-
-    <AccountChip fixed />
+    <BackButton class="back-spot" @click="goBackToLibrary" />
 
     <GameFormModal
       v-if="showEditModal"
@@ -177,11 +242,23 @@ const {
       @delete="onDeleteFromModal"
     />
 
-    <CollectionPickerModal
-      v-if="showCollectionPicker"
-      :game="game"
-      @close="showCollectionPicker = false"
-      @added="onCollectionAdded"
+    <ArchiveEditDialog
+      v-if="editingArchive && editingArchiveLive"
+      :archive="editingArchiveLive"
+      :noun="editingArchive.isWorld ? 'world' : 'save'"
+      :uploading="saveUploading.has(editingArchive.id)"
+      @close="editingArchive = null"
+      @save="
+        (a, patch) => saveArchiveDetails(a, editingArchive!.isWorld, patch)
+      "
+      @delete="onDeleteArchive($event, editingArchive!.isWorld)"
+      @add-version="
+        (a, files) =>
+          editingArchive!.isWorld
+            ? onAddWorldVersion(a, files)
+            : onAddSaveVersion(a, files)
+      "
+      @delete-version="(a, v) => onDeleteVersion(a, v, editingArchive!.isWorld)"
     />
 
     <div
@@ -213,334 +290,392 @@ const {
       </div>
     </div>
 
-    <section
-      class="hero"
-      :style="{ backgroundImage: `url(${game.bannerImageUrl})` }"
-    >
+    <section class="hero">
+      <div
+        class="hero-backdrop"
+        :style="{
+          backgroundImage: `url(${sizedAssetUrl(game.bannerImageUrl, HERO_WIDTH)})`,
+        }"
+      ></div>
       <div class="hero-overlay"></div>
-      <div class="hero-actions">
-        <button
-          class="hero-icon-button"
-          type="button"
-          title="Add to collection"
-          @click="showCollectionPicker = true"
+      <div class="hero-content">
+        <div
+          class="poster-card"
+          :style="
+            game.coverImageUrl
+              ? {
+                  backgroundImage: `url(${sizedAssetUrl(game.coverImageUrl, POSTER_WIDTH)})`,
+                }
+              : {}
+          "
         >
-          <svg
-            viewBox="0 0 24 24"
-            width="16"
-            height="16"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
+          <span v-if="!game.coverImageUrl">{{ game.title }}</span>
+        </div>
+        <div class="hero-text">
+          <router-link
+            v-if="game.parentGameId"
+            :to="`/games/${game.parentGameId}`"
+            class="parent-breadcrumb"
           >
-            <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
-          </svg>
-        </button>
-        <button
-          class="hero-icon-button"
-          :class="{ active: game.favorite }"
-          type="button"
-          :title="game.favorite ? 'Remove from favorites' : 'Add to favorites'"
-          @click="toggleFavorite"
-        >
-          <svg
-            viewBox="0 0 24 24"
-            width="16"
-            height="16"
-            :fill="game.favorite ? 'currentColor' : 'none'"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
+            {{ parentGameTitle ?? "…" }}
+            <span v-if="game.relationshipType" class="relationship-tag">{{
+              RELATIONSHIP_LABELS[game.relationshipType] ??
+              game.relationshipType
+            }}</span>
+            →
+          </router-link>
+          <div
+            v-if="heroCredits.length && !pageSettings.hide_credits"
+            class="native-title"
           >
-            <path
-              d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.8 1-1a5.5 5.5 0 0 0 0-7.6z"
-            />
-          </svg>
-        </button>
-        <button class="edit-button" type="button" @click="showEditModal = true">
-          Edit
-        </button>
-      </div>
-      <div class="hero-inner">
-        <router-link
-          v-if="game.parentGameId"
-          :to="`/games/${game.parentGameId}`"
-          class="parent-breadcrumb"
-        >
-          {{ parentGameTitle ?? "…" }}
-          <span v-if="game.relationshipType" class="relationship-tag">{{
-            RELATIONSHIP_LABELS[game.relationshipType] ?? game.relationshipType
-          }}</span>
-          →
-        </router-link>
-        <h1>{{ game.title }}</h1>
-        <div class="badges">
-          <span class="badge status-badge">{{ game.status }}</span>
-          <span v-if="tally" class="badge rating-badge">
-            ★ {{ tally.sum.toFixed(1) }}
-          </span>
-          <span v-if="game.dateAdded" class="badge">
-            {{ new Date(game.dateAdded).toLocaleDateString() }}
-          </span>
-          <span v-if="game.platforms.length" class="badge">{{
-            game.platforms[0].platform
-          }}</span>
-          <button
-            v-if="game.achievementTotal > 0"
-            type="button"
-            class="badge achievement-progress-badge"
-            title="Jump to Achievements"
-            @click="activeTab = 'Achievements'"
-          >
-            <svg
-              viewBox="0 0 24 24"
-              width="13"
-              height="13"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
+            <template v-for="(name, i) in heroCredits" :key="name">
+              <span v-if="i" class="credit-dot"> · </span>
+              <router-link
+                class="filter-link"
+                :to="libraryLink('company', name)"
+                :title="`All games by ${name}`"
+                >{{ name }}</router-link
+              >
+            </template>
+          </div>
+          <h1 class="title">{{ game.title }}</h1>
+          <div class="badge-row">
+            <select
+              :value="game.status"
+              class="badge status status-select"
+              title="Change status"
+              @change="
+                changeStatus(
+                  ($event.target as HTMLSelectElement).value as GameStatus,
+                )
+              "
             >
-              <path d="M8 4h8v5a4 4 0 0 1-8 0z" />
-              <path d="M8 4H5a2 2 0 0 0 0 4h1.5M16 4h3a2 2 0 0 1 0 4h-1.5" />
-              <path d="M12 13v3" />
-              <path d="M9 20h6" />
-              <path d="M10 16.5h4l.8 3.5H9.2z" />
-            </svg>
-            {{ game.achievementPercent }}%
-          </button>
-          <span
-            v-if="game.staleSince"
-            class="badge stale-badge"
-            :title="`Last sync (${new Date(game.staleSince).toLocaleDateString()}) no longer saw this in your ${game.source} library.`"
-          >
-            Not currently in your {{ game.source }} library
-          </span>
+              <option v-for="s in STATUS_OPTIONS" :key="s" :value="s">
+                {{ s }}
+              </option>
+            </select>
+            <GameRatingPicker
+              v-if="!pageSettings.hide_rating"
+              :model-value="{
+                ratingOverall: game.ratingOverall,
+                ratingStory: game.ratingStory,
+                ratingGameplay: game.ratingGameplay,
+                ratingSound: game.ratingSound,
+              }"
+              @change="onRatingsChange"
+            />
+            <span
+              v-if="game.dateAdded && !pageSettings.hide_date_badge"
+              class="badge"
+            >
+              {{ new Date(game.dateAdded).toLocaleDateString() }}
+            </span>
+            <router-link
+              v-if="game.platforms.length && !pageSettings.hide_platform_badge"
+              class="badge filter-badge"
+              :to="libraryLink('platform', game.platforms[0].platform)"
+              :title="`All ${normalizePlatformFamily(game.platforms[0].platform)} games`"
+              >{{ game.platforms[0].platform }}</router-link
+            >
+            <button
+              v-if="game.achievementTotal > 0 && achievementsOn"
+              type="button"
+              class="badge achievement-progress-badge"
+              title="Jump to Achievements"
+              @click="activeTab = 'Achievements'"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                width="13"
+                height="13"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M8 4h8v5a4 4 0 0 1-8 0z" />
+                <path d="M8 4H5a2 2 0 0 0 0 4h1.5M16 4h3a2 2 0 0 1 0 4h-1.5" />
+                <path d="M12 13v3" />
+                <path d="M9 20h6" />
+                <path d="M10 16.5h4l.8 3.5H9.2z" />
+              </svg>
+              {{ game.achievementPercent }}%
+            </button>
+            <span
+              v-if="game.staleSince"
+              class="badge stale-badge"
+              :title="`Last sync (${new Date(game.staleSince).toLocaleDateString()}) no longer saw this in your ${game.source} library.`"
+            >
+              Not currently in your {{ game.source }} library
+            </span>
+          </div>
+          <div class="action-row">
+            <button
+              class="edit-btn"
+              type="button"
+              @click="showEditModal = true"
+            >
+              ✎ Edit
+            </button>
+            <button
+              v-if="!pageSettings.hide_favorite"
+              class="icon-btn"
+              :class="{ active: game.favorite }"
+              type="button"
+              :title="
+                game.favorite ? 'Remove from favorites' : 'Add to favorites'
+              "
+              @click="toggleFavorite"
+            >
+              <HeartIcon :filled="game.favorite" />
+            </button>
+            <GameCollectionsButton
+              v-if="!pageSettings.hide_collections"
+              :game="game"
+              @changed="onCollectionsChanged"
+            />
+          </div>
         </div>
       </div>
     </section>
 
-    <nav class="tabs">
-      <button
-        v-for="tab in visibleTabs"
-        :key="tab"
-        type="button"
-        class="tab"
-        :class="{ active: activeTab === tab }"
-        @click="activeTab = tab"
-      >
-        {{ tab }}
-      </button>
-    </nav>
-
-    <PluginExtensionSlot
-      v-if="activeTab === 'Overview'"
-      slot-id="game.overview.after-header"
-      :context="{ host_page: 'game.overview', game_id: game.id }"
-    />
-    <PluginContextualActions
-      :context="{ kind: 'game', resource_id: game.id }"
-    />
+    <div class="tabbar-wrap">
+      <nav class="tabbar">
+        <button
+          v-for="tab in visibleTabs"
+          :key="tab"
+          type="button"
+          class="tab-btn"
+          :class="{ active: activeTab === tab }"
+          @click="activeTab = tab"
+        >
+          {{ tab }}
+        </button>
+        <div v-if="moreTabs.length" class="tab-more">
+          <button
+            type="button"
+            class="tab-btn tab-more-btn"
+            title="Tabs with nothing in them yet"
+            aria-haspopup="menu"
+            :aria-expanded="showMoreTabs"
+            @click.stop="showMoreTabs = !showMoreTabs"
+          >
+            +
+          </button>
+          <ul v-if="showMoreTabs" class="tab-more-menu" role="menu">
+            <li v-for="tab in moreTabs" :key="tab">
+              <button type="button" role="menuitem" @click="openMoreTab(tab)">
+                {{ tab }}
+              </button>
+            </li>
+          </ul>
+        </div>
+      </nav>
+    </div>
 
     <section v-if="activeTab === 'Overview'" class="overview">
-      <div class="overview-main">
-        <div class="resume-note-card">
-          <div class="resume-note-header">
-            <h3>Where I left off</h3>
+      <div v-if="overviewFacts.length" class="meta-block">
+        <div v-if="overviewFacts.length" class="meta-grid">
+          <div
+            v-for="fact in overviewFacts"
+            :key="fact.label"
+            class="meta-item"
+          >
+            <span class="meta-label">{{ fact.label }}</span>
             <button
-              v-if="!resumeNoteEditing"
+              v-if="fact.tab"
               type="button"
-              class="text-button"
-              @click="startEditResumeNote"
+              class="meta-value meta-link"
+              :class="{ accent: fact.accent, muted: fact.muted }"
+              :title="`Open ${fact.tab}`"
+              @click="activeTab = fact.tab"
             >
-              {{ game.resumeNote ? "Edit" : "+ Add note" }}
+              {{ fact.value }}
             </button>
-          </div>
-          <template v-if="resumeNoteEditing">
-            <textarea
-              v-model="resumeNoteDraft"
-              class="resume-note-textarea"
-              rows="3"
-              placeholder="e.g. Just beat the third boss, about to start the desert region…"
-            ></textarea>
-            <div v-if="resumeNoteError" class="form-error-inline">
-              {{ resumeNoteError }}
-            </div>
-            <div class="resume-note-actions">
-              <button
-                type="button"
-                class="secondary-button"
-                @click="resumeNoteEditing = false"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                class="primary-button"
-                :disabled="resumeNoteSaving"
-                @click="saveResumeNote"
-              >
-                {{ resumeNoteSaving ? "Saving…" : "Save" }}
-              </button>
-            </div>
-          </template>
-          <p v-else-if="game.resumeNote" class="resume-note-text">
-            {{ game.resumeNote }}
-          </p>
-          <p v-else class="resume-note-empty">
-            Nothing noted yet. Jot down what to do next time you pick this up.
-          </p>
-        </div>
-
-        <div v-if="descriptionHtml" class="description-wrap">
-          <div class="description-html" v-html="descriptionHtml"></div>
-        </div>
-
-        <div v-if="variants.length" class="variants-section">
-          <h3 class="variants-heading">Variants</h3>
-          <div class="variants-row">
-            <router-link
-              v-for="variant in variants"
-              :key="variant.id"
-              :to="`/games/${variant.id}`"
-              class="variant-card"
+            <span
+              v-else
+              class="meta-value"
+              :class="{ accent: fact.accent, muted: fact.muted }"
+              >{{ fact.value }}</span
             >
-              <img :src="variant.coverImageUrl" alt="" class="variant-cover" />
-              <span class="variant-title">{{ variant.title }}</span>
-              <span v-if="variant.relationshipType" class="relationship-tag">
-                {{
-                  RELATIONSHIP_LABELS[variant.relationshipType] ??
-                  variant.relationshipType
-                }}
-              </span>
-            </router-link>
-          </div>
-        </div>
-
-        <div v-if="similarGames.length" class="similar-games-section">
-          <h3 class="variants-heading">Similar games in your library</h3>
-          <div class="variants-row">
-            <router-link
-              v-for="g in similarGames"
-              :key="g.id"
-              :to="`/games/${g.id}`"
-              class="variant-card"
-            >
-              <img :src="g.coverImageUrl" alt="" class="variant-cover" />
-              <span class="variant-title">{{ g.title }}</span>
-            </router-link>
-          </div>
-        </div>
-
-        <div
-          class="rating-breakdown"
-          v-if="
-            game.ratingOverall !== null ||
-            game.ratingStory !== null ||
-            game.ratingGameplay !== null ||
-            game.ratingSound !== null
-          "
-        >
-          <div v-if="game.ratingOverall !== null" class="rating-item">
-            <span class="rating-label">Atmosphere</span>
-            <span class="rating-score"
-              >★ {{ game.ratingOverall.toFixed(1) }}</span
-            >
-          </div>
-          <div v-if="game.ratingStory !== null" class="rating-item">
-            <span class="rating-label">Story</span>
-            <span class="rating-score"
-              >★ {{ game.ratingStory.toFixed(1) }}</span
-            >
-          </div>
-          <div v-if="game.ratingGameplay !== null" class="rating-item">
-            <span class="rating-label">Gameplay</span>
-            <span class="rating-score"
-              >★ {{ game.ratingGameplay.toFixed(1) }}</span
-            >
-          </div>
-          <div v-if="game.ratingSound !== null" class="rating-item">
-            <span class="rating-label">Sound</span>
-            <span class="rating-score"
-              >★ {{ game.ratingSound.toFixed(1) }}</span
-            >
-          </div>
-          <div v-if="tally" class="rating-item">
-            <span class="rating-label">Score</span>
-            <span class="rating-score">{{ tally.sum.toFixed(1) }}</span>
           </div>
         </div>
       </div>
 
-      <aside class="details-panel">
-        <h3 class="panel-title">Details</h3>
-        <div class="detail-row">
-          <span class="detail-label">Developer</span>
-          <span class="detail-value">{{ game.developer ?? "N/A" }}</span>
+      <div v-if="mainTags.length" class="chip-row">
+        <router-link
+          v-for="tag in mainTags"
+          :key="tag"
+          class="chip primary chip-link"
+          :to="libraryLink('tag', tag)"
+          :title="`All ${tag} games`"
+          >{{ tag }}</router-link
+        >
+      </div>
+
+      <div v-if="descriptionHtml" class="description-block">
+        <div
+          class="description description-html"
+          :class="{ clamped: descriptionOverflows && !descriptionExpanded }"
+          v-html="descriptionHtml"
+        ></div>
+        <button
+          v-if="descriptionOverflows"
+          type="button"
+          class="read-more-btn"
+          @click="descriptionExpanded = !descriptionExpanded"
+        >
+          {{ descriptionExpanded ? "Show less" : "Read more" }}
+        </button>
+      </div>
+
+      <section
+        class="my-note"
+        :class="{ empty: !game.resumeNote && !resumeNoteEditing }"
+      >
+        <template v-if="resumeNoteEditing">
+          <header class="note-head">
+            <h3>Where I left off</h3>
+          </header>
+          <textarea
+            v-model="resumeNoteDraft"
+            class="note-input"
+            rows="3"
+            placeholder="e.g. Just beat the third boss, about to start the desert region…"
+            aria-label="Where I left off"
+          ></textarea>
+          <p v-if="resumeNoteError" class="note-error">
+            {{ resumeNoteError }}
+          </p>
+          <div class="note-actions">
+            <button
+              type="button"
+              class="btn-solid"
+              :disabled="resumeNoteSaving"
+              @click="saveResumeNote"
+            >
+              {{ resumeNoteSaving ? "Saving…" : "Save" }}
+            </button>
+            <button
+              type="button"
+              class="btn-text muted"
+              @click="resumeNoteEditing = false"
+            >
+              Cancel
+            </button>
+          </div>
+        </template>
+        <template v-else-if="game.resumeNote">
+          <header class="note-head">
+            <h3>Where I left off</h3>
+            <span class="note-private">Only you can see this</span>
+            <button type="button" class="btn-text" @click="startEditResumeNote">
+              Edit
+            </button>
+          </header>
+          <p class="note-text">{{ game.resumeNote }}</p>
+        </template>
+        <template v-else>
+          <button type="button" class="btn-text" @click="startEditResumeNote">
+            + Add a note on where you left off
+          </button>
+          <span class="note-private">Only you can see this</span>
+        </template>
+      </section>
+
+      <div v-if="variants.length" class="related-section">
+        <div class="section-heading">
+          <h2>Variants</h2>
         </div>
-        <div class="detail-row">
-          <span class="detail-label">Publisher</span>
-          <span class="detail-value">{{ game.publisher ?? "N/A" }}</span>
+        <div class="poster-grid">
+          <router-link
+            v-for="variant in variants"
+            :key="variant.id"
+            :to="`/games/${variant.id}`"
+            class="poster-card-sm"
+          >
+            <div
+              class="poster-card-sm-art"
+              :style="
+                variant.coverImageUrl
+                  ? {
+                      backgroundImage: `url(${sizedAssetUrl(variant.coverImageUrl, POSTER_WIDTH)})`,
+                    }
+                  : {}
+              "
+            ></div>
+            <div class="poster-card-sm-title">{{ variant.title }}</div>
+            <div v-if="variant.relationshipType" class="poster-card-sm-meta">
+              {{
+                RELATIONSHIP_LABELS[variant.relationshipType] ??
+                variant.relationshipType
+              }}
+            </div>
+          </router-link>
         </div>
-        <div class="detail-row">
-          <span class="detail-label">Series</span>
-          <span class="detail-value">{{ game.series ?? "N/A" }}</span>
+      </div>
+
+      <div v-if="similarGames.length" class="related-section">
+        <div class="section-heading">
+          <h2>Similar games in your library</h2>
         </div>
-        <div v-if="game.releaseDate" class="detail-row">
-          <span class="detail-label">Release Date</span>
-          <span class="detail-value">{{
-            formatDisplayDate(game.releaseDate)
-          }}</span>
+        <div class="poster-grid">
+          <router-link
+            v-for="g in similarGames"
+            :key="g.id"
+            :to="`/games/${g.id}`"
+            class="poster-card-sm"
+          >
+            <div
+              class="poster-card-sm-art"
+              :style="
+                g.coverImageUrl
+                  ? {
+                      backgroundImage: `url(${sizedAssetUrl(g.coverImageUrl, POSTER_WIDTH)})`,
+                    }
+                  : {}
+              "
+            ></div>
+            <div class="poster-card-sm-title">{{ g.title }}</div>
+          </router-link>
         </div>
-        <div class="detail-row">
-          <span class="detail-label">Date Added</span>
-          <span class="detail-value">
-            {{
-              game.dateAdded
-                ? new Date(game.dateAdded).toLocaleDateString()
-                : "N/A"
-            }}
-          </span>
-        </div>
-        <div class="detail-row">
-          <span class="detail-label">Recent Activity</span>
-          <span class="detail-value">
-            {{
-              recentActivity
-                ? new Date(recentActivity).toLocaleDateString()
-                : "N/A"
-            }}
-          </span>
-        </div>
-        <div class="detail-row">
-          <span class="detail-label">Platforms</span>
-          <ul class="platforms">
+      </div>
+
+      <details class="more-details">
+        <summary>More details</summary>
+
+        <div v-if="game.platforms.length" class="more-block">
+          <h3 class="more-title">Platforms</h3>
+          <ul class="platform-list">
             <li
               v-for="p in game.platforms"
               :key="p.platform"
-              class="platform-row"
+              class="platform-item"
             >
-              <div class="platform-line">
+              <div class="platform-top">
                 <span class="platform-name">{{ p.platform }}</span>
-                <span class="platform-meta">
-                  {{ formatPlaytime(p.playtimeMinutes)
-                  }}<span v-if="p.completionPercent !== null">
-                    · {{ p.completionPercent }}%</span
-                  >
-                </span>
+                <span class="platform-hours">{{
+                  formatPlaytime(p.playtimeMinutes)
+                }}</span>
               </div>
-              <div v-if="p.lastPlayedAt" class="platform-last-played">
-                last played {{ new Date(p.lastPlayedAt).toLocaleDateString() }}
+              <div
+                v-if="p.completionPercent !== null || p.lastPlayedAt"
+                class="platform-sub"
+              >
+                <span v-if="p.completionPercent !== null"
+                  >{{ p.completionPercent }}% complete</span
+                >
+                <span v-if="p.lastPlayedAt"
+                  >last played
+                  {{ new Date(p.lastPlayedAt).toLocaleDateString() }}</span
+                >
               </div>
             </li>
           </ul>
           <button
             type="button"
-            class="text-button log-playtime-button"
+            class="read-more-btn"
             :disabled="loggingPlaytime"
             title="Log a session just played, without editing the total by hand"
             @click="logPlaytime(30)"
@@ -548,314 +683,489 @@ const {
             + Log 30 min just played
           </button>
         </div>
-        <div v-if="game.tags.length" class="detail-row">
-          <span class="detail-label">Tags</span>
-          <span class="feature-pills">
-            <span v-for="tag in game.tags" :key="tag" class="feature-pill">{{
-              tag
-            }}</span>
-          </span>
+
+        <div v-if="ratingParts.length" class="more-block">
+          <h3 class="more-title">Your ratings</h3>
+          <div class="kv-grid">
+            <div v-for="part in ratingParts" :key="part.name" class="kv-row">
+              <span class="kv-label">{{ part.name }}</span>
+              <span class="kv-value accent">{{ part.value }}</span>
+            </div>
+          </div>
         </div>
-        <div v-if="game.features.length" class="detail-row">
-          <span class="detail-label">Features</span>
-          <span class="feature-pills">
-            <span v-for="f in game.features" :key="f" class="feature-pill">{{
+
+        <div v-if="moreTags.length || game.features.length" class="more-block">
+          <h3 class="more-title">Tags and features</h3>
+          <div class="chip-row">
+            <router-link
+              v-for="tag in moreTags"
+              :key="tag"
+              class="chip chip-link"
+              :to="libraryLink('tag', tag)"
+              :title="`All ${tag} games`"
+              >{{ tag }}</router-link
+            >
+            <span v-for="f in game.features" :key="f" class="chip">{{
               f
-            }}</span>
-          </span>
-        </div>
-        <div v-if="game.source" class="detail-row">
-          <span class="detail-label">Source</span>
-          <span class="detail-value">{{ game.source }}</span>
-        </div>
-        <div v-if="activePriority(game) !== null" class="detail-row">
-          <span class="detail-label">Priority</span>
-          <span class="detail-value">{{
-            priorityLabel(activePriority(game)!)
-          }}</span>
-        </div>
-        <div v-if="game.ageRating" class="detail-row">
-          <span class="detail-label">Age Rating</span>
-          <span class="detail-value">{{ game.ageRating }}</span>
-        </div>
-        <div v-if="game.timeToBeatHours" class="detail-row">
-          <span class="detail-label">Time to Beat</span>
-          <span class="detail-value">{{ game.timeToBeatHours }}h</span>
-        </div>
-        <div v-if="game.region" class="detail-row">
-          <span class="detail-label">Region</span>
-          <span class="detail-value">{{ game.region }}</span>
-        </div>
-        <div v-if="game.language" class="detail-row">
-          <span class="detail-label">Language</span>
-          <span class="detail-value">{{ game.language }}</span>
-        </div>
-        <div v-if="game.achievementsProvider" class="detail-row">
-          <span class="detail-label">Achievement Tracking</span>
-          <span class="detail-value">{{
-            game.achievementsProvider === "retroachievements"
-              ? "RetroAchievements"
-              : "Native"
-          }}</span>
-        </div>
-        <div v-if="game.links.length" class="detail-row">
-          <span class="detail-label">Links</span>
-          <ul class="links-list">
-            <li v-for="link in game.links" :key="link.url">
-              <a :href="link.url" target="_blank" rel="noopener noreferrer">{{
-                link.label
-              }}</a>
-            </li>
-          </ul>
-        </div>
-        <div
-          v-if="
-            game.ownership.format ||
-            game.ownership.purchaseDate ||
-            game.ownership.price !== null
-          "
-          class="detail-row"
-        >
-          <span class="detail-label">Ownership</span>
-          <div class="ownership-info">
-            <span v-if="game.ownership.format" class="ownership-format">{{
-              game.ownership.format
-            }}</span>
-            <span v-if="game.ownership.purchaseDate">
-              Purchased
-              {{ formatDisplayDate(game.ownership.purchaseDate) }}
-            </span>
-            <span v-if="game.ownership.price !== null">
-              {{ game.ownership.priceCurrency ?? "USD" }}
-              {{ game.ownership.price.toFixed(2) }}
-            </span>
-            <span v-if="game.ownership.condition">{{
-              game.ownership.condition
             }}</span>
           </div>
         </div>
-        <div v-if="game.folderLocation" class="detail-row">
-          <span class="detail-label">Folder</span>
-          <span class="detail-value">{{ game.folderLocation }}</span>
+
+        <div class="more-block">
+          <h3 class="more-title">Library</h3>
+          <div class="kv-grid">
+            <div v-if="game.series" class="kv-row">
+              <span class="kv-label">Series</span>
+              <router-link
+                class="kv-value filter-link"
+                :to="libraryLink('series', game.series)"
+                :title="`All games in ${game.series}`"
+                >{{ game.series }}</router-link
+              >
+            </div>
+            <div v-if="game.dateAdded" class="kv-row">
+              <span class="kv-label">Added</span>
+              <span class="kv-value">{{
+                new Date(game.dateAdded).toLocaleDateString()
+              }}</span>
+            </div>
+            <div v-if="recentActivity" class="kv-row">
+              <span class="kv-label">Last played</span>
+              <span class="kv-value">{{
+                new Date(recentActivity).toLocaleDateString()
+              }}</span>
+            </div>
+            <div v-if="game.source" class="kv-row">
+              <span class="kv-label">Source</span>
+              <span class="kv-value">{{ game.source }}</span>
+            </div>
+            <div v-if="activePriority(game) !== null" class="kv-row">
+              <span class="kv-label">Priority</span>
+              <span class="kv-value">{{
+                priorityLabel(activePriority(game)!)
+              }}</span>
+            </div>
+            <div v-if="game.ageRating" class="kv-row">
+              <span class="kv-label">Age rating</span>
+              <span class="kv-value">{{ game.ageRating }}</span>
+            </div>
+            <div v-if="game.region" class="kv-row">
+              <span class="kv-label">Region</span>
+              <span class="kv-value">{{ game.region }}</span>
+            </div>
+            <div v-if="game.language" class="kv-row">
+              <span class="kv-label">Language</span>
+              <span class="kv-value">{{ game.language }}</span>
+            </div>
+            <div v-if="game.achievementsProvider" class="kv-row">
+              <span class="kv-label">Achievements via</span>
+              <span class="kv-value">{{
+                game.achievementsProvider === "retroachievements"
+                  ? "RetroAchievements"
+                  : "Native"
+              }}</span>
+            </div>
+            <div
+              v-if="
+                game.ownership.format ||
+                game.ownership.purchaseDate ||
+                game.ownership.price !== null
+              "
+              class="kv-row stack"
+            >
+              <span class="kv-label">Ownership</span>
+              <span class="kv-value ownership-info">
+                <span v-if="game.ownership.format" class="ownership-format">{{
+                  game.ownership.format
+                }}</span>
+                <span v-if="game.ownership.purchaseDate">
+                  Purchased
+                  {{ formatDisplayDate(game.ownership.purchaseDate) }}
+                </span>
+                <span v-if="game.ownership.price !== null">
+                  {{ game.ownership.priceCurrency ?? "USD" }}
+                  {{ game.ownership.price.toFixed(2) }}
+                </span>
+                <span v-if="game.ownership.condition">{{
+                  game.ownership.condition
+                }}</span>
+              </span>
+            </div>
+            <div v-if="game.links.length" class="kv-row stack">
+              <span class="kv-label">Links</span>
+              <ul class="links-list">
+                <li v-for="link in game.links" :key="link.url">
+                  <a
+                    :href="link.url"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    >{{ link.label }}</a
+                  >
+                </li>
+              </ul>
+            </div>
+            <div v-if="game.folderLocation" class="kv-row stack">
+              <span class="kv-label">Folder</span>
+              <span class="kv-value folder-value">{{
+                game.folderLocation
+              }}</span>
+            </div>
+          </div>
         </div>
-      </aside>
+      </details>
     </section>
 
     <section v-else-if="activeTab === 'Achievements'" class="achievements">
-      <div class="achievements-header">
-        <h2>Achievements</h2>
-        <span class="percent">{{ game.achievementPercent }}%</span>
-      </div>
-
-      <div class="trophy-summary">
-        <div class="trophy-count">
-          <span
-            class="trophy-badge trophy-badge-platinum"
-            :class="{ dim: !isPlatinumEarned }"
-          ></span>
-          <span>{{ isPlatinumEarned ? 1 : 0 }}</span>
-        </div>
-        <div class="trophy-count">
-          <span class="trophy-badge trophy-badge-gold"></span>
-          <span>{{ trophyCounts.gold }}</span>
-        </div>
-        <div class="trophy-count">
-          <span class="trophy-badge trophy-badge-silver"></span>
-          <span>{{ trophyCounts.silver }}</span>
-        </div>
-        <div class="trophy-count">
-          <span class="trophy-badge trophy-badge-bronze"></span>
-          <span>{{ trophyCounts.bronze }}</span>
-        </div>
-      </div>
-
-      <ul class="achievement-list">
-        <li
-          v-for="achievement in sortedAchievements(game.achievements)"
-          :key="achievement.id"
+      <div class="ach-head">
+        <h2 class="ach-title">Achievements</h2>
+        <span class="ach-count"
+          >{{ unlockedCount }} / {{ game.achievements.length }}</span
         >
-          <router-link
-            :to="{
-              name: 'achievement-detail',
-              params: { gameId: game.id, achievementId: achievement.id },
+        <div class="ach-tools">
+          <input
+            v-model="achSearch"
+            type="text"
+            class="ui-field ach-search"
+            placeholder="Search achievements…"
+            aria-label="Search achievements"
+          />
+          <select
+            v-if="achProviders.length > 1"
+            v-model="achProvider"
+            class="ui-field ach-sort"
+            aria-label="Filter by platform"
+          >
+            <option value="all">All platforms</option>
+            <option v-for="pr in achProviders" :key="pr" :value="pr">
+              {{ pr }}
+            </option>
+          </select>
+          <select
+            v-model="mobileSort"
+            class="ui-field ach-sort ach-mobile-sort"
+            aria-label="Sort achievements"
+          >
+            <option value="recent">Recently unlocked</option>
+            <option value="rarest">Rarest first</option>
+            <option value="easiest">Easiest first</option>
+            <option value="name">A to Z</option>
+          </select>
+          <button
+            type="button"
+            class="ui-btn ui-btn-secondary ui-btn-sm"
+            :class="{ on: overallOpen || !!achLocal.overall }"
+            @click="toggleOverall"
+          >
+            Overall notes
+          </button>
+        </div>
+      </div>
+
+      <div v-if="overallOpen" class="ach-overall">
+        <textarea
+          v-model="overallDraft"
+          class="ach-textarea"
+          rows="3"
+          placeholder="Plans, routes and reminders for hunting this game"
+          aria-label="Overall achievement notes"
+        ></textarea>
+        <div class="ach-note-actions">
+          <button
+            type="button"
+            class="ui-btn ui-btn-primary ui-btn-sm"
+            @click="saveOverall"
+          >
+            Save
+          </button>
+          <button
+            type="button"
+            class="ui-btn ui-btn-ghost ui-btn-sm"
+            @click="overallOpen = false"
+          >
+            Cancel
+          </button>
+          <span class="ach-hint">Only you can see this</span>
+        </div>
+      </div>
+
+      <div v-if="achStats.length" class="ach-stats">
+        <span v-for="st in achStats" :key="st.label"
+          ><b>{{ st.value }}</b> {{ st.label }}</span
+        >
+      </div>
+
+      <SegmentedTabs
+        v-if="game.achievements.length"
+        :options="achFilterOptions"
+        :model-value="achFilter"
+        aria-label="Filter achievements"
+        @update:model-value="achFilter = $event as AchFilter"
+      />
+
+      <p v-if="!game.achievements.length" class="ach-empty">
+        No achievements yet. They appear here after a library sync for Steam,
+        PlayStation or RetroAchievements.
+      </p>
+      <p v-else-if="!shownAchievements.length" class="ach-empty">
+        Nothing matches that search or filter.
+      </p>
+
+      <div
+        v-if="game.achievements.length && shownAchievements.length"
+        class="ach-cols"
+        role="row"
+      >
+        <span></span>
+        <button
+          type="button"
+          class="ach-colbtn left"
+          :aria-sort="ariaSort('name')"
+          @click="sortBy('name')"
+        >
+          Achievement <i>{{ sortMark("name") }}</i>
+        </button>
+        <button
+          type="button"
+          class="ach-colbtn"
+          :aria-sort="ariaSort('rarity')"
+          @click="sortBy('rarity')"
+        >
+          <i>{{ sortMark("rarity") }}</i> Players
+        </button>
+        <button
+          type="button"
+          class="ach-colbtn"
+          :aria-sort="ariaSort('unlocked')"
+          @click="sortBy('unlocked')"
+        >
+          <i>{{ sortMark("unlocked") }}</i> Unlocked
+        </button>
+        <span></span>
+      </div>
+      <ul v-if="shownAchievements.length" class="ach-list">
+        <li v-for="a in shownAchievements" :key="a.id" class="ach-item">
+          <div
+            class="ach-row"
+            :class="{
+              done: isUnlocked(a),
+              lock: !isUnlocked(a),
+              pin: isPinned(a),
             }"
-            class="achievement-row"
-            :class="{ unlocked: achievement.unlockedAt !== null }"
           >
             <div
-              class="achievement-icon"
+              class="ach-icon"
               :style="
-                achievement.hidden && achievement.unlockedAt === null
-                  ? {}
-                  : { backgroundImage: `url(${game.coverImageUrl})` }
+                a.iconUrl && !isHiddenLocked(a)
+                  ? { backgroundImage: `url(${a.iconUrl})` }
+                  : {}
               "
-            >
-              <span
-                class="achievement-badge"
-                :class="
-                  achievement.unlockedAt !== null
-                    ? `badge-${deriveTier(achievement)}`
-                    : 'badge-locked'
-                "
-              >
-                <template
-                  v-if="achievement.hidden && achievement.unlockedAt === null"
-                  >?</template
-                >
-              </span>
-            </div>
+            ></div>
 
-            <div class="achievement-info">
-              <template
-                v-if="achievement.hidden && achievement.unlockedAt === null"
-              >
-                <span class="achievement-name">Hidden Trophy</span>
-                <span class="achievement-description"
-                  >Unlock this achievement to reveal it.</span
+            <div class="ach-main">
+              <div class="ach-name">
+                <span v-if="isHiddenLocked(a)" class="ach-hidden-name"
+                  >Hidden achievement</span
                 >
-              </template>
-              <template v-else>
-                <span class="achievement-name">{{ achievement.name }}</span>
+                <router-link
+                  v-else
+                  :to="{
+                    name: 'achievement-detail',
+                    params: { gameId: game.id, achievementId: a.id },
+                  }"
+                  class="ach-link"
+                  >{{ a.name }}</router-link
+                >
                 <span
-                  v-if="achievement.description"
-                  class="achievement-description"
-                  >{{ achievement.description }}</span
+                  v-if="a.kind && !isHiddenLocked(a)"
+                  class="ach-tag"
+                  :class="a.kind"
+                  >{{ KIND_LABEL[a.kind] }}</span
                 >
-              </template>
-
-              <div
-                v-if="achievement.unlockedAt !== null"
-                class="achievement-unlocked-at"
-              >
-                Unlocked {{ formatUnlockedAt(achievement.unlockedAt) }}
               </div>
-              <div
-                v-else-if="
-                  achievement.progressCurrent != null &&
-                  achievement.progressTarget
-                "
-                class="achievement-progress"
-              >
-                <div class="progress-bar">
-                  <div
-                    class="progress-fill"
-                    :style="{
-                      width: `${Math.min(100, (achievement.progressCurrent / achievement.progressTarget) * 100)}%`,
-                    }"
-                  ></div>
-                </div>
-                <span class="progress-label"
-                  >{{ achievement.progressCurrent }} /
-                  {{ achievement.progressTarget }}</span
-                >
+              <div class="ach-desc">
+                <template v-if="isHiddenLocked(a)">
+                  Details for this achievement will be revealed once unlocked.
+                  <button
+                    type="button"
+                    class="ach-reveal"
+                    @click="revealAchievement(a)"
+                  >
+                    Show
+                  </button>
+                </template>
+                <template v-else>
+                  {{ descriptionOf(a) }}
+                  <button
+                    v-if="a.hidden && !isUnlocked(a)"
+                    type="button"
+                    class="ach-reveal"
+                    @click="hideAchievement(a)"
+                  >
+                    Hide
+                  </button>
+                </template>
               </div>
             </div>
-          </router-link>
+
+            <div class="ach-col">
+              <template v-if="a.rarityPercent != null">
+                <div class="ach-big">{{ formatPercent(a.rarityPercent) }}</div>
+                <div class="ach-lab">of players</div>
+              </template>
+              <div v-else class="ach-big ach-dim">–</div>
+            </div>
+
+            <div class="ach-col">
+              <template v-if="isUnlocked(a)">
+                <template v-if="a.unlockedAt">
+                  <div class="ach-big ach-small">
+                    {{ unlockedOn(a.unlockedAt).date }}
+                  </div>
+                  <div class="ach-lab">{{ unlockedOn(a.unlockedAt).time }}</div>
+                </template>
+                <div v-else class="ach-big ach-small">Unlocked</div>
+              </template>
+              <template
+                v-else-if="a.progressCurrent != null && a.progressTarget"
+              >
+                <div class="ach-big ach-small">
+                  {{ a.progressCurrent }} / {{ a.progressTarget }}
+                </div>
+                <div class="ach-bar">
+                  <i
+                    :style="{
+                      width: `${Math.min(100, (a.progressCurrent / a.progressTarget) * 100)}%`,
+                    }"
+                  ></i>
+                </div>
+              </template>
+              <div v-else class="ach-big ach-small ach-dim">Locked</div>
+            </div>
+
+            <div class="ach-acts">
+              <button
+                type="button"
+                class="ach-btn"
+                :class="{ on: isPinned(a) }"
+                :aria-pressed="isPinned(a)"
+                @click="togglePin(a)"
+              >
+                {{ isPinned(a) ? "Pinned" : "Pin" }}
+              </button>
+              <button
+                type="button"
+                class="ach-btn"
+                :class="{ on: !!achLocal.notes[a.id] || noteOpen === a.id }"
+                @click="toggleNote(a)"
+              >
+                {{ achLocal.notes[a.id] ? "Note · 1" : "Note" }}
+              </button>
+              <button
+                v-if="mediaByAchievement.get(a.id)?.length"
+                type="button"
+                class="ach-btn ach-btn-media"
+                :class="{ on: achMediaOpen === a.id }"
+                :title="`${mediaByAchievement.get(a.id)!.length} tied to this achievement`"
+                @click="toggleAchMedia(a)"
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  width="14"
+                  height="14"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <rect x="3" y="4" width="18" height="16" rx="2" />
+                  <circle cx="9" cy="10" r="1.6" />
+                  <path d="M21 16l-5-5-8 9" />
+                </svg>
+                {{ mediaByAchievement.get(a.id)!.length }}
+              </button>
+            </div>
+          </div>
+
+          <div v-if="achMediaOpen === a.id" class="ach-media-strip">
+            <template v-for="m in mediaByAchievement.get(a.id)" :key="m.id">
+              <button
+                v-if="m.kind === 'screenshot'"
+                type="button"
+                class="ach-media-thumb"
+                :title="m.note ?? 'View screenshot'"
+                @click="lightboxUrl = m.url"
+              >
+                <img :src="m.url" alt="" loading="lazy" />
+              </button>
+              <video
+                v-else-if="m.kind === 'clip'"
+                class="ach-media-thumb"
+                :src="m.url"
+                controls
+                preload="metadata"
+              ></video>
+              <audio
+                v-else
+                class="ach-media-audio"
+                :src="m.url"
+                controls
+                preload="metadata"
+              ></audio>
+            </template>
+          </div>
+
+          <div v-if="noteOpen === a.id" class="ach-note-box">
+            <textarea
+              v-model="noteDraft"
+              class="ach-textarea"
+              rows="2"
+              placeholder="How you got it, or how you plan to"
+              :aria-label="`Note on ${a.name}`"
+            ></textarea>
+            <div class="ach-note-actions">
+              <button
+                type="button"
+                class="ui-btn ui-btn-primary ui-btn-sm"
+                @click="saveNote(a)"
+              >
+                Save
+              </button>
+              <button
+                type="button"
+                class="ui-btn ui-btn-ghost ui-btn-sm"
+                @click="noteOpen = null"
+              >
+                Cancel
+              </button>
+              <button
+                v-if="achLocal.notes[a.id]"
+                type="button"
+                class="ui-btn ui-btn-ghost ui-btn-sm"
+                @click="clearNote(a)"
+              >
+                Delete note
+              </button>
+            </div>
+          </div>
         </li>
       </ul>
+      <div
+        v-if="lightboxUrl"
+        class="lightbox-backdrop"
+        @click="lightboxUrl = null"
+      >
+        <img :src="lightboxUrl" alt="" class="lightbox-image" />
+      </div>
     </section>
 
     <section v-else-if="activeTab === 'Notes'" class="notes-panel">
-      <div v-if="noteMode === 'list'" class="notes-list-view">
-        <div class="notes-header-row">
-          <h2>Notes</h2>
-          <button type="button" class="primary-button" @click="startNewNote">
-            {{ hasDraft ? "Continue Draft" : "New Note" }}
-          </button>
-        </div>
-
-        <div v-if="noteError" class="note-error">{{ noteError }}</div>
-
-        <p v-if="noteLoading" class="empty-state">Loading…</p>
-        <p v-else-if="!noteNames.length" class="empty-state">No notes yet.</p>
-        <ul v-else class="notes-list">
-          <li
-            v-for="note in noteNames"
-            :key="note"
-            class="notes-list-row"
-            @click="void viewNote(note)"
-          >
-            <span class="note-name">{{ note }}</span>
-            <div class="notes-list-actions">
-              <button
-                type="button"
-                class="danger-button"
-                :disabled="noteSaving"
-                @click.stop="void deleteNote(note)"
-              >
-                Delete
-              </button>
-            </div>
-          </li>
-        </ul>
-      </div>
-
-      <div v-else-if="noteMode === 'view'" class="notes-editor">
-        <div class="notes-editor-card">
-          <div class="notes-toolbar">
-            <button type="button" class="small-button" @click="backToList">
-              ← Back
-            </button>
-            <span class="selected-note">{{ viewingNoteName }}</span>
-            <button type="button" class="small-button" @click="editFromView">
-              Edit
-            </button>
-          </div>
-
-          <div v-if="noteLoading" class="empty-state">Loading…</div>
-          <div v-else class="note-rendered" v-html="renderedNoteHtml"></div>
-
-          <div v-if="noteError" class="note-error">{{ noteError }}</div>
-        </div>
-      </div>
-
-      <div v-else class="notes-editor">
-        <div class="notes-editor-card">
-          <div class="notes-toolbar">
-            <button type="button" class="small-button" @click="backToList">
-              ← Back
-            </button>
-          </div>
-
-          <label class="field">
-            <span>Note name</span>
-            <input
-              v-model="draftName"
-              type="text"
-              placeholder="Meeting notes"
-              autocomplete="off"
-            />
-          </label>
-
-          <textarea
-            v-model="draftContent"
-            placeholder="Write markdown here…"
-            spellcheck="true"
-          ></textarea>
-
-          <div v-if="noteError" class="note-error">{{ noteError }}</div>
-
-          <div class="notes-editor-actions">
-            <button type="button" class="small-button" @click="backToList">
-              Cancel
-            </button>
-            <button
-              type="button"
-              class="primary-button"
-              :disabled="noteSaving || !draftName.trim()"
-              @click="void saveDraft()"
-            >
-              {{
-                noteSaving
-                  ? "Saving…"
-                  : editingNoteName
-                    ? "Save changes"
-                    : "Create note"
-              }}
-            </button>
-          </div>
-        </div>
-      </div>
+      <GameNotesPanel
+        :game-id="game.id"
+        :achievements="tieAchievements"
+        :open-note="(route.query.note as string | undefined) ?? null"
+        @open-achievement="openAchievement"
+      />
     </section>
 
     <GameAccountsPanel v-else-if="activeTab === 'Accounts'" />
@@ -868,496 +1178,112 @@ const {
       "
       class="media-panel"
     >
-      <h2>{{ activeTab }}</h2>
-      <div class="panel-body">
-        <ViewUploadSidebar v-model="panelMode" />
-        <div class="panel-content">
-          <template v-if="panelMode === 'upload'">
-            <UploadDropzone
-              :accept="
-                activeTab === 'Screenshots'
-                  ? 'image/*'
-                  : activeTab === 'Clips'
-                    ? 'video/*'
-                    : 'audio/*'
-              "
-              :uploading="uploadingMedia"
-              :title="`Drop ${activeTab.toLowerCase()} here`"
-              :hint="`Drag and drop ${activeTab === 'Soundtrack' ? 'audio' : activeTab.toLowerCase()}, or click to browse`"
-              @files-selected="onMediaFilesSelected"
-              @drop-error="onDropError"
-            />
-            <div v-if="mediaError" class="form-error">{{ mediaError }}</div>
-          </template>
-
-          <template v-else>
-            <p v-if="mediaLoading">Loading…</p>
-            <p
-              v-else-if="
-                (activeTab === 'Screenshots' && !screenshots.length) ||
-                (activeTab === 'Clips' && !clips.length) ||
-                (activeTab === 'Soundtrack' && !soundtrackItems.length)
-              "
-              class="empty-row"
-            >
-              No {{ activeTab.toLowerCase() }} yet: switch to Upload to add
-              some.
-            </p>
-            <div v-else class="media-grid">
-              <MediaTile
-                v-for="item in activeTab === 'Screenshots'
-                  ? screenshots
-                  : activeTab === 'Clips'
-                    ? clips
-                    : soundtrackItems"
-                :key="item.id"
-                :item="item"
-                :achievements="game.achievements"
-                :profiles="game.profilesEnabled ? profiles : undefined"
-                @preview="onPreviewMedia($event.url)"
-                @delete="removeMedia"
-                @save="saveMediaItem"
-              />
-            </div>
-
-            <div v-if="activeTabTrash.length" class="trash-section">
-              <button
-                type="button"
-                class="trash-toggle"
-                @click="showMediaTrash = !showMediaTrash"
-              >
-                {{ showMediaTrash ? "▾" : "▸" }} Recently deleted ({{
-                  activeTabTrash.length
-                }})
-              </button>
-              <ul v-if="showMediaTrash" class="trash-list">
-                <li
-                  v-for="item in activeTabTrash"
-                  :key="item.id"
-                  class="trash-row"
-                >
-                  <span class="trash-name">{{
-                    item.filename.split("_").slice(1).join("_")
-                  }}</span>
-                  <span class="trash-meta"
-                    >purges in {{ daysUntil(item.purge_at) }}d</span
-                  >
-                  <button
-                    type="button"
-                    class="secondary-button small"
-                    @click="restoreMediaItem(item)"
-                  >
-                    Restore
-                  </button>
-                </li>
-              </ul>
-            </div>
-          </template>
-        </div>
-      </div>
-      <div
-        v-if="lightboxUrl"
-        class="lightbox-backdrop"
-        @click="lightboxUrl = null"
-      >
-        <img :src="lightboxUrl" alt="" class="lightbox-image" />
-      </div>
+      <GameMediaPanel
+        :kind="
+          activeTab === 'Screenshots'
+            ? 'screenshot'
+            : activeTab === 'Clips'
+              ? 'clip'
+              : 'soundtrack'
+        "
+        :items="
+          activeTab === 'Screenshots'
+            ? screenshots
+            : activeTab === 'Clips'
+              ? clips
+              : soundtrackItems
+        "
+        :trash="activeTabTrash"
+        :achievements="tieAchievements"
+        :profiles="game.profilesEnabled ? profiles : undefined"
+        :loading="mediaLoadedFor !== game.id && !mediaError"
+        :uploading="uploadingMedia"
+        :error="mediaError"
+        @files="onMediaFilesSelected"
+        @delete="removeMedia"
+        :detect="detectOne"
+        @save="saveMediaItem"
+        @bulk-save="bulkSaveMedia"
+        @bulk-delete="bulkDeleteMedia"
+        @bulk-detect="detectMany"
+        @restore="restoreMediaItem"
+        @open-achievement="openAchievement"
+        @thumbnail="keepThumbnail"
+        @problem="mediaError = $event"
+      />
     </section>
 
     <section v-else-if="activeTab === 'Saves'" class="files-panel">
-      <h2>Saves</h2>
-      <div class="panel-body">
-        <ViewUploadSidebar v-model="panelMode" />
-        <div class="panel-content">
-          <template v-if="panelMode === 'upload'">
-            <UploadDropzone
-              accept="*/*"
-              :uploading="saveUploading.has('')"
-              title="Drop a new save here"
-              hint="You'll be asked to name it: one game can hold as many named saves as you want"
-              @files-selected="onNewSaveSelected"
-              @drop-error="onDropError"
-            />
-            <div v-if="filesError" class="form-error">{{ filesError }}</div>
-          </template>
-
-          <template v-else>
-            <p
-              v-if="!saveArchives.length && saveArchivesLoaded"
-              class="empty-row"
-            >
-              No saves yet: switch to Upload to add one.
-            </p>
-            <div v-else class="archive-grid">
-              <div
-                v-for="archive in saveArchives"
-                :key="archive.id"
-                class="archive-card"
-              >
-                <div class="archive-card-header">
-                  <span class="archive-name">{{ archive.name }}</span>
-                  <div class="archive-card-actions">
-                    <button
-                      type="button"
-                      class="icon-button"
-                      title="Rename"
-                      @click="onRenameArchive(archive, false)"
-                    >
-                      ✎
-                    </button>
-                    <button
-                      type="button"
-                      class="icon-button"
-                      title="Delete"
-                      @click="onDeleteArchive(archive, false)"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                </div>
-                <p class="archive-meta">
-                  {{ archive.versions.length }} version{{
-                    archive.versions.length === 1 ? "" : "s"
-                  }}
-                  · latest
-                  {{
-                    archive.versions[0]
-                      ? formatArchiveDate(archive.versions[0].uploaded_at)
-                      : "N/A"
-                  }}
-                </p>
-                <div class="archive-actions-row">
-                  <a
-                    v-if="archive.versions[0]"
-                    :href="archive.versions[0].url"
-                    class="secondary-button small"
-                    >Download latest</a
-                  >
-                  <label class="secondary-button small upload-label">
-                    {{
-                      saveUploading.has(archive.id)
-                        ? "Uploading…"
-                        : "Add new version"
-                    }}
-                    <input
-                      type="file"
-                      class="hidden-input"
-                      :disabled="saveUploading.has(archive.id)"
-                      @change="
-                        onAddSaveVersion(
-                          archive,
-                          Array.from(
-                            ($event.target as HTMLInputElement).files ?? [],
-                          ),
-                        )
-                      "
-                    />
-                  </label>
-                  <button
-                    v-if="archive.versions.length > 1"
-                    type="button"
-                    class="secondary-button small"
-                    @click="
-                      expandedSaveId =
-                        expandedSaveId === archive.id ? null : archive.id
-                    "
-                  >
-                    {{
-                      expandedSaveId === archive.id ? "Hide history" : "History"
-                    }}
-                  </button>
-                </div>
-                <ul
-                  v-if="expandedSaveId === archive.id"
-                  class="archive-history"
-                >
-                  <li
-                    v-for="version in archive.versions.slice(1)"
-                    :key="version.id"
-                    class="archive-history-row"
-                  >
-                    <a :href="version.url" class="file-name">{{
-                      formatArchiveDate(version.uploaded_at)
-                    }}</a>
-                    <span class="file-size">{{
-                      formatFileSize(version.size)
-                    }}</span>
-                    <button
-                      type="button"
-                      class="tile-remove-inline"
-                      title="Delete this version"
-                      @click="onDeleteVersion(archive, version, false)"
-                    >
-                      ✕
-                    </button>
-                  </li>
-                </ul>
-              </div>
-            </div>
-          </template>
-
-          <div v-if="saveTrash.length" class="trash-section">
-            <button
-              type="button"
-              class="trash-toggle"
-              @click="showSaveTrash = !showSaveTrash"
-            >
-              {{ showSaveTrash ? "▾" : "▸" }} Recently deleted ({{
-                saveTrash.length
-              }})
-            </button>
-            <ul v-if="showSaveTrash" class="trash-list">
-              <li
-                v-for="archive in saveTrash"
-                :key="archive.id"
-                class="trash-row"
-              >
-                <span class="trash-name">{{ archive.name }}</span>
-                <span class="trash-meta"
-                  >purges in {{ daysUntil(archive.purge_at) }}d</span
-                >
-                <button
-                  type="button"
-                  class="secondary-button small"
-                  @click="onRestoreArchive(archive, false)"
-                >
-                  Restore
-                </button>
-              </li>
-            </ul>
-          </div>
-        </div>
-      </div>
+      <GameArchivesPanel
+        title="Saves"
+        plural="saves"
+        singular="save"
+        hint="Drop a save here or click to browse. You'll be asked to name it: one game can hold as many named saves as you want."
+        :archives="saveArchives"
+        :trash="saveTrash"
+        :loaded="saveArchivesLoaded"
+        :uploading="saveUploading.has('')"
+        :error="filesError"
+        @files="onNewSaveSelected"
+        @bulk-delete="bulkDeleteArchives($event, false)"
+        @restore="onRestoreArchive($event, false)"
+        @problem="filesError = $event"
+      >
+        <template #card="{ archive, selecting, selected, toggle }">
+          <ArchiveCard
+            :archive="archive"
+            kind="save"
+            :selecting="selecting"
+            :selected="selected"
+            :uploading="saveUploading.has(archive.id)"
+            @toggle="toggle"
+            @edit="openArchiveEdit($event, false)"
+            @delete="onDeleteArchive($event, false)"
+            @add-version="onAddSaveVersion"
+          />
+        </template>
+      </GameArchivesPanel>
     </section>
 
     <section v-else-if="activeTab === 'Docs'" class="files-panel">
-      <h2>Docs</h2>
       <PluginExtensionSlot
-        slot-id="game.documents.actions"
+        slot-id="game.documents.after-header"
         :context="{ host_page: 'game.documents', game_id: game.id }"
       />
       <PluginContextualActions
-        :context="{
-          kind: 'documents',
-          resource_id: game.id,
-          resource_type: 'game',
-        }"
+        :context="{ kind: 'game', resource_id: game.id }"
       />
-      <div class="panel-body">
-        <ViewUploadSidebar v-model="panelMode" />
-        <div class="panel-content">
-          <template v-if="panelMode === 'upload'">
-            <UploadDropzone
-              accept="*/*"
-              :uploading="uploadingFiles"
-              title="Drop documents here"
-              hint="Any file format: drag and drop, or click to browse"
-              @files-selected="onGameFilesSelected($event, 'doc')"
-              @drop-error="onDropError"
-            />
-            <p class="section-hint">
-              Manuals, walkthroughs, strategy guides: any file format.
-            </p>
-            <div v-if="filesError" class="form-error">{{ filesError }}</div>
-          </template>
-
-          <template v-else>
-            <p v-if="!docsFiles.length" class="empty-row">
-              No docs yet: switch to Upload to add one.
-            </p>
-            <ul v-else class="file-list">
-              <li
-                v-for="file in docsFiles"
-                :key="file.filename"
-                class="file-row"
-              >
-                <svg
-                  viewBox="0 0 24 24"
-                  width="16"
-                  height="16"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                >
-                  <path
-                    d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"
-                  />
-                  <path d="M14 2v6h6" />
-                </svg>
-                <a
-                  :href="documentReaderUrl(game.id, file) ?? file.url"
-                  class="file-name"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  >{{ displayFileName(file.filename) }}</a
-                >
-                <span class="file-size">{{ formatFileSize(file.size) }}</span>
-                <a :href="file.url" download class="file-download">Download</a>
-                <button
-                  type="button"
-                  class="tile-remove-inline"
-                  title="Delete"
-                  @click="removeGameFile('doc', file)"
-                >
-                  ✕
-                </button>
-              </li>
-            </ul>
-          </template>
-
-          <div v-if="docsTrash.length" class="trash-section">
-            <button
-              type="button"
-              class="trash-toggle"
-              @click="showDocsTrash = !showDocsTrash"
-            >
-              {{ showDocsTrash ? "▾" : "▸" }} Recently deleted ({{
-                docsTrash.length
-              }})
-            </button>
-            <ul v-if="showDocsTrash" class="trash-list">
-              <li
-                v-for="file in docsTrash"
-                :key="file.filename"
-                class="trash-row"
-              >
-                <span class="trash-name">{{
-                  displayFileName(file.filename)
-                }}</span>
-                <span class="trash-meta"
-                  >purges in {{ daysUntil(file.purge_at) }}d</span
-                >
-                <button
-                  type="button"
-                  class="secondary-button small"
-                  @click="restoreFileItem('doc', file)"
-                >
-                  Restore
-                </button>
-              </li>
-            </ul>
-          </div>
-        </div>
-      </div>
+      <GameMediaPanel
+        kind="doc"
+        :game-id="game.id"
+        :items="docsFiles"
+        :trash="docsTrash"
+        :loading="filesLoaded.doc === null"
+        :uploading="uploadingFiles"
+        :error="filesError"
+        @files="onGameFilesSelected($event, 'doc')"
+        @delete="removeGameFile('doc', $event)"
+        @save="(item, patch) => saveGameFile('doc', item, patch)"
+        @bulk-save="bulkSaveFiles('doc', $event)"
+        @bulk-delete="(items) => items.forEach((f) => removeGameFile('doc', f))"
+        @restore="restoreFileItem('doc', $event as TrashedGameFile)"
+        @problem="filesError = $event"
+      />
     </section>
 
     <GameWorldMapPanel v-else-if="activeTab === 'World Map'" />
 
     <section v-else-if="activeTab === 'Stats'" class="stats-panel">
-      <h2>Stats</h2>
-      <div class="stats-grid">
-        <div class="stat-tile">
-          <span class="stat-label">Total playtime</span>
-          <span class="stat-value">{{ statsPlaytimeLabel }}</span>
-        </div>
-        <div class="stat-tile">
-          <span class="stat-label">Achievements</span>
-          <span class="stat-value">
-            {{
-              game.achievementTotal
-                ? `${unlockedAchievements.length} / ${game.achievementTotal}`
-                : "N/A"
-            }}
-          </span>
-        </div>
-        <div class="stat-tile">
-          <span class="stat-label">Completion</span>
-          <span class="stat-value">{{
-            game.achievementTotal ? `${game.achievementPercent}%` : "N/A"
-          }}</span>
-        </div>
-        <div class="stat-tile">
-          <span class="stat-label">Rating</span>
-          <span class="stat-value">{{
-            tally ? `${tally.sum.toFixed(1)} / ${tally.max}` : "N/A"
-          }}</span>
-        </div>
-        <div class="stat-tile">
-          <span class="stat-label">Status</span>
-          <span class="stat-value">{{ game.status }}</span>
-        </div>
-        <div class="stat-tile">
-          <span class="stat-label">Source</span>
-          <span class="stat-value">{{ game.source || "N/A" }}</span>
-        </div>
-        <div class="stat-tile">
-          <span class="stat-label">Date added</span>
-          <span class="stat-value">{{ formatStatsDate(game.dateAdded) }}</span>
-        </div>
-        <div class="stat-tile">
-          <span class="stat-label">Last played</span>
-          <span class="stat-value">{{
-            formatStatsDate(game.lastPlayedAt)
-          }}</span>
-        </div>
-        <div class="stat-tile">
-          <span class="stat-label">First achievement</span>
-          <span class="stat-value">{{ formatStatsDate(firstUnlockedAt) }}</span>
-        </div>
-        <div class="stat-tile">
-          <span class="stat-label">Latest achievement</span>
-          <span class="stat-value">{{ formatStatsDate(lastUnlockedAt) }}</span>
-        </div>
-        <div class="stat-tile">
-          <span class="stat-label">Purchase date</span>
-          <span class="stat-value">{{
-            formatStatsDate(game.ownership.purchaseDate)
-          }}</span>
-        </div>
-        <div v-if="game.completionDate" class="stat-tile">
-          <span class="stat-label">100% completed</span>
-          <span class="stat-value">{{
-            formatStatsDate(game.completionDate)
-          }}</span>
-        </div>
-      </div>
-    </section>
-
-    <section v-else-if="activeTab === 'History'" class="history-panel">
-      <h2>Metadata History</h2>
-      <p v-if="fieldChangesLoading" class="empty-state">Loading…</p>
-      <p v-else-if="fieldChangesError" class="empty-state">
-        {{ fieldChangesError }}
-      </p>
-      <p v-else-if="!fieldChanges.length" class="empty-state">
-        No metadata changes yet. Edits from the game form or a metadata refresh
-        show up here.
-      </p>
-      <ul v-else class="history-list">
-        <li
-          v-for="change in fieldChanges"
-          :key="change.id"
-          class="history-entry"
-        >
-          <div class="history-entry-head">
-            <span class="history-field">{{
-              FIELD_CHANGE_LABELS[change.fieldName] || change.fieldName
-            }}</span>
-            <span class="history-date">{{
-              formatFieldChangeDate(change.changedAt)
-            }}</span>
-          </div>
-          <div class="history-values">
-            <span class="history-old">{{ change.oldValue || "Empty" }}</span>
-            <svg
-              viewBox="0 0 24 24"
-              width="14"
-              height="14"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <path d="M5 12h14" />
-              <path d="M13 6l6 6-6 6" />
-            </svg>
-            <span class="history-new">{{ change.newValue || "Empty" }}</span>
-          </div>
-        </li>
-      </ul>
+      <GameStatsPanel
+        :show-achievements="achievementsOn"
+        :show-rating="!pageSettings.hide_rating"
+        :hide-history="pageSettings.hide_history"
+        :game="game"
+        :changes="fieldChanges"
+        :media="mediaItems"
+        :loading="fieldChangesLoading"
+        :error="fieldChangesError"
+      />
     </section>
   </main>
 

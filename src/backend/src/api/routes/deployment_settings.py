@@ -1,18 +1,28 @@
 from __future__ import annotations
 
 import json
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from src.api.routes.settings import get_or_create_app_integration_settings
 from src.core.auth import get_current_admin
-from src.core.crypto import decrypt_secret, encrypt_secret
+from src.core.crypto import encrypt_secret
 from src.core.env_handler import EnvConfigHandler
 from src.core.provider_credentials import apply_deployment_provider_credentials
+from src.core.real_ip import (
+    get_effective_real_ip_config,
+    validate_real_ip_header,
+    validate_trusted_proxies,
+)
 from src.database.models.oidc_settings import OidcSettings
 from src.database.models.user import User
 from src.database.session import get_db
+
+_DB_DEFAULT = Depends(get_db)
+_ADMIN_DEFAULT = Depends(get_current_admin)
 
 router = APIRouter(
     prefix="/api/settings/deployment", tags=["settings"], dependencies=[Depends(get_current_admin)]
@@ -61,6 +71,8 @@ class DeploymentSettingsRequest(BaseModel):
     oidc_login_button_text: str | None = None
     oidc_allow_new_users: bool | None = None
     oidc_providers_json: str | None = None
+    nginx_realip_header: str | None = None
+    nginx_realip_trusted_proxies: str | None = None
 
 
 _SECRET_FIELDS = {
@@ -158,9 +170,21 @@ async def get_deployment_settings(db: AsyncSession, admin: User) -> dict:
         providers[field + "_configured"] = bool(getattr(app, field)) or provider_locks[field]
     oidc_locks = {field: handler.has(env_name) for field, env_name in _OIDC_ENV_NAMES.items()}
     named = [_provider_view(p) for p in _provider_rows(oidc)]
+    real_ip = get_effective_real_ip_config(
+        handler,
+        app.nginx_realip_header,
+        app.nginx_realip_trusted_proxies,
+    )
     return {
         "providers": providers,
         "provider_locks": provider_locks,
+        "real_ip": {
+            **real_ip,
+            "locked": {
+                "header": handler.has("NGINX_REALIP_HEADER"),
+                "trusted_proxies": handler.has("NGINX_REALIP_TRUSTED_PROXIES"),
+            },
+        },
         "oidc": {
             "issuer_url": None if oidc_locks["issuer_url"] else oidc.issuer_url,
             "client_id": None if oidc_locks["client_id"] else oidc.client_id,
@@ -190,7 +214,7 @@ async def get_deployment_settings(db: AsyncSession, admin: User) -> dict:
 
 @router.get("")
 async def read_deployment_settings(
-    db: AsyncSession = Depends(get_db), admin: User = Depends(get_current_admin)
+    db: AsyncSession = _DB_DEFAULT, admin: User = _ADMIN_DEFAULT
 ) -> dict:
     return await get_deployment_settings(db, admin)
 
@@ -198,8 +222,8 @@ async def read_deployment_settings(
 @router.put("")
 async def update_deployment_settings(
     payload: DeploymentSettingsRequest,
-    db: AsyncSession = Depends(get_db),
-    admin: User = Depends(get_current_admin),
+    db: AsyncSession = _DB_DEFAULT,
+    admin: User = _ADMIN_DEFAULT,
 ) -> dict:
     app = await get_or_create_app_integration_settings(db)
     oidc = await _oidc_row(db)
@@ -216,6 +240,30 @@ async def update_deployment_settings(
     if payload.oidc_enabled is not None:
         effective_oidc_enabled = bool(payload.oidc_enabled)
     for field, value in payload.model_dump(exclude_unset=True).items():
+        if field == "nginx_realip_header":
+            if handler.has("NGINX_REALIP_HEADER"):
+                raise HTTPException(
+                    409,
+                    "nginx_realip_header is managed by the deployment environment and cannot be changed here.",
+                )
+            if value is not None:
+                try:
+                    app.nginx_realip_header = validate_real_ip_header(value)
+                except ValueError as exc:
+                    raise HTTPException(400, str(exc)) from exc
+            continue
+        if field == "nginx_realip_trusted_proxies":
+            if handler.has("NGINX_REALIP_TRUSTED_PROXIES"):
+                raise HTTPException(
+                    409,
+                    "nginx_realip_trusted_proxies is managed by the deployment environment and cannot be changed here.",
+                )
+            if value is not None:
+                try:
+                    app.nginx_realip_trusted_proxies = validate_trusted_proxies(value)
+                except ValueError as exc:
+                    raise HTTPException(400, str(exc)) from exc
+            continue
         if (
             provider_locks.get(field)
             or field in _OIDC_ENV_LOCKED_FIELDS

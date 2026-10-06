@@ -56,6 +56,7 @@
   --ui-edge-right: 28px;
   --ui-reading-width: 880px;
   --ui-content-width: 1560px;
+  --ui-empty-min: 280px;
   --ui-motion-fast: 140ms;
   --ui-motion-normal: 200ms;
   --ui-motion-easing: cubic-bezier(0.2, 0.8, 0.2, 1);

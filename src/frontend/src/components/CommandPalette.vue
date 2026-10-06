@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from "vue";
 import { useRouter } from "vue-router";
-import { fetchGames } from "../services/games";
+import { fetchGames, searchNotes } from "../services/games";
+import type { NoteSearchHit } from "../services/games";
 import type { Game } from "../types/game";
 import { searchPluginRecords } from "../state/pluginSearch";
 import { isCommandPaletteOpen } from "../state/commandPalette";
@@ -48,7 +49,15 @@ async function ensureLoaded() {
 
 interface Result {
   key: string;
-  kind: "game" | "movie" | "tv" | "anime" | "collection" | "bounty" | "page";
+  kind:
+    | "game"
+    | "movie"
+    | "tv"
+    | "anime"
+    | "collection"
+    | "bounty"
+    | "page"
+    | "note";
   label: string;
   sublabel?: string;
   action: () => void;
@@ -62,6 +71,7 @@ const SETTINGS_SHORTCUTS: {
   { label: "Profile", section: "profile" },
   { label: "Appearance & interface", section: "appearance" },
   { label: "App installation", section: "app-installation" },
+  { label: "Game page", section: "game-page" },
   { label: "Notifications", section: "notifications" },
   { label: "Calendar", section: "calendar" },
   { label: "Keyboard Shortcuts", section: "shortcuts" },
@@ -109,6 +119,29 @@ const collectionNames = computed(() => {
   return [...set].sort();
 });
 
+// Notes from every game, looked up on the server as you type. Only the latest
+// answer is kept, so a slow reply to an older query never replaces a newer one.
+const noteHits = ref<NoteSearchHit[]>([]);
+let noteTimer: number | undefined;
+let noteQuery = 0;
+watch(query, (value) => {
+  window.clearTimeout(noteTimer);
+  const q = value.trim();
+  if (q.length < 2) {
+    noteHits.value = [];
+    return;
+  }
+  const ticket = ++noteQuery;
+  noteTimer = window.setTimeout(async () => {
+    try {
+      const hits = await searchNotes(q);
+      if (ticket === noteQuery) noteHits.value = hits;
+    } catch {
+      if (ticket === noteQuery) noteHits.value = [];
+    }
+  }, 220);
+});
+
 const results = computed<Result[]>(() => {
   const q = query.value.trim().toLowerCase();
   const out: Result[] = [];
@@ -135,6 +168,17 @@ const results = computed<Result[]>(() => {
       label: g.title,
       sublabel: g.status,
       action: () => go(`/games/${g.id}`),
+    });
+  }
+
+  for (const n of noteHits.value.slice(0, 5)) {
+    out.push({
+      key: `note:${n.game_id}:${n.name}`,
+      kind: "note",
+      label: n.name,
+      sublabel: `Note in ${n.game_title}${n.snippet ? ` · ${n.snippet.slice(0, 70)}` : ""}`,
+      action: () =>
+        go(`/games/${n.game_id}?tab=Notes&note=${encodeURIComponent(n.name)}`),
     });
   }
 
@@ -235,6 +279,7 @@ function go(to: string) {
 function close() {
   open.value = false;
   query.value = "";
+  noteHits.value = [];
 }
 
 watch(
@@ -386,6 +431,7 @@ const KIND_ICON: Record<Result["kind"], string> = {
   anime: "🎞",
   collection: "📁",
   bounty: "🎯",
+  note: "📝",
   page: "→",
 };
 </script>
@@ -405,7 +451,7 @@ const KIND_ICON: Record<Result["kind"], string> = {
         type="text"
         aria-label="Search library"
         class="palette-input"
-        placeholder="Search games, media, collections, goals and pages…"
+        placeholder="Search games, media, notes, collections and pages…"
       />
       <p v-if="loadError" role="status" class="palette-empty">
         {{ loadError }}
@@ -483,7 +529,7 @@ const KIND_ICON: Record<Result["kind"], string> = {
   text-align: left;
   padding: 9px 10px;
   min-height: var(--ui-control-height);
-  border-radius: 8px;
+  border-radius: var(--ui-radius-control);
   cursor: pointer;
   font-size: 13.5px;
 }

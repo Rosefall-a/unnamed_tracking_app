@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Any, Callable, Literal
 
 from src.core.config import settings
 from src.core.crypto import decrypt_secret
-from src.features.metadata.games import gog, steam
+from src.features.metadata.games import gog, steam, steam_tags
 from src.features.metadata.games.giant_bomb import GiantBombClient
 from src.features.metadata.games.hltb import HLTBClient, HLTBError
 from src.features.metadata.games.igdb import IGDBClient
@@ -89,6 +89,10 @@ def _steam_result(item: dict[str, Any], details: dict[str, Any] | None) -> dict[
             "age_rating": f"{required_age}+" if required_age else None,
             "tags": genres,
             "features": features,
+            # kept so the player tags can be looked up for whichever result the
+            # Steam match ends up merged into (see _apply_steam_user_tags)
+            "steam_app_id": app_id,
+            "steam_genres": genres,
             "links": [
                 {"label": "Steam Store", "url": f"https://store.steampowered.com/app/{app_id}/"}
             ],
@@ -108,6 +112,26 @@ def _friendly_provider_error(name: str, message: str) -> str:
     if "429" in message or "rate limit" in lowered or "too many requests" in lowered:
         return f"{name}: rate limited by the provider, try again in a few minutes."
     return f"{name}: {message}"
+
+
+# how many results get their tags looked up: each is one more store page request
+_STEAM_TAG_LOOKUPS = 3
+
+
+def _apply_steam_user_tags(results: list[dict[str, Any]], enabled: bool) -> None:
+    """Give a result that matched a Steam game the genres its players voted on,
+    in place of the broad official ones, and drop the helper keys. A game whose
+    store page can't be read keeps the tags it already has."""
+    looked_up = 0
+    for result in results:
+        genres = result.pop("steam_genres", None) or []
+        app_id = result.get("steam_app_id")
+        if not enabled or not app_id or looked_up >= _STEAM_TAG_LOOKUPS:
+            continue
+        looked_up += 1
+        player_tags = steam_tags.fetch_player_tags(int(app_id))
+        if player_tags:
+            result["tags"] = steam_tags.pick_genre_tags(player_tags, genres)
 
 
 def _titles_match(a: str, b: str) -> bool:
@@ -150,6 +174,8 @@ class ProviderContext:
     # (which has DB access) and passed in, same pattern as steamgriddb_api_key
     igdb_client_id: str | None = None
     igdb_client_secret: str | None = None
+    # take the tags Steam players vote on as a Steam game's genres
+    steam_user_tags: bool = True
 
 
 ProviderRun = Callable[
@@ -500,6 +526,7 @@ DEFAULT_PREFERENCES: dict[str, Any] = {
     "provider_order": DEFAULT_PROVIDER_ORDER,
     "image_provider_order": DEFAULT_IMAGE_PROVIDER_ORDER,
     **{flag: True for flag, _ in _GATED_FIELDS.values()},
+    "steam_user_tags": True,
 }
 
 
@@ -548,6 +575,7 @@ def search_game_metadata(
         steamgriddb_api_key=steamgriddb_api_key or settings.STEAMGRIDDB_API_KEY,
         igdb_client_id=igdb_client_id or settings.IGDB_CLIENT_ID,
         igdb_client_secret=igdb_client_secret or settings.IGDB_CLIENT_SECRET,
+        steam_user_tags=bool(preferences.get("steam_user_tags", True)),
     )
 
     results: list[dict[str, Any]] = []
@@ -632,6 +660,7 @@ def search_game_metadata(
             providers_used.append(spec.name)
         executor.shutdown(wait=False)
 
+    _apply_steam_user_tags(results, ctx.steam_user_tags)
     _strip_unsaved_fields(results, preferences)
 
     return {

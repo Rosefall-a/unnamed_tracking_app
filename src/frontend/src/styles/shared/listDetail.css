@@ -1,0 +1,26 @@
+.subtitle {
+  margin: 0 0 8px;
+  color: var(--ui-dim);
+  font-size: 0.88rem;
+}
+
+.rule-line {
+  color: var(--ui-dim);
+}
+
+.hint {
+  margin: 0 0 4px;
+  color: var(--ui-accent-text);
+  font-size: 0.8rem;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 16px;
+  margin-top: 24px;
+}
+
+.back-spot {
+  margin-bottom: 14px;
+}

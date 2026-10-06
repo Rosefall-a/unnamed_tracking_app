@@ -4,6 +4,7 @@
 // lists show what their saved filter currently matches, so they have no
 // add/remove/reorder, only an editable rule. Item tiles use the
 // poster+status-pill look already established across Movies/TV/Anime.
+import { localMediaImage } from "../utils/mediaImages";
 import { computed, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import {
@@ -22,7 +23,10 @@ import type {
 } from "../services/mediaExtras";
 import ListFormModal from "../components/ListFormModal.vue";
 import BackButton from "../components/BackButton.vue";
-import UiModal from "../components/UiModal.vue";
+import CollectionDetailHeader from "../components/CollectionDetailHeader.vue";
+import CollectionItemTile from "../components/CollectionItemTile.vue";
+import CollectionAddDialog from "../components/CollectionAddDialog.vue";
+import { useReorderGrid } from "../utils/useReorderGrid";
 import MediaTopBar from "../components/MediaTopBar.vue";
 import {
   STATUS_BUCKETS,
@@ -134,13 +138,6 @@ function goBack() {
 }
 
 // ---- reordering ----
-const reorderMode = ref(false);
-const dragIndex = ref<number | null>(null);
-
-function toggleReorder() {
-  reorderMode.value = !reorderMode.value;
-  if (reorderMode.value) sortMode.value = "manual";
-}
 async function persistOrder() {
   if (!list.value) return;
   try {
@@ -153,31 +150,24 @@ async function persistOrder() {
     await load();
   }
 }
-function moveItem(from: number, to: number) {
-  if (!list.value || to < 0 || to >= list.value.items.length || from === to)
-    return;
-  const items = [...list.value.items];
-  const [moved] = items.splice(from, 1);
-  items.splice(to, 0, moved);
-  list.value.items = items;
-}
-function onDragStart(index: number, event: DragEvent) {
-  dragIndex.value = index;
-  if (event.dataTransfer) event.dataTransfer.effectAllowed = "move";
-}
-function onDragOver(index: number) {
-  if (dragIndex.value === null || dragIndex.value === index) return;
-  moveItem(dragIndex.value, index);
-  dragIndex.value = index;
-}
-function onDragEnd() {
-  if (dragIndex.value !== null) persistOrder();
-  dragIndex.value = null;
-}
-async function nudge(index: number, delta: number) {
-  moveItem(index, index + delta);
-  await persistOrder();
-}
+const {
+  reorderMode,
+  dragIndex,
+  toggleReorder,
+  onDragStart,
+  onDragOver,
+  onDragEnd,
+  nudge,
+} = useReorderGrid<MediaListItemVM>({
+  getItems: () => list.value?.items ?? [],
+  setItems: (next) => {
+    if (list.value) list.value.items = next;
+  },
+  persist: persistOrder,
+  onEnter: () => {
+    sortMode.value = "manual";
+  },
+});
 
 // ---- cover ----
 async function setCover(item: MediaListItemVM) {
@@ -350,63 +340,23 @@ async function addTitle(m: PickItem) {
 
     <div v-else-if="list" class="ui-content">
       <BackButton class="back-spot" @click="goBack" />
-      <div class="header-row">
-        <h1>{{ list.name }}</h1>
-        <span class="count-badge"
-          >{{ list.itemCount }} title{{ list.itemCount === 1 ? "" : "s" }}</span
-        >
-        <span
-          v-if="isSmart"
-          class="smart-pill"
-          title="Fills itself from a filter"
-          >Smart</span
-        >
-        <div class="header-spacer"></div>
-        <select
-          v-model="sortMode"
-          class="ui-field"
-          :disabled="reorderMode"
-          title="Sort"
-        >
-          <option v-if="!isSmart" value="manual">Manual order</option>
-          <option value="title">Title</option>
-          <option value="status">Status</option>
-        </select>
-        <button
-          v-if="!isSmart && list.items.length > 1"
-          type="button"
-          class="ui-btn ui-btn-secondary"
-          :class="{ on: reorderMode }"
-          @click="toggleReorder"
-        >
-          {{ reorderMode ? "Done" : "Reorder" }}
-        </button>
-        <button
-          v-if="!isSmart"
-          type="button"
-          class="ui-btn ui-btn-primary"
-          @click="openAdd"
-        >
-          + Add Titles
-        </button>
-        <button
-          v-if="!isSystem"
-          type="button"
-          class="ui-btn ui-btn-secondary"
-          @click="showEdit = true"
-        >
-          Edit
-        </button>
-        <button
-          v-if="!isSystem"
-          type="button"
-          class="ui-btn ui-btn-danger"
-          :disabled="deletingList"
-          @click="deleteList"
-        >
-          {{ deletingList ? "Deleting…" : "Delete" }}
-        </button>
-      </div>
+      <CollectionDetailHeader
+        v-model:sort-mode="sortMode"
+        :title="list.name"
+        :count-text="`${list.itemCount} title${list.itemCount === 1 ? '' : 's'}`"
+        :is-smart="isSmart"
+        :reorder-mode="reorderMode"
+        :can-reorder="!isSmart && list.items.length > 1"
+        :can-add="!isSmart"
+        add-label="+ Add Titles"
+        :can-edit="!isSystem"
+        :can-delete="!isSystem"
+        :deleting="deletingList"
+        @reorder="toggleReorder"
+        @add="openAdd"
+        @edit="showEdit = true"
+        @delete="deleteList"
+      />
       <p v-if="list.description" class="subtitle">{{ list.description }}</p>
       <p v-if="isSmart && ruleSummary" class="subtitle rule-line">
         Matches: {{ ruleSummary }}
@@ -437,78 +387,37 @@ async function addTitle(m: PickItem) {
       </p>
 
       <div v-if="shownItems.length" class="grid">
-        <div
+        <CollectionItemTile
           v-for="(item, index) in shownItems"
           :key="item.id"
-          class="item-card"
-          :class="{ reordering: reorderMode, dragging: dragIndex === index }"
-          :draggable="reorderMode"
-          @click="openItem(item)"
+          :title="item.title"
+          :poster-url="
+            localMediaImage(
+              item.mediaType,
+              item.mediaId,
+              'poster',
+              item.posterUrl,
+            )
+          "
+          :status-label="statusBucketLabel(item.status)"
+          :status-class="statusBucket(item.status)"
+          :index="index"
+          :count="shownItems.length"
+          :reorder-mode="reorderMode"
+          :dragging="dragIndex === index"
+          :cover-mark="list.coverMediaId === item.mediaId"
+          cover-mark-title="List cover"
+          star-title="Use as the list cover"
+          remove-title="Remove from list"
+          :can-remove="!isSmart"
+          @open="openItem(item)"
+          @nudge="nudge(index, $event)"
+          @cover="setCover(item)"
+          @remove="removeItem(item.id)"
           @dragstart="onDragStart(index, $event)"
-          @dragover.prevent="onDragOver(index)"
+          @dragover="onDragOver(index)"
           @dragend="onDragEnd"
-        >
-          <div class="item-cover">
-            <div
-              class="item-poster"
-              :style="
-                item.posterUrl
-                  ? { backgroundImage: `url(${item.posterUrl})` }
-                  : {}
-              "
-            ></div>
-            <span
-              v-if="list.coverMediaId === item.mediaId"
-              class="cover-mark"
-              title="List cover"
-              >★</span
-            >
-            <div v-if="reorderMode" class="reorder-arrows">
-              <button
-                type="button"
-                :disabled="index === 0"
-                title="Move earlier"
-                @click.stop="nudge(index, -1)"
-              >
-                ‹
-              </button>
-              <span class="reorder-pos">{{ index + 1 }}</span>
-              <button
-                type="button"
-                :disabled="index === shownItems.length - 1"
-                title="Move later"
-                @click.stop="nudge(index, 1)"
-              >
-                ›
-              </button>
-            </div>
-            <div v-else class="tile-actions">
-              <button
-                type="button"
-                class="tile-btn"
-                title="Use as the list cover"
-                @click.stop="setCover(item)"
-              >
-                ★
-              </button>
-              <button
-                v-if="!isSmart"
-                type="button"
-                class="tile-btn"
-                title="Remove from list"
-                @click.stop="removeItem(item.id)"
-              >
-                ✕
-              </button>
-            </div>
-          </div>
-          <div class="card-info">
-            <h3 class="title">{{ item.title }}</h3>
-            <span class="pill" :class="statusBucket(item.status)">{{
-              statusBucketLabel(item.status)
-            }}</span>
-          </div>
-        </div>
+        />
       </div>
       <p v-else-if="isSmart" class="ui-state">
         Nothing matches this list's filter right now. Edit the list to loosen
@@ -528,317 +437,38 @@ async function addTitle(m: PickItem) {
       @close="showEdit = false"
     />
 
-    <UiModal v-if="showAdd" title="Add titles" @close="showAdd = false">
-      <div class="add-picker">
-        <input
-          v-model="addSearch"
-          type="text"
-          class="ui-field"
-          placeholder="Search your library…"
-          autofocus
-        />
-        <p v-if="addError" class="ui-error-box">{{ addError }}</p>
-        <div class="add-results">
-          <button
-            v-for="m in addResults"
-            :key="`${m.mediaType}-${m.mediaId}`"
-            type="button"
-            class="add-row"
-            @click="addTitle(m)"
-          >
-            <span
-              class="add-thumb"
-              :style="
-                m.posterUrl ? { backgroundImage: `url(${m.posterUrl})` } : {}
-              "
-            ></span>
-            <span class="add-title">{{ m.title }}</span>
-            <span class="add-kind">{{ m.mediaType }}</span>
-            <span class="add-plus">+</span>
-          </button>
-          <p v-if="libraryLoaded && !addResults.length" class="ui-state">
-            Nothing left to add{{ addSearch ? " for that search" : "" }}.
-          </p>
-        </div>
-        <div class="ui-modal-actions">
-          <button
-            type="button"
-            class="ui-btn ui-btn-primary"
-            @click="showAdd = false"
-          >
-            Done
-          </button>
-        </div>
-      </div>
-    </UiModal>
+    <CollectionAddDialog
+      v-if="showAdd"
+      v-model:search="addSearch"
+      heading="Add titles"
+      :loaded="libraryLoaded"
+      :results="
+        addResults.map((m) => ({
+          key: `${m.mediaType}-${m.mediaId}`,
+          title: m.title,
+          thumbUrl: m.posterUrl,
+          kind: m.mediaType,
+        }))
+      "
+      :error="addError"
+      @add="
+        (key) =>
+          addTitle(
+            addResults.find((m) => `${m.mediaType}-${m.mediaId}` === key)!,
+          )
+      "
+      @close="showAdd = false"
+    />
   </main>
 </template>
 
+<style scoped src="../styles/shared/listDetail.css"></style>
+
 <style scoped>
-.header-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px 12px;
-  margin-bottom: 8px;
-}
-.header-spacer {
-  flex: 1;
-}
-.header-row h1 {
-  margin: 0 4px 0 0;
-  font-size: var(--ui-font-title);
-  font-weight: var(--ui-weight-title);
-}
-.count-badge {
-  color: var(--ui-dim);
-  font-size: 13px;
-  background: color-mix(in srgb, var(--ui-text) 6%, transparent);
-  padding: 4px 12px;
-  border-radius: 999px;
-}
-.smart-pill {
-  font-size: 11px;
-  font-weight: var(--ui-weight-title);
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--ui-accent-text);
-  background: color-mix(in srgb, var(--ui-accent) 14%, transparent);
-  padding: 4px 10px;
-  border-radius: 999px;
-}
-.subtitle {
-  margin: 0 0 8px;
-  color: var(--ui-dim);
-  font-size: 0.88rem;
-}
-.rule-line {
-  color: var(--ui-dim);
-}
 .type-chips {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
   margin: 8px 0 0;
-}
-.hint {
-  margin: 0 0 4px;
-  color: var(--ui-accent-text);
-  font-size: 0.8rem;
-}
-/* same fixed 10-per-row grid as Collections/CollectionDetail */
-.grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: 16px;
-  margin-top: 24px;
-}
-.item-card {
-  cursor: pointer;
-}
-.item-card.reordering {
-  cursor: grab;
-}
-.item-card.dragging {
-  opacity: 0.4;
-}
-.item-cover {
-  position: relative;
-  width: 100%;
-  aspect-ratio: 2 / 3;
-  border-radius: var(--ui-radius-row);
-  overflow: hidden;
-  background: var(--ui-surface);
-  transition:
-    transform 0.32s cubic-bezier(0.22, 1, 0.36, 1),
-    box-shadow 0.32s cubic-bezier(0.22, 1, 0.36, 1);
-}
-.item-card:hover .item-cover {
-  transform: scale(1.07) translateY(-4px);
-  box-shadow: 0 24px 56px rgba(0, 0, 0, 0.5);
-}
-.item-card.reordering:hover .item-cover {
-  transform: none;
-  box-shadow: none;
-}
-.item-poster {
-  width: 100%;
-  height: 100%;
-  background-size: cover;
-  background-position: center;
-  background-color: var(--ui-surface);
-}
-.cover-mark {
-  position: absolute;
-  left: 8px;
-  top: 8px;
-  z-index: 2;
-  color: var(--ui-accent-text);
-  font-size: 14px;
-  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
-}
-.tile-actions {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  z-index: 2;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  opacity: 0;
-  transition: opacity 0.15s ease;
-}
-.item-card:hover .tile-actions {
-  opacity: 1;
-}
-.tile-btn {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  border: none;
-  background: rgba(20, 20, 20, 0.75);
-  backdrop-filter: blur(4px);
-  color: var(--ui-text);
-  font-size: 11px;
-  cursor: pointer;
-}
-.tile-btn:hover {
-  color: var(--ui-error);
-}
-.tile-btn[title^="Use"]:hover {
-  color: var(--ui-accent-text);
-}
-.reorder-arrows {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 2;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 6px;
-  background: linear-gradient(transparent, rgba(0, 0, 0, 0.85));
-}
-.reorder-arrows button {
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  border: none;
-  background: color-mix(in srgb, var(--ui-text) 14%, transparent);
-  color: var(--ui-text);
-  font-size: 15px;
-  cursor: pointer;
-}
-.reorder-arrows button:disabled {
-  opacity: 0.3;
-  cursor: default;
-}
-.reorder-pos {
-  font-size: 12px;
-  font-weight: var(--ui-weight-title);
-  font-variant-numeric: tabular-nums;
-}
-.card-info {
-  padding: 10px 2px 0;
-}
-.title {
-  margin: 0 0 6px;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--ui-text);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.pill {
-  display: inline-flex;
-  align-items: center;
-  font-size: 10.5px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
-  padding: 3px 9px;
-  border-radius: 999px;
-}
-.pill.watching {
-  background: color-mix(in srgb, var(--ui-accent) 16%, transparent);
-  color: var(--ui-accent-text);
-}
-.pill.completed {
-  background: color-mix(in srgb, var(--ui-good) 16%, transparent);
-  color: var(--ui-good);
-}
-.pill.hold {
-  background: color-mix(in srgb, var(--ui-info) 16%, transparent);
-  color: var(--ui-info);
-}
-.pill.dropped {
-  background: color-mix(in srgb, var(--ui-error) 16%, transparent);
-  color: var(--ui-error);
-}
-.pill.plan {
-  background: color-mix(in srgb, var(--ui-purple) 16%, transparent);
-  color: var(--ui-purple);
-}
-
-/* add-titles modal */
-.add-results {
-  overflow-y: auto;
-  min-height: 120px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.add-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  background: none;
-  border: none;
-  border-radius: var(--ui-radius-control);
-  padding: 6px;
-  color: var(--ui-text);
-  text-align: left;
-  font-family: inherit;
-  cursor: pointer;
-}
-.add-row:hover {
-  background: color-mix(in srgb, var(--ui-text) 6%, transparent);
-}
-.add-thumb {
-  width: 30px;
-  height: 44px;
-  border-radius: 4px;
-  background: var(--ui-surface-2) center / cover;
-  flex-shrink: 0;
-}
-.add-title {
-  flex: 1;
-  min-width: 0;
-  font-size: 0.86rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.add-kind {
-  color: var(--ui-faint);
-  font-size: 0.7rem;
-  text-transform: uppercase;
-}
-.add-plus {
-  color: var(--ui-accent-text);
-  font-weight: var(--ui-weight-title);
-  font-size: 1.1rem;
-  width: 20px;
-  text-align: center;
-}
-.back-spot {
-  margin-bottom: 14px;
-}
-.add-picker {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
 }
 </style>

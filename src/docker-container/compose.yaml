@@ -20,6 +20,8 @@ services:
       PLUGIN_RUNTIME_URL: http://plugin-runtime:8000
       PLUGIN_GATEWAY_URL: http://app
       PLUGIN_RUNTIME_TOKEN: ${PLUGIN_RUNTIME_TOKEN:?Set PLUGIN_RUNTIME_TOKEN in .env}
+      NGINX_REALIP_HEADER: ${NGINX_REALIP_HEADER-}
+      NGINX_REALIP_TRUSTED_PROXIES: ${NGINX_REALIP_TRUSTED_PROXIES-}
     volumes:
       - ./data:/data
       # For TLS, mount externally managed certificates read-only:

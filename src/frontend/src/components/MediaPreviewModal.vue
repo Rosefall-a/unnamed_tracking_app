@@ -69,7 +69,7 @@ const emit = defineEmits<{
   position: fixed;
   inset: 0;
   z-index: 300;
-  background: rgba(0, 0, 0, 0.65);
+  background: color-mix(in srgb, var(--ui-bg) 65%, transparent);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -81,7 +81,7 @@ const emit = defineEmits<{
   max-width: 520px;
   background: var(--ui-surface);
   border: 1px solid var(--ui-border);
-  border-radius: 14px;
+  border-radius: var(--ui-radius-dialog);
   padding: 22px;
 }
 .preview-close {
@@ -90,7 +90,7 @@ const emit = defineEmits<{
   right: 12px;
   background: none;
   border: none;
-  color: #888;
+  color: var(--ui-dim);
   font-size: 1.3rem;
   cursor: pointer;
   line-height: 1;
@@ -115,9 +115,12 @@ const emit = defineEmits<{
   flex-shrink: 0;
   border-radius: var(--ui-radius-control);
   background-size: cover;
+  background-repeat: no-repeat;
+  background-origin: border-box;
+  background-clip: border-box;
   background-position: center;
   background-color: var(--ui-surface-2);
-  border: 1px solid color-mix(in srgb, var(--ui-text) 8%, transparent);
+  border: 1px solid transparent;
   display: flex;
   align-items: center;
   justify-content: center;

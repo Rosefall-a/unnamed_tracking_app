@@ -19,11 +19,14 @@ from src.api.routes import (
     default_game_assets,
     export_import,
     game_archives,
+    game_notes,
+    game_page,
     games,
     jobs,
     library_sync,
     media,
     media_extras,
+    media_images,
     media_io,
     media_lists,
     media_provider,
@@ -35,6 +38,7 @@ from src.api.routes import (
     session_manager,
     settings,
     stats,
+    steam_tags_refresh,
     tv_shows,
     users,
 )
@@ -43,6 +47,7 @@ from src.api.routes.deployment_settings import router as deployment_settings_rou
 from src.api.routes.plugin_permissions import router as plugin_permissions_router
 from src.api.routes.plugins import host_router as plugin_host_routes
 from src.api.routes.plugins import router as plugins_router
+from src.api.routes.real_ip import router as real_ip_router
 from src.api.routes.settings import get_or_create_app_integration_settings
 from src.api.routes.setup import router as setup_router
 from src.api.routes.themes import router as themes_router
@@ -96,6 +101,8 @@ app.include_router(movies.router)
 app.include_router(tv_shows.router)
 app.include_router(anime.router)
 app.include_router(game_archives.router)
+app.include_router(game_notes.router)
+app.include_router(game_page.router)
 app.include_router(users.router)
 app.include_router(api_keys.router)
 app.include_router(auth.router)
@@ -108,6 +115,7 @@ app.include_router(deployment_settings_router)
 app.include_router(plugin_permissions_router)
 app.include_router(plugins_router)
 app.include_router(pwa_router)
+app.include_router(real_ip_router)
 app.include_router(app_integrations.router)
 app.include_router(media.router)
 app.include_router(stats.router)
@@ -117,6 +125,8 @@ app.include_router(jobs.router)
 app.include_router(media_io.router)
 app.include_router(media_extras.router)
 app.include_router(media_provider.router)
+app.include_router(media_images.router)
+app.include_router(steam_tags_refresh.router)
 app.include_router(media_lists.router)
 app.include_router(notifications.router)
 app.include_router(notification_providers.router)

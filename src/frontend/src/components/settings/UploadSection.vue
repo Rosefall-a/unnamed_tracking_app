@@ -24,6 +24,7 @@ import {
   setTaskRetry,
 } from "../../state/taskProgress";
 import { refreshInboxCount } from "../../state/inbox";
+import { formatMediaDate } from "../../utils/mediaDate";
 
 const maxUploadSizeMb = ref<number | null>(null);
 
@@ -274,11 +275,8 @@ async function deleteSelected() {
   }
 }
 
-function formatItemDate(unixSeconds: number): string {
-  return new Date(unixSeconds * 1000).toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-  });
+function formatItemDate(item: InboxMediaItem): string {
+  return formatMediaDate(item);
 }
 
 // --- Trash: soft-deleted uploads stay recoverable for 7 days before
@@ -557,9 +555,7 @@ async function restoreItem(item: TrashedInboxItem) {
                 </svg>
               </button>
             </div>
-            <span class="media-date">{{
-              formatItemDate(item.created_at)
-            }}</span>
+            <span class="media-date">{{ formatItemDate(item) }}</span>
           </div>
         </div>
       </div>
@@ -628,9 +624,7 @@ async function restoreItem(item: TrashedInboxItem) {
                 </svg>
               </button>
             </div>
-            <span class="media-date">{{
-              formatItemDate(item.created_at)
-            }}</span>
+            <span class="media-date">{{ formatItemDate(item) }}</span>
           </div>
         </div>
       </div>
@@ -820,6 +814,7 @@ async function restoreItem(item: TrashedInboxItem) {
   height: 34px;
   border-radius: 4px;
   background-size: cover;
+  background-repeat: no-repeat;
   background-position: center;
   flex-shrink: 0;
 }
@@ -856,7 +851,7 @@ async function restoreItem(item: TrashedInboxItem) {
   box-sizing: border-box;
   background: var(--ui-bg);
   border: 1px solid var(--ui-border);
-  border-radius: 7px;
+  border-radius: var(--ui-radius-control);
   color: var(--ui-text);
   padding: 8px 10px;
   font: inherit;
@@ -880,7 +875,7 @@ async function restoreItem(item: TrashedInboxItem) {
   gap: 10px;
   background: none;
   border: none;
-  border-radius: 7px;
+  border-radius: var(--ui-radius-control);
   padding: 6px 8px;
   cursor: pointer;
   text-align: left;
@@ -896,6 +891,7 @@ async function restoreItem(item: TrashedInboxItem) {
   height: 40px;
   border-radius: 4px;
   background-size: cover;
+  background-repeat: no-repeat;
   background-position: center;
   flex-shrink: 0;
 }
@@ -1089,7 +1085,7 @@ async function restoreItem(item: TrashedInboxItem) {
   left: 6px;
   width: 24px;
   height: 24px;
-  border-radius: 7px;
+  border-radius: var(--ui-radius-control);
   border: 2px solid color-mix(in srgb, var(--ui-text) 55%, transparent);
   background: var(--ui-surface);
   display: flex;

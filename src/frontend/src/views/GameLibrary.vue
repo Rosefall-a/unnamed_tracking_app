@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { sizedAssetUrl } from "../utils/gameImages";
 import HeartIcon from "../components/HeartIcon.vue";
 import GameCard from "../components/GameCard.vue";
 import CheckIcon from "../components/CheckIcon.vue";
@@ -725,7 +726,13 @@ const compactPreview = computed(
             @click="selectMode ? toggleSelect(game) : openGame(game)"
           >
             <div class="list-thumb-wrap">
-              <img class="list-cover" :src="game.coverImageUrl" alt="" />
+              <img
+                class="list-cover"
+                :src="game.coverImageUrl"
+                alt=""
+                loading="lazy"
+                decoding="async"
+              />
               <div
                 v-if="selectMode"
                 class="select-checkbox"
@@ -838,7 +845,13 @@ const compactPreview = computed(
               :class="{ active: selectedGame?.id === game.id }"
               @click="selectedGame = game"
             >
-              <img class="detail-list-thumb" :src="game.coverImageUrl" alt="" />
+              <img
+                class="detail-list-thumb"
+                :src="game.coverImageUrl"
+                alt=""
+                loading="lazy"
+                decoding="async"
+              />
               <span>{{ game.title }}</span>
             </button>
           </div>
@@ -852,7 +865,7 @@ const compactPreview = computed(
               <div
                 class="preview-banner"
                 :style="{
-                  backgroundImage: `url(${selectedGame.bannerImageUrl})`,
+                  backgroundImage: `url(${sizedAssetUrl(selectedGame.bannerImageUrl, 800)})`,
                 }"
               >
                 <div class="preview-banner-overlay"></div>

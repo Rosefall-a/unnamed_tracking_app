@@ -230,7 +230,13 @@ function copyFolderPath() {
         @touchmove="onTouchMove"
         @touchend="onTouchEnd"
       >
-        <img class="cover-image" :src="game.coverImageUrl" alt="" />
+        <img
+          class="cover-image"
+          :src="game.coverImageUrl"
+          alt=""
+          loading="lazy"
+          decoding="async"
+        />
         <div
           v-if="selectMode"
           class="select-checkbox"
@@ -522,7 +528,7 @@ function copyFolderPath() {
   overflow: hidden;
   cursor: pointer;
   background: var(--surface-2, var(--ui-surface-2));
-  border: 1px solid var(--border-soft, var(--ui-border));
+  border: 1px solid transparent;
   box-sizing: border-box;
   transition:
     box-shadow 0.28s ease,
@@ -571,8 +577,8 @@ function copyFolderPath() {
 .select-checkbox {
   width: 26px;
   height: 26px;
-  border-radius: 7px;
-  background: rgba(10, 10, 10, 0.8);
+  border-radius: var(--ui-radius-control);
+  background: color-mix(in srgb, var(--ui-bg) 80%, transparent);
   border: 1.5px solid color-mix(in srgb, var(--ui-text) 45%, transparent);
   display: flex;
   align-items: center;

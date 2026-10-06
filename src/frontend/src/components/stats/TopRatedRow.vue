@@ -56,7 +56,7 @@ defineEmits<{ open: [item: TopTitle] }>();
   top: 6px;
   left: 6px;
   z-index: 2;
-  background: rgba(10, 10, 10, 0.75);
+  background: color-mix(in srgb, var(--ui-bg) 75%, transparent);
   color: var(--ui-accent-text);
   font-size: 0.7rem;
   font-weight: var(--ui-weight-title);
@@ -71,9 +71,12 @@ defineEmits<{ open: [item: TopTitle] }>();
   aspect-ratio: 2 / 3;
   border-radius: var(--ui-radius-control);
   background-size: cover;
+  background-repeat: no-repeat;
+  background-origin: border-box;
+  background-clip: border-box;
   background-position: center;
   background-color: var(--ui-surface-2);
-  border: 1px solid var(--ui-border);
+  border: 1px solid transparent;
   transition: transform 0.2s ease;
 }
 .toprated-card:hover .toprated-art {

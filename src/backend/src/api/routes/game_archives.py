@@ -34,6 +34,7 @@ from src.core.auth import get_current_user
 from src.database.models.game_archive import GameArchive, GameArchiveVersion
 from src.database.models.user import User
 from src.database.session import get_db
+from src.features import game_notes
 from src.features.trash import archive_trash
 from src.features.trash.sweep import RETENTION_SECONDS
 from src.features.world_map import bluemap
@@ -145,6 +146,8 @@ def _archive_to_dict(
     return {
         "id": str(archive.id),
         "name": archive.name,
+        "note": archive.note,
+        "tags": archive.tags,
         "kind": archive.kind,
         "created_at": archive.created_at,
         "updated_at": archive.updated_at,
@@ -160,7 +163,11 @@ def _trash_entry(game_id: UUID, archive: GameArchive) -> dict:
 
 
 class RenameArchiveRequest(BaseModel):
-    name: str
+    """Whatever is sent is changed; what is left out stays as it is."""
+
+    name: str | None = None
+    note: str | None = None
+    tags: list[str] | None = None
 
 
 @router.get("/{game_id}/archives/{kind}")
@@ -305,9 +312,15 @@ async def rename_archive(
     current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> dict:
     archive = await _get_archive_or_404(game_id, archive_id, db, current_user.id)
-    if not payload.name.strip():
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Name is required.")
-    archive.name = payload.name.strip()
+    changes = payload.model_dump(exclude_unset=True)
+    if "name" in changes:
+        if not (changes["name"] or "").strip():
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Name is required.")
+        archive.name = changes["name"].strip()
+    if "note" in changes:
+        archive.note = (changes["note"] or "").strip() or None
+    if "tags" in changes and changes["tags"] is not None:
+        archive.tags = game_notes.clean_tags(changes["tags"])
     await db.commit()
     await db.refresh(archive, attribute_names=["versions"])
     return _archive_to_dict(game_id, archive)

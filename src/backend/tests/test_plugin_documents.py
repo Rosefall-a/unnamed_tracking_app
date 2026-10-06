@@ -12,7 +12,7 @@ from uuid import uuid4
 import httpx
 import pytest
 from sqlalchemy import JSON
-from sqlalchemy.dialects.postgresql import ARRAY
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from test_plugin_authorization_http import boundary as authorization_boundary
 from test_plugin_authorization_http import grant, request
 
@@ -35,10 +35,11 @@ boundary = authorization_boundary
 
 @pytest.fixture
 def stored(boundary, tmp_path, monkeypatch):
-    # SQLite executes the actual ownership queries; only PG array storage is adapted.
-    for column in Game.__table__.columns:
-        if isinstance(column.type, ARRAY):
-            monkeypatch.setattr(column, "type", JSON())
+    # SQLite executes ownership queries; adapt PostgreSQL-specific storage only.
+    for table in (Game.__table__, GameFileItem.__table__):
+        for column in table.columns:
+            if isinstance(column.type, (ARRAY, JSONB)):
+                monkeypatch.setattr(column, "type", JSON())
     Game.__table__.create(boundary.session.bind)
     GameLink.__table__.create(boundary.session.bind)
     GameFileItem.__table__.create(boundary.session.bind)
