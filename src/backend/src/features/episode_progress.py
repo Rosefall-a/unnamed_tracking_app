@@ -24,6 +24,7 @@ lowest-numbered unflagged episodes, the way progress is normally made.
 
 from collections.abc import Iterable
 from typing import Any
+from uuid import UUID
 
 
 def unbacked_progress(season: Any, extra: Iterable[Any] = ()) -> int:
@@ -77,3 +78,39 @@ def apply_counter(season: Any, new_counter: int) -> None:
                 break
             episode.watched = False
             flagged.remove(episode)
+
+
+def update_season_progress(season: Any, updates: dict[str, Any]) -> int:
+    """Apply season edits and return only newly watched progress for the activity log."""
+    previous = season.episodes_watched or 0
+    for field, value in updates.items():
+        setattr(season, field, value)
+    if "episodes_watched" not in updates:
+        return 0
+    current = season.episodes_watched or 0
+    apply_counter(season, current)
+    return max(0, current - previous)
+
+
+def set_episodes_watched(season: Any, episode_ids: set[UUID], watched: bool) -> int:
+    """Apply a batch within this season, preserving previously unbacked progress."""
+    without_row = materialize_progress(season)
+    newly_watched = 0
+    for episode in season.episodes:
+        if episode.id in episode_ids:
+            if watched and not episode.watched:
+                newly_watched += 1
+            episode.watched = watched
+    counter_from_flags(season, without_row)
+    return newly_watched
+
+
+def update_episode_progress(season: Any, episode: Any, updates: dict[str, Any]) -> bool:
+    """Apply an episode edit, synchronizing counters without logging existing progress twice."""
+    without_row = materialize_progress(season) if "watched" in updates else 0
+    newly_watched = updates.get("watched") is True and not episode.watched
+    for field, value in updates.items():
+        setattr(episode, field, value)
+    if "watched" in updates:
+        counter_from_flags(season, without_row)
+    return newly_watched

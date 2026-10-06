@@ -1,11 +1,34 @@
 """Shared response models for paginated library endpoints."""
 
+from enum import Enum
 from typing import Generic, TypeVar
 
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 
 T = TypeVar("T")
+StatusT = TypeVar("StatusT", bound=Enum)
+
+
+class LibraryQuery(BaseModel, Generic[StatusT]):
+    """Shared HTTP filters, with each media kind retaining its status enum."""
+
+    # Independent query fields are the existing public library-filter contract.
+    # pylint: disable=too-many-instance-attributes
+    status: StatusT | None = None
+    favorite: bool | None = None
+    search: str | None = Field(default=None, description="Case-insensitive title search")
+    skip: int = Field(default=0, ge=0)
+    limit: int = Field(default=100, ge=1, le=200)
+    status_bucket: str | None = None
+    genre: list[str] = []
+    genre_match_all: bool = False
+    format: list[str] = []
+    only_unrated: bool = False
+    only_with_note: bool = False
+    min_score: float | None = Field(default=None, ge=0, le=10)
+    year_from: int | None = Field(default=None, ge=1, le=9999)
+    year_to: int | None = Field(default=None, ge=1, le=9999)
 
 
 class PaginatedResponse(BaseModel, Generic[T]):

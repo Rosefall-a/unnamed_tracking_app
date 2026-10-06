@@ -1,30 +1,33 @@
-# pylint: disable=missing-class-docstring,too-many-arguments,too-many-positional-arguments,not-callable,missing-function-docstring,duplicate-code
 """API routes for managing movies."""
 
-import asyncio
-import re
 from datetime import date
+from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.routes.media_common import (
+    LibraryFilters,
     library_page,
+    owned_row,
     purge_row,
+    request_metadata,
     restore_row,
+    search_external_metadata,
     soft_delete,
     title_search,
+    tmdb_recommendations,
     trash_listing,
 )
 from src.api.routes.media_extras import log_activity, status_change_detail
+from src.api.schemas.metadata import MetadataSearchResponse
 from src.api.schemas.movie import MovieCreate, MovieRead, MovieUpdate
-from src.api.schemas.pagination import PaginatedResponse
+from src.api.schemas.pagination import LibraryQuery, PaginatedResponse
 from src.core.app_integrations import get_or_create_app_integration_settings
 from src.core.auth import get_current_user
 from src.core.integrations import resolve_integrations
+from src.core.titles import derive_sort_title as _derive_sort_title
 from src.database.models.media_extras import ActivityEventType
 from src.database.models.movies import Movie, MovieStatus
 from src.database.models.user import User
@@ -37,20 +40,7 @@ _QUERY_DEFAULT = Query(..., min_length=2, max_length=100, alias="query")
 _LIMIT_DEFAULT = Query(default=8, ge=1, le=20, alias="limit")
 _DB_DEFAULT = Depends(get_db)
 _CURRENT_USER_DEFAULT = Depends(get_current_user)
-_STATUS_FILTER_DEFAULT = Query(default=None, alias="status")
-_FAVORITE_DEFAULT = Query(default=None, alias="favorite")
-_SEARCH_DEFAULT = Query(default=None, description="Case-insensitive title search", alias="search")
-_SKIP_DEFAULT = Query(default=0, ge=0, alias="skip")
-_LIMIT_DEFAULT_2 = Query(default=100, ge=1, le=200, alias="limit")
-_STATUS_BUCKET_DEFAULT = Query(default=None, alias="status_bucket")
-_GENRE_DEFAULT = Query(default=[], alias="genre")
-_GENRE_MATCH_ALL_DEFAULT = Query(default=False, alias="genre_match_all")
-_FORMAT_DEFAULT = Query(default=[], alias="format")
-_ONLY_UNRATED_DEFAULT = Query(default=False, alias="only_unrated")
-_ONLY_WITH_NOTE_DEFAULT = Query(default=False, alias="only_with_note")
-_MIN_SCORE_DEFAULT = Query(default=None, ge=0, le=10, alias="min_score")
-_YEAR_FROM_DEFAULT = Query(default=None, ge=1, le=9999, alias="year_from")
-_YEAR_TO_DEFAULT = Query(default=None, ge=1, le=9999, alias="year_to")
+
 
 router = APIRouter(prefix="/api/movie", tags=["movie"], dependencies=[Depends(get_current_user)])
 
@@ -73,34 +63,24 @@ _LOCKABLE_FIELDS = frozenset(
 )
 
 
-class MovieMetadataSearchResponse(BaseModel):
-    query: str
-    providers: list[str]
-    provider_errors: list[str] = []
-    results: list[dict]
-
-
-_LEADING_ARTICLE = re.compile(r"^(a|an|the)\s+", flags=re.IGNORECASE)
-
-
-def _derive_sort_title(title: str) -> str:
-    """'The Matrix' -> 'matrix' so articles do not affect sort order."""
-    return _LEADING_ARTICLE.sub("", title).strip().lower()
+class MovieMetadataSearchResponse(MetadataSearchResponse):
+    # Keep the existing named HTTP schema; all data fields belong to its shared base.
+    # pylint: disable=too-few-public-methods
+    pass
 
 
 async def _get_movie_or_404(
     movie_id: UUID, db: AsyncSession, user_id: UUID, include_deleted: bool = False
 ) -> Movie:
-    stmt = select(Movie).where(Movie.id == movie_id, Movie.user_id == user_id)
-    if not include_deleted:
-        stmt = stmt.where(Movie.deleted_at.is_(None))
-    movie = await db.scalar(stmt)
-    if movie is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Movie {movie_id} not found",
-        )
-    return movie
+    return await owned_row(
+        db,
+        Movie,
+        movie_id,
+        user_id,
+        "Movie",
+        include_deleted=include_deleted,
+        populate_existing=False,
+    )
 
 
 @router.get("/metadata/search", response_model=MovieMetadataSearchResponse)
@@ -114,21 +94,7 @@ async def search_metadata(
     sources on purpose — redundancy, so a missing/rate-limited source
     doesn't leave the search empty."""
     del current_user
-    app_integrations = resolve_integrations(await get_or_create_app_integration_settings(db))
-    try:
-        result = await asyncio.to_thread(
-            search_movie_metadata,
-            query.strip(),
-            limit,
-            app_integrations.tmdb_api_key,
-            app_integrations.omdb_api_key,
-        )
-    except Exception as exc:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"Metadata providers could not be reached: {exc}",
-        ) from exc
-    return result
+    return await search_external_metadata(db, search_movie_metadata, query, limit)
 
 
 @router.post(
@@ -153,59 +119,31 @@ async def create_movie(
     return movie
 
 
+# Typed route adapters retain their own HTTP schemas and ownership checks; behavior is shared.
+# pylint: disable=duplicate-code
 @router.get("/list", response_model=PaginatedResponse[MovieRead])
 async def list_movies(
+    query: Annotated[LibraryQuery[MovieStatus], Query()],
     db: AsyncSession = _DB_DEFAULT,
     current_user: User = _CURRENT_USER_DEFAULT,
-    status_filter: MovieStatus | None = _STATUS_FILTER_DEFAULT,
-    favorite: bool | None = _FAVORITE_DEFAULT,
-    search: str | None = _SEARCH_DEFAULT,
-    skip: int = _SKIP_DEFAULT,
-    limit: int = _LIMIT_DEFAULT_2,
-    status_bucket: str | None = _STATUS_BUCKET_DEFAULT,
-    genre: list[str] = _GENRE_DEFAULT,
-    genre_match_all: bool = _GENRE_MATCH_ALL_DEFAULT,
-    format: list[str] = _FORMAT_DEFAULT,
-    only_unrated: bool = _ONLY_UNRATED_DEFAULT,
-    only_with_note: bool = _ONLY_WITH_NOTE_DEFAULT,
-    min_score: float | None = _MIN_SCORE_DEFAULT,
-    year_from: int | None = _YEAR_FROM_DEFAULT,
-    year_to: int | None = _YEAR_TO_DEFAULT,
 ) -> PaginatedResponse[MovieRead]:
     """Return one page of the current user's movies and the total matching it."""
-    status_values = None
-    if status_bucket and status_bucket != "all":
-        status_values = {
-            "plan": {MovieStatus.WISHLIST, MovieStatus.WATCHLIST},
-            "hold": {MovieStatus.BACKLOG},
-            "watching": {MovieStatus.IN_PROGRESS, MovieStatus.REWATCH},
-            "completed": {MovieStatus.WATCHED, MovieStatus.FAVORITE},
-            "dropped": {MovieStatus.DROPPED},
-        }.get(status_bucket)
-        if status_values is None:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid status bucket."
-            )
     return await library_page(
         db,
         Movie,
         current_user.id,
-        status_filter=status_filter,
-        favorite=favorite,
-        search_clause=title_search([Movie.title], search),
-        skip=skip,
-        limit=limit,
-        status_values=status_values,
-        genres=genre,
-        genre_match_all=genre_match_all,
-        formats=format,
-        only_unrated=only_unrated,
-        only_with_note=only_with_note,
-        min_score=min_score,
-        year_column=Movie.release_date,
-        year_from=year_from,
-        year_to=year_to,
+        skip=query.skip,
+        limit=query.limit,
+        filters=LibraryFilters.from_query(
+            query,
+            MovieStatus,
+            search_clause=title_search([Movie.title], query.search),
+            year_column=Movie.release_date,
+        ),
     )
+
+
+# pylint: enable=duplicate-code
 
 
 @router.get("/get/{movie_id}", response_model=MovieRead)
@@ -335,14 +273,9 @@ async def get_movie_relations(
     if not app_integrations.tmdb_api_key:
         return {"collection_name": None, "related": [], "configured": False}
     tmdb_api_key = app_integrations.tmdb_api_key
-    try:
-        result = await asyncio.to_thread(
-            lambda: TMDBClient(tmdb_api_key).movie_relations(movie.title)
-        )
-    except Exception as exc:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY, detail=f"TMDB could not be reached: {exc}"
-        ) from exc
+    result = await request_metadata(
+        lambda: TMDBClient(tmdb_api_key).movie_relations(movie.title), "TMDB"
+    )
     return {**result, "configured": True}
 
 
@@ -353,16 +286,4 @@ async def get_movie_recommended(
     current_user: User = _CURRENT_USER_DEFAULT,
 ) -> dict:
     movie = await _get_movie_or_404(movie_id, db, current_user.id)
-    app_integrations = resolve_integrations(await get_or_create_app_integration_settings(db))
-    if not app_integrations.tmdb_api_key:
-        return {"recommended": [], "configured": False}
-    tmdb_api_key = app_integrations.tmdb_api_key
-    try:
-        recommended = await asyncio.to_thread(
-            lambda: TMDBClient(tmdb_api_key).movie_recommendations(movie.title)
-        )
-    except Exception as exc:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY, detail=f"TMDB could not be reached: {exc}"
-        ) from exc
-    return {"recommended": recommended, "configured": True}
+    return await tmdb_recommendations(db, movie.title, "movie")

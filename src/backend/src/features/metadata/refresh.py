@@ -54,7 +54,11 @@ _last_checked: dict[str, float] = {}
 
 
 def _add_episode(
-    model: type[AnimeEpisode] | type[TVEpisode], season_id, entry: dict
+    model: type[AnimeEpisode] | type[TVEpisode],
+    season_id,
+    entry: dict,
+    *,
+    include_air_at: bool = True,
 ) -> AnimeEpisode | TVEpisode:
     raw_air_date = entry.get("air_date")
     return model(
@@ -65,7 +69,7 @@ def _add_episode(
         air_date=date.fromisoformat(raw_air_date) if raw_air_date else None,
         runtime_minutes=entry.get("runtime_minutes"),
         still_url=entry.get("still_url"),
-        air_at=entry.get("air_at"),
+        air_at=entry.get("air_at") if include_air_at else None,
     )
 
 
@@ -138,11 +142,13 @@ def _trim_beyond_total(season: AnimeSeason, total: int) -> int:
     return removed
 
 
-def _merge_episodes(
+def merge_episodes(
     db,
     season: AnimeSeason | TVSeason,
     entries: list[dict[str, Any]],
     model: type[AnimeEpisode] | type[TVEpisode],
+    *,
+    include_air_at: bool = True,
 ) -> tuple[int, int]:
     """Append new rows and fill blank fields without replacing user progress."""
     existing_by_number = {e.episode_number: e for e in season.episodes}
@@ -152,7 +158,7 @@ def _merge_episodes(
     for entry in entries:
         existing = existing_by_number.get(entry["episode_number"])
         if existing is None:
-            row = _add_episode(model, season.id, entry)
+            row = _add_episode(model, season.id, entry, include_air_at=include_air_at)
             db.add(row)
             created.append(row)
             added += 1
@@ -209,7 +215,7 @@ async def refresh_anime_season_now(
         if app_integrations.tmdb_api_key:
             tmdb_api_key = decrypt_secret(app_integrations.tmdb_api_key)
             await backfill_from_tmdb(all_episodes, show.title, tmdb_api_key)
-    added, enriched = _merge_episodes(db, season, all_episodes, AnimeEpisode)
+    added, enriched = merge_episodes(db, season, all_episodes, AnimeEpisode)
     if fetch.limit:
         _trim_beyond_total(season, fetch.limit)
     # a show still airing has its rows kept in step by the airing check, which
@@ -336,7 +342,7 @@ async def refresh_tv_season_now(show: TVShow, season: TVSeason, db) -> tuple[int
     all_episodes, errors = await fetch_season_episodes(show.external_id, season.season_number)
     if errors:
         logger.warning("TV refresh couldn't reach TVmaze for %r: %s", show.title, "; ".join(errors))
-    return _merge_episodes(db, season, all_episodes, TVEpisode)
+    return merge_episodes(db, season, all_episodes, TVEpisode)
 
 
 def _normalize_title(title: str) -> str:

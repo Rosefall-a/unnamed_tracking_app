@@ -588,7 +588,9 @@ async def test_route_level_flow_flags_moves_the_counter_and_the_library_number()
             assert sorted(e.episode_number for e in rows if e.watched) == [1, 2, 3, 4]
 
             # checking episode 8 on the title page moves the library number to 5
-            await update_episode(show_id, season_id, ids[7], EpisodeUpdate(watched=True), db, user)
+            await update_episode(
+                show_id, season_id, ids[7], EpisodeUpdate(watched=True), db=db, current_user=user
+            )
             s = (
                 await db.execute(select(AnimeSeason).where(AnimeSeason.id == season_id))
             ).scalar_one()
@@ -641,7 +643,7 @@ async def test_unchecking_episodes_works_including_ones_the_counter_covered():
 
             # episode 2 was only counted by the counter; unchecking it must stick
             result = await update_episode(
-                show_id, season_id, ids[1], EpisodeUpdate(watched=False), db, user
+                show_id, season_id, ids[1], EpisodeUpdate(watched=False), db=db, current_user=user
             )
             episodes = {e.episode_number: e.watched for e in result.seasons[0].episodes}
             assert episodes == {1: True, 2: False, 3: True, 4: True, 5: False, 6: False}
@@ -649,7 +651,7 @@ async def test_unchecking_episodes_works_including_ones_the_counter_covered():
 
             # and a flagged one
             result = await update_episode(
-                show_id, season_id, ids[3], EpisodeUpdate(watched=False), db, user
+                show_id, season_id, ids[3], EpisodeUpdate(watched=False), db=db, current_user=user
             )
             assert result.seasons[0].episodes_watched == 2
             assert {e.episode_number for e in result.seasons[0].episodes if e.watched} == {1, 3}

@@ -219,6 +219,43 @@ async def log_activity(
     )
 
 
+async def log_episode_progress(
+    db: AsyncSession, user_id: UUID, show: Any, media_type: str, newly_watched: int
+) -> None:
+    """Record actual new progress; previously counted episode flags add no activity."""
+    if newly_watched:
+        await log_activity(
+            db,
+            user_id,
+            media_type,
+            show.id,
+            show.title,
+            ActivityEventType.EPISODES_WATCHED,
+            date.today(),
+            increment=int(newly_watched),
+        )
+
+
+async def log_status_change(
+    db: AsyncSession, user_id: UUID, row: Any, media_type: str, previous: Any
+) -> None:
+    """Log meaningful status changes using the same user-visible status labels."""
+    if row.status == previous:
+        return
+    detail = status_change_detail(previous, row.status)
+    if detail:
+        await log_activity(
+            db,
+            user_id,
+            media_type,
+            row.id,
+            row.title,
+            ActivityEventType.STATUS_CHANGED,
+            date.today(),
+            detail=detail,
+        )
+
+
 @router.post("/rewatches", response_model=RewatchRead, status_code=status.HTTP_201_CREATED)
 async def create_rewatch(
     payload: RewatchCreate,

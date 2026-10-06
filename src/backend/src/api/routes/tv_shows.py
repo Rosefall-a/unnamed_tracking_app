@@ -1,30 +1,31 @@
-# pylint: disable=duplicate-code,missing-class-docstring,broad-exception-caught,too-many-arguments,too-many-positional-arguments,not-callable,missing-function-docstring
-# These modules intentionally keep domain/provider-specific logic separate; similar
-# structures here represent parallel APIs rather than accidental copy/paste.
-
 """API routes for managing TV shows and their seasons."""
 
 import asyncio
 import logging
-import re
-from datetime import date
+from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.routes.media_common import (
+    LibraryFilters,
     library_page,
+    owned_row,
     purge_row,
+    related_row,
+    request_metadata,
     restore_row,
+    search_external_metadata,
     soft_delete,
     title_search,
+    tmdb_recommendations,
     trash_listing,
+    update_tracking,
 )
-from src.api.routes.media_extras import log_activity, status_change_detail
-from src.api.schemas.pagination import PaginatedResponse
+from src.api.routes.media_extras import log_episode_progress
+from src.api.schemas.metadata import MetadataSearchResponse
+from src.api.schemas.pagination import LibraryQuery, PaginatedResponse
 from src.api.schemas.tv_show import (
     EpisodesBulkWatched,
     EpisodeUpdate,
@@ -38,14 +39,16 @@ from src.api.schemas.tv_show import (
 from src.core.app_integrations import get_or_create_app_integration_settings
 from src.core.auth import get_current_user
 from src.core.integrations import resolve_integrations
-from src.database.models.media_extras import ActivityEventType
+from src.core.titles import derive_sort_title as _derive_sort_title
 from src.database.models.tv_show import TVEpisode, TVSeason, TVShow, TVShowStatus
 from src.database.models.user import User
 from src.database.session import get_db
-from src.features.episode_progress import apply_counter, counter_from_flags, materialize_progress
-from src.features.metadata.locked_fields import apply_updates_with_locking
-from src.features.metadata.movies.tmdb import TMDBClient
-from src.features.metadata.refresh import quick_check_tv_season
+from src.features.episode_progress import (
+    set_episodes_watched,
+    update_episode_progress,
+    update_season_progress,
+)
+from src.features.metadata.refresh import merge_episodes, quick_check_tv_season
 from src.features.metadata.tv.episode_sync import fetch_season_episodes
 from src.features.metadata.tv.search import search_tv_metadata
 from src.features.metadata.tv.tvdb import TVDBClient
@@ -55,26 +58,15 @@ _QUERY_DEFAULT = Query(..., min_length=2, max_length=100, alias="query")
 _LIMIT_DEFAULT = Query(default=8, ge=1, le=20, alias="limit")
 _DB_DEFAULT = Depends(get_db)
 _CURRENT_USER_DEFAULT = Depends(get_current_user)
-_STATUS_FILTER_DEFAULT = Query(default=None, alias="status")
-_FAVORITE_DEFAULT = Query(default=None, alias="favorite")
-_SEARCH_DEFAULT = Query(default=None, description="Case-insensitive title search", alias="search")
-_SKIP_DEFAULT = Query(default=0, ge=0, alias="skip")
-_LIMIT_DEFAULT_2 = Query(default=100, ge=1, le=200, alias="limit")
-_STATUS_BUCKET_DEFAULT = Query(default=None, alias="status_bucket")
-_GENRE_DEFAULT = Query(default=[], alias="genre")
-_GENRE_MATCH_ALL_DEFAULT = Query(default=False, alias="genre_match_all")
-_FORMAT_DEFAULT = Query(default=[], alias="format")
-_ONLY_UNRATED_DEFAULT = Query(default=False, alias="only_unrated")
-_ONLY_WITH_NOTE_DEFAULT = Query(default=False, alias="only_with_note")
-_MIN_SCORE_DEFAULT = Query(default=None, ge=0, le=10, alias="min_score")
-_YEAR_FROM_DEFAULT = Query(default=None, ge=1, le=9999, alias="year_from")
-_YEAR_TO_DEFAULT = Query(default=None, ge=1, le=9999, alias="year_to")
+
 
 router = APIRouter(prefix="/api/tv", tags=["tv"], dependencies=[Depends(get_current_user)])
 logger = logging.getLogger(__name__)
 
 # fields the metadata search's "Apply" button can fill in — the only ones
 # worth locking, since nothing else is ever set by that flow
+# Provider-owned fields differ by media kind and intentionally overlap.
+# pylint: disable=duplicate-code
 _LOCKABLE_FIELDS = frozenset(
     {
         "title",
@@ -89,53 +81,33 @@ _LOCKABLE_FIELDS = frozenset(
     }
 )
 
-
-class TVMetadataSearchResponse(BaseModel):
-    query: str
-    providers: list[str]
-    provider_errors: list[str] = []
-    results: list[dict]
+# pylint: enable=duplicate-code
 
 
-_LEADING_ARTICLE = re.compile(r"^(a|an|the)\s+", flags=re.IGNORECASE)
-
-
-def _derive_sort_title(title: str) -> str:
-    """'The Wire' -> 'wire' so articles do not affect sort order."""
-    return _LEADING_ARTICLE.sub("", title).strip().lower()
+class TVMetadataSearchResponse(MetadataSearchResponse):
+    # Keep the existing named HTTP schema; all data fields belong to its shared base.
+    # pylint: disable=too-few-public-methods
+    pass
 
 
 async def _get_show_or_404(
     show_id: UUID, db: AsyncSession, user_id: UUID, include_deleted: bool = False
 ) -> TVShow:
-    # populate_existing: a show already in this session's identity map
-    # (e.g. loaded earlier in the same request, before a season was just
-    # added to it) would otherwise keep its stale, already-cached
-    # `seasons` collection instead of picking up the new row
-    stmt = (
-        select(TVShow)
-        .where(TVShow.id == show_id, TVShow.user_id == user_id)
-        .execution_options(populate_existing=True)
+    return await owned_row(
+        db,
+        TVShow,
+        show_id,
+        user_id,
+        "Show",
+        include_deleted=include_deleted,
+        populate_existing=True,
     )
-    if not include_deleted:
-        stmt = stmt.where(TVShow.deleted_at.is_(None))
-    show = await db.scalar(stmt)
-    if show is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=f"Show {show_id} not found"
-        )
-    return show
 
 
 async def _get_season_or_404(season_id: UUID, show_id: UUID, db: AsyncSession) -> TVSeason:
-    season = await db.scalar(
-        select(TVSeason).where(TVSeason.id == season_id, TVSeason.show_id == show_id)
+    return await related_row(
+        db, TVSeason, season_id, parent_column=TVSeason.show_id, parent_id=show_id, label="Season"
     )
-    if season is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=f"Season {season_id} not found"
-        )
-    return season
 
 
 @router.get("/metadata/search", response_model=TVMetadataSearchResponse)
@@ -148,21 +120,7 @@ async def search_metadata(
     """Search TMDB and OMDb for data that can prefill a new show,
     including its full season list where TMDB has it."""
     del current_user
-    app_integrations = resolve_integrations(await get_or_create_app_integration_settings(db))
-    try:
-        result = await asyncio.to_thread(
-            search_tv_metadata,
-            query.strip(),
-            limit,
-            app_integrations.tmdb_api_key,
-            app_integrations.omdb_api_key,
-        )
-    except Exception as exc:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"Metadata providers could not be reached: {exc}",
-        ) from exc
-    return result
+    return await search_external_metadata(db, search_tv_metadata, query, limit)
 
 
 @router.post("/create", response_model=TVShowRead, status_code=status.HTTP_201_CREATED)
@@ -197,7 +155,8 @@ async def create_show(
     if show.external_id and first_season is not None:
         try:
             await quick_check_tv_season(show, first_season, db)
-        except Exception:
+        # Optional provider enrichment must not abort creation of the user's title.
+        except Exception:  # pylint: disable=broad-exception-caught
             logger.exception("Immediate airing check failed for new show %r", show.title)
 
     await db.commit()
@@ -224,59 +183,31 @@ async def refresh_airing(
     return await _get_show_or_404(show_id, db, current_user.id)
 
 
+# Typed route adapters retain their own HTTP schemas and ownership checks; behavior is shared.
+# pylint: disable=duplicate-code
 @router.get("/list", response_model=PaginatedResponse[TVShowLibraryRead])
 async def list_shows(
+    query: Annotated[LibraryQuery[TVShowStatus], Query()],
     db: AsyncSession = _DB_DEFAULT,
     current_user: User = _CURRENT_USER_DEFAULT,
-    status_filter: TVShowStatus | None = _STATUS_FILTER_DEFAULT,
-    favorite: bool | None = _FAVORITE_DEFAULT,
-    search: str | None = _SEARCH_DEFAULT,
-    skip: int = _SKIP_DEFAULT,
-    limit: int = _LIMIT_DEFAULT_2,
-    status_bucket: str | None = _STATUS_BUCKET_DEFAULT,
-    genre: list[str] = _GENRE_DEFAULT,
-    genre_match_all: bool = _GENRE_MATCH_ALL_DEFAULT,
-    format: list[str] = _FORMAT_DEFAULT,
-    only_unrated: bool = _ONLY_UNRATED_DEFAULT,
-    only_with_note: bool = _ONLY_WITH_NOTE_DEFAULT,
-    min_score: float | None = _MIN_SCORE_DEFAULT,
-    year_from: int | None = _YEAR_FROM_DEFAULT,
-    year_to: int | None = _YEAR_TO_DEFAULT,
 ) -> PaginatedResponse[TVShowLibraryRead]:
     """Return one page of the current user's shows and the total matching it."""
-    status_values = None
-    if status_bucket and status_bucket != "all":
-        status_values = {
-            "plan": {TVShowStatus.WISHLIST, TVShowStatus.WATCHLIST},
-            "hold": {TVShowStatus.BACKLOG},
-            "watching": {TVShowStatus.IN_PROGRESS, TVShowStatus.REWATCH},
-            "completed": {TVShowStatus.WATCHED, TVShowStatus.FAVORITE},
-            "dropped": {TVShowStatus.DROPPED},
-        }.get(status_bucket)
-        if status_values is None:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid status bucket."
-            )
     return await library_page(
         db,
         TVShow,
         current_user.id,
-        status_filter=status_filter,
-        favorite=favorite,
-        search_clause=title_search([TVShow.title], search),
-        skip=skip,
-        limit=limit,
-        status_values=status_values,
-        genres=genre,
-        genre_match_all=genre_match_all,
-        formats=format,
-        only_unrated=only_unrated,
-        only_with_note=only_with_note,
-        min_score=min_score,
-        year_column=TVShow.first_air_date,
-        year_from=year_from,
-        year_to=year_to,
+        skip=query.skip,
+        limit=query.limit,
+        filters=LibraryFilters.from_query(
+            query,
+            TVShowStatus,
+            search_clause=title_search([TVShow.title], query.search),
+            year_column=TVShow.first_air_date,
+        ),
     )
+
+
+# pylint: enable=duplicate-code
 
 
 @router.get("/get/{show_id}", response_model=TVShowRead)
@@ -303,28 +234,7 @@ async def update_show(
 ) -> TVShow:
     """Update a show and keep its derived sort title synchronized."""
     show = await _get_show_or_404(show_id, db, current_user.id)
-    previous_status = show.status
-
-    updates = payload.model_dump(exclude_unset=True)
-
-    apply_updates_with_locking(show, updates, _LOCKABLE_FIELDS)
-
-    if "title" in updates and "sort_title" not in updates:
-        show.sort_title = _derive_sort_title(show.title)
-
-    if "status" in updates and show.status != previous_status:
-        change = status_change_detail(previous_status, show.status)
-        if change:
-            await log_activity(
-                db,
-                current_user.id,
-                "tv",
-                show.id,
-                show.title,
-                ActivityEventType.STATUS_CHANGED,
-                date.today(),
-                detail=change,
-            )
+    await update_tracking(db, show, payload.model_dump(exclude_unset=True), _LOCKABLE_FIELDS, "tv")
 
     await db.commit()
     return await _get_show_or_404(show_id, db, current_user.id)
@@ -390,6 +300,8 @@ async def create_season(
     return await _get_show_or_404(show_id, db, current_user.id)
 
 
+# Typed route adapters retain their own HTTP schemas and ownership checks; behavior is shared.
+# pylint: disable=duplicate-code
 @router.patch("/{show_id}/seasons/{season_id}", response_model=TVShowRead)
 async def update_season(
     show_id: UUID,
@@ -401,32 +313,17 @@ async def update_season(
     show = await _get_show_or_404(show_id, db, current_user.id)
     season = await _get_season_or_404(season_id, show_id, db)
 
-    updates = payload.model_dump(exclude_unset=True)
-    old_counter = season.episodes_watched or 0
-    for field, value in updates.items():
-        setattr(season, field, value)
-
-    if "episodes_watched" in updates:
-        new_counter = season.episodes_watched or 0
-        apply_counter(season, new_counter)
-        if new_counter > old_counter:
-            # advancing from the library counts as watching, same as
-            # checking episodes off on the title page
-            await log_activity(
-                db,
-                current_user.id,
-                "tv",
-                show.id,
-                show.title,
-                ActivityEventType.EPISODES_WATCHED,
-                date.today(),
-                increment=new_counter - old_counter,
-            )
-
+    newly_watched = update_season_progress(season, payload.model_dump(exclude_unset=True))
+    await log_episode_progress(db, current_user.id, show, "tv", newly_watched)
     await db.commit()
     return await _get_show_or_404(show_id, db, current_user.id)
 
 
+# pylint: enable=duplicate-code
+
+
+# Typed route adapters retain their own HTTP schemas and ownership checks; behavior is shared.
+# pylint: disable=duplicate-code
 @router.delete("/{show_id}/seasons/{season_id}", response_model=TVShowRead)
 async def delete_season(
     show_id: UUID,
@@ -441,15 +338,18 @@ async def delete_season(
     return await _get_show_or_404(show_id, db, current_user.id)
 
 
+# pylint: enable=duplicate-code
+
+
 async def _get_episode_or_404(episode_id: UUID, season_id: UUID, db: AsyncSession) -> TVEpisode:
-    episode = await db.scalar(
-        select(TVEpisode).where(TVEpisode.id == episode_id, TVEpisode.season_id == season_id)
+    return await related_row(
+        db,
+        TVEpisode,
+        episode_id,
+        parent_column=TVEpisode.season_id,
+        parent_id=season_id,
+        label="Episode",
     )
-    if episode is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=f"Episode {episode_id} not found"
-        )
-    return episode
 
 
 @router.get("/{show_id}/seasons/{season_id}/episodes", response_model=TVShowRead)
@@ -474,26 +374,15 @@ async def list_episodes(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail=f"Could not sync episodes: {'; '.join(errors)}",
             )
-        created = []
-        for entry in all_episodes:
-            raw_air_date = entry.get("air_date")
-            row = TVEpisode(
-                season_id=season.id,
-                episode_number=entry["episode_number"],
-                title=entry.get("title"),
-                description=entry.get("description"),
-                air_date=date.fromisoformat(raw_air_date) if raw_air_date else None,
-                runtime_minutes=entry.get("runtime_minutes"),
-                still_url=entry.get("still_url"),
-            )
-            db.add(row)
-            created.append(row)
-        materialize_progress(season, created)
+        # Initial listings preserve their existing date-only payload; timed refreshes also save air_at.
+        merge_episodes(db, season, all_episodes, TVEpisode, include_air_at=False)
         await db.commit()
 
     return await _get_show_or_404(show_id, db, current_user.id)
 
 
+# Typed route adapters retain their own HTTP schemas and ownership checks; behavior is shared.
+# pylint: disable=duplicate-code
 @router.patch("/{show_id}/seasons/{season_id}/episodes/bulk-watched", response_model=TVShowRead)
 async def bulk_set_episodes_watched(
     show_id: UUID,
@@ -509,38 +398,24 @@ async def bulk_set_episodes_watched(
     `episode_id` UUID."""
     show = await _get_show_or_404(show_id, db, current_user.id)
     season = await _get_season_or_404(season_id, show_id, db)
-    ids = set(payload.episode_ids)
-    newly_watched = 0
-    # progress the counter already held is flagged first, so it is neither
-    # lost nor logged again as new
-    without_row = materialize_progress(season)
-    for episode in season.episodes:
-        if episode.id in ids:
-            if payload.watched and not episode.watched:
-                newly_watched += 1
-            episode.watched = payload.watched
-    counter_from_flags(season, without_row)
-    if newly_watched:
-        await log_activity(
-            db,
-            current_user.id,
-            "tv",
-            show.id,
-            show.title,
-            ActivityEventType.EPISODES_WATCHED,
-            date.today(),
-            increment=newly_watched,
-        )
+    newly_watched = set_episodes_watched(season, set(payload.episode_ids), payload.watched)
+    await log_episode_progress(db, current_user.id, show, "tv", newly_watched)
     await db.commit()
     return await _get_show_or_404(show_id, db, current_user.id)
 
 
+# pylint: enable=duplicate-code
+
+
+# Typed route adapters retain their own HTTP schemas and ownership checks; behavior is shared.
+# pylint: disable=duplicate-code
 @router.patch("/{show_id}/seasons/{season_id}/episodes/{episode_id}", response_model=TVShowRead)
 async def update_episode(
     show_id: UUID,
     season_id: UUID,
     episode_id: UUID,
     payload: EpisodeUpdate,
+    *,
     db: AsyncSession = _DB_DEFAULT,
     current_user: User = _CURRENT_USER_DEFAULT,
 ) -> TVShow:
@@ -548,31 +423,14 @@ async def update_episode(
     season = await _get_season_or_404(season_id, show_id, db)
     episode = await _get_episode_or_404(episode_id, season_id, db)
 
-    updates = payload.model_dump(exclude_unset=True)
-    without_row = 0
-    if "watched" in updates:
-        # progress the counter already held is flagged first, so it is
-        # neither lost nor logged again as new
-        without_row = materialize_progress(season)
-    newly_watched = updates.get("watched") is True and not episode.watched
-    for field, value in updates.items():
-        setattr(episode, field, value)
-    if "watched" in updates:
-        counter_from_flags(season, without_row)
+    newly_watched = update_episode_progress(season, episode, payload.model_dump(exclude_unset=True))
 
-    if newly_watched:
-        await log_activity(
-            db,
-            current_user.id,
-            "tv",
-            show.id,
-            show.title,
-            ActivityEventType.EPISODES_WATCHED,
-            date.today(),
-        )
-
+    await log_episode_progress(db, current_user.id, show, "tv", newly_watched)
     await db.commit()
     return await _get_show_or_404(show_id, db, current_user.id)
+
+
+# pylint: enable=duplicate-code
 
 
 @router.get("/{show_id}/relations")
@@ -590,12 +448,9 @@ async def get_show_relations(
     if not app_integrations.tvdb_api_key:
         return {"listName": None, "related": [], "configured": False}
     tvdb_api_key = app_integrations.tvdb_api_key
-    try:
-        result = await asyncio.to_thread(lambda: TVDBClient(tvdb_api_key).relations(show.title))
-    except Exception as exc:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY, detail=f"TheTVDB could not be reached: {exc}"
-        ) from exc
+    result = await request_metadata(
+        lambda: TVDBClient(tvdb_api_key).relations(show.title), "TheTVDB"
+    )
     return {**result, "configured": True}
 
 
@@ -606,16 +461,4 @@ async def get_show_recommended(
     current_user: User = _CURRENT_USER_DEFAULT,
 ) -> dict:
     show = await _get_show_or_404(show_id, db, current_user.id)
-    app_integrations = resolve_integrations(await get_or_create_app_integration_settings(db))
-    if not app_integrations.tmdb_api_key:
-        return {"recommended": [], "configured": False}
-    tmdb_api_key = app_integrations.tmdb_api_key
-    try:
-        recommended = await asyncio.to_thread(
-            lambda: TMDBClient(tmdb_api_key).tv_recommendations(show.title)
-        )
-    except Exception as exc:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY, detail=f"TMDB could not be reached: {exc}"
-        ) from exc
-    return {"recommended": recommended, "configured": True}
+    return await tmdb_recommendations(db, show.title, "tv")

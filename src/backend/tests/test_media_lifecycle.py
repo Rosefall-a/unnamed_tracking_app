@@ -87,3 +87,87 @@ async def test_anime_search_and_tab_counts_use_every_title(flow) -> None:
     found = (await flow.client.get("/api/anime/list", params={"search": "your name"})).json()
     assert [r["title"] for r in found["items"]] == ["Kimi no Na wa"]
     assert sum(found["status_counts"].values()) == 1
+
+
+@pytest.mark.parametrize("kind", ["movie", "tv", "anime"])
+async def test_status_query_and_bucket_keep_independent_tab_counts(flow, kind: str) -> None:
+    api = f"/api/{kind}"
+    for title, state in [("Completed", "WATCHED"), ("Planned", "WISHLIST")]:
+        created = await flow.client.post(f"{api}/create", json={"title": title, "status": state})
+        assert created.status_code == 201, created.text
+    response = await flow.client.get(f"{api}/list", params={"status": "WATCHED"})
+    assert response.status_code == 200, response.text
+    assert [row["title"] for row in response.json()["items"]] == ["Completed"]
+    assert response.json()["status_counts"] == {"WATCHED": 1, "WISHLIST": 1}
+    response = await flow.client.get(f"{api}/list", params={"status_bucket": "plan"})
+    assert response.status_code == 200, response.text
+    assert [row["title"] for row in response.json()["items"]] == ["Planned"]
+    assert response.json()["status_counts"] == {"WISHLIST": 1}
+    assert (await flow.client.get(f"{api}/list", params={"status": "unknown"})).status_code == 422
+    assert (
+        await flow.client.get(f"{api}/list", params={"status_bucket": "unknown"})
+    ).status_code == 400
+
+
+async def test_anime_format_query_accepts_repeated_values(flow) -> None:
+    for title, media_format in [("Series", "TV"), ("Film", "MOVIE"), ("Video", "OVA")]:
+        created = await flow.client.post(
+            "/api/anime/create", json={"title": title, "format": media_format}
+        )
+        assert created.status_code == 201, created.text
+    response = await flow.client.get(
+        "/api/anime/list", params=[("format", "TV"), ("format", "OVA")]
+    )
+    assert response.status_code == 200, response.text
+    assert {row["title"] for row in response.json()["items"]} == {"Series", "Video"}
+    assert response.json()["total"] == 2
+
+
+@pytest.mark.parametrize("kind", ["movie", "tv", "anime"])
+async def test_status_tabs_share_combined_library_filters(flow, kind: str) -> None:
+    api = f"/api/{kind}"
+    date_field = "release_date" if kind == "movie" else "first_air_date"
+    base = {
+        "favorite": True,
+        "genres": ["Drama", "Adventure"],
+        "rating_overall": 8,
+        "note": "A useful note",
+        date_field: "2020-06-01",
+    }
+    for title, changes in [
+        ("Completed match", {"status": "WATCHED"}),
+        ("Planned match", {"status": "WISHLIST"}),
+        ("Low score", {"rating_overall": 3}),
+        ("Blank note", {"note": "  "}),
+        ("Not favorite", {"favorite": False}),
+        ("Older release", {date_field: "2018-06-01"}),
+        ("Different genres", {"genres": ["Drama", "Comedy"]}),
+    ]:
+        created = await flow.client.post(f"{api}/create", json={**base, "title": title, **changes})
+        assert created.status_code == 201, created.text
+
+    filters = [
+        ("status", "WATCHED"),
+        ("favorite", "true"),
+        ("genre", "Drama"),
+        ("genre", "Adventure"),
+        ("genre_match_all", "true"),
+        ("only_with_note", "true"),
+        ("min_score", "7"),
+        ("year_from", "2020"),
+        ("year_to", "2021"),
+        ("limit", "1"),
+    ]
+    response = await flow.client.get(f"{api}/list", params=filters)
+    assert response.status_code == 200, response.text
+    page = response.json()
+    assert [row["title"] for row in page["items"]] == ["Completed match"]
+    assert page["total"] == 1
+    assert page["status_counts"] == {"WATCHED": 1, "WISHLIST": 1}
+
+    # A bucket remains active for the tabs even when the selected status has no rows.
+    response = await flow.client.get(f"{api}/list", params=[*filters, ("status_bucket", "plan")])
+    assert response.status_code == 200, response.text
+    assert response.json()["items"] == []
+    assert response.json()["total"] == 0
+    assert response.json()["status_counts"] == {"WISHLIST": 1}
