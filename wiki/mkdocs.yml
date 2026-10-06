@@ -61,6 +61,7 @@ nav:
       - Production Runtime Smoke: deployment/production-runtime-smoke.md
   - Development:
       - Overview: development/index.md
+      - Wiki Container: development/wikicontainer.md
       - Architecture: development/architecture.md
       - UI Redevelopment Checkpoint: development/ui-redevelopment.md
       - UI PR Integration Review: development/ui-pr-integration-review.md

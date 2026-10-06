@@ -1,4 +1,14 @@
 services:
+  wikicontainer:
+    build:
+      context: .
+      dockerfile: src/wikicontainer/Dockerfile
+    ports:
+      - "${WIKI_CONTAINER_PORT:-999}:${WIKI_CONTAINER_BIND_PORT:-999}"
+    environment:
+      WIKI_CONTAINER_BIND_PORT: ${WIKI_CONTAINER_BIND_PORT:-999}
+    restart: unless-stopped
+
   app:
     #image: ghcr.io/rosefall-a/unnamed_tracking_app:feat-central-config-handler
     build:
