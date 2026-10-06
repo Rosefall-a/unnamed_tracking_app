@@ -3,6 +3,7 @@ with its status counts and ranks, and the soft-delete / trash / restore /
 purge life cycle. Each route module passes in its own model and wording."""
 
 import time
+from datetime import date
 from typing import Any
 
 from fastapi import HTTPException, status
@@ -32,6 +33,16 @@ async def library_page(  # pylint: disable=too-many-arguments,too-many-positiona
     search_clause: ColumnElement[bool] | None,
     skip: int,
     limit: int,
+    status_values: set[Any] | None = None,
+    genres: list[str] | None = None,
+    genre_match_all: bool = False,
+    formats: list[str] | None = None,
+    only_unrated: bool = False,
+    only_with_note: bool = False,
+    min_score: float | None = None,
+    year_column: Any | None = None,
+    year_from: int | None = None,
+    year_to: int | None = None,
 ) -> PaginatedResponse[Any]:
     """One page of a user's library, the total matching it, how many titles
     sit in each status, and every rated title's rank. The status counts
@@ -44,6 +55,23 @@ async def library_page(  # pylint: disable=too-many-arguments,too-many-positiona
         stmt = stmt.where(model.favorite == favorite)
     if search_clause is not None:
         stmt = stmt.where(search_clause)
+    if status_values:
+        stmt = stmt.where(model.status.in_(status_values))
+    if genres:
+        genre_clauses = [model.genres.contains([genre]) for genre in genres]
+        stmt = stmt.where(*(genre_clauses if genre_match_all else [or_(*genre_clauses)]))
+    format_column = getattr(model, "format", None)
+    if formats and format_column is not None:
+        stmt = stmt.where(format_column.in_(formats))
+    if only_unrated:
+        stmt = stmt.where(model.rating_overall.is_(None))
+    if only_with_note:
+        stmt = stmt.where(model.note.is_not(None), func.trim(model.note) != "")
+    if min_score is not None:
+        stmt = stmt.where(model.rating_overall >= min_score)
+    if year_column is not None:
+        if year_from is not None: stmt = stmt.where(year_column >= date(year_from, 1, 1))
+        if year_to is not None: stmt = stmt.where(year_column <= date(year_to, 12, 31))
 
     count_stmt = select(model.status, func.count()).where(
         model.user_id == user_id, model.deleted_at.is_(None)
@@ -52,6 +80,23 @@ async def library_page(  # pylint: disable=too-many-arguments,too-many-positiona
         count_stmt = count_stmt.where(model.favorite == favorite)
     if search_clause is not None:
         count_stmt = count_stmt.where(search_clause)
+    if status_values:
+        count_stmt = count_stmt.where(model.status.in_(status_values))
+    if genres:
+        genre_clauses = [model.genres.contains([genre]) for genre in genres]
+        count_stmt = count_stmt.where(*(genre_clauses if genre_match_all else [or_(*genre_clauses)]))
+    format_column = getattr(model, "format", None)
+    if formats and format_column is not None:
+        count_stmt = count_stmt.where(format_column.in_(formats))
+    if only_unrated:
+        count_stmt = count_stmt.where(model.rating_overall.is_(None))
+    if only_with_note:
+        count_stmt = count_stmt.where(model.note.is_not(None), func.trim(model.note) != "")
+    if min_score is not None:
+        count_stmt = count_stmt.where(model.rating_overall >= min_score)
+    if year_column is not None:
+        if year_from is not None: count_stmt = count_stmt.where(year_column >= date(year_from, 1, 1))
+        if year_to is not None: count_stmt = count_stmt.where(year_column <= date(year_to, 12, 31))
     counts_result = await db.execute(count_stmt.group_by(model.status))
     status_counts = {row_status.value: count for row_status, count in counts_result.all()}
 
