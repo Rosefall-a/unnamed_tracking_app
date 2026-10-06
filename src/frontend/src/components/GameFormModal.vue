@@ -4,12 +4,19 @@ import {
   attachGameAssetFromUrl,
   createGame,
   fetchGames,
+  fetchGame,
   rankMetadataResults,
   searchGameMetadata,
+  previewGameMetadataRefresh,
+  applyGameMetadataRefresh,
   updateGame,
   uploadGameAsset,
 } from "../services/games";
-import type { MetadataSearchResult } from "../services/games";
+import type {
+  MetadataSearchResult,
+  RefreshMetadataOptions,
+  RefreshMetadataPreview,
+} from "../services/games";
 import type {
   Game,
   GameStatus,
@@ -18,6 +25,10 @@ import type {
 } from "../types/game";
 import type { GameLink, GameOwnership } from "../types/game";
 import { currentUser } from "../state/auth";
+import { useConfirm } from "../state/dialog";
+import { lockedFieldLabels } from "../utils/lockedFields";
+
+const confirm = useConfirm();
 import PageSettingsEditor from "./PageSettingsEditor.vue";
 import { preferences } from "../state/preferences";
 import { resolvePage } from "../utils/gamePage";
@@ -272,6 +283,37 @@ const pickedKeyArtUrl = ref<string | null>(null);
 const pickedBannerUrl = ref<string | null>(null);
 const keyArtCandidates = ref<string[]>([]);
 const bannerCandidates = ref<string[]>([]);
+const metadataRefreshPreview = ref<RefreshMetadataPreview | null>(null);
+const refreshingMetadata = ref(false);
+const refreshMetadataError = ref<string | null>(null);
+const refreshMetadataIncludeArt = ref(true);
+const mediaSearchResults = ref<MetadataSearchResult[]>([]);
+const searchingMedia = ref(false);
+let metadataSearchTimer: ReturnType<typeof setTimeout> | null = null;
+let metadataSearchRequest = 0;
+
+
+const metadataFormDirty = computed(() => {
+  if (!isEditing.value || !props.game) return false;
+  return (
+    title.value !== props.game.title ||
+    description.value !== (props.game.description ?? "") ||
+    developer.value !== (props.game.developer ?? "") ||
+    publisher.value !== (props.game.publisher ?? "") ||
+    series.value !== (props.game.series ?? "") ||
+    ageRating.value !== (props.game.ageRating ?? "") ||
+    releaseDate.value !== (props.game.releaseDate ?? "") ||
+    String(timeToBeatHours.value) !==
+      String(props.game.timeToBeatHours ?? "") ||
+    tagsInput.value !== props.game.tags.join(", ") ||
+    featuresInput.value !== props.game.features.join(", ") ||
+    JSON.stringify(links.value) !== JSON.stringify(props.game.links) ||
+    !!coverFile.value ||
+    !!bannerFile.value ||
+    pickedKeyArtUrl.value !== null ||
+    pickedBannerUrl.value !== null
+  );
+});
 
 // a personal key, or a server-wide one that searches fall back to (#234)
 const serverHasSteamgriddbKey = ref(false);
@@ -282,29 +324,174 @@ const hasSteamgriddbKey = computed(
     steamgriddbConfigured.value,
 );
 
-async function searchMetadata() {
-  if (metadataQuery.value.trim().length < 2) {
-    metadataMessage.value = "Enter at least two characters to search.";
+async function refreshMetadataFromEditor() {
+  if (!props.game || refreshingMetadata.value || saving.value) return;
+  refreshMetadataError.value = null;
+  metadataRefreshPreview.value = null;
+
+  if (metadataFormDirty.value) {
+    refreshMetadataError.value =
+      "Save or cancel your current metadata edits before repulling. This prevents the refresh from replacing unsaved changes.";
     return;
   }
+
+  refreshingMetadata.value = true;
+  const options: RefreshMetadataOptions = {
+    updateText: true,
+    fillMissingArt: refreshMetadataIncludeArt.value,
+    overwriteExistingArt: false,
+  };
+  try {
+    const preview = await previewGameMetadataRefresh(props.game, options);
+    metadataRefreshPreview.value = preview;
+    if (preview.status === "no-match") {
+      refreshMetadataError.value = preview.providerErrors.length
+        ? `No exact match was returned. Provider warnings: ${preview.providerErrors.join(" ")}`
+        : "No exact provider match was found for this game title.";
+      return;
+    }
+    if (preview.status === "error") {
+      refreshMetadataError.value = "The metadata providers could not be reached. No changes were applied.";
+      return;
+    }
+    const locked = preview.skippedLockedFields.length
+      ? ` Locked fields were preserved: ${lockedFieldLabels(preview.skippedLockedFields).join(", ")}.`
+      : "";
+    const changes = preview.changedFields.length
+      ? preview.changedFields.join(", ")
+      : "no text fields";
+    const art = [
+      preview.wouldAddKeyArt ? "cover art" : "",
+      preview.wouldAddBanner ? "banner art" : "",
+    ].filter(Boolean);
+    const confirmed = await confirm({
+      title: `Repull from ${preview.provider ?? "metadata provider"}?`,
+      message: `This will update ${changes}${art.length ? ` and add ${art.join(" and ")}` : ""}. Nothing already stored as artwork will be replaced.${locked}`,
+      confirmLabel: "Apply refresh",
+    });
+    if (!confirmed) return;
+
+    const outcome = await applyGameMetadataRefresh(props.game, options);
+    if (outcome.status !== "updated") {
+      refreshMetadataError.value =
+        outcome.status === "no-match"
+          ? "The provider no longer returned an exact match. No changes were applied."
+          : "The metadata refresh failed. No changes were applied.";
+      return;
+    }
+    const updated = await fetchGame(props.game.id);
+    if (updated) {
+      title.value = updated.title;
+      description.value = updated.description ?? "";
+      developer.value = updated.developer ?? "";
+      publisher.value = updated.publisher ?? "";
+      series.value = updated.series ?? "";
+      ageRating.value = updated.ageRating ?? "";
+      releaseDate.value = updated.releaseDate ?? "";
+      timeToBeatHours.value =
+        updated.timeToBeatHours != null ? String(updated.timeToBeatHours) : "";
+      tagsInput.value = updated.tags.join(", ");
+      featuresInput.value = updated.features.join(", ");
+      links.value = [...updated.links];
+      metadataQuery.value = updated.title;
+      metadataRefreshPreview.value = null;
+      metadataMessage.value = `Updated from ${outcome.provider ?? "metadata provider"}.${outcome.skippedLockedFields.length ? ` Preserved locked fields: ${lockedFieldLabels(outcome.skippedLockedFields).join(", ")}.` : ""}`;
+      if (outcome.keyArtAdded) pickedKeyArtUrl.value = null;
+      if (outcome.bannerAdded) pickedBannerUrl.value = null;
+    }
+  } catch (err) {
+    refreshMetadataError.value =
+      err instanceof Error ? err.message : "Metadata refresh failed.";
+  } finally {
+    refreshingMetadata.value = false;
+  }
+}
+
+async function searchMetadata() {
+  const query = metadataQuery.value.trim();
+  if (query.length < 2) {
+    metadataResults.value = [];
+    metadataMessage.value = query ? "Enter at least two characters to search." : null;
+    searchingMetadata.value = false;
+    return;
+  }
+  const requestId = ++metadataSearchRequest;
   searchingMetadata.value = true;
   metadataMessage.value = null;
   providerWarnings.value = [];
   try {
-    const query = metadataQuery.value.trim();
-    const response = await searchGameMetadata(query);
-    metadataResults.value = rankMetadataResults(response.results, query);
+    const response = await searchGameMetadata(query, { includeImages: false });
+    if (requestId !== metadataSearchRequest) return;
+    metadataResults.value = rankMetadataResults(
+      response.results.filter((result) => result.provider !== "SteamGridDB"),
+      query,
+    );
     steamgriddbConfigured.value = response.steamgriddb_configured;
     providerWarnings.value = response.provider_errors ?? [];
-    if (!metadataResults.value.length)
-      metadataMessage.value = "No games found.";
+    if (!metadataResults.value.length) metadataMessage.value = "No games found.";
   } catch (err) {
+    if (requestId !== metadataSearchRequest) return;
     metadataMessage.value =
       err instanceof Error ? err.message : "Metadata search failed.";
   } finally {
-    searchingMetadata.value = false;
+    if (requestId === metadataSearchRequest) searchingMetadata.value = false;
   }
 }
+
+async function searchMedia() {
+  const query = title.value.trim() || metadataQuery.value.trim();
+  if (query.length < 2) {
+    metadataMessage.value = "Enter a game title before searching for artwork.";
+    return;
+  }
+  searchingMedia.value = true;
+  try {
+    const response = await searchGameMetadata(query, { includeImages: true });
+    mediaSearchResults.value = response.results.filter(
+      (result) =>
+        result.key_art_urls.length ||
+        result.banner_urls.length ||
+        result.key_art_url ||
+        result.banner_url,
+    );
+    const keyArt = [
+      ...mediaSearchResults.value.flatMap((result) => result.key_art_urls),
+      ...mediaSearchResults.value.map((result) => result.key_art_url),
+    ].filter((url): url is string => !!url);
+    const banners = [
+      ...mediaSearchResults.value.flatMap((result) => result.banner_urls),
+      ...mediaSearchResults.value.map((result) => result.banner_url),
+    ].filter((url): url is string => !!url);
+    keyArtCandidates.value = [...new Set(keyArt)];
+    bannerCandidates.value = [...new Set(banners)];
+    if (keyArtCandidates.value.length && !pickedKeyArtUrl.value) {
+      pickedKeyArtUrl.value = keyArtCandidates.value[0];
+    }
+    if (bannerCandidates.value.length && !pickedBannerUrl.value) {
+      pickedBannerUrl.value = bannerCandidates.value[0];
+    }
+    if (!mediaSearchResults.value.length) {
+      metadataMessage.value = "No artwork was found from the configured media sources.";
+    } else {
+      metadataMessage.value = `Found artwork from ${mediaSearchResults.value.map((result) => result.provider).join(", ")}.`;
+    }
+  } catch (err) {
+    metadataMessage.value =
+      err instanceof Error ? err.message : "Media search failed.";
+  } finally {
+    searchingMedia.value = false;
+  }
+}
+
+watch(metadataQuery, () => {
+  if (metadataApplied.value) {
+    metadataApplied.value = false;
+    return;
+  }
+  if (activeTab.value !== "Find") return;
+  if (metadataSearchTimer) clearTimeout(metadataSearchTimer);
+  metadataSearchTimer = setTimeout(() => void searchMetadata(), 250);
+});
 
 function applyMetadata(result: MetadataSearchResult) {
   title.value = result.title;
@@ -332,6 +519,7 @@ function applyMetadata(result: MetadataSearchResult) {
   keyArtCandidates.value = result.key_art_urls;
   bannerCandidates.value = result.banner_urls;
   metadataResults.value = [];
+  mediaSearchResults.value = [];
   metadataQuery.value = result.title;
   metadataMessage.value = `Prefilled from ${result.provider}. Review the fields before saving.`;
   metadataApplied.value = true;
@@ -852,6 +1040,46 @@ async function submit() {
           </div>
 
           <div v-else-if="activeTab === 'Media'" class="tab-panel">
+            <div class="metadata-refresh-panel">
+              <div>
+                <strong>Repull metadata</strong>
+                <p class="hint">
+                  Re-fetch the current game title from your configured providers. Locked/manual fields are preserved; existing artwork is never replaced.
+                </p>
+              </div>
+              <label class="checkbox-field">
+                <input v-model="refreshMetadataIncludeArt" type="checkbox" />
+                <span>Add missing cover/banner art</span>
+              </label>
+              <button
+                type="button"
+                class="secondary-button"
+                :disabled="refreshingMetadata || saving"
+                @click="refreshMetadataFromEditor"
+              >
+                {{ refreshingMetadata ? "Checking provider…" : "Repull Metadata" }}
+              </button>
+              <p v-if="refreshMetadataError" class="form-error">{{ refreshMetadataError }}</p>
+              <p v-if="metadataRefreshPreview && metadataRefreshPreview.status === 'preview'" class="hint">
+                Preview: {{ metadataRefreshPreview.changedFields.length ? metadataRefreshPreview.changedFields.join(", ") : "no text changes" }}<span v-if="metadataRefreshPreview.skippedLockedFields.length"> · preserved {{ metadataRefreshPreview.skippedLockedFields.length }} locked field(s)</span>.
+              </p>
+            </div>
+            <div class="media-search-panel">
+              <div>
+                <strong>Find artwork</strong>
+                <p class="hint">Search SteamGridDB and other configured media sources for cover and banner choices.</p>
+              </div>
+              <button
+                type="button"
+                class="secondary-button"
+                :disabled="searchingMedia || saving"
+                @click="searchMedia"
+              >
+                {{ searchingMedia ? "Searching artwork…" : "Search artwork" }}
+              </button>
+              <p v-if="mediaSearchResults.length" class="hint">{{ mediaSearchResults.map((result) => result.provider).join(" · ") }}</p>
+            </div>
+
             <label class="field">
               <span>Cover image (portrait)</span>
               <input
@@ -1180,6 +1408,31 @@ async function submit() {
   gap: 14px;
   min-height: 380px;
 }
+.metadata-refresh-panel {
+  border: 1px solid #3a3a3a;
+  border-radius: 8px;
+  padding: 12px;
+  background: #151515;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.metadata-refresh-panel strong { color: #fff; }
+.media-search-panel {
+  border: 1px solid #3a3a3a;
+  border-radius: 8px;
+  padding: 12px;
+  background: #151515;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.media-search-panel > div { min-width: 0; }
+.media-search-panel strong { color: #fff; }
+.media-search-panel .hint { margin: 2px 0 0; }
+.metadata-refresh-panel .hint { margin: 0; }
+
 .metadata-search {
   border: 1px solid #3a3a3a;
   border-radius: 8px;

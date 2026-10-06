@@ -3,6 +3,7 @@
 // with a higher priority.
 
 import type { Game, GameStatus } from "../types/game";
+import { hasGenre } from "./genres";
 import { normalizePlatformFamily } from "./platforms";
 import { activePriority } from "./priority";
 
@@ -50,7 +51,7 @@ export function matchesPickerFilters(game: Game, f: PickerFilters): boolean {
   ) {
     return false;
   }
-  if (f.genre !== "all" && !game.tags.includes(f.genre)) return false;
+  if (f.genre !== "all" && !hasGenre(game.tags, f.genre)) return false;
   if (f.maxHours !== null) {
     if (game.timeToBeatHours === null) {
       if (!f.includeUnknownLength) return false;
@@ -63,6 +64,14 @@ export function matchesPickerFilters(game: Game, f: PickerFilters): boolean {
     if (rank === null || rank > f.maxPriority) return false;
   }
   return true;
+}
+
+// The "at most N hours" box. It is a number input, so Vue's v-model hands
+// over a number (or "" when cleared), not the string the field displays.
+export function parseMaxHours(value: string | number): number | null {
+  if (typeof value === "string" && !value.trim()) return null;
+  const hours = Number(value);
+  return Number.isFinite(hours) && hours > 0 ? hours : null;
 }
 
 // priority 1 is five times as likely as priority 5 or no priority

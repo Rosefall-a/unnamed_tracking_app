@@ -128,7 +128,7 @@ function useAsCover(name: string) {
 
 function goToCollections() {
   open.value = false;
-  router.push("/collections");
+  router.push("/games/collections");
 }
 
 async function togglePopover() {
