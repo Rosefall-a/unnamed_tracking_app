@@ -4,14 +4,14 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
-from test_plugin_install_sources import gate as _gate_fixture
-from test_plugin_install_sources import package_bytes
+from test_plugin_install_sources import (
+    package_bytes,
+    plugin_gate,  # noqa: F401 - registers "gate"
+)
 
 from src.api.routes import plugins
 from src.api.routes.plugin_manager import runtime as plugin_runtime
 from src.plugin_api.runtime_client import PluginRuntimeUnavailable
-
-gate = _gate_fixture
 
 
 @pytest.mark.asyncio

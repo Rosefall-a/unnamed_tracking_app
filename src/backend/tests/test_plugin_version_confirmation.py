@@ -1,14 +1,14 @@
 """Public version review/consent preserves publisher, grant and lifecycle boundaries."""
 
 import pytest
-import test_plugin_install_sources as install_sources
-from test_plugin_install_sources import grants, package_bytes, seed_update
+from test_plugin_install_sources import (
+    grants,
+    package_bytes,
+    plugin_gate,  # noqa: F401 - registers "gate"
+    seed_update,
+)
 
 from src.plugin_api.manager_state import manager_state
-
-# Register the existing protocol fixture locally, including when its source
-# module has already been collected by the full suite.
-gate = install_sources.gate
 
 
 async def candidate_request(

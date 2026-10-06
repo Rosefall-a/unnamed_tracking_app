@@ -6,15 +6,11 @@ import zipfile
 
 import pytest
 from test_plugin_install_sources import (
-    gate as gate_fixture,
-)
-from test_plugin_install_sources import (
     grants,
     package_bytes,
+    plugin_gate,  # noqa: F401 - registers "gate"
     seed_update,
 )
-
-gate = gate_fixture
 
 
 def _digest(payload):
