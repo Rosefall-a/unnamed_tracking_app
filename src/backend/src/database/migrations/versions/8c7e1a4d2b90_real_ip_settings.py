@@ -8,7 +8,7 @@ from alembic import op
 from src.database import migration_helpers as h
 
 revision: str = "8c7e1a4d2b90"
-down_revision: str | None = "c4f7a1d2e6b8"
+down_revision: str | None = "d4a8b2c6e9f1"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
