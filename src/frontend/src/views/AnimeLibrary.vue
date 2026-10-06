@@ -421,11 +421,9 @@ function detailRoute(id: string): string {
           :disabled="aniListImporting || !aniListUsername.trim()"
           @click="importFromAniList"
         >
-        <button
           {{ aniListImporting ? "Importing…" : "Import" }}
         </button>
-      </div>
-    </div>
+      </div>    </div>
   </div>
 </template>
 
