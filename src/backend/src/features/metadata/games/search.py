@@ -546,9 +546,9 @@ def search_game_metadata(
     steamgriddb_api_key: str | None = None,
     preferences: dict[str, Any] | None = None,
     user: "User | None" = None,
-    include_image_providers: bool = True,
     igdb_client_id: str | None = None,
     igdb_client_secret: str | None = None,
+    include_image_providers: bool = True,
 ) -> dict[str, Any]:
     """Search configured providers and return normalized creation-form data.
 

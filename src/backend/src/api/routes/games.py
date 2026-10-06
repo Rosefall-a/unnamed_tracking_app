@@ -184,9 +184,9 @@ async def search_metadata(
             current_user.steamgriddb_api_key,
             preferences,
             current_user,
-            include_images,
             app_integrations.igdb_client_id,
             app_integrations.igdb_client_secret,
+            include_images,
         )
     except Exception as exc:
         raise HTTPException(
