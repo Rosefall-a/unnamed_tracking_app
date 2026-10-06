@@ -33,6 +33,8 @@ import { checkPluginUpdateUi } from "./check_plugin_update_ui.mjs";
 
 const [pluginsRoot, evidenceRoot, backendUrl] = process.argv.slice(2);
 const reviewStage = process.argv[5] ?? "shell";
+const reviewStages = ["shell", "shortcut-priority", "plugin-updates", "library-layouts", "tasks", "shortcut-settings", "tour", "mobile-navigation", "collections", "library-workflows", "plugin-discovery", "plugin-review", "upload", "welcome", "palette", "palette-editor", "startup", "appearance-settings", "editors", "search", "topbar", "ribbon", "details", "content", "branding", "home"];
+assert(reviewStages.includes(reviewStage), `Unknown review stage: ${reviewStage}`);
 assert(pluginsRoot && evidenceRoot && backendUrl && process.env.UI_REVIEW_USERNAME && process.env.UI_REVIEW_PASSWORD, "Supply a disposable backend and review credentials.");
 const require = createRequire(path.resolve(pluginsRoot, "package.json"));
 const { chromium, webkit } = require("playwright");
@@ -55,11 +57,12 @@ const server = createServer(async (incoming, outgoing) => {
 });
 await mkdir(evidenceRoot, { recursive: true });
 await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
-const origin = `http://127.0.0.1:${server.address().port}`;
+const origin = process.env.UI_REVIEW_PRODUCTION_ORIGIN ?? `http://127.0.0.1:${server.address().port}`;
+if (process.env.UI_REVIEW_PRODUCTION_ORIGIN) assert.equal(new URL(origin).origin, new URL(backendUrl).origin);
 const browserType = process.env.UI_REVIEW_BROWSER === "webkit" ? webkit : chromium;
 const browser = await browserType.launch({ headless: true, ...(browserType === chromium ? { args: ["--no-sandbox"] } : {}) });
 const errors = [];
-const report = { backend: "real", passed: [], screens: [], widths: [320, 390, 430, 768, 1024, 1440, 1920, 2560] };
+const report = { backend: "real", frontend: process.env.UI_REVIEW_PRODUCTION_ORIGIN ? "production-container" : "compiled-source", host_source_head: process.env.UI_REVIEW_HOST_HEAD ?? null, passed: [], screens: [], widths: [320, 390, 430, 768, 1024, 1440, 1920, 2560] };
 const admin = await browser.newContext();
 const memberName = `ui-member-${Date.now()}`;
 let memberId;

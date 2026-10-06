@@ -27,13 +27,13 @@ export async function checkLibraryWorkflows({ admin, origin, evidenceRoot, repor
       await create.getByRole("button", { name: "Ratings & Tags", exact: true }).click();
       await create.getByRole("spinbutton", { name: "Atmosphere", exact: true }).fill("8.5");
       await create.getByRole("spinbutton", { name: "Story", exact: true }).fill("7.5");
-      await create.getByRole("button", { name: "Ownership", exact: true }).click();
+      await create.getByRole("button", { name: "Page", exact: true }).click();
       const saved = page.waitForResponse(response => new URL(response.url()).pathname === "/api/game/create" && response.request().method() === "POST");
       await create.getByRole("button", { name: "Add Game", exact: true }).click();
       const response = await saved; assert.equal(response.status(), 201, await response.text());
       const game = await response.json(); games.push(game.id); await create.waitFor({ state: "hidden" });
       await page.goto(origin + "/games/" + game.id); await page.getByRole("heading", { name: title, exact: true }).waitFor();
-      await page.getByRole("button", { name: "Edit", exact: true }).first().click();
+      await page.getByRole("button", { name: /^(?:✎\s*)?Edit$/ }).first().click();
       const edit = await dialog("Edit Game");
       await edit.getByRole("button", { name: "General", exact: true }).click();
       await edit.getByLabel(/^Status/).selectOption("beaten");
@@ -49,7 +49,11 @@ export async function checkLibraryWorkflows({ admin, origin, evidenceRoot, repor
       await page.getByRole("heading", { name: title, exact: true }).waitFor();
       await checkOverflow(page, `game save/completion/${width}/${theme}`);
       await page.screenshot({ path: path.join(evidenceRoot, `game-workflow-${width}-${theme}.png`) });
-      await page.goto(origin + "/games"); await page.getByRole("button", { name: "Random", exact: true }).click();
+      await page.goto(origin + "/games");
+      await page.getByRole("heading", { name: "Games", exact: true, level: 1 }).waitFor();
+      const random = page.getByRole("button", { name: "Random", exact: true });
+      if (!await random.isVisible()) await page.getByRole("button", { name: "Library controls", exact: true }).click();
+      await random.click();
       const picker = await dialog("Pick something to play");
       await picker.getByRole("button", { name: "Reset", exact: true }).click();
       await picker.getByRole("button", { name: "beaten", exact: true }).click();
@@ -100,6 +104,9 @@ export async function checkLibraryWorkflows({ admin, origin, evidenceRoot, repor
       report.screens.push({ theme, width, screen: "real game creation/edit/ratings/completion, random selection, calendar save/history/feed dialogs" });
     }
     assert.deepEqual(errors, []); report.passed.push("Four real game/calendar workflow cases across phone/desktop light/dark; persisted game saves, ratings and completion; movie rating bounds/save/clear; random picker; saved calendar events and manual history; shared dialog focus/Escape; subscription secret excluded from evidence");
+  } catch (error) {
+    await page.screenshot({ path: path.join(evidenceRoot, "library-workflow-failure.png") });
+    throw error;
   } finally {
     for (const id of events) await admin.request.delete(origin + "/api/calendar/events/" + id);
     for (const id of activity) await admin.request.delete(origin + "/api/activity/" + id);

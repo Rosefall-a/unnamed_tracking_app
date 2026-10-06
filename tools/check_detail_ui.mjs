@@ -1,4 +1,5 @@
-// Populated real detail/media pages, theme propagation, settings and navigation regression acceptance.
+// Populated core detail/media pages, themes, settings and navigation on real data.
+// Cards, Sets and Bounties are covered by the official Collector's Archive plugin checker.
 import assert from "node:assert/strict";
 import path from "node:path";
 
@@ -35,9 +36,6 @@ export async function checkDetailUi({ admin, member, origin, evidenceRoot, repor
     try {
       const game = await json(await context.request.post(origin + "/api/game/create", { data: { title: "A themed collection adventure", folder_location: `theme-detail-${role}-${Date.now()}`, status: "BEATEN", collections: ["Theme review/Adventures"], description: "A real title used for theme and detail acceptance." } }), 201);
       created.push(["game/delete", game.id]);
-      const card = await json(await context.request.post(origin + "/api/cards", { data: { game_id: game.id, rarity: "rare" } }), 201); created.push(["cards", card.id]);
-      const set = await json(await context.request.post(origin + "/api/sets", { data: { name: "A real themed set", target_total: 2 } }), 201); created.push(["sets", set.id]);
-      await json(await context.request.patch(`${origin}/api/cards/${card.id}`, { data: { set_id: set.id } }));
       const media = [];
       for (const [kind, title] of [["movie", "A quiet film"], ["tv", "A long-running show"], ["anime", "A hand-drawn adventure"]]) {
         const item = await json(await context.request.post(`${origin}/api/${kind}/create`, { data: { title, description: "Real library metadata, no external provider required.", status: kind === "movie" ? "WATCHED" : "IN_PROGRESS" } }), 201);
@@ -48,9 +46,7 @@ export async function checkDetailUi({ admin, member, origin, evidenceRoot, repor
       const routes = [
         ["/games", "Games", ".library", "--ui-bg"],
         [`/games/${game.id}`, game.title, ".detail", "--ui-bg"],
-        [`/collections/${encodeURIComponent("Theme review/Adventures")}`, "Adventures", ".collection-detail", "--ui-bg"],
-        [`/sets/${set.id}`, set.name, ".set-detail-page", "--ui-bg"],
-        [`/cards/${card.id}`, null, ".designer-page", "--ui-bg"],
+        [`/collections/${encodeURIComponent("Theme review/Adventures")}`, "Adventures", ".ui-page", "--ui-bg"],
         ["/movies", "Movies", ".lib-root", "--ui-bg"], ["/tv", "TV Shows", ".lib-root", "--ui-bg"], ["/anime", "Anime", ".lib-root", "--ui-bg"],
         ...media.map(([kind, item]) => [`/${kind === "movie" ? "movies" : kind}/${item.id}`, item.title, ".detail", "--ui-bg"]),
         [`/lists/${list.id}`, list.name, ".ui-page", "--ui-bg"], ["/statistics", "Statistics", ".ui-page", "--ui-bg"],
@@ -66,7 +62,6 @@ export async function checkDetailUi({ admin, member, origin, evidenceRoot, repor
             await page.waitForFunction(() => !Array.from(document.querySelectorAll("main p, .lib-root p")).some(element => element.textContent.trim() === "Loading…"));
             if (title) assert((await page.locator("h1").first().innerText()).includes(title));
             await surface(page, selector, token); await noOverflow(page, `${role}/${theme}/${width}/${route}`);
-            if (route === `/sets/${set.id}`) assert.equal(await page.getByRole("button", { name: new RegExp(game.title) }).count(), 1, "The assigned card is visible inside its set");
             if (route === "/statistics") {
               const heatColors = await page.locator(".heat-cell.l0").first().evaluate(element => [getComputedStyle(element).backgroundColor, getComputedStyle(element.closest(".stats-panel")).backgroundColor]);
               assert.notEqual(heatColors[0], heatColors[1], "Empty heatmap days remain visible against the statistics panel");
@@ -80,7 +75,7 @@ export async function checkDetailUi({ admin, member, origin, evidenceRoot, repor
               }); assert.equal(overlaps, false, "Top-bar controls do not overlap the account menu");
             }
             report.screens.push({ role, theme, palette: report.palette ?? "orange", width, screen: route.replace(/[0-9a-f]{8}-[0-9a-f-]{27}/g, ":id") });
-            if (role === "admin" && [390, 1440].includes(width) && ["/statistics", "/movies", `/sets/${set.id}`, `/cards/${card.id}`].includes(route)) await page.screenshot({ path: path.join(evidenceRoot, `stage-detail-${route.split("/")[1]}-${width}-${theme}.png`), fullPage: width > 430 });
+            if (role === "admin" && [390, 1440].includes(width) && ["/statistics", "/movies", `/games/${game.id}`, `/collections/${encodeURIComponent("Theme review/Adventures")}`].includes(route)) await page.screenshot({ path: path.join(evidenceRoot, `stage-detail-${route.split("/")[1]}-${width}-${theme}.png`), fullPage: width > 430 });
           }
           await page.goto(origin + "/statistics"); await page.locator(".stats-summary").waitFor();
           for (const name of ["Games", "Movies", "TV Shows", "Anime", "Overview"]) {
@@ -158,7 +153,7 @@ export async function checkDetailUi({ admin, member, origin, evidenceRoot, repor
       await page.setViewportSize({ width: 390, height: 620 });
       await page.goto(origin + `/lists/${list.id}`); await page.locator("h1").waitFor();
       await page.evaluate(() => window.scrollTo(0, 160));
-      await page.getByRole("navigation", { name: "Primary navigation", exact: true }).getByRole("button", { name: "Library", exact: true }).click();
+      await page.getByRole("button", { name: "Open menu", exact: true }).click();
       await page.getByRole("dialog", { name: "Main navigation", exact: true }).getByRole("link", { name: "All games", exact: true }).click();
       await page.getByRole("heading", { name: "Games", level: 1, exact: true }).waitFor();
       await page.waitForFunction(() => scrollY === 0);
