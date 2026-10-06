@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// The switcher between the media libraries and Lists. Calendar and Statistics
+// The switcher between the media libraries and Collections. Calendar and Statistics
 // are not part of Media, they have their own sidebar entries.
 import SegmentedTabs from "./SegmentedTabs.vue";
 import type { SegmentOption } from "./SegmentedTabs.vue";
@@ -12,7 +12,7 @@ const OPTIONS: SegmentOption[] = [
   { value: "movie", label: "Movies", to: "/movies" },
   { value: "tv", label: "TV Shows", to: "/tv" },
   { value: "anime", label: "Anime", to: "/anime" },
-  { value: "lists", label: "Lists", to: "/lists" },
+  { value: "lists", label: "Collections", to: "/lists" },
 ];
 </script>
 
