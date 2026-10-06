@@ -58,12 +58,18 @@ async function handleRevoke(key: ApiKeySummary) {
   }
 
   error.value = "";
+  const previousKeys = keys.value;
+  // Remove it immediately so a successful revoke cannot leave a stale active
+  // key visible while the server refresh completes.
+  keys.value = previousKeys.filter((candidate) => candidate.id !== key.id);
+
   try {
     await revokeApiKey(key.id);
-    // Refresh from the server so the UI reflects the persisted revocation
-    // rather than treating removal from the local list as the source of truth.
+    // Refresh from the server so the UI reflects the persisted revocation.
+    // The backend only returns non-revoked keys, so a revoked key stays gone.
     await loadKeys();
   } catch (err) {
+    keys.value = previousKeys;
     error.value =
       err instanceof Error ? err.message : "Failed to revoke API key.";
   }
