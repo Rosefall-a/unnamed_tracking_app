@@ -1,12 +1,10 @@
-# pylint: disable=missing-module-docstring,missing-function-docstring
 from __future__ import annotations
 
-import time
 from typing import Any
 
 import requests
 
-from src.features.metadata.rate_limit import throttle
+from src.features.metadata.rate_limit import RateLimitError, request_with_backoff
 
 _BASE_URL = "https://kitsu.io/api/edge"
 _EPISODE_PAGE_SIZE = 20
@@ -16,9 +14,6 @@ _EPISODE_PAGE_SIZE = 20
 # hasn't been observed rate-limiting yet: the several background loops
 # that walk the anime library can still burst it the same way they did
 # AniList and Jikan.
-_MAX_RETRIES = 3
-_BASE_BACKOFF_SECONDS = 2.0
-_MAX_BACKOFF_SECONDS = 10.0
 _PACING_SECONDS = 0.4
 
 
@@ -42,32 +37,26 @@ class KitsuClient:
         self.session = session or requests.Session()
 
     def _get(self, path: str, params: dict[str, str]) -> dict[str, Any]:
-        for attempt in range(_MAX_RETRIES + 1):
-            throttle("kitsu", _PACING_SECONDS)
-            try:
-                response = self.session.get(f"{_BASE_URL}{path}", params=params, timeout=15)
-            except requests.RequestException as exc:
-                raise KitsuError(f"Could not reach Kitsu: {exc}") from exc
-            if response.status_code == 429:
-                if attempt >= _MAX_RETRIES:
-                    break
-                retry_after = response.headers.get("Retry-After")
-                delay = (
-                    float(retry_after)
-                    if retry_after and retry_after.replace(".", "", 1).isdigit()
-                    else _BASE_BACKOFF_SECONDS * (2**attempt)
-                )
-                time.sleep(min(delay, _MAX_BACKOFF_SECONDS))
-                continue
-            if response.status_code >= 400:
-                raise KitsuError(
-                    f"Kitsu request failed ({response.status_code}): {response.text[:200]}"
-                )
-            try:
-                return response.json()
-            except ValueError as exc:
-                raise KitsuError("Kitsu returned invalid JSON.") from exc
-        raise KitsuError("Kitsu is rate-limiting requests right now — wait a bit and try again.")
+        try:
+            response = request_with_backoff(
+                lambda: self.session.get(f"{_BASE_URL}{path}", params=params, timeout=15),
+                provider="kitsu",
+                pacing_seconds=_PACING_SECONDS,
+            )
+        except requests.RequestException as exc:
+            raise KitsuError(f"Could not reach Kitsu: {exc}") from exc
+        except RateLimitError as exc:
+            raise KitsuError(
+                "Kitsu is rate-limiting requests right now — wait a bit and try again."
+            ) from exc
+        if response.status_code >= 400:
+            raise KitsuError(
+                f"Kitsu request failed ({response.status_code}): {response.text[:200]}"
+            )
+        try:
+            return response.json()
+        except ValueError as exc:
+            raise KitsuError("Kitsu returned invalid JSON.") from exc
 
     def find_exact(self, title: str, year: int | None = None) -> str | None:
         """Searches by title and returns the id only when a result's own

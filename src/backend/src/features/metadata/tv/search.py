@@ -1,16 +1,22 @@
-# pylint: disable=duplicate-code,missing-module-docstring,missing-class-docstring,too-many-locals,broad-exception-caught
 # These modules intentionally keep domain/provider-specific logic separate; similar
 # structures here represent parallel APIs rather than accidental copy/paste.
 
 from __future__ import annotations
 
-from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
-from typing import Any, Callable, Literal
+from functools import partial
+from typing import Any
 
 from src.features.metadata.movies.omdb import OMDBClient
 from src.features.metadata.movies.tmdb import TMDBClient
-from src.features.metadata.search_utils import format_provider_error, merge_search_result
+from src.features.metadata.search_utils import (
+    MediaProviderContext as ProviderContext,
+)
+from src.features.metadata.search_utils import (
+    MediaProviderSpec as ProviderSpec,
+)
+from src.features.metadata.search_utils import (
+    search_providers,
+)
 from src.features.metadata.tv.tvmaze import TVMazeClient
 
 # Reuses the TMDB/OMDb clients built for Movies (same API keys, same
@@ -19,6 +25,8 @@ from src.features.metadata.tv.tvmaze import TVMazeClient
 # search) and the result field set actually differ.
 
 
+# These distinct media DTOs share identity fields but preserve their own result schemas.
+# pylint: disable=duplicate-code
 def _blank_result(provider: str, provider_id: str, title: str) -> dict[str, Any]:
     return {
         "provider": provider,
@@ -45,74 +53,45 @@ def _blank_result(provider: str, provider_id: str, title: str) -> dict[str, Any]
     }
 
 
-@dataclass
-class ProviderContext:
-    tmdb_api_key: str | None
-    omdb_api_key: str | None
+# pylint: enable=duplicate-code
 
 
-ProviderRun = Callable[[str, int, ProviderContext], list[dict[str, Any]]]
-
-
-@dataclass
-class ProviderSpec:
-    name: str
-    kind: Literal["primary"]
-    available: Callable[[ProviderContext], bool]
-    run: ProviderRun
+def _show_result(provider: str, show: dict[str, Any]) -> dict[str, Any]:
+    result = _blank_result(provider, str(show.get("id", "")), show.get("title", ""))
+    result.update(
+        {
+            "description": show.get("overview"),
+            "first_air_date": show.get("first_air_date") or None,
+            "episode_runtime_minutes": show.get("episode_runtime_minutes"),
+            "creators": show.get("creators") or [],
+            "studios": show.get("studios") or [],
+            "countries": show.get("countries") or [],
+            "languages": show.get("languages") or [],
+            "genres": show.get("genres") or [],
+            "poster_url": show.get("poster_url"),
+            "backdrop_url": show.get("backdrop_url") if provider == "TMDB" else None,
+            "tmdb_score": show.get("vote_average"),
+            "seasons": (show.get("seasons") or []) if provider == "TMDB" else [],
+            "url": show.get("url"),
+        }
+    )
+    return result
 
 
 def _run_tmdb(query: str, limit: int, ctx: ProviderContext) -> list[dict[str, Any]]:
     assert ctx.tmdb_api_key  # guarded by `available`
-    client = TMDBClient(api_key=ctx.tmdb_api_key)
-    found: list[dict[str, Any]] = []
-    for show in client.search_tv(query, limit=limit):
-        result = _blank_result("TMDB", str(show.get("id", "")), show.get("title", ""))
-        result.update(
-            {
-                "description": show.get("overview"),
-                "first_air_date": show.get("first_air_date") or None,
-                "episode_runtime_minutes": show.get("episode_runtime_minutes"),
-                "creators": show.get("creators") or [],
-                "studios": show.get("studios") or [],
-                "countries": show.get("countries") or [],
-                "languages": show.get("languages") or [],
-                "genres": show.get("genres") or [],
-                "poster_url": show.get("poster_url"),
-                "backdrop_url": show.get("backdrop_url"),
-                "tmdb_score": show.get("vote_average"),
-                "seasons": show.get("seasons") or [],
-                "url": show.get("url"),
-            }
-        )
-        found.append(result)
-    return found
+    return [
+        _show_result("TMDB", item)
+        for item in TMDBClient(api_key=ctx.tmdb_api_key).search_tv(query, limit=limit)
+    ]
 
 
 def _run_omdb(query: str, limit: int, ctx: ProviderContext) -> list[dict[str, Any]]:
     assert ctx.omdb_api_key  # guarded by `available`
-    client = OMDBClient(api_key=ctx.omdb_api_key)
-    found: list[dict[str, Any]] = []
-    for show in client.search_tv(query, limit=limit):
-        result = _blank_result("OMDb", str(show.get("id", "")), show.get("title", ""))
-        result.update(
-            {
-                "description": show.get("overview"),
-                "first_air_date": show.get("first_air_date") or None,
-                "episode_runtime_minutes": show.get("episode_runtime_minutes"),
-                "creators": show.get("creators") or [],
-                "studios": show.get("studios") or [],
-                "countries": show.get("countries") or [],
-                "languages": show.get("languages") or [],
-                "genres": show.get("genres") or [],
-                "poster_url": show.get("poster_url"),
-                "tmdb_score": show.get("vote_average"),
-                "seasons": [],
-                "url": show.get("url"),
-            }
-        )
-        found.append(result)
-    return found
+    return [
+        _show_result("OMDb", item)
+        for item in OMDBClient(api_key=ctx.omdb_api_key).search_tv(query, limit=limit)
+    ]
 
 
 def _run_tvmaze(query: str, limit: int, _ctx: ProviderContext) -> list[dict[str, Any]]:
@@ -177,26 +156,9 @@ def search_tv_metadata(
     ctx = ProviderContext(tmdb_api_key=tmdb_api_key, omdb_api_key=omdb_api_key)
     specs = [PROVIDERS[name] for name in DEFAULT_PROVIDER_ORDER if PROVIDERS[name].available(ctx)]
 
-    results: list[dict[str, Any]] = []
-    provider_errors: list[str] = []
-    providers_used: list[str] = []
-
-    def _call(spec: ProviderSpec) -> tuple[ProviderSpec, list[dict[str, Any]] | None, str | None]:
-        try:
-            return spec, spec.run(query, limit, ctx), None
-        except Exception as exc:  # noqa: BLE001 — one provider's failure shouldn't sink the search
-            return spec, None, str(exc)
-
-    if specs:
-        with ThreadPoolExecutor(max_workers=len(specs)) as executor:
-            for spec, outcome, error in executor.map(_call, specs):
-                if error is not None:
-                    provider_errors.append(format_provider_error(spec.name, error))
-                    continue
-                if outcome:
-                    for candidate in outcome:
-                        merge_search_result(results, candidate)
-                providers_used.append(spec.name)
+    result = search_providers([(spec.name, partial(spec.run, query, limit, ctx)) for spec in specs])
+    results = result["results"]
+    provider_errors = result["provider_errors"]
 
     # anime belongs in the Anime library (AniList, its own episode numbering
     # and airing data); TMDB and TVmaze also list it as TV, which put the
@@ -211,7 +173,7 @@ def search_tv_metadata(
 
     return {
         "query": query,
-        "providers": providers_used,
+        "providers": result["providers"],
         "provider_errors": provider_errors,
         "results": kept,
     }

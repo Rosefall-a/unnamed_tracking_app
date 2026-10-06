@@ -1,16 +1,15 @@
-# pylint: disable=duplicate-code,missing-module-docstring,missing-class-docstring,broad-exception-caught
 # These modules intentionally keep domain/provider-specific logic separate; similar
 # structures here represent parallel APIs rather than accidental copy/paste.
 
 from __future__ import annotations
 
-from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
+from functools import partial
 from typing import Any, Callable, Literal
 
 from src.features.metadata.anime.anilist import AniListClient
 from src.features.metadata.anime.jikan import JikanClient
-from src.features.metadata.search_utils import format_provider_error, merge_search_result
+from src.features.metadata.search_utils import search_providers
 
 # Unlike Movies/TV (TMDB+OMDb, both need an app-wide API key), both
 # AniList and Jikan are public/keyless for read-only search — so there's
@@ -20,6 +19,8 @@ from src.features.metadata.search_utils import format_provider_error, merge_sear
 # limit or an AniList outage doesn't leave the search empty.
 
 
+# These distinct media DTOs share identity fields but preserve their own result schemas.
+# pylint: disable=duplicate-code
 def _blank_result(provider: str, provider_id: str, title: str) -> dict[str, Any]:
     return {
         "provider": provider,
@@ -43,6 +44,9 @@ def _blank_result(provider: str, provider_id: str, title: str) -> dict[str, Any]
         "mal_id": None,
         "url": None,
     }
+
+
+# pylint: enable=duplicate-code
 
 
 ProviderRun = Callable[[str, int], list[dict[str, Any]]]
@@ -133,29 +137,5 @@ def search_anime_metadata(query: str, limit: int = 8) -> dict[str, Any]:
     Movies/TV's search there's nothing to gate on — both always run.
     A provider that fails at request time contributes a message to
     `provider_errors` without failing the other provider."""
-    results: list[dict[str, Any]] = []
-    provider_errors: list[str] = []
-    providers_used: list[str] = []
-
-    def _call(spec: ProviderSpec) -> tuple[ProviderSpec, list[dict[str, Any]] | None, str | None]:
-        try:
-            return spec, spec.run(query, limit), None
-        except Exception as exc:  # noqa: BLE001 — one provider's failure shouldn't sink the search
-            return spec, None, str(exc)
-
-    with ThreadPoolExecutor(max_workers=len(PROVIDERS)) as executor:
-        for spec, outcome, error in executor.map(_call, PROVIDERS):
-            if error is not None:
-                provider_errors.append(format_provider_error(spec.name, error))
-                continue
-            if outcome:
-                for candidate in outcome:
-                    merge_search_result(results, candidate)
-            providers_used.append(spec.name)
-
-    return {
-        "query": query,
-        "providers": providers_used,
-        "provider_errors": provider_errors,
-        "results": results,
-    }
+    result = search_providers([(spec.name, partial(spec.run, query, limit)) for spec in PROVIDERS])
+    return {"query": query, **result}

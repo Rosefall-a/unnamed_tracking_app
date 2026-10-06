@@ -1,4 +1,3 @@
-# pylint: disable=missing-module-docstring,too-many-locals,too-few-public-methods
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
@@ -20,6 +19,9 @@ class TVDBClient:
     a bearer token valid one month; this client re-logs-in lazily on the
     first request and once more on a 401, rather than persisting the
     token anywhere."""
+
+    # The provider supports one public franchise lookup operation.
+    # pylint: disable=too-few-public-methods
 
     def __init__(self, api_key: str | None, *, session: requests.Session | None = None) -> None:
         if not api_key:
@@ -81,8 +83,7 @@ class TVDBClient:
         candidates = search.get("data") or []
         if not candidates:
             return {"listName": None, "related": []}
-        best = candidates[0]
-        series_id = best.get("tvdb_id")
+        series_id = candidates[0].get("tvdb_id")
         if not series_id:
             return {"listName": None, "related": []}
 

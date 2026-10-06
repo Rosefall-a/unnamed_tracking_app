@@ -11,6 +11,8 @@ from typing import Any
 
 from .anilist import AniListClient, AniListError
 
+# This GraphQL projection is the importer contract, independent of search query evolution.
+# pylint: disable=duplicate-code
 _LIST_QUERY = """
 query ($userName: String!, $chunk: Int!, $perChunk: Int!) {
   MediaListCollection(
@@ -75,6 +77,8 @@ query ($userName: String!, $chunk: Int!, $perChunk: Int!) {
   }
 }
 """
+
+# pylint: enable=duplicate-code
 
 _STATUS_MAP = {
     "CURRENT": "IN_PROGRESS",

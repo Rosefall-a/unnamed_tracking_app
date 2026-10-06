@@ -1,4 +1,3 @@
-# pylint: disable=missing-class-docstring,too-many-locals
 """Fetching a show's episode list from whichever provider has it, shared
 between the on-demand route (api/routes/anime.py) and the weekly
 background refresh (features/metadata/refresh.py) — one place for the
@@ -75,6 +74,30 @@ def _is_complete(episodes: list[dict[str, Any]], final_total: int | None) -> boo
     return {e["episode_number"] for e in episodes} >= set(range(1, final_total + 1))
 
 
+async def _fallback_episode_sources(
+    external_id: str | None, anilist_id: str | None, kitsu_id: str | None, errors: list[str]
+) -> list[list[dict[str, Any]]]:
+    jikan_episodes: list[dict[str, Any]] = []
+    anilist_episodes: list[dict[str, Any]] = []
+    kitsu_episodes: list[dict[str, Any]] = []
+    if external_id:
+        try:
+            jikan_episodes = await asyncio.to_thread(JikanClient().episodes, external_id)
+        except JikanError as exc:
+            errors.append(f"Jikan: {exc}")
+    if anilist_id:
+        try:
+            anilist_episodes = await asyncio.to_thread(AniListClient().episodes, anilist_id)
+        except AniListError as exc:
+            errors.append(f"AniList: {exc}")
+    if kitsu_id:
+        try:
+            kitsu_episodes = await asyncio.to_thread(KitsuClient().episodes, kitsu_id)
+        except KitsuError as exc:
+            errors.append(f"Kitsu: {exc}")
+    return [jikan_episodes, anilist_episodes, kitsu_episodes]
+
+
 async def fetch_episodes_with_fallback(
     external_id: str | None,
     anilist_id: str | None,
@@ -116,32 +139,19 @@ async def fetch_episodes_with_fallback(
                 limit = episode_limit(info)
             except (AniListError, ValueError) as exc:
                 errors.append(f"AniList: {exc}")
-    anizip_episodes: list[dict[str, Any]] = anizip["episodes"]
     mapped_kitsu: str | None = anizip.get("kitsu_id")
 
-    jikan_episodes: list[dict[str, Any]] = []
-    anilist_episodes: list[dict[str, Any]] = []
-    kitsu_episodes: list[dict[str, Any]] = []
-    if not _is_complete(anizip_episodes, final_total):
-        if external_id:
-            try:
-                jikan_episodes = await asyncio.to_thread(JikanClient().episodes, external_id)
-            except JikanError as exc:
-                errors.append(f"Jikan: {exc}")
-        if anilist_id:
-            try:
-                anilist_episodes = await asyncio.to_thread(AniListClient().episodes, anilist_id)
-            except AniListError as exc:
-                errors.append(f"AniList: {exc}")
-        trusted_kitsu = mapped_kitsu or (kitsu_id if not anilist_id else None)
-        if trusted_kitsu:
-            try:
-                kitsu_episodes = await asyncio.to_thread(KitsuClient().episodes, trusted_kitsu)
-            except KitsuError as exc:
-                errors.append(f"Kitsu: {exc}")
-    merged = _merge_episode_sources(
-        anizip_episodes, jikan_episodes, anilist_episodes, kitsu_episodes
-    )
+    sources = [anizip["episodes"]]
+    if not _is_complete(anizip["episodes"], final_total):
+        sources.extend(
+            await _fallback_episode_sources(
+                external_id,
+                anilist_id,
+                mapped_kitsu or (kitsu_id if not anilist_id else None),
+                errors,
+            )
+        )
+    merged = _merge_episode_sources(*sources)
     cap = limit or final_total
     if cap:
         merged = [e for e in merged if e["episode_number"] <= cap]

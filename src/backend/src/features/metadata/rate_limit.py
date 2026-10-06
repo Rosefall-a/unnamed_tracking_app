@@ -14,10 +14,49 @@ losing that race every cycle.
 
 import threading
 import time
+from typing import Callable
+
+import requests
 
 _locks: dict[str, threading.Lock] = {}
 _last_call: dict[str, float] = {}
 _registry_lock = threading.Lock()
+MAX_PROVIDER_RETRIES = 3
+
+
+class RateLimitError(RuntimeError):
+    """A provider kept returning 429 after its bounded retry budget."""
+
+
+def request_with_backoff(
+    operation: Callable[[], requests.Response], *, provider: str, pacing_seconds: float
+) -> requests.Response:
+    """Share pacing and the existing three-retry policy across public anime APIs."""
+    for attempt in range(MAX_PROVIDER_RETRIES + 1):
+        throttle(provider, pacing_seconds)
+        response = operation()
+        if response.status_code != 429:
+            return response
+        if attempt >= MAX_PROVIDER_RETRIES:
+            break
+        time.sleep(
+            retry_delay(
+                response.headers.get("Retry-After"), attempt, base_seconds=2, max_seconds=10
+            )
+        )
+    raise RateLimitError(f"{provider} exhausted its rate-limit retry budget")
+
+
+def retry_delay(
+    retry_after: str | None, attempt: int, *, base_seconds: float, max_seconds: float
+) -> float:
+    """Honor a numeric Retry-After header, otherwise use bounded exponential backoff."""
+    delay = (
+        float(retry_after)
+        if retry_after and retry_after.replace(".", "", 1).isdigit()
+        else base_seconds * (2**attempt)
+    )
+    return min(delay, max_seconds)
 
 
 def throttle(provider: str, min_interval_seconds: float) -> None:

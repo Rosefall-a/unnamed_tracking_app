@@ -2,7 +2,54 @@
 
 from __future__ import annotations
 
-from typing import Any
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass
+from typing import Any, Callable, Literal
+
+
+@dataclass
+class MediaProviderContext:
+    tmdb_api_key: str | None
+    omdb_api_key: str | None
+
+
+@dataclass
+class MediaProviderSpec:
+    name: str
+    kind: Literal["primary"]
+    available: Callable[[MediaProviderContext], bool]
+    run: Callable[[str, int, MediaProviderContext], list[dict[str, Any]]]
+
+
+def search_providers(
+    providers: list[tuple[str, Callable[[], list[dict[str, Any]]]]],
+) -> dict[str, Any]:
+    """Run independent providers concurrently, merging results in priority order."""
+    results: list[dict[str, Any]] = []
+    provider_errors: list[str] = []
+    providers_used: list[str] = []
+
+    def call_provider(
+        provider: tuple[str, Callable[[], list[dict[str, Any]]]],
+    ) -> tuple[str, list[dict[str, Any]] | None, str | None]:
+        name, operation = provider
+        try:
+            return name, operation(), None
+        # A third-party adapter failure must not discard other providers' results.
+        # pylint: disable-next=broad-exception-caught
+        except Exception as exc:
+            return name, None, str(exc)
+
+    if providers:
+        with ThreadPoolExecutor(max_workers=len(providers)) as executor:
+            for name, outcome, error in executor.map(call_provider, providers):
+                if error is not None:
+                    provider_errors.append(format_provider_error(name, error))
+                    continue
+                for candidate in outcome or []:
+                    merge_search_result(results, candidate)
+                providers_used.append(name)
+    return {"providers": providers_used, "provider_errors": provider_errors, "results": results}
 
 
 def format_provider_error(name: str, message: str) -> str:

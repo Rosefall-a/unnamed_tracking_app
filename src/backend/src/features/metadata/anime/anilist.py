@@ -1,13 +1,20 @@
-# pylint: disable=too-many-lines,missing-module-docstring,missing-function-docstring,too-many-locals
 from __future__ import annotations
 
 import re
 import time
+from itertools import pairwise
 from typing import Any
 
 import requests
 
-from src.features.metadata.rate_limit import throttle
+from src.features.metadata.anime.anilist_relations import (
+    RELATION_LABELS,
+    collect_branches,
+    format_label,
+    node_to_dict,
+    topological_order,
+)
+from src.features.metadata.rate_limit import RateLimitError, request_with_backoff
 
 _URL = "https://graphql.anilist.co"
 _TAG_RE = re.compile(r"<[^>]+>")
@@ -18,9 +25,6 @@ _TAG_RE = re.compile(r"<[^>]+>")
 # under normal use, not a rare edge case. Retried with backoff (honoring
 # `Retry-After` when AniList sends one) instead of surfacing a 502 to the
 # user for something that just needed a short wait.
-_MAX_RETRIES = 3
-_BASE_BACKOFF_SECONDS = 2.0
-_MAX_BACKOFF_SECONDS = 10.0
 # A small pause between successive requests in a multi-request sequence
 # (chain walk, branch-group reordering) so a long chain doesn't burn
 # through the rate limit in one burst before any 429 has a chance to
@@ -114,25 +118,6 @@ def _format_date(start_date: dict[str, Any] | None) -> str | None:
     return f"{year:04d}-{month:02d}-{day:02d}"
 
 
-# AniList's MediaFormat enum -> the friendly label Jikan already returns
-# directly, so both providers normalize to the same vocabulary.
-_FORMAT_LABELS = {
-    "TV": "TV",
-    "TV_SHORT": "TV Short",
-    "MOVIE": "Movie",
-    "SPECIAL": "Special",
-    "OVA": "OVA",
-    "ONA": "ONA",
-    "MUSIC": "Music",
-}
-
-
-def _format_label(raw: str | None) -> str | None:
-    if not raw:
-        return None
-    return _FORMAT_LABELS.get(raw, raw.title())
-
-
 # Up to 50 entries by MyAnimeList id in one request, so filling in a whole
 # imported list takes a handful of calls instead of one per title.
 _BY_MAL_IDS_QUERY = f"""
@@ -196,42 +181,11 @@ def _map_media_entry(entry: dict[str, Any]) -> dict[str, Any]:
         "poster_url": cover.get("extraLarge") or cover.get("large"),
         "backdrop_url": entry.get("bannerImage"),
         "score": (score / 10) if score is not None else None,
-        "format": _format_label(entry.get("format")),
+        "format": format_label(entry.get("format")),
         "url": entry.get("siteUrl"),
     }
 
 
-def _node_to_dict(node: dict[str, Any]) -> dict[str, Any]:
-    node_title = node.get("title") or {}
-    cover = node.get("coverImage") or {}
-    return {
-        "id": node.get("id"),
-        "title": node_title.get("english") or node_title.get("romaji"),
-        "format": _format_label(node.get("format")),
-        "poster_url": cover.get("extraLarge") or cover.get("large"),
-        "episode_count": node.get("episodes"),
-        "year": (node.get("startDate") or {}).get("year"),
-    }
-
-
-# AniList's own RelationType enum -> a short human label for the graph
-# edge (e.g. "Sequel", "Side story") rather than the raw SCREAMING_SNAKE
-# value.
-_RELATION_LABELS = {
-    "ADAPTATION": "Adaptation",
-    "PREQUEL": "Prequel",
-    "SEQUEL": "Sequel",
-    "PARENT": "Parent story",
-    "SIDE_STORY": "Side story",
-    "CHARACTER": "Shared character",
-    "SUMMARY": "Summary",
-    "ALTERNATIVE": "Alternative",
-    "SPIN_OFF": "Spin-off",
-    "OTHER": "Related",
-    "SOURCE": "Source",
-    "COMPILATION": "Compilation",
-    "CONTAINS": "Contains",
-}
 _EPISODES_QUERY = """
 query ($id: Int) {
   Media(id: $id, type: ANIME) {
@@ -456,7 +410,6 @@ query ($id: Int) {
 # manga/novel, etc.) get surfaced as branches — generous enough for a
 # real franchise's full run without risking a runaway request chain.
 _MAX_CHAIN_HOPS = 8
-_MAX_BRANCHES = 40
 _CHAIN_RELATION_TYPES = {"PREQUEL", "SEQUEL"}
 
 # _expand_branch_chains checks at most this many top-level branches for a
@@ -465,15 +418,6 @@ _CHAIN_RELATION_TYPES = {"PREQUEL", "SEQUEL"}
 # extra round trips instead of one per branch on a franchise with a lot
 # of them.
 _MAX_BRANCH_CHAIN_EXPANSIONS = 4
-
-# Relation types that read as clutter rather than a genuinely related
-# title — a shared-character cameo, or a clip-show/recap compilation —
-# so they're left out of the graph entirely rather than competing for
-# space with the source manga/novel, side stories, and spin-offs that
-# actually matter. "Other" is deliberately NOT filtered: AniList uses it
-# for real named specials/shorts too (e.g. a movie recap special isn't
-# always tagged more specifically), not just noise.
-_LOW_VALUE_BRANCH_TYPES = {"CHARACTER"}
 
 # A movie/OVA/special is reached from the franchise root, not the other
 # way round: opening the page of "Gurren Lagann The Movie" used to build
@@ -490,70 +434,6 @@ _ROOT_RELATION_TYPES = ("PARENT", "ALTERNATIVE", "SIDE_STORY", "SPIN_OFF")
 RELATIONS_CACHE_VERSION = 2
 
 
-def _topological_order(ids: set[int], prequel_of: dict[int, int]) -> list[int] | None:
-    """Orders `ids` earliest-prequel-first using each id's prequel
-    pointer (only ones pointing within `ids` matter). Returns None if
-    the pointers don't fully resolve every id — a partial/cyclic result
-    isn't trustworthy enough to reorder anything."""
-    if not prequel_of:
-        return None
-    order: list[int] = []
-    remaining = set(ids)
-    guard = 0
-    while remaining and guard <= len(ids):
-        guard += 1
-        ready = sorted(i for i in remaining if prequel_of.get(i) not in remaining)
-        if not ready:
-            break
-        order.extend(ready)
-        remaining.difference_update(ready)
-    return None if remaining else order
-
-
-def _collect_branches(
-    nodes: dict[int, dict[str, Any]], anchor_id: int, chain_ids: list[int]
-) -> list[dict[str, Any]]:
-    """Every relation attached to the anchor entry itself — not every
-    entry in the chain — that isn't itself another chain link:
-    adaptation, side story, source manga/novel, etc., up to
-    `_MAX_BRANCHES` total. Scoped to just the anchor rather than the
-    whole chain on purpose: a real prequel/sequel chain can run deep
-    (a long-running show easily has 5+ entries), and giving every one
-    of them its own branch subtree leaves nowhere collision-free to put
-    them — they'd all have to share the same horizontal band the chain
-    row itself occupies, and a wide subtree hanging off an early entry
-    can reach into a later entry's own position. Low-value relation
-    types (shared character, compilation, ...) are skipped so they
-    don't clutter the graph with rarely-useful nodes."""
-    branches: list[dict[str, Any]] = []
-    seen = set(chain_ids)
-    edges = (nodes[anchor_id].get("relations") or {}).get("edges") or []
-    for edge in edges:
-        if len(branches) >= _MAX_BRANCHES:
-            break
-        node = edge.get("node")
-        if not node:
-            continue
-        rtype = edge.get("relationType")
-        target_id = node["id"]
-        if rtype in _CHAIN_RELATION_TYPES and target_id in nodes:
-            continue  # already represented as a chain link
-        if rtype in _LOW_VALUE_BRANCH_TYPES:
-            continue
-        if target_id in seen:
-            continue
-        seen.add(target_id)
-        branches.append(
-            {
-                "anchor_id": anchor_id,
-                "anchor_kind": "show",
-                "relation_label": _RELATION_LABELS.get(rtype, "Related"),
-                **_node_to_dict(node),
-            }
-        )
-    return branches
-
-
 class AniListClient:
     """Minimal client for AniList's public GraphQL API. No authentication
     required for read-only search queries — OAuth is only needed to
@@ -565,7 +445,7 @@ class AniListClient:
     def _post_graphql(self, query: str, variables: dict[str, Any]) -> dict[str, Any]:
         """Every AniList call funnels through here so the 429 retry/backoff
         (and error normalization) only has to be written once. Retries up
-        to `_MAX_RETRIES` times, sleeping `Retry-After` when AniList sends
+        to three times, sleeping `Retry-After` when AniList sends
         one, otherwise an increasing backoff — after that, raises a
         friendly rate-limit message instead of AniList's raw 429 body.
         Throttled process-wide (not just within this client instance) so
@@ -573,40 +453,32 @@ class AniListClient:
         (episode refresh, airing check, metadata heal) don't independently
         burst AniList at the same moment and all collide on the same 429s
         — see rate_limit.py."""
-        for attempt in range(_MAX_RETRIES + 1):
-            throttle("anilist", _PACING_SECONDS)
-            try:
-                response = self.session.post(
+        try:
+            response = request_with_backoff(
+                lambda: self.session.post(
                     _URL, json={"query": query, "variables": variables}, timeout=15
-                )
-            except requests.RequestException as exc:
-                raise AniListError(f"Could not reach AniList: {exc}") from exc
-            if response.status_code == 429:
-                if attempt >= _MAX_RETRIES:
-                    break
-                retry_after = response.headers.get("Retry-After")
-                delay = (
-                    float(retry_after)
-                    if retry_after and retry_after.replace(".", "", 1).isdigit()
-                    else _BASE_BACKOFF_SECONDS * (2**attempt)
-                )
-                time.sleep(min(delay, _MAX_BACKOFF_SECONDS))
-                continue
-            if response.status_code >= 400:
-                raise AniListError(
-                    f"AniList request failed ({response.status_code}): {response.text[:200]}"
-                )
-            try:
-                payload = response.json()
-            except ValueError as exc:
-                raise AniListError("AniList returned invalid JSON.") from exc
-            if "errors" in payload:
-                messages = "; ".join(e.get("message", "unknown error") for e in payload["errors"])
-                raise AniListError(f"AniList returned an error: {messages}")
-            return payload
-        raise AniListError(
-            "AniList is rate-limiting requests right now — wait a bit and try again."
-        )
+                ),
+                provider="anilist",
+                pacing_seconds=_PACING_SECONDS,
+            )
+        except requests.RequestException as exc:
+            raise AniListError(f"Could not reach AniList: {exc}") from exc
+        except RateLimitError as exc:
+            raise AniListError(
+                "AniList is rate-limiting requests right now — wait a bit and try again."
+            ) from exc
+        if response.status_code >= 400:
+            raise AniListError(
+                f"AniList request failed ({response.status_code}): {response.text[:200]}"
+            )
+        try:
+            payload = response.json()
+        except ValueError as exc:
+            raise AniListError("AniList returned invalid JSON.") from exc
+        if "errors" in payload:
+            messages = "; ".join(e.get("message", "unknown error") for e in payload["errors"])
+            raise AniListError(f"AniList returned an error: {messages}")
+        return payload
 
     def search(self, query: str, limit: int = 8) -> list[dict[str, Any]]:
         if not query.strip():
@@ -831,20 +703,17 @@ class AniListClient:
         chain_ids: list[int] = [anchor["id"]]
         self._walk_chain(nodes, chain_ids, anchor["id"])
 
-        chain = []
-        for node_id in chain_ids:
-            entry = _node_to_dict(nodes[node_id])
-            entry["is_current"] = node_id == current_id
-            chain.append(entry)
+        chain = [
+            {**node_to_dict(nodes[node_id]), "is_current": node_id == current_id}
+            for node_id in chain_ids
+        ]
+        recommendations = [
+            node_to_dict(rec["mediaRecommendation"])
+            for rec in (anchor.get("recommendations") or {}).get("nodes") or []
+            if rec.get("mediaRecommendation")
+        ]
 
-        recommendations = []
-        for rec in (anchor.get("recommendations") or {}).get("nodes") or []:
-            node = rec.get("mediaRecommendation")
-            if not node:
-                continue
-            recommendations.append(_node_to_dict(node))
-
-        branches = self._order_related_branches(_collect_branches(nodes, anchor["id"], chain_ids))
+        branches = self._order_related_branches(collect_branches(nodes, anchor["id"], chain_ids))
         seen_ids = set(chain_ids) | {b["id"] for b in branches}
         branches.extend(self._expand_branch_chains(branches, seen_ids))
         for b in branches:
@@ -858,7 +727,7 @@ class AniListClient:
                     "anchor_kind": "show",
                     "relation_label": "Related",
                     "is_current": True,
-                    **_node_to_dict(opened),
+                    **node_to_dict(opened),
                 }
             )
 
@@ -894,16 +763,19 @@ class AniListClient:
     def _expand_branch_chains(
         self, branches: list[dict[str, Any]], seen_ids: set[int]
     ) -> list[dict[str, Any]]:
-        """A top-level branch can have its own prequel/sequel that's
-        invisible from the anchor's own relations — e.g. Bleach's "BURN
-        THE WITCH" ONA has its own prequel special ("BURN THE WITCH #0.8") that's only a relation of the ONA itself,
-        one hop past what `_collect_branches` ever looks at (the anchor's direct
-        relations only). One extra fetch per still-top-level branch, pulling in any PREQUEL/SEQUEL neighbor not already known and
-        nesting it under that branch (`anchor_kind: "branch"`) — the same nested-branch shape `_order_related_branches` already
-        produces for a duology it detects. Single hop only (not a full walk), restricted to short-form formats that actually tend to
-        have their own mini-chain (OVA/ONA/Special/One Shot — a movie or source manga essentially never does), and capped to a handful of
-        extra fetches total — this is a real AniList request per branch checked, and a franchise with a dozen+ branches would otherwise
-        turn one relations fetch into a dozen+ more, which is a bad trade for a detail few branches actually have."""
+        """A top-level branch can have its own prequel/sequel that's invisible from the anchor's
+        own relations — e.g. Bleach's "BURN THE WITCH" ONA has its own prequel special ("BURN
+        THE WITCH #0.8") that's only a relation of the ONA itself, one hop past what
+        `collect_branches` ever looks at (the anchor's direct relations only). One extra fetch
+        per still-top-level branch, pulling in any PREQUEL/SEQUEL neighbor not already known and
+        nesting it under that branch (`anchor_kind: "branch"`) — the same nested-branch shape
+        `_order_related_branches` already produces for a duology it detects. Single hop only
+        (not a full walk), restricted to short-form formats that actually tend to have their own
+        mini-chain (OVA/ONA/Special/One Shot — a movie or source manga essentially never does),
+        and capped to a handful of extra fetches total — this is a real AniList request per
+        branch checked, and a franchise with a dozen+ branches would otherwise turn one
+        relations fetch into a dozen+ more, which is a bad trade for a detail few branches
+        actually have."""
         candidates = [
             b
             for b in branches
@@ -936,8 +808,8 @@ class AniListClient:
                     {
                         "anchor_id": branch["id"],
                         "anchor_kind": "branch",
-                        "relation_label": _RELATION_LABELS.get(rtype, "Related"),
-                        **_node_to_dict(target),
+                        "relation_label": RELATION_LABELS.get(rtype, "Related"),
+                        **node_to_dict(target),
                     }
                 )
         return extra
@@ -997,13 +869,13 @@ class AniListClient:
             group = [branches[i] for i in positions]
             ids = {b["id"] for b in group}
             prequel_of = self._fetch_group_prequel_pointers(group, ids)
-            order = _topological_order(ids, prequel_of)
+            order = topological_order(ids, prequel_of)
             if order is None:
                 continue  # couldn't fully resolve — leave original order
             by_id = {b["id"]: b for b in group}
             for slot, branch_id in zip(sorted(positions), order, strict=True):
                 branches[slot] = by_id[branch_id]
-            for prev_id, branch_id in zip(order, order[1:], strict=True):
+            for prev_id, branch_id in pairwise(order):
                 child = by_id[branch_id]
                 child["anchor_id"] = prev_id
                 child["anchor_kind"] = "branch"

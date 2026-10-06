@@ -1,13 +1,11 @@
-# pylint: disable=missing-module-docstring,missing-function-docstring
 from __future__ import annotations
 
 import re
-import time
 from typing import Any
 
 import requests
 
-from src.features.metadata.rate_limit import throttle
+from src.features.metadata.rate_limit import RateLimitError, request_with_backoff
 
 _BASE_URL = "https://api.jikan.moe/v4"
 _DURATION_RE = re.compile(r"(\d+)")
@@ -18,9 +16,6 @@ _DURATION_RE = re.compile(r"(\d+)")
 # airing check, metadata heal) that hit this at the same moment as
 # another loop would permanently lose that show for the day. Same
 # retry/backoff + process-wide throttle shape as anilist.py now.
-_MAX_RETRIES = 3
-_BASE_BACKOFF_SECONDS = 2.0
-_MAX_BACKOFF_SECONDS = 10.0
 _PACING_SECONDS = 0.4
 
 
@@ -50,32 +45,26 @@ class JikanClient:
         """Every Jikan call funnels through here for the same reason
         AniList's `_post_graphql` does: one place for retry/backoff and
         the process-wide throttle, instead of duplicated per endpoint."""
-        for attempt in range(_MAX_RETRIES + 1):
-            throttle("jikan", _PACING_SECONDS)
-            try:
-                response = self.session.get(f"{_BASE_URL}{path}", params=params, timeout=15)
-            except requests.RequestException as exc:
-                raise JikanError(f"Could not reach Jikan: {exc}") from exc
-            if response.status_code == 429:
-                if attempt >= _MAX_RETRIES:
-                    break
-                retry_after = response.headers.get("Retry-After")
-                delay = (
-                    float(retry_after)
-                    if retry_after and retry_after.replace(".", "", 1).isdigit()
-                    else _BASE_BACKOFF_SECONDS * (2**attempt)
-                )
-                time.sleep(min(delay, _MAX_BACKOFF_SECONDS))
-                continue
-            if response.status_code >= 400:
-                raise JikanError(
-                    f"Jikan request failed ({response.status_code}): {response.text[:200]}"
-                )
-            try:
-                return response.json()
-            except ValueError as exc:
-                raise JikanError("Jikan returned invalid JSON.") from exc
-        raise JikanError("Jikan is rate-limiting requests right now — wait a bit and try again.")
+        try:
+            response = request_with_backoff(
+                lambda: self.session.get(f"{_BASE_URL}{path}", params=params, timeout=15),
+                provider="jikan",
+                pacing_seconds=_PACING_SECONDS,
+            )
+        except requests.RequestException as exc:
+            raise JikanError(f"Could not reach Jikan: {exc}") from exc
+        except RateLimitError as exc:
+            raise JikanError(
+                "Jikan is rate-limiting requests right now — wait a bit and try again."
+            ) from exc
+        if response.status_code >= 400:
+            raise JikanError(
+                f"Jikan request failed ({response.status_code}): {response.text[:200]}"
+            )
+        try:
+            return response.json()
+        except ValueError as exc:
+            raise JikanError("Jikan returned invalid JSON.") from exc
 
     def search(self, query: str, limit: int = 8) -> list[dict[str, Any]]:
         if not query.strip():
