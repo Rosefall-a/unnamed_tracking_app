@@ -1,4 +1,3 @@
-# pylint: disable=duplicate-code
 """API routes for user API keys."""
 
 from __future__ import annotations

@@ -1,5 +1,3 @@
-# pylint: disable=duplicate-code
-# pylint: disable=missing-class-docstring,missing-function-docstring,broad-exception-caught
 """Library export/import, a portable JSON snapshot of a user's data, for
 backups or moving to a new server. Both directions cover games, movies,
 TV shows and anime, including their tracked seasons and episodes.
@@ -113,7 +111,7 @@ async def import_library(
                 await _validate_game_relationship(
                     data.get("parent_game_id"), data.get("relationship_type"), db, current_user.id
                 )
-            except Exception:
+            except Exception:  # pylint: disable=broad-exception-caught
                 data["parent_game_id"] = None
                 data["relationship_type"] = None
 
@@ -131,7 +129,7 @@ async def import_library(
             await db.rollback()
             skipped += 1
             errors.append(f"{entry.title}: {exc.orig if exc.orig else 'duplicate or invalid data'}")
-        except Exception as exc:  # noqa: BLE001, one bad row shouldn't abort the whole import
+        except Exception as exc:  # pylint: disable=broad-exception-caught
             await db.rollback()
             skipped += 1
             errors.append(f"{entry.title}: {exc}")

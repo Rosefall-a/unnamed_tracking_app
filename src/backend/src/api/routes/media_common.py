@@ -170,6 +170,8 @@ class LibraryFilters:
         )
 
 
+# Parallel routes/models intentionally share this shape.
+# pylint: disable=duplicate-code
 def _status_bucket(status_type: type[Enum], bucket: str | None) -> set[Enum] | None:
     if not bucket or bucket == "all":
         return None
@@ -183,6 +185,9 @@ def _status_bucket(status_type: type[Enum], bucket: str | None) -> set[Enum] | N
     if values is None:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid status bucket.")
     return {status_type(value) for value in values}
+
+
+# pylint: enable=duplicate-code
 
 
 def _library_statement(model: Any, user_id: Any, filters: LibraryFilters) -> Select[Any]:

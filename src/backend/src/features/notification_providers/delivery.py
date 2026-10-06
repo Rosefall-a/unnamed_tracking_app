@@ -21,6 +21,8 @@ logger = logging.getLogger(__name__)
 MAX_ATTEMPTS = 3
 
 
+# Parallel routes/models intentionally share this shape.
+# pylint: disable=duplicate-code
 async def ensure_deliveries(db: AsyncSession, notification_ids: list[UUID]) -> None:
     """Create one pending delivery per active provider without duplicating work."""
     if not notification_ids:
@@ -51,6 +53,9 @@ async def ensure_deliveries(db: AsyncSession, notification_ids: list[UUID]) -> N
                     )
                 )
     await db.flush()
+
+
+# pylint: enable=duplicate-code
 
 
 async def process_pending_deliveries(db: AsyncSession, limit: int = 50) -> int:

@@ -51,6 +51,8 @@ def _set_anomaly(previous: UserSession | None, current: UserSession) -> None:
         current.anomaly_previous_location = old
 
 
+# Parallel routes/models intentionally share this shape.
+# pylint: disable=duplicate-code
 async def _queue_anomaly_notification(db: AsyncSession, user: User, session: UserSession) -> None:
     if not session.anomaly_reason:
         return
@@ -90,6 +92,11 @@ async def _queue_anomaly_notification(db: AsyncSession, user: User, session: Use
             )
 
 
+# pylint: enable=duplicate-code
+
+
+# Parallel routes/models intentionally share this shape.
+# pylint: disable=duplicate-code
 async def create_session(db: AsyncSession, user: User, request: Request) -> SessionContext:
     """Create an existing-style opaque browser session and its metadata."""
     now = int(time.time())
@@ -125,6 +132,9 @@ async def create_session(db: AsyncSession, user: User, request: Request) -> Sess
     await db.flush()
     await _queue_anomaly_notification(db, user, session)
     return SessionContext(token=token, session=session)
+
+
+# pylint: enable=duplicate-code
 
 
 async def purge_old_sessions(db: AsyncSession, retention_seconds: int = 30 * 86400) -> int:

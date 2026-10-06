@@ -62,6 +62,8 @@ class DeploymentSettingsRequest(BaseModel):
     nginx_realip_trusted_proxies: str | None = None
 
 
+# Independent settings endpoints expose the same provider secret-field contract.
+# pylint: disable=duplicate-code
 _SECRET_FIELDS = {
     "steamgriddb_api_key",
     "retroachievements_api_key",
@@ -71,6 +73,7 @@ _SECRET_FIELDS = {
     "screenscraper_devpassword",
     "xbox_client_secret",
 }
+# pylint: enable=duplicate-code
 _SAFE_PROVIDER_FIELDS = {
     "igdb_client_id",
     "screenscraper_ssid",

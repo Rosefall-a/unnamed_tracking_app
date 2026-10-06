@@ -363,6 +363,8 @@ async def update_setup_configuration(
     return await _configuration(db, request)
 
 
+# Parallel routes/models intentionally share this shape.
+# pylint: disable=duplicate-code
 @router.post("", status_code=status.HTTP_201_CREATED)
 async def setup_admin(
     payload: SetupRequest,
@@ -437,3 +439,6 @@ async def setup_admin(
         secure=settings.AUTH_COOKIE_SECURE,
     )
     return {"status": "setup_complete", "user_id": str(user.id), "is_admin": True}
+
+
+# pylint: enable=duplicate-code

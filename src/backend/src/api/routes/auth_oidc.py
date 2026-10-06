@@ -301,6 +301,8 @@ async def _resolve_oidc_identity(
     return user
 
 
+# Parallel routes/models intentionally share this shape.
+# pylint: disable=duplicate-code
 async def _complete_callback(
     request: Request, db: AsyncSession, config: OidcConfig, client_name: str
 ) -> RedirectResponse:
@@ -335,6 +337,9 @@ async def _complete_callback(
         path="/",
     )
     return response
+
+
+# pylint: enable=duplicate-code
 
 
 @router.get("/callback", name="oidc_callback")

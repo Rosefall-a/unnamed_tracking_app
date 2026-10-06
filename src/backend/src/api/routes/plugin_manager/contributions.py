@@ -346,6 +346,8 @@ async def plugin_geoip_upload(
     return {"configured": result["configured"], "kind": kind}
 
 
+# Parallel routes/models intentionally share this shape.
+# pylint: disable=duplicate-code
 async def _authorize_action(
     plugin_id: str,
     action_id: str,
@@ -385,6 +387,9 @@ async def _authorize_action(
     if action.get("confirmation") and getattr(payload, "confirmed", False) is not True:
         raise HTTPException(status_code=409, detail="Explicit action confirmation is required.")
     return document, installation_id
+
+
+# pylint: enable=duplicate-code
 
 
 async def _host_action_context(

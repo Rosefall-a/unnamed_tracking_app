@@ -137,6 +137,8 @@ async def update_password_policy(
     return policy
 
 
+# Parallel routes/models intentionally share this shape.
+# pylint: disable=duplicate-code
 @router.post("/login")
 async def login(
     payload: LoginRequest,
@@ -169,6 +171,9 @@ async def login(
     return {"status": "logged_in", "user_id": str(user.id)}
 
 
+# pylint: enable=duplicate-code
+
+
 @router.post("/logout")
 async def logout(
     request: Request,
@@ -193,6 +198,8 @@ async def current_user(user: User = Depends(get_current_user)) -> dict[str, str 
     }
 
 
+# Parallel routes/models intentionally share this shape.
+# pylint: disable=duplicate-code
 @router.patch("/me")
 async def update_current_user(
     payload: UserProfileUpdateRequest,
@@ -238,6 +245,9 @@ async def update_current_user(
         "is_admin": user.is_admin,
         "steamgriddb_api_key": user.steamgriddb_api_key,
     }
+
+
+# pylint: enable=duplicate-code
 
 
 @router.post("/me/psn")

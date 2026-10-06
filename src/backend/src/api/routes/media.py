@@ -1,4 +1,3 @@
-# pylint: disable=line-too-long,missing-class-docstring,unnecessary-comprehension,missing-function-docstring,duplicate-code
 """Two things live here: the media inbox (bulk-uploaded screenshots/clips/
 soundtrack not yet assigned to a game — upload once, sort out later) and a
 library-wide, read-only media gallery across every game's already-assigned
@@ -77,7 +76,7 @@ async def _sync_inbox_items(user_id: UUID, db: AsyncSession) -> None:
             InboxItem.user_id == user_id, InboxItem.deleted_at.is_(None)
         )
     )
-    known = {(kind, filename) for kind, filename in existing.all()}
+    known = set(existing.all())
     inbox_dir = _inbox_dir(user_id)
     added = False
     for kind in _INBOX_KINDS:
@@ -95,6 +94,8 @@ async def _sync_inbox_items(user_id: UUID, db: AsyncSession) -> None:
         await db.commit()
 
 
+# Keep the established workflow and public parameters together.
+# pylint: disable=duplicate-code,too-many-locals
 @router.post("/inbox")
 async def upload_to_inbox(
     files: list[UploadFile] | None = _FILES_DEFAULT,
@@ -116,12 +117,12 @@ async def upload_to_inbox(
             detail="At least one file is required.",
         )
 
-    for index, file in enumerate(uploads):
-        kind = classify_media(file.content_type, file.filename or "")
+    for index, upload in enumerate(uploads):
+        kind = classify_media(upload.content_type, upload.filename or "")
         if kind is None:
             results.append(
                 {
-                    "filename": file.filename,
+                    "filename": upload.filename,
                     "status": "rejected",
                     "reason": "Unsupported file type.",
                 }
@@ -138,11 +139,11 @@ async def upload_to_inbox(
         )
         max_bytes = limit_mb * 1024 * 1024
 
-        data = await file.read()
+        data = await upload.read()
         if len(data) > max_bytes:
             results.append(
                 {
-                    "filename": file.filename,
+                    "filename": upload.filename,
                     "status": "rejected",
                     "reason": f"Larger than {limit_mb} MB.",
                 }
@@ -150,10 +151,10 @@ async def upload_to_inbox(
             continue
 
         dest_dir = _inbox_dir(current_user.id) / media_subdir(kind)
-        saved_path = save_media_bytes(data, dest_dir, file.filename or "file")
+        saved_path = save_media_bytes(data, dest_dir, upload.filename or "file")
         taken_at, taken_source = detect_date(
             data,
-            file.filename or "",
+            upload.filename or "",
             kind,
             last_modified[index] if last_modified and index < len(last_modified) else None,
         )
@@ -172,6 +173,11 @@ async def upload_to_inbox(
     return {"results": results}
 
 
+# pylint: enable=duplicate-code,too-many-locals
+
+
+# Parallel routes/models intentionally share this shape.
+# pylint: disable=duplicate-code
 @router.get("/inbox")
 async def list_inbox(
     db: AsyncSession = _DB_DEFAULT,
@@ -196,6 +202,9 @@ async def list_inbox(
             for item in result.scalars().all()
         ]
     }
+
+
+# pylint: enable=duplicate-code
 
 
 @router.get("/inbox/trash")
@@ -361,6 +370,8 @@ async def assign_inbox_media(
     return {"status": "assigned", "game_id": str(payload.game_id), "filename": dest_path.name}
 
 
+# Parallel routes/models intentionally share this shape.
+# pylint: disable=duplicate-code
 @router.get("")
 async def list_all_media(
     kind: MediaKind | None = _KIND_DEFAULT,
@@ -387,7 +398,8 @@ async def list_all_media(
     if game_id is not None:
         stmt = stmt.where(MediaItem.game_id == game_id)
     if tag is not None:
-        stmt = stmt.where(MediaItem.tags.any(tag))  # type: ignore[arg-type]  # ARRAY.any(scalar) is valid at runtime; mypy resolves the relationship .any() overload instead
+        # ARRAY.any(scalar) is valid; mypy resolves the relationship .any() overload.
+        stmt = stmt.where(MediaItem.tags.any(tag))  # type: ignore[arg-type]
 
     rows = (await db.execute(stmt)).all()
     return [
@@ -414,3 +426,6 @@ async def list_all_media(
         }
         for item, game_title in rows
     ]
+
+
+# pylint: enable=duplicate-code

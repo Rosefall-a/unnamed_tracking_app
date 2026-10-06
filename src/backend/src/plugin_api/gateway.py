@@ -112,6 +112,8 @@ def _document_dto(game: Game, item: GameFileItem, path: Path) -> DocumentReprese
     )
 
 
+# Parallel routes/models intentionally share this shape.
+# pylint: disable=duplicate-code
 async def dispatch_gateway_request(
     db: AsyncSession,
     *,
@@ -189,6 +191,9 @@ async def dispatch_gateway_request(
     if handler is None:
         raise ValueError(f"unsupported plugin gateway method: {method}")
     return await handler()
+
+
+# pylint: enable=duplicate-code
 
 
 async def _authorized() -> dict[str, Any]:

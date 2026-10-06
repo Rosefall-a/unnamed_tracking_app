@@ -39,6 +39,8 @@ def _sort_title(title: str) -> str:
     return lowered
 
 
+# Parallel routes/models intentionally share this shape.
+# pylint: disable=duplicate-code
 async def match_titles(
     db: AsyncSession, user_id: Any, items: list[ImportedTitle]
 ) -> list[ListMatch]:
@@ -84,6 +86,9 @@ async def match_titles(
             found = next((v for (t, _), v in known.items() if t == item.title.lower()), None)
         matches.append(ListMatch(item, found))
     return matches
+
+
+# pylint: enable=duplicate-code
 
 
 def differences(existing: Any, item: ImportedTitle) -> list[dict[str, Any]]:

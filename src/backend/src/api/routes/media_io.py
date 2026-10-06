@@ -1,4 +1,3 @@
-# pylint: disable=line-too-long,missing-class-docstring,multiple-statements,missing-function-docstring,too-many-locals,too-many-positional-arguments,broad-exception-caught,not-callable
 """Bringing a media list in from elsewhere and getting it out as a table.
 
 - POST /api/import/mal/preview  what a MyAnimeList export would add or change
@@ -20,6 +19,7 @@ from fastapi.responses import Response
 from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql.functions import count as sql_count
 
 from src.api.routes.anime import _derive_sort_title
 from src.core.app_integrations import get_or_create_app_integration_settings
@@ -93,6 +93,8 @@ async def preview_mal(
     }
 
 
+# Keep the established workflow and public parameters together.
+# pylint: disable=too-many-locals
 @router.post("/import/mal", response_model=MalImportResult)
 async def import_mal(
     file: UploadFile,
@@ -166,6 +168,9 @@ async def import_mal(
     )
 
 
+# pylint: enable=too-many-locals
+
+
 class ListImportResult(BaseModel):
     created: int
     updated: int
@@ -224,6 +229,8 @@ async def preview_list(
     }
 
 
+# Keep the established workflow and public parameters together.
+# pylint: disable=too-many-locals,too-many-positional-arguments
 @router.post("/import/list", response_model=ListImportResult)
 async def import_list(
     file: UploadFile,
@@ -286,6 +293,9 @@ async def import_list(
     )
 
 
+# pylint: enable=too-many-locals,too-many-positional-arguments
+
+
 class YamtrackImportResult(BaseModel):
     created: dict[str, int]
     skipped: dict[str, int]
@@ -296,6 +306,8 @@ class YamtrackImportResult(BaseModel):
     errors: list[str]
 
 
+# Keep the established workflow and public parameters together.
+# pylint: disable=too-many-locals
 @router.post("/import/yamtrack", response_model=YamtrackImportResult)
 async def import_yamtrack(
     file: UploadFile,
@@ -357,7 +369,7 @@ async def import_yamtrack(
                     seasons_created += len(seasons)
                     episodes_created += sum(len(s.episodes) for s in seasons)
                 created[key] += 1
-        except Exception as exc:
+        except Exception as exc:  # pylint: disable=broad-exception-caught
             skipped[key] += 1
             errors.append(f"{(group.parent or {}).get('title', group.media_id)}: {exc}")
     await db.commit()
@@ -370,6 +382,9 @@ async def import_yamtrack(
         episodes_created=episodes_created,
         errors=errors[:30],
     )
+
+
+# pylint: enable=too-many-locals
 
 
 @router.post("/import/media")
@@ -440,6 +455,8 @@ def _safe(cell: Any) -> Any:
     return cell
 
 
+# Keep the established workflow and public parameters together.
+# pylint: disable=duplicate-code,too-many-locals
 @router.get("/export/media.csv")
 async def export_media_csv(
     db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)
@@ -488,7 +505,7 @@ async def export_media_csv(
                     season_model.show_id,
                     func.sum(season_model.episodes_watched),
                     func.sum(season_model.episode_count),
-                    func.count(season_model.episode_count) == func.count(),
+                    sql_count(season_model.episode_count) == sql_count(),
                 )
                 .where(season_model.show_id.in_(show_ids))
                 .group_by(season_model.show_id)
@@ -517,3 +534,6 @@ async def export_media_csv(
         media_type="text/csv; charset=utf-8",
         headers={"Content-Disposition": 'attachment; filename="media-library.csv"'},
     )
+
+
+# pylint: enable=duplicate-code,too-many-locals

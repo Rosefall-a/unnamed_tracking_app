@@ -7,10 +7,6 @@ feature lives in api/routes/export_import.py, extended to cover these
 three media types alongside the games it already covered rather than
 duplicated here as a second export system."""
 
-# Pylint attributes imported SQLAlchemy model field duplication to this route module.
-# The model fields are intentionally parallel; keep this exception local.
-# pylint: disable=too-many-arguments,too-many-positional-arguments,missing-function-docstring,too-many-locals,not-callable,unused-import,duplicate-code
-
 import time
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
@@ -19,6 +15,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql.functions import count as sql_count
 
 from src.api.schemas.media_extras import (
     ActivityEntryCreate,
@@ -174,6 +171,8 @@ async def _resolve_media(media_type: str, media_id: UUID, user_id: UUID, db: Asy
     return row
 
 
+# Keep the established workflow and public parameters together.
+# pylint: disable=too-many-positional-arguments
 async def log_activity(
     db: AsyncSession,
     user_id: UUID,
@@ -217,6 +216,9 @@ async def log_activity(
             detail=detail,
         )
     )
+
+
+# pylint: enable=too-many-positional-arguments
 
 
 async def log_episode_progress(
@@ -484,6 +486,8 @@ async def delete_activity_entry(
     await db.commit()
 
 
+# Keep the established workflow and public parameters together.
+# pylint: disable=too-many-locals
 async def build_calendar_entries(
     db: AsyncSession, user_id: UUID, days: int, game_releases: bool = False
 ) -> list[dict]:
@@ -667,6 +671,9 @@ async def build_calendar_entries(
     return result
 
 
+# pylint: enable=too-many-locals
+
+
 @router.get("/calendar", response_model=list[CalendarEntryRead])
 async def get_calendar(
     days: int = Query(default=14, ge=1, le=90),
@@ -682,6 +689,8 @@ async def get_calendar(
     )
 
 
+# Keep the established workflow and public parameters together.
+# pylint: disable=too-many-locals
 @router.get("/calendar/games")
 async def get_calendar_games(
     days: int = Query(default=36500, ge=1, le=36500),
@@ -789,7 +798,7 @@ async def get_calendar_games(
     day = func.date(func.to_timestamp(Achievement.unlocked_at))
     rows = (
         await db.execute(
-            select(Game.id, Game.title, day, func.count())
+            select(Game.id, Game.title, day, sql_count())
             .join(Game, Game.id == Achievement.game_id)
             .where(
                 Game.user_id == current_user.id,
@@ -814,3 +823,6 @@ async def get_calendar_games(
         )
     entries.sort(key=lambda e: e["date"])
     return entries
+
+
+# pylint: enable=too-many-locals
