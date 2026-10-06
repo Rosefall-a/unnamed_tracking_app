@@ -215,10 +215,10 @@ const shelfCardMinWidth = computed(() => {
 // Board's cards are fixed-width flex items (each status is its own
 // horizontally-scrolling row) rather than a minmax grid, so the same S/M/L
 // preference maps to an explicit width instead.
-const boardCardWidth = computed(() => {
-  if (shelfCardSize.value === "compact") return "150px";
-  if (shelfCardSize.value === "large") return "260px";
-  return "196px";
+const boardCardMinWidth = computed(() => {
+  if (shelfCardSize.value === "compact") return 150;
+  if (shelfCardSize.value === "large") return 260;
+  return 196;
 });
 const activeStatus = ref<string>("all");
 const searchQuery = ref("");
@@ -464,19 +464,15 @@ watch([searchQuery, sortKey, activeStatus, filters, layout], () => {
 
 const boardPageStarts = reactive<Record<string, number>>({});
 const boardViewportWidth = ref(0);
-const boardContainer = ref<HTMLElement | null>(null);
-const boardVisibleCount = computed(() => {
-  const cardWidth =
-    shelfCardSize.value === "compact"
-      ? 150
-      : shelfCardSize.value === "large"
-        ? 260
-        : 196;
-  return Math.max(
+const boardViewport = ref<HTMLElement | null>(null);
+const boardVisibleCount = computed(() =>
+  Math.max(
     1,
-    Math.floor((boardViewportWidth.value + 14) / (cardWidth + 14)) || 1,
-  );
-});
+    Math.floor(
+      (boardViewportWidth.value + 14) / (boardCardMinWidth.value + 14),
+    ) || 1,
+  ),
+);
 function resetBoardPages() {
   Object.keys(boardPageStarts).forEach((key) => delete boardPageStarts[key]);
 }
@@ -497,7 +493,7 @@ function moveBoard(status: string, direction: -1 | 1, available: number) {
 watch([activeStatus, filters], () => { resetBoardPages(); emitFilters(); });
 watch(boardViewportWidth, resetBoardPages);
 function updateBoardViewport() {
-  boardViewportWidth.value = boardContainer.value?.clientWidth ?? 0;
+  boardViewportWidth.value = boardViewport.value?.clientWidth ?? 0;
 }
 onMounted(updateBoardViewport);
 watch(shelfCardSize, () => requestAnimationFrame(updateBoardViewport));
@@ -1376,11 +1372,12 @@ defineExpose({ openQuickAdd });
           <p v-if="!boardGroups.length" class="empty-state">
             Nothing matches. Try a different filter or search.
           </p>
-          <div
-            v-for="group in boardGroups"
-            :key="group.status.key"
-            class="board-section"
-          >
+          <div ref="boardViewport" class="board-viewport">
+            <div
+              v-for="group in boardGroups"
+              :key="group.status.key"
+              class="board-section"
+            >
             <div class="board-heading">
               <h2>{{ group.status.label }}</h2>
               <span class="n">{{ group.rowItems.length }}</span>
@@ -1404,12 +1401,16 @@ defineExpose({ openQuickAdd });
                 </button>
               </div>
             </div>
-            <div ref="boardContainer" class="board-shelf">
+            <div
+              class="board-shelf"
+              :style="{
+                gridTemplateColumns: `repeat(${boardVisibleCount}, minmax(0, 1fr))`,
+              }"
+            >
               <div
                 v-for="it in group.visibleItems"
                 :key="it.id"
                 class="board-card"
-                :style="{ width: boardCardWidth }"
                 @click="handleCardClick(it)"
               >
                 <div class="board-art-wrap">
@@ -1539,7 +1540,7 @@ defineExpose({ openQuickAdd });
       </div>
     </div>
 
-    <!-- ===== Notes modal ===== -->
+    <!-- ===== Notes modal -->
     <div v-if="noteOpen" class="modal-overlay" @click.self="closeNote">
       <div class="modal-card">
         <h3>Notes</h3>
@@ -2783,6 +2784,10 @@ defineExpose({ openQuickAdd });
 }
 
 /* BOARD */
+.board-viewport {
+  width: 100%;
+  min-width: 0;
+}
 .board-section {
   margin-top: 24px;
 }
@@ -2831,14 +2836,16 @@ defineExpose({ openQuickAdd });
   color: var(--text-faint);
   font-variant-numeric: tabular-nums;
 }
-.board-shelf {
-  display: flex;
+ .board-shelf {
+  display: grid;
   gap: 14px;
-  overflow: hidden;
+  width: 100%;
+  min-width: 0;
   padding-bottom: 8px;
 }
 .board-card {
-  flex-shrink: 0;
+  min-width: 0;
+  width: auto;
   display: flex;
   flex-direction: column;
   background: var(--surface);
