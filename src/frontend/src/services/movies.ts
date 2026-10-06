@@ -169,6 +169,7 @@ export function movieToInput(movie: Movie): MovieInput {
 
 export interface MovieInput {
   title: string;
+  titleLock?: boolean;
   description?: string | null;
   releaseDate?: string | null;
   runtimeMinutes?: number | null;
@@ -204,6 +205,7 @@ export interface MovieInput {
 function inputToBody(input: MovieInput): Record<string, unknown> {
   const body: Record<string, unknown> = {
     title: input.title,
+    title_lock: input.titleLock,
     description: input.description ?? null,
     release_date: input.releaseDate ?? null,
     runtime_minutes: input.runtimeMinutes ?? null,

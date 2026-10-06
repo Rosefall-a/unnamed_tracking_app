@@ -2,6 +2,21 @@
 
 Unnamed Tracking App uses the existing game metadata-provider registry for both adding games and refreshing metadata on an existing game. Provider order and field-saving preferences are configured per user under **Settings → Metadata → Scan Settings / Metadata/API**.
 
+## Protect a title
+
+Edit a game, movie, TV show, or anime and use **Protect title from metadata
+updates** beside its title. A checked box means the title is protected. Changing
+a title automatically protects it; clear the checkbox to explicitly remove
+protection, then save. You can also protect a title without editing its text.
+
+Protection applies on the backend to providers, library sync, imports, and
+background refreshes. Only an authenticated application sign-in session may
+change a protected title or its protection setting. API keys and ordinary plugin
+permissions cannot unlock it. For anime, a protected custom title takes precedence
+over the provider's alternate-language spellings.
+
+![A protected custom title in the game editor](../assets/title-protection/game-editor.png)
+
 ## Repull metadata from the game editor
 
 Open **Edit Game → Media → Repull Metadata**. The editor first performs a provider lookup and shows a confirmation describing the fields that would change and any locked fields that will be preserved.

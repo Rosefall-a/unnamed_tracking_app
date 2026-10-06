@@ -23,6 +23,8 @@ import MediaMetadataSearch from "./MediaMetadataSearch.vue";
 import { useMetadataSearch } from "../utils/useMetadataSearch";
 import { splitList } from "../utils/formLists";
 
+import { useTitleProtection } from "../utils/titleProtection";
+
 const props = defineProps<{
   movie?: Movie | null;
 }>();
@@ -62,6 +64,11 @@ const statusBucketModel = computed({
     fields.value.status = bucketToReal(bucket) as MovieStatus;
   },
 });
+const { titleProtected, titleLockOverride } = useTitleProtection(
+  () => props.movie,
+  () => fields.value.title,
+);
+
 const saving = ref(false);
 const deleting = ref(false);
 const error = ref<string | null>(null);
@@ -105,7 +112,7 @@ watch(() => props.movie, loadFromMovie, { immediate: true });
 
 function applyMetadata(result: MovieMetadataResult) {
   const locked = new Set(props.movie?.lockedFields ?? []);
-  if (!locked.has("title")) fields.value.title = result.title;
+  if (!titleProtected.value) fields.value.title = result.title;
   if (!locked.has("description"))
     fields.value.description = result.description ?? "";
   if (!locked.has("release_date"))
@@ -163,6 +170,7 @@ async function submit() {
     const input = {
       progressMinutes: progressMinutes || null,
       title: fields.value.title.trim(),
+      titleLock: props.movie ? titleLockOverride.value : undefined,
       description: fields.value.description.trim() || null,
       releaseDate: fields.value.releaseDate || null,
       runtimeMinutes: fields.value.runtimeMinutes,
@@ -247,6 +255,11 @@ async function remove() {
         class="text-input"
         placeholder="The Matrix"
       />
+    </label>
+
+    <label v-if="props.movie" class="field checkbox-field">
+      <input v-model="titleProtected" type="checkbox" />
+      <span>Protect title from metadata updates</span>
     </label>
 
     <label class="field">

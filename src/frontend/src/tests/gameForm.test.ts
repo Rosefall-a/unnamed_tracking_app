@@ -161,6 +161,13 @@ describe("mapBackendGame", () => {
     ).toBe("witcher 3 goty");
   });
 
+  it("maps saved title protection for the editor", () => {
+    expect(
+      mapBackendGame({ ...raw, locked_fields: ["title"] }).lockedFields,
+    ).toEqual(["title"]);
+    expect(mapBackendGame(raw).lockedFields).toEqual([]);
+  });
+
   it("falls back to the source when no platform is recorded", () => {
     const game = mapBackendGame({ ...raw, platform: null });
     expect(game.platforms[0].platform).toBe("Steam");

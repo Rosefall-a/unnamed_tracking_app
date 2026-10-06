@@ -39,6 +39,8 @@ import { localDateInputToUnixSeconds, toLocalDateInput } from "../utils/dates";
 import { PRIORITY_OPTIONS, isFinished } from "../utils/priority";
 import { RETRO_PLATFORM_OPTIONS } from "../utils/platforms";
 
+import { useTitleProtection } from "../utils/titleProtection";
+
 const props = defineProps<{
   game?: Game | null;
 }>();
@@ -185,6 +187,11 @@ function onFormSubmit() {
 }
 
 const title = ref(props.game?.title ?? "");
+const { titleProtected, titleLockOverride } = useTitleProtection(
+  () => props.game,
+  () => title.value,
+);
+
 // the saved custom sorting name, blank when the library sorts by the title
 const sortTitle = ref(props.game?.sortTitle ?? "");
 const platform = ref(props.game?.platform ?? "");
@@ -499,7 +506,7 @@ watch(metadataQuery, () => {
 });
 
 function applyMetadata(result: MetadataSearchResult) {
-  title.value = result.title;
+  if (!titleProtected.value) title.value = result.title;
   sortTitle.value = "";
   folderLocation.value = result.title
     .trim()
@@ -565,6 +572,7 @@ async function submit() {
 
   const input = {
     title: title.value.trim(),
+    titleLock: isEditing.value ? titleLockOverride.value : undefined,
     sortTitle: sortTitle.value.trim() || null,
     folderLocation: folderLocation.value.trim(),
     status: status.value,
@@ -772,6 +780,11 @@ async function submit() {
                   />
                 </label>
               </div>
+
+              <label v-if="isEditing" class="checkbox-field">
+                <input v-model="titleProtected" type="checkbox" />
+                <span>Protect title from metadata updates</span>
+              </label>
 
               <div class="field-row">
                 <label class="field">
