@@ -342,3 +342,66 @@ function detailRoute(id: string): string {
   font-size: 0.82rem;
   line-height: 1.4;
 }
+.import-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.7);
+}
+.import-modal {
+  width: min(520px, calc(100vw - 32px));
+  background: #191919;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  padding: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.import-modal h2 {
+  margin: 0;
+}
+.import-modal p {
+  color: #aaa;
+  margin: 0;
+}
+.import-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px;
+  border-radius: 7px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: #111;
+  color: #fff;
+}
+.import-check {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  color: #ddd;
+}
+.import-error {
+  color: #e57373 !important;
+}
+.import-result {
+  color: #8bc98f !important;
+}
+.import-errors {
+  max-height: 120px;
+  overflow: auto;
+  color: #e57373;
+  margin: 0;
+}
+.import-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.import-actions button {
+  padding: 8px 14px;
+  border-radius: 7px;
+  cursor: pointer;
+}
+</style>
