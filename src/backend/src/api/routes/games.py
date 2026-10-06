@@ -162,6 +162,7 @@ def _scan_settings_to_preferences(scan_settings: UserScanSettings) -> dict:
 async def search_metadata(
     query: str = Query(..., min_length=2, max_length=100),
     limit: int = Query(default=8, ge=1, le=20),
+    include_images: bool = Query(default=True),
     db: AsyncSession = _DB_DEPENDENCY,
     current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> dict:
@@ -185,6 +186,7 @@ async def search_metadata(
             current_user,
             app_integrations.igdb_client_id,
             app_integrations.igdb_client_secret,
+            include_images,
         )
     except Exception as exc:
         raise HTTPException(

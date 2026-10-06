@@ -14,7 +14,7 @@ const isLoading = ref(true);
 const isCreating = ref(false);
 const error = ref("");
 const createdKey = ref("");
-const copied = ref(false);
+const copyStatus = ref<"idle" | "copied" | "failed">("idle");
 
 async function loadKeys() {
   isLoading.value = true;
@@ -36,10 +36,10 @@ async function handleCreate() {
   isCreating.value = true;
   error.value = "";
   createdKey.value = "";
+  copyStatus.value = "idle";
   try {
     const result = await createApiKey(keyName);
     createdKey.value = result.api_key;
-    copied.value = false;
     name.value = "";
     await loadKeys();
   } catch (err) {
@@ -58,10 +58,18 @@ async function handleRevoke(key: ApiKeySummary) {
   }
 
   error.value = "";
+  const previousKeys = keys.value;
+  // Remove it immediately so a successful revoke cannot leave a stale active
+  // key visible while the server refresh completes.
+  keys.value = previousKeys.filter((candidate) => candidate.id !== key.id);
+
   try {
     await revokeApiKey(key.id);
-    keys.value = keys.value.filter((item) => item.id !== key.id);
+    // Refresh from the server so the UI reflects the persisted revocation.
+    // The backend only returns non-revoked keys, so a revoked key stays gone.
+    await loadKeys();
   } catch (err) {
+    keys.value = previousKeys;
     error.value =
       err instanceof Error ? err.message : "Failed to revoke API key.";
   }
@@ -69,11 +77,15 @@ async function handleRevoke(key: ApiKeySummary) {
 
 async function copyCreatedKey() {
   if (!createdKey.value) return;
+  copyStatus.value = "idle";
   try {
+    if (!navigator.clipboard?.writeText) {
+      throw new Error("Clipboard access is unavailable.");
+    }
     await navigator.clipboard.writeText(createdKey.value);
-    copied.value = true;
+    copyStatus.value = "copied";
   } catch {
-    copied.value = false;
+    copyStatus.value = "failed";
   }
 }
 
@@ -125,9 +137,9 @@ onMounted(loadKeys);
         input-aria-label="Generated API key"
       />
       <button type="button" class="primary-copy" @click="copyCreatedKey">
-        {{ copied ? "Copied" : "Copy key" }}
+        {{ copyStatus === "copied" ? "Copied" : copyStatus === "failed" ? "Failed" : "Copy key" }}
       </button>
-      <button type="button" class="secondary" @click="createdKey = ''; copied = false">
+      <button type="button" class="secondary" @click="createdKey = ''; copyStatus = 'idle'">
         Done
       </button>
     </div>
