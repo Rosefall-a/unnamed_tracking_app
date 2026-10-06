@@ -1,4 +1,3 @@
-# pylint: disable=missing-function-docstring
 """Custom lists across movies, TV shows and anime: manual lists (ordered,
 with a pickable cover) and smart lists (a saved filter evaluated against
 the whole library on every read — the media-side twin of the Games
@@ -8,9 +7,10 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql.functions import max as sql_max
 
 from src.api.routes.media_extras import _MODEL_BY_TYPE, _resolve_media
 from src.api.schemas.media_extras import (
@@ -288,7 +288,7 @@ async def create_media_list(
     current_user: User = Depends(get_current_user),
 ) -> dict:
     last = await db.scalar(
-        select(func.max(MediaList.position)).where(MediaList.user_id == current_user.id)
+        select(sql_max(MediaList.position)).where(MediaList.user_id == current_user.id)
     )
     lst = MediaList(
         user_id=current_user.id,

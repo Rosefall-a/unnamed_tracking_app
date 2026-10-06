@@ -1,11 +1,13 @@
 """What is in a game, counted, so a tab set to "show when it has content" knows
 whether to appear. Cheap on purpose: counts only, no file contents."""
 
+from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends
-from sqlalchemy import func, select
+from sqlalchemy import ColumnElement, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql.functions import count as sql_count
 
 from src.api.routes.games import _DATA_ROOT, _get_game_or_404
 from src.core.auth import get_current_user
@@ -27,8 +29,8 @@ async def content_counts(
 ) -> dict[str, int]:
     game = await _get_game_or_404(game_id, db, current_user.id)
 
-    async def count(model, *where) -> int:  # type: ignore[no-untyped-def]
-        return int(await db.scalar(select(func.count()).select_from(model).where(*where)) or 0)
+    async def count(model: Any, *where: ColumnElement[bool]) -> int:
+        return int(await db.scalar(select(sql_count()).select_from(model).where(*where)) or 0)
 
     media = {
         kind: await count(
