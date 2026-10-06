@@ -1,4 +1,3 @@
-# pylint: disable=missing-module-docstring,missing-function-docstring,too-few-public-methods
 from __future__ import annotations
 
 import re
@@ -20,6 +19,9 @@ class XboxClient:
     real Azure AD app registration — it does NOT verify them against
     Microsoft, and does NOT pull any game/achievement data. See the
     Settings plan's "Xbox gets no real validation this pass" decision."""
+
+    # This provider adapter exposes only its supported search/credential operation.
+    # pylint: disable=too-few-public-methods
 
     def __init__(self, client_id: str, client_secret: str) -> None:
         self.client_id = client_id

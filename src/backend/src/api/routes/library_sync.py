@@ -329,11 +329,11 @@ async def _enrich_new_game(
             search_game_metadata,
             game.title,
             1,
-            user.steamgriddb_api_key,
-            preferences,
-            user,
-            igdb_client_id,
-            igdb_client_secret,
+            steamgriddb_api_key=user.steamgriddb_api_key,
+            preferences=preferences,
+            user=user,
+            igdb_client_id=igdb_client_id,
+            igdb_client_secret=igdb_client_secret,
         )
     except Exception:
         return

@@ -1,4 +1,3 @@
-# pylint: disable=missing-module-docstring,missing-function-docstring,too-many-locals,too-few-public-methods
 from __future__ import annotations
 
 import time
@@ -17,6 +16,9 @@ class IGDBClient:
     developer platform — a client_id/client_secret pair from a registered
     Twitch app, exchanged for a short-lived app access token via the
     client_credentials OAuth flow (no per-user login involved)."""
+
+    # This provider adapter exposes only its supported search/credential operation.
+    # pylint: disable=too-few-public-methods
 
     TOKEN_URL = "https://id.twitch.tv/oauth2/token"
     BASE_URL = "https://api.igdb.com/v4"
@@ -99,50 +101,49 @@ class IGDBClient:
         except ValueError as exc:
             raise IGDBError("IGDB returned invalid JSON.") from exc
 
-        results: list[dict[str, Any]] = []
-        for game in games:
-            developer = None
-            publisher = None
-            for involved in game.get("involved_companies", []) or []:
-                company = (involved.get("company") or {}).get("name")
-                if not company:
-                    continue
-                if involved.get("developer") and developer is None:
-                    developer = company
-                if involved.get("publisher") and publisher is None:
-                    publisher = company
+        return [_normalize_game(game) for game in games]
 
-            cover_url = (game.get("cover") or {}).get("url")
-            if cover_url:
-                # IGDB returns protocol-relative thumbnail-sized URLs by default
-                cover_url = (
-                    "https:" + cover_url.replace("t_thumb", "t_cover_big")
-                    if cover_url.startswith("//")
-                    else cover_url
-                )
 
-            release_ts = game.get("first_release_date")
-            # IGDB's "collection" (e.g. "Dark Souls Collection") is the
-            # closest match to a series grouping; a franchise name is a
-            # reasonable fallback when a game has no collection set
-            series = (game.get("collection") or {}).get("name")
-            if not series:
-                franchises = game.get("franchises") or []
-                series = franchises[0].get("name") if franchises else None
-            results.append(
-                {
-                    "id": game.get("id"),
-                    "name": game.get("name"),
-                    "summary": game.get("summary"),
-                    "release_date": (
-                        time.strftime("%Y-%m-%d", time.gmtime(release_ts)) if release_ts else None
-                    ),
-                    "developer": developer,
-                    "publisher": publisher,
-                    "series": series,
-                    "genres": [g["name"] for g in game.get("genres", []) if g.get("name")],
-                    "cover_url": cover_url,
-                    "url": f"https://www.igdb.com/games/{game['id']}" if game.get("id") else None,
-                }
-            )
-        return results
+def _normalize_game(game: dict[str, Any]) -> dict[str, Any]:
+    developer = None
+    publisher = None
+    for involved in game.get("involved_companies", []) or []:
+        company = (involved.get("company") or {}).get("name")
+        if not company:
+            continue
+        if involved.get("developer") and developer is None:
+            developer = company
+        if involved.get("publisher") and publisher is None:
+            publisher = company
+
+    cover_url = (game.get("cover") or {}).get("url")
+    if cover_url:
+        # IGDB returns protocol-relative thumbnail-sized URLs by default
+        cover_url = (
+            "https:" + cover_url.replace("t_thumb", "t_cover_big")
+            if cover_url.startswith("//")
+            else cover_url
+        )
+
+    release_ts = game.get("first_release_date")
+    # IGDB's "collection" (e.g. "Dark Souls Collection") is the
+    # closest match to a series grouping; a franchise name is a
+    # reasonable fallback when a game has no collection set
+    series = (game.get("collection") or {}).get("name")
+    if not series:
+        franchises = game.get("franchises") or []
+        series = franchises[0].get("name") if franchises else None
+    return {
+        "id": game.get("id"),
+        "name": game.get("name"),
+        "summary": game.get("summary"),
+        "release_date": (
+            time.strftime("%Y-%m-%d", time.gmtime(release_ts)) if release_ts else None
+        ),
+        "developer": developer,
+        "publisher": publisher,
+        "series": series,
+        "genres": [g["name"] for g in game.get("genres", []) if g.get("name")],
+        "cover_url": cover_url,
+        "url": f"https://www.igdb.com/games/{game['id']}" if game.get("id") else None,
+    }

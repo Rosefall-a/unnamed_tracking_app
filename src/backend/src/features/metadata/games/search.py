@@ -1,4 +1,3 @@
-# pylint: disable=duplicate-code,missing-module-docstring,unnecessary-lambda-assignment,missing-class-docstring,too-many-arguments,too-many-positional-arguments,too-many-locals,broad-exception-caught
 # These modules intentionally keep domain/provider-specific logic separate; similar
 # structures here represent parallel APIs rather than accidental copy/paste.
 
@@ -135,7 +134,9 @@ def _apply_steam_user_tags(results: list[dict[str, Any]], enabled: bool) -> None
 
 
 def _titles_match(a: str, b: str) -> bool:
-    normalize = lambda s: "".join(ch.lower() for ch in s if ch.isalnum())  # noqa: E731
+    def normalize(title: str) -> str:
+        return "".join(ch.lower() for ch in title if ch.isalnum())
+
     return normalize(a) == normalize(b) and bool(normalize(a))
 
 
@@ -544,9 +545,106 @@ def _strip_unsaved_fields(results: list[dict[str, Any]], preferences: dict[str, 
                 result[field] = cleared_value
 
 
+def _provider_specs(
+    order: list[str], names: set[str], kind: str, ctx: ProviderContext
+) -> list[ProviderSpec]:
+    return [
+        PROVIDERS[name]
+        for name in order
+        if name in names
+        and PROVIDERS.get(name)
+        and PROVIDERS[name].kind == kind
+        and PROVIDERS[name].available(ctx)
+    ]
+
+
+def _run_primary_providers(
+    specs: list[ProviderSpec],
+    query: str,
+    limit: int,
+    ctx: ProviderContext,
+    results: list[dict[str, Any]],
+    *,
+    providers_used: list[str],
+    provider_errors: list[str],
+) -> None:
+    # Primary providers are independent of each other (none reads another's
+    # results), so they're the real bottleneck when run one at a time —
+    # these are all sync `requests` clients, hence a thread pool rather than
+    # asyncio. Enrichment providers run after, sequentially, since they need
+    # the merged primary results to already exist (e.g. SteamGridDB matching
+    # against a title Steam just found).
+    def _call_primary(
+        spec: ProviderSpec,
+    ) -> tuple[ProviderSpec, list[dict[str, Any]] | None, str | None]:
+        try:
+            return spec, spec.run(query, limit, ctx, results), None
+        # Provider adapters can fail independently; keep the other results available.
+        # pylint: disable-next=broad-exception-caught
+        except Exception as exc:  # noqa: BLE001 — one provider's failure shouldn't sink the search
+            return spec, None, str(exc)
+
+    if specs:
+        with ThreadPoolExecutor(max_workers=len(specs)) as executor:
+            for spec, outcome, error in executor.map(_call_primary, specs):
+                if error is not None:
+                    provider_errors.append(_friendly_provider_error(spec.name, error))
+                    continue
+                if outcome:
+                    for candidate in outcome:
+                        _merge_or_append(results, candidate)
+                providers_used.append(spec.name)
+
+
+def _run_enrichment_providers(
+    specs: list[ProviderSpec],
+    query: str,
+    limit: int,
+    ctx: ProviderContext,
+    results: list[dict[str, Any]],
+    *,
+    providers_used: list[str],
+    provider_errors: list[str],
+) -> None:
+    # Enrichment providers (SteamGridDB art, ScreenScraper art, HLTB time-to-
+    # beat) are independent of each other — none reads another's output — so
+    # there's no reason to run them one after another. SteamGridDB and
+    # ScreenScraper can both write art fields on the same result if a result
+    # doesn't have art yet; running concurrently means whichever finishes
+    # first "wins" that field instead of provider_order deciding it
+    # deterministically — an acceptable tradeoff since it only matters when
+    # both are configured for the same account, which is rare in practice.
+    # Each provider also hits a
+    # third-party unofficial endpoint whose own `requests` timeout can't
+    # always be trusted to fire (a stalled TCP connection some environments
+    # hang on regardless), so each still gets its own thread + hard
+    # wall-clock deadline; a timed-out provider's thread is left to finish
+    # (or hang) on its own, unwaited (`wait=False`) rather than blocking
+    # `ThreadPoolExecutor.__exit__`'s default `shutdown(wait=True)`.
+    if specs:
+        executor = ThreadPoolExecutor(max_workers=len(specs))
+        futures = {executor.submit(spec.run, query, limit, ctx, results): spec for spec in specs}
+        for future, spec in futures.items():
+            try:
+                future.result(timeout=ENRICHMENT_TIMEOUT_SECONDS)
+            except FutureTimeoutError:
+                provider_errors.append(
+                    f"{spec.name}: timed out after {ENRICHMENT_TIMEOUT_SECONDS}s"
+                )
+                continue
+            # Provider adapters can fail independently; keep the other results available.
+            # pylint: disable-next=broad-exception-caught
+            except Exception as exc:  # noqa: BLE001 — one provider's failure shouldn't sink the search
+                provider_errors.append(_friendly_provider_error(spec.name, str(exc)))
+                continue
+            providers_used.append(spec.name)
+        executor.shutdown(wait=False)
+
+
 def search_game_metadata(
     query: str,
     limit: int = 8,
+    *,
     steamgriddb_api_key: str | None = None,
     preferences: dict[str, Any] | None = None,
     user: "User | None" = None,
@@ -576,8 +674,6 @@ def search_game_metadata(
     `GET /api/settings/provider-credentials` instead.
     """
     preferences = preferences or DEFAULT_PREFERENCES
-    provider_order = preferences.get("provider_order") or DEFAULT_PROVIDER_ORDER
-    image_provider_order = preferences.get("image_provider_order") or DEFAULT_IMAGE_PROVIDER_ORDER
     ctx = ProviderContext(
         user=user,
         steamgriddb_api_key=steamgriddb_api_key or settings.STEAMGRIDDB_API_KEY,
@@ -590,83 +686,48 @@ def search_game_metadata(
     provider_errors: list[str] = []
     providers_used: list[str] = []
 
-    def _specs_for(order: list[str], names: set[str], kind: str) -> list[ProviderSpec]:
-        return [
-            PROVIDERS[name]
-            for name in order
-            if name in names
-            and PROVIDERS.get(name)
-            and PROVIDERS[name].kind == kind
-            and PROVIDERS[name].available(ctx)
-        ]
-
-    primary_specs = _specs_for(provider_order, DATA_PROVIDER_NAMES, "primary")
+    primary_specs = _provider_specs(
+        preferences.get("provider_order") or DEFAULT_PROVIDER_ORDER,
+        DATA_PROVIDER_NAMES,
+        "primary",
+        ctx,
+    )
     # data-content enrichment (HowLongToBeat) keeps provider_order's
     # priority; image-content enrichment (SteamGridDB/ScreenScraper) uses
     # image_provider_order instead — concatenated so both groups still run
     # together in one pass, each respecting its own list's order
-    enrichment_specs = _specs_for(provider_order, DATA_PROVIDER_NAMES, "enrichment")
+    enrichment_specs = _provider_specs(
+        preferences.get("provider_order") or DEFAULT_PROVIDER_ORDER,
+        DATA_PROVIDER_NAMES,
+        "enrichment",
+        ctx,
+    )
     if include_image_providers:
-        enrichment_specs += _specs_for(image_provider_order, IMAGE_PROVIDER_NAMES, "enrichment")
+        enrichment_specs += _provider_specs(
+            preferences.get("image_provider_order") or DEFAULT_IMAGE_PROVIDER_ORDER,
+            IMAGE_PROVIDER_NAMES,
+            "enrichment",
+            ctx,
+        )
 
-    # Primary providers are independent of each other (none reads another's
-    # results), so they're the real bottleneck when run one at a time —
-    # these are all sync `requests` clients, hence a thread pool rather than
-    # asyncio. Enrichment providers run after, sequentially, since they need
-    # the merged primary results to already exist (e.g. SteamGridDB matching
-    # against a title Steam just found).
-    def _call_primary(
-        spec: ProviderSpec,
-    ) -> tuple[ProviderSpec, list[dict[str, Any]] | None, str | None]:
-        try:
-            return spec, spec.run(query, limit, ctx, results), None
-        except Exception as exc:  # noqa: BLE001 — one provider's failure shouldn't sink the search
-            return spec, None, str(exc)
-
-    if primary_specs:
-        with ThreadPoolExecutor(max_workers=len(primary_specs)) as executor:
-            for spec, outcome, error in executor.map(_call_primary, primary_specs):
-                if error is not None:
-                    provider_errors.append(_friendly_provider_error(spec.name, error))
-                    continue
-                if outcome:
-                    for candidate in outcome:
-                        _merge_or_append(results, candidate)
-                providers_used.append(spec.name)
-
-    # Enrichment providers (SteamGridDB art, ScreenScraper art, HLTB time-to-
-    # beat) are independent of each other — none reads another's output — so
-    # there's no reason to run them one after another. SteamGridDB and
-    # ScreenScraper can both write art fields on the same result if a result
-    # doesn't have art yet; running concurrently means whichever finishes
-    # first "wins" that field instead of provider_order deciding it
-    # deterministically — an acceptable tradeoff since it only matters when
-    # both are configured for the same account, which is rare in practice.
-    # Each provider also hits a
-    # third-party unofficial endpoint whose own `requests` timeout can't
-    # always be trusted to fire (a stalled TCP connection some environments
-    # hang on regardless), so each still gets its own thread + hard
-    # wall-clock deadline; a timed-out provider's thread is left to finish
-    # (or hang) on its own, unwaited (`wait=False`) rather than blocking
-    # `ThreadPoolExecutor.__exit__`'s default `shutdown(wait=True)`.
-    if enrichment_specs:
-        executor = ThreadPoolExecutor(max_workers=len(enrichment_specs))
-        futures = {
-            executor.submit(spec.run, query, limit, ctx, results): spec for spec in enrichment_specs
-        }
-        for future, spec in futures.items():
-            try:
-                future.result(timeout=ENRICHMENT_TIMEOUT_SECONDS)
-            except FutureTimeoutError:
-                provider_errors.append(
-                    f"{spec.name}: timed out after {ENRICHMENT_TIMEOUT_SECONDS}s"
-                )
-                continue
-            except Exception as exc:  # noqa: BLE001 — one provider's failure shouldn't sink the search
-                provider_errors.append(_friendly_provider_error(spec.name, str(exc)))
-                continue
-            providers_used.append(spec.name)
-        executor.shutdown(wait=False)
+    _run_primary_providers(
+        primary_specs,
+        query,
+        limit,
+        ctx,
+        results,
+        providers_used=providers_used,
+        provider_errors=provider_errors,
+    )
+    _run_enrichment_providers(
+        enrichment_specs,
+        query,
+        limit,
+        ctx,
+        results,
+        providers_used=providers_used,
+        provider_errors=provider_errors,
+    )
 
     _apply_steam_user_tags(results, ctx.steam_user_tags)
     _strip_unsaved_fields(results, preferences)

@@ -1,4 +1,3 @@
-# pylint: disable=missing-module-docstring
 from __future__ import annotations
 
 from datetime import datetime, timezone

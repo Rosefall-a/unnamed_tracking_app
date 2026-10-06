@@ -295,11 +295,11 @@ async def _search_metadata(
         search_game_metadata,
         query,
         limit,
-        None,
-        preferences,
-        None,
-        integrations.igdb_client_id,
-        integrations.igdb_client_secret,
+        steamgriddb_api_key=None,
+        preferences=preferences,
+        user=None,
+        igdb_client_id=integrations.igdb_client_id,
+        igdb_client_secret=integrations.igdb_client_secret,
     )
     return {"results": metadata_result.get("results", [])}
 

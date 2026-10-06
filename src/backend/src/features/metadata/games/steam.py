@@ -157,11 +157,15 @@ def _xml_text(tag: str, block: str) -> str | None:
 _COMMUNITY_LOCK = threading.Lock()
 _COMMUNITY_MIN_GAP = 0.6  # seconds between requests
 _COMMUNITY_RETRIES = 4
+# Mutable monotonic clock state, protected by _COMMUNITY_LOCK; this is not a constant.
+# pylint: disable-next=invalid-name
 _community_last_request = 0.0
 
 
 def _community_get(url: str, params: dict[str, str]) -> requests.Response:
-    global _community_last_request  # pylint: disable=global-statement
+    # All community requests share one clock to preserve rate limiting across refreshes.
+    # pylint: disable-next=global-statement
+    global _community_last_request
     resp = None
     for attempt in range(_COMMUNITY_RETRIES):
         with _COMMUNITY_LOCK:
@@ -277,6 +281,8 @@ def get_app_details(app_id: int, country: str = "us", currency: str = "USD") -> 
     Fetch full details for a single app (game/DLC/etc) by its Steam AppID.
     Returns the 'data' dict on success, or None if the app has no store page.
     """
+    # Steam selects currency from country; retain the legacy currency keyword for callers.
+    del currency
     params: dict[str, str | int] = {"appids": app_id, "cc": country, "l": "en"}
     resp = SESSION.get(f"{BASE_URL}/appdetails", params=params, timeout=10)
     resp.raise_for_status()

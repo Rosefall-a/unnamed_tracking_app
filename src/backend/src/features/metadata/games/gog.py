@@ -1,4 +1,3 @@
-# pylint: disable=missing-module-docstring,missing-function-docstring,too-few-public-methods
 from __future__ import annotations
 
 from typing import Any
@@ -64,6 +63,9 @@ class GOGClient:
     unofficial token-refresh endpoint community tools (e.g. GOGDB, Heroic
     Games Launcher) rely on to confirm a GOG account token still works —
     it does not pull library/game data yet (deferred, see Settings plan)."""
+
+    # This provider adapter exposes only its supported search/credential operation.
+    # pylint: disable=too-few-public-methods
 
     TOKEN_URL = "https://auth.gog.com/token"
     # Public GOG Galaxy client id — not a secret, the same constant every

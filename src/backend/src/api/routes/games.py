@@ -194,12 +194,12 @@ async def search_metadata(
             search_game_metadata,
             query.strip(),
             limit,
-            current_user.steamgriddb_api_key,
-            preferences,
-            current_user,
-            app_integrations.igdb_client_id,
-            app_integrations.igdb_client_secret,
-            include_images,
+            steamgriddb_api_key=current_user.steamgriddb_api_key,
+            preferences=preferences,
+            user=current_user,
+            igdb_client_id=app_integrations.igdb_client_id,
+            igdb_client_secret=app_integrations.igdb_client_secret,
+            include_image_providers=include_images,
         )
     except Exception as exc:
         raise HTTPException(
@@ -2397,11 +2397,11 @@ async def refresh_game_metadata(
             search_game_metadata,
             game.title,
             8,
-            current_user.steamgriddb_api_key,
-            preferences,
-            current_user,
-            app_integrations.igdb_client_id,
-            app_integrations.igdb_client_secret,
+            steamgriddb_api_key=current_user.steamgriddb_api_key,
+            preferences=preferences,
+            user=current_user,
+            igdb_client_id=app_integrations.igdb_client_id,
+            igdb_client_secret=app_integrations.igdb_client_secret,
         )
     except Exception as exc:
         raise HTTPException(
