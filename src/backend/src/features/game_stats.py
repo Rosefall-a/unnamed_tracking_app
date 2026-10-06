@@ -1,4 +1,3 @@
-# pylint: disable=too-many-locals
 """Game statistics that need more than a count: playtime spread, the unplayed
 pile, cost per hour, backlog hours, achievement completion.
 
@@ -47,23 +46,18 @@ def _counted(games: list[Any], field: str, n: int = 8) -> list[dict[str, Any]]:
     return [{"name": k, "count": v} for k, v in counts.most_common(n)]
 
 
-def game_stats(
-    games: list[Any],
-    achievements: dict[Any, tuple[int, int]],
-    now: datetime,
-) -> dict[str, Any]:
-    """`achievements` maps a game id to (unlocked, total)."""
-    owned = [g for g in games if _status(g) != "WISHLIST"]
-    played = [g for g in owned if g.playtime_seconds]
-    unplayed = [g for g in owned if not g.playtime_seconds]
-
+def _spending(games: list[Any]) -> list[dict[str, Any]]:
     unplayed_cost: dict[str, float] = {}
-    for g in unplayed:
+    for g in games:
         if g.purchase_price is not None:
             code = g.purchase_price_currency_code or "?"
             unplayed_cost[code] = unplayed_cost.get(code, 0.0) + float(g.purchase_price)
 
-    buckets = [{"label": "No playtime recorded", "count": len(unplayed)}]
+    return _money(unplayed_cost)
+
+
+def _playtime_buckets(played: list[Any], unplayed_count: int) -> list[dict[str, Any]]:
+    buckets = [{"label": "No playtime recorded", "count": unplayed_count}]
     for label, low, high in _BUCKETS:
         count = sum(
             1
@@ -73,14 +67,10 @@ def game_stats(
         )
         buckets.append({"label": label, "count": count})
 
-    cutoff = now.timestamp() - 30 * 86400
-    recent = sorted(
-        (g for g in owned if g.last_played_at), key=lambda g: g.last_played_at, reverse=True
-    )
+    return buckets
 
-    backlog = [g for g in games if _status(g) == "BACKLOG"]
-    with_estimate = [g for g in backlog if g.time_to_beat_hours is not None]
 
+def _cost_per_hour(played: list[Any]) -> list[dict[str, Any]]:
     priced: dict[str, list[float]] = {}
     for g in played:
         if g.purchase_price is not None and float(g.purchase_price) > 0:
@@ -99,6 +89,12 @@ def game_stats(
         for code, (cost, hours, count) in sorted(priced.items())
     ]
 
+    return cost_per_hour
+
+
+def _achievement_stats(
+    games: list[Any], achievements: dict[Any, tuple[int, int]]
+) -> dict[str, Any]:
     progress = []
     fully = 0
     for g in games:
@@ -113,6 +109,35 @@ def game_stats(
             )
     progress.sort(key=lambda r: (r["unlocked"] / r["total"], r["total"]), reverse=True)
 
+    return {"closest_to_full": progress[:8], "fully_unlocked": fully}
+
+
+def _backlog_stats(games: list[Any]) -> dict[str, Any]:
+    backlog = [g for g in games if _status(g) == "BACKLOG"]
+    with_estimate = [g for g in backlog if g.time_to_beat_hours is not None]
+
+    return {
+        "count": len(backlog),
+        "hours": round(sum(float(g.time_to_beat_hours) for g in with_estimate), 1),
+        "without_estimate": len(backlog) - len(with_estimate),
+    }
+
+
+def game_stats(
+    games: list[Any],
+    achievements: dict[Any, tuple[int, int]],
+    now: datetime,
+) -> dict[str, Any]:
+    """`achievements` maps a game id to (unlocked, total)."""
+    owned = [g for g in games if _status(g) != "WISHLIST"]
+    played = [g for g in owned if g.playtime_seconds]
+    unplayed = [g for g in owned if not g.playtime_seconds]
+
+    cutoff = now.timestamp() - 30 * 86400
+    recent = sorted(
+        (g for g in owned if g.last_played_at), key=lambda g: g.last_played_at, reverse=True
+    )
+
     decades: Counter = Counter(
         g.release_date.year // 10 * 10 for g in games if isinstance(g.release_date, date)
     )
@@ -120,12 +145,12 @@ def game_stats(
     return {
         "owned": len(owned),
         "with_playtime": len(played),
-        "unplayed": {"count": len(unplayed), "spent": _money(unplayed_cost)},
+        "unplayed": {"count": len(unplayed), "spent": _spending(unplayed)},
         "average_seconds": round(sum(g.playtime_seconds for g in played) / len(played))
         if played
         else None,
         "median_seconds": round(median(g.playtime_seconds for g in played)) if played else None,
-        "playtime_buckets": buckets,
+        "playtime_buckets": _playtime_buckets(played, len(unplayed)),
         "played_last_30_days": sum(1 for g in recent if g.last_played_at >= cutoff),
         "recently_played": [
             {
@@ -144,14 +169,9 @@ def game_stats(
         "seconds_by_source": _seconds_by(games, "source"),
         "seconds_by_developer": _seconds_by(games, "developer"),
         "seconds_by_series": _seconds_by(games, "series"),
-        "backlog": {
-            "count": len(backlog),
-            "hours": round(sum(float(g.time_to_beat_hours) for g in with_estimate), 1),
-            "without_estimate": len(backlog) - len(with_estimate),
-        },
-        "cost_per_hour": cost_per_hour,
-        "closest_to_full": progress[:8],
-        "fully_unlocked": fully,
+        "backlog": _backlog_stats(games),
+        "cost_per_hour": _cost_per_hour(played),
+        **_achievement_stats(games, achievements),
         "decades": [{"decade": d, "count": c} for d, c in sorted(decades.items())],
         "age_ratings": _counted(owned, "age_rating"),
         "features": _counted(owned, "features"),
