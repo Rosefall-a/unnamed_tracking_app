@@ -408,12 +408,20 @@ function detailRoute(id: string): string {
         </li>
       </ul>
       <div class="import-actions">
-        <button\n          type="button"\n          class="ui-btn ui-btn-secondary"\n          @click="showAniListImport = false"\n        >\n          Close\n        </button>
         <button
           type="button"
+          class="ui-btn ui-btn-secondary"
+          @click="showAniListImport = false"
+        >
+          Close
+        </button>
+        <button
+          type="button"
+          class="ui-btn ui-btn-primary"
           :disabled="aniListImporting || !aniListUsername.trim()"
           @click="importFromAniList"
         >
+        <button
           {{ aniListImporting ? "Importing…" : "Import" }}
         </button>
       </div>
