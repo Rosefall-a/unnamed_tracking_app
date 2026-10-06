@@ -1,9 +1,15 @@
-"""Add session network ownership metadata."""
+"""Reconcile session network ownership metadata from the maintenance branch.
+
+Migration repair: main's e7f1a2b3c4d5 now owns these columns too. Retain this
+revision for databases that already applied it, and guard additions for either
+predecessor schema. Downgrades retain columns owned by the predecessor.
+"""
 
 from collections.abc import Sequence
 
 import sqlalchemy as sa
-from alembic import op
+
+from src.database import migration_helpers as h
 
 revision: str = "f2a8c9d0e1b2"
 down_revision: str = "e7f1a2b3c4d5"
@@ -12,13 +18,14 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    op.add_column("user_sessions", sa.Column("geo_network_number", sa.BigInteger(), nullable=True))
-    op.add_column(
+    h.add_column_if_missing(
+        "user_sessions", sa.Column("geo_network_number", sa.BigInteger(), nullable=True)
+    )
+    h.add_column_if_missing(
         "user_sessions",
         sa.Column("geo_network_organization", sa.String(256), nullable=True),
     )
 
 
 def downgrade() -> None:
-    op.drop_column("user_sessions", "geo_network_organization")
-    op.drop_column("user_sessions", "geo_network_number")
+    """Keep the network columns required by e7f1a2b3c4d5."""

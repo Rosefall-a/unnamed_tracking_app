@@ -53,7 +53,8 @@ def normalize_branding_image(data: bytes) -> bytes:
                 raise ValueError(
                     "Branding images must be at most 4096 pixels per side and 16 megapixels."
                 )
-            normalized = ImageOps.exif_transpose(image).convert("RGBA")
+            ImageOps.exif_transpose(image, in_place=True)
+            normalized = image.convert("RGBA")
             normalized.thumbnail((512, 512), Image.Resampling.LANCZOS)
             # A new image carries no EXIF, comments, embedded profiles or executable content.
             clean = Image.new("RGBA", normalized.size)

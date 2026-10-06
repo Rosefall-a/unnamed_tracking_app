@@ -126,7 +126,9 @@ async def test_invalid_name_is_rejected(boundary, payload):
 
 
 @pytest.mark.parametrize(
-    "data", [b"<svg onload='alert(1)'/>", b"", b"x" * (MAX_BRANDING_BYTES + 1)]
+    "data",
+    [b"<svg onload='alert(1)'/>", b"", b"x" * (MAX_BRANDING_BYTES + 1)],
+    ids=["svg", "empty", "oversized"],
 )
 def test_malformed_or_oversized_images_are_rejected(data):
     with pytest.raises(ValueError):
@@ -137,6 +139,17 @@ def test_large_valid_images_are_resized_and_metadata_removed():
     with Image.open(BytesIO(normalize_branding_image(png((1000, 500))))) as image:
         assert image.size == (512, 256)
         assert not image.info
+
+
+def test_branding_image_orientation_is_applied_and_metadata_removed():
+    output = BytesIO()
+    image = Image.new("RGB", (40, 20), "orange")
+    exif = Image.Exif()
+    exif[274] = 6  # Rotate 90 degrees clockwise.
+    image.save(output, format="JPEG", exif=exif)
+    with Image.open(BytesIO(normalize_branding_image(output.getvalue()))) as normalized:
+        assert normalized.size == (20, 40)
+        assert not normalized.info
 
 
 def test_animated_images_are_rejected():

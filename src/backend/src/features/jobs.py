@@ -111,27 +111,27 @@ async def _run_plugin_updates() -> None:
 
 
 def _airing_is_running() -> bool:
-    return _AIRING_RUNNING
+    return _airing_running
 
 
 def _start_airing(mode: str) -> dict[str, Any]:
     """Runs one airing check in the background. Scheduled runs only ask about
     shows that are due; "Run now" (mode "all") asks about every airing show."""
-    global _AIRING_RUNNING
-    if not _AIRING_RUNNING:
-        _AIRING_RUNNING = True
+    global _airing_running
+    if not _airing_running:
+        _airing_running = True
         asyncio.get_running_loop().create_task(_run_airing(force=mode == "all"))
     return {"running": True}
 
 
 async def _run_airing(force: bool) -> None:
-    global _AIRING_RUNNING
+    global _airing_running
     try:
         await record_run("airing_check", await check_airing_episodes(force=force))
     except Exception:
         logger.exception("The airing check failed")
     finally:
-        _AIRING_RUNNING = False
+        _airing_running = False
 
 
 JOBS: dict[str, JobSpec] = {
