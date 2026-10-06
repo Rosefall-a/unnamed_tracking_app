@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
 import { useKeptAlive } from "../utils/useKeptAlive";
+import type { LibraryFilters } from "../utils/libraryFilters";
 import {
   fetchMoviesPage,
   updateMovie,
@@ -64,12 +65,17 @@ const statusCounts = ref<Record<string, number>>({});
 const scoreRanks = ref<Record<string, number>>({});
 const pageSize = 100;
 const currentSearch = ref("");
-async function load(search = "") {
-  currentSearch.value = search;
+const currentFilters = ref<LibraryFilters & { statusBucket: string }>({
+  search: "", genres: [], genreMatchAll: false, formats: [], onlyFavorites: false,
+  onlyUnrated: false, onlyWithNote: false, minScore: null, yearFrom: "", yearTo: "", statusBucket: "all",
+});
+async function load(filters: LibraryFilters & { statusBucket: string } = currentFilters.value) {
+  currentFilters.value = filters;
+  currentSearch.value = filters.search;
   const request = ++loadRequest;
   if (!movies.value.length) loading.value = true;
   try {
-    const page = await fetchMoviesPage(0, pageSize, search);
+    const page = await fetchMoviesPage(0, pageSize, filters);
     if (request !== loadRequest) return;
     movies.value = page.items;
     total.value = page.total;
@@ -77,26 +83,17 @@ async function load(search = "") {
     scoreRanks.value = page.scoreRanks;
   } catch (e) {
     error.value = e instanceof Error ? e.message : "Failed to load movies.";
-  } finally {
-    loading.value = false;
-  }
+  } finally { loading.value = false; }
 }
 async function loadMore() {
   if (loading.value || movies.value.length >= total.value) return;
   loading.value = true;
   try {
-    const page = await fetchMoviesPage(
-      movies.value.length,
-      pageSize,
-      currentSearch.value,
-    );
+    const page = await fetchMoviesPage(movies.value.length, pageSize, currentFilters.value);
     movies.value.push(...page.items);
   } catch (e) {
-    error.value =
-      e instanceof Error ? e.message : "Failed to load more movies.";
-  } finally {
-    loading.value = false;
-  }
+    error.value = e instanceof Error ? e.message : "Failed to load more movies.";
+  } finally { loading.value = false; }
 }
 onMounted(load);
 useKeptAlive(load);
@@ -230,7 +227,7 @@ function detailRoute(id: string): string {
     :detail-route="detailRoute"
     :search="search"
     :create-from-result="createFromResult"
-    @search="load"
+    @filters-change="load"
     @load-more="loadMore"
     @toggle-favorite="onToggleFavorite"
     @save-note="onSaveNote"
