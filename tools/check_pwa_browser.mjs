@@ -344,6 +344,8 @@ try {
   execFileSync(process.env.PWA_ACCEPTANCE_PYTHON, [path.join(path.dirname(fileURLToPath(import.meta.url)), "check_pwa_lifecycle.py"), "--expire-session"], { env: process.env });
   await page.goto(origin + "/");
   await page.waitForURL(url => url.pathname === "/login");
+  assert.ok([null, "/"].includes(new URL(page.url()).searchParams.get("return_to")),
+    "Expired sessions return to sign-in with a safe local return target");
   assert.equal(new URL(page.url()).searchParams.get("return_to"), "/");
   const cacheEntries = await page.evaluate(async () => {
     const keys = await caches.keys();
