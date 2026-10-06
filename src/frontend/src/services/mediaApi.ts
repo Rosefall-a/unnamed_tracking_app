@@ -64,13 +64,25 @@ export function createMediaApi<
   async function fetchPage(
     offset = 0,
     limit = 100,
-    search = "",
+    search: string | LibraryFilters = "",
   ): Promise<MediaPage<Entity>> {
     const params = new URLSearchParams({
       skip: String(offset),
       limit: String(limit),
     });
-    if (search.trim()) params.set("search", search.trim());
+    const filters = typeof search === "string" ? null : search;
+    const searchText = typeof search === "string" ? search : search.search;
+    if (searchText.trim()) params.set("search", searchText.trim());
+    if (filters?.onlyFavorites) params.set("favorite", "true");
+    if (filters?.onlyUnrated) params.set("only_unrated", "true");
+    if (filters?.onlyWithNote) params.set("only_with_note", "true");
+    if (filters?.minScore !== null && filters?.minScore !== undefined) params.set("min_score", String(filters.minScore));
+    if (filters?.yearFrom.trim()) params.set("year_from", filters.yearFrom.trim());
+    if (filters?.yearTo.trim()) params.set("year_to", filters.yearTo.trim());
+    filters?.genres.forEach((genre) => params.append("genre", genre));
+    if (filters?.genreMatchAll) params.set("genre_match_all", "true");
+    filters?.formats.forEach((format) => params.append("format", format));
+    if (filters?.statusBucket && filters.statusBucket !== "all") params.set("status_bucket", filters.statusBucket);
     const response = await fetch(`${base}/list?${params}`, {
       credentials: "include",
     });
