@@ -1541,7 +1541,7 @@ defineExpose({ openQuickAdd });
       </div>
     </div>
 
-    <!-- ===== Notes modal -->
+    <!-- ===== Notes modal ===== -->
     <div v-if="noteOpen" class="modal-overlay" @click.self="closeNote">
       <div class="modal-card">
         <h3>Notes</h3>
@@ -2833,7 +2833,7 @@ defineExpose({ openQuickAdd });
   color: var(--text-faint);
   font-variant-numeric: tabular-nums;
 }
- .board-shelf {
+.board-shelf {
   display: grid;
   gap: 14px;
   width: 100%;
