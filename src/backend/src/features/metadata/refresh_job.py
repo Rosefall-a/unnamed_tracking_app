@@ -15,17 +15,17 @@ the button showed nothing until the end. Now:
 
 A run is started by someone asking for it (the Settings button) or by the
 existing daily loop. Only one runs at a time."""
-# pylint: disable=missing-class-docstring,too-many-instance-attributes,missing-function-docstring,broad-exception-caught,not-callable,global-statement
 
 from __future__ import annotations
 
 import asyncio
 import logging
 import time
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, fields
 from typing import Any, Callable
 
-from sqlalchemy import func, select
+from sqlalchemy import select
+from sqlalchemy.sql.functions import count
 
 from src.database.models.anime import Anime, AnimeEpisode, AnimeSeason
 from src.database.models.tv_show import TVSeason, TVShow
@@ -34,9 +34,9 @@ from src.features.metadata.anime.alt_titles import fill_missing_titles
 from src.features.metadata.anime.anilist import AniListClient
 from src.features.metadata.anime.episode_sync import episode_limit
 from src.features.metadata.refresh import (
-    _refresh_anime_season,
-    _refresh_tv_season,
     heal_all_anime_metadata,
+    refresh_anime_season_now,
+    refresh_tv_season_now,
 )
 
 logger = logging.getLogger(__name__)
@@ -47,6 +47,8 @@ MODES = ("needed", "all")
 
 @dataclass
 class Progress:
+    # The refresh screen consumes this complete progress record; these are data fields.
+    # pylint: disable=too-many-instance-attributes
     running: bool = False
     mode: str = "needed"
     phase: str = ""
@@ -128,7 +130,7 @@ async def _refresh_one_anime(
             before_count = season.episode_count or 0
             before_rows = len(season.episodes)
             try:
-                added, enriched = await _refresh_anime_season(
+                added, enriched = await refresh_anime_season_now(
                     db,
                     show,
                     season,
@@ -143,7 +145,7 @@ async def _refresh_one_anime(
                 # judged from what is stored now, not from the objects in memory
                 stored = (
                     await db.execute(
-                        select(AnimeSeason.episode_count, func.count(AnimeEpisode.id))
+                        select(AnimeSeason.episode_count, count(AnimeEpisode.id))
                         .outerjoin(AnimeEpisode, AnimeEpisode.season_id == AnimeSeason.id)
                         .where(AnimeSeason.id == season_id)
                         .group_by(AnimeSeason.id)
@@ -151,6 +153,8 @@ async def _refresh_one_anime(
                 ).one()
                 if before_count > (stored[0] or 0) or stored[1] < before_rows:
                     _progress.counts_fixed += 1
+            # Contain this worker or optional phase failure and preserve progress/finalization.
+            # pylint: disable-next=broad-exception-caught
             except Exception:
                 logger.exception("Anime refresh failed for %s", show.title)
                 _progress.unreachable.append(show.title)
@@ -172,11 +176,13 @@ async def _refresh_one_tv(season_id: Any, show_id: Any, sem: asyncio.Semaphore) 
                 _progress.done += 1
                 return
             try:
-                added, enriched = await _refresh_tv_season(show, season, db)
+                added, enriched = await refresh_tv_season_now(show, season, db)
                 _progress.tv_episodes_added += added
                 _progress.tv_episodes_updated += enriched
                 _progress.checked += 1
                 await db.commit()
+            # Contain this worker or optional phase failure and preserve progress/finalization.
+            # pylint: disable-next=broad-exception-caught
             except Exception:
                 logger.exception("TV refresh failed for %s", show.title)
                 _progress.unreachable.append(show.title)
@@ -186,15 +192,16 @@ async def _refresh_one_tv(season_id: Any, show_id: Any, sem: asyncio.Semaphore) 
 
 def _begin(mode: str) -> bool:
     """Marks a run as started. False if one is already running."""
-    global _progress
     if _progress.running:
         return False
-    _progress = Progress(
+    initial = Progress(
         running=True,
         mode=mode if mode in MODES else "needed",
         phase="Starting",
         started_at=int(time.time()),
     )
+    for descriptor in fields(Progress):
+        setattr(_progress, descriptor.name, getattr(initial, descriptor.name))
     return True
 
 
@@ -204,11 +211,15 @@ async def _execute() -> dict[str, Any]:
         try:
             async with SessionLocal() as db:
                 await fill_missing_titles(db)
+        # Contain this worker or optional phase failure and preserve progress/finalization.
+        # pylint: disable-next=broad-exception-caught
         except Exception:
             logger.exception("Alternate title lookup failed")
         _progress.phase = "Filling in missing details"
         try:
             _progress.anime_metadata_healed = await heal_all_anime_metadata()
+        # Contain this worker or optional phase failure and preserve progress/finalization.
+        # pylint: disable-next=broad-exception-caught
         except Exception:
             logger.exception("Anime metadata heal pass failed")
 
@@ -246,6 +257,8 @@ async def _execute() -> dict[str, Any]:
         for season_id, show_id in tv_rows:
             jobs.append(_refresh_one_tv(season_id, show_id, sem))
         await asyncio.gather(*jobs)
+    # Contain this worker or optional phase failure and preserve progress/finalization.
+    # pylint: disable-next=broad-exception-caught
     except Exception as exc:  # noqa: BLE001, the job reports a failure instead of vanishing
         logger.exception("Media refresh failed")
         _progress.error = str(exc)
@@ -257,6 +270,8 @@ async def _execute() -> dict[str, Any]:
         for hook in finish_hooks:
             try:
                 hook(snapshot())
+            # Contain this worker or optional phase failure and preserve progress/finalization.
+            # pylint: disable-next=broad-exception-caught
             except Exception:
                 logger.exception("A media refresh finish hook failed")
     return snapshot()
@@ -274,6 +289,8 @@ async def run(mode: str = "needed") -> dict[str, Any]:
 def start(mode: str = "needed") -> dict[str, Any]:
     """Starts a run in the background and returns at once. If one is already
     running, returns its progress instead of starting a second."""
+    # Keep a strong reference to the background task until the next run replaces it.
+    # pylint: disable-next=global-statement
     global _task
     if not _begin(mode):
         return snapshot()

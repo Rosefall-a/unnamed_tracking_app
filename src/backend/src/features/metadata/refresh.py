@@ -1,4 +1,3 @@
-# pylint: disable=missing-function-docstring,too-many-locals,too-many-positional-arguments,broad-exception-caught,import-outside-toplevel,cyclic-import
 """Daily background refresh of episode data for shows/anime that already
 have episodes synced — catches newly aired episodes for shows still
 airing. Same in-process asyncio loop pattern as the trash sweep
@@ -139,7 +138,31 @@ def _trim_beyond_total(season: AnimeSeason, total: int) -> int:
     return removed
 
 
-async def _refresh_anime_season(
+def _merge_episodes(
+    db,
+    season: AnimeSeason | TVSeason,
+    entries: list[dict[str, Any]],
+    model: type[AnimeEpisode] | type[TVEpisode],
+) -> tuple[int, int]:
+    """Append new rows and fill blank fields without replacing user progress."""
+    existing_by_number = {e.episode_number: e for e in season.episodes}
+    added = 0
+    enriched = 0
+    created: list[AnimeEpisode | TVEpisode] = []
+    for entry in entries:
+        existing = existing_by_number.get(entry["episode_number"])
+        if existing is None:
+            row = _add_episode(model, season.id, entry)
+            db.add(row)
+            created.append(row)
+            added += 1
+        elif _enrich_episode(existing, entry):
+            enriched += 1
+    materialize_progress(season, created)
+    return added, enriched
+
+
+async def refresh_anime_season_now(
     db,
     show: Anime,
     season: AnimeSeason,
@@ -186,20 +209,7 @@ async def _refresh_anime_season(
         if app_integrations.tmdb_api_key:
             tmdb_api_key = decrypt_secret(app_integrations.tmdb_api_key)
             await backfill_from_tmdb(all_episodes, show.title, tmdb_api_key)
-    existing_by_number = {e.episode_number: e for e in season.episodes}
-    added = 0
-    enriched = 0
-    created: list[AnimeEpisode | TVEpisode] = []
-    for entry in all_episodes:
-        existing = existing_by_number.get(entry["episode_number"])
-        if existing is None:
-            row = _add_episode(AnimeEpisode, season.id, entry)
-            db.add(row)
-            created.append(row)
-            added += 1
-        elif _enrich_episode(existing, entry):
-            enriched += 1
-    materialize_progress(season, created)
+    added, enriched = _merge_episodes(db, season, all_episodes, AnimeEpisode)
     if fetch.limit:
         _trim_beyond_total(season, fetch.limit)
     # a show still airing has its rows kept in step by the airing check, which
@@ -225,12 +235,20 @@ async def quick_check_anime_season(show: Anime, season: AnimeSeason) -> int:
             "Airing check couldn't reach AniList for %r: %s", show.title, "; ".join(errors)
         )
         return 0
-    return await _apply_airing(show, season, aired_total, is_airing, air_at, next_number)
+    return await _apply_airing(
+        show,
+        season,
+        aired_total=aired_total,
+        is_airing=is_airing,
+        air_at=air_at,
+        next_number=next_number,
+    )
 
 
 async def _apply_airing(
     show: Anime,
     season: AnimeSeason,
+    *,
     aired_total: int | None,
     is_airing: bool,
     air_at: int | None,
@@ -279,16 +297,6 @@ async def _fill_recent_from_anizip(season: AnimeSeason, anilist_id: str) -> None
             _enrich_episode(episode, entry)
 
 
-async def refresh_anime_season_now(db, show: Anime, season: AnimeSeason) -> tuple[int, int]:
-    """The full episode refresh for one season on demand (the Check airing
-    button), not only the cheap airing-count check."""
-    return await _refresh_anime_season(db, show, season)
-
-
-async def refresh_tv_season_now(show: TVShow, season: TVSeason, db) -> tuple[int, int]:
-    return await _refresh_tv_season(show, season, db)
-
-
 async def quick_check_tv_season(show: TVShow, season: TVSeason, db) -> int:
     """The frequent, cheap check for TV: first asks TVmaze just the
     show's status (a single small object) and persists `show.is_airing`
@@ -314,11 +322,11 @@ async def quick_check_tv_season(show: TVShow, season: TVSeason, db) -> int:
     if not next_errors:
         show.next_episode_air_at = air_at
         show.next_episode_number = next_number
-    added, _enriched = await _refresh_tv_season(show, season, db)
+    added, _enriched = await refresh_tv_season_now(show, season, db)
     return added
 
 
-async def _refresh_tv_season(show: TVShow, season: TVSeason, db) -> tuple[int, int]:
+async def refresh_tv_season_now(show: TVShow, season: TVSeason, db) -> tuple[int, int]:
     """Returns (added, enriched) — TV rarely has bare placeholders (no
     padding step for TV, unlike anime), but the same enrich pass runs
     anyway so a row TVmaze had gaps in the first time still gets picked
@@ -328,21 +336,7 @@ async def _refresh_tv_season(show: TVShow, season: TVSeason, db) -> tuple[int, i
     all_episodes, errors = await fetch_season_episodes(show.external_id, season.season_number)
     if errors:
         logger.warning("TV refresh couldn't reach TVmaze for %r: %s", show.title, "; ".join(errors))
-    existing_by_number = {e.episode_number: e for e in season.episodes}
-    added = 0
-    enriched = 0
-    created: list[AnimeEpisode | TVEpisode] = []
-    for entry in all_episodes:
-        existing = existing_by_number.get(entry["episode_number"])
-        if existing is None:
-            row = _add_episode(TVEpisode, season.id, entry)
-            db.add(row)
-            created.append(row)
-            added += 1
-        elif _enrich_episode(existing, entry):
-            enriched += 1
-    materialize_progress(season, created)
-    return added, enriched
+    return _merge_episodes(db, season, all_episodes, TVEpisode)
 
 
 def _normalize_title(title: str) -> str:
@@ -385,7 +379,7 @@ def _find_by_exact_title(
     return None
 
 
-def _find_anime_entry(client: AniListClient, show: Anime) -> dict[str, Any] | None:
+async def _find_anime_entry(client: AniListClient, show: Anime) -> dict[str, Any] | None:
     """Looks up the one AniList entry to heal `show` from — a known id
     over a fresh title search, since a title search is what creates these
     gaps in the first place (an unusual title can miss or match the wrong
@@ -398,22 +392,24 @@ def _find_anime_entry(client: AniListClient, show: Anime) -> dict[str, Any] | No
     by hand or added while both providers were down."""
     if show.anilist_id:
         try:
-            return client.get_by_id(int(show.anilist_id))
+            return await asyncio.to_thread(client.get_by_id, int(show.anilist_id))
         except (AniListError, ValueError):
             return None
     if show.external_id:
         try:
-            return client.get_by_mal_id(int(show.external_id))
+            return await asyncio.to_thread(client.get_by_mal_id, int(show.external_id))
         except (AniListError, ValueError):
             return None
     year = show.first_air_date.year if show.first_air_date else None
-    return _find_by_exact_title(client, show.title, year)
+    return await asyncio.to_thread(_find_by_exact_title, client, show.title, year)
 
 
 # (show attribute, entry key) pairs backfilled only when the show's own
 # field is still blank — id fields are handled separately since they
 # need str(...) conversion and the season episode count lives one level
 # down, not a plain attribute of `show` itself.
+# Healing and MAL imports deliberately select different subsets of the same provider fields.
+# pylint: disable=duplicate-code
 _HEALABLE_FIELDS: tuple[tuple[str, str], ...] = (
     ("format", "format"),
     ("poster_url", "poster_url"),
@@ -423,9 +419,10 @@ _HEALABLE_FIELDS: tuple[tuple[str, str], ...] = (
     ("genres", "genres"),
     ("episode_runtime_minutes", "episode_runtime_minutes"),
 )
+# pylint: enable=duplicate-code
 
 
-def _heal_anime_metadata(client: AniListClient, show: Anime) -> bool:
+async def _heal_anime_metadata(client: AniListClient, show: Anime) -> bool:
     """Backfills whichever of format/poster/backdrop/description/studios/
     genres/runtime/score/anilist_id/external_id/kitsu_id are still null.
     Recovers whichever of the AniList/MyAnimeList ids was still missing
@@ -437,7 +434,7 @@ def _heal_anime_metadata(client: AniListClient, show: Anime) -> bool:
     anything actually changed."""
     changed = False
 
-    entry = _find_anime_entry(client, show)
+    entry = await _find_anime_entry(client, show)
     if entry:
         if show.anilist_id is None and entry.get("id"):
             show.anilist_id = str(entry["id"])
@@ -458,7 +455,7 @@ def _heal_anime_metadata(client: AniListClient, show: Anime) -> bool:
 
     # A Kitsu id is never guessed from the title here: a title search matched
     # season 1's entry for season 2. ani.zip gives the exact id when episodes
-    # are refreshed (see `_refresh_anime_season`).
+    # are refreshed (see `refresh_anime_season_now`).
     return changed
 
 
@@ -502,8 +499,10 @@ async def heal_all_anime_metadata() -> int:
         for show in shows:
             await asyncio.sleep(0.3)
             try:
-                if _heal_anime_metadata(client, show):
+                if await _heal_anime_metadata(client, show):
                     healed += 1
+            # Isolate unexpected provider data failures to this show while continuing the sweep.
+            # pylint: disable-next=broad-exception-caught
             except Exception:
                 logger.exception("Anime metadata heal failed for %s", show.title)
         await db.commit()
@@ -517,6 +516,8 @@ async def refresh_all_episode_metadata() -> dict[str, int]:
     touches what needs it; see refresh_job for the details and for the version
     the Settings button starts with progress. If a run is already going, this
     returns that run's progress instead of starting another."""
+    # The job uses the refresh operations above; defer its coordinator import until called.
+    # pylint: disable-next=import-outside-toplevel,cyclic-import
     from src.features.metadata import refresh_job
 
     progress = await refresh_job.run("needed")
@@ -545,6 +546,91 @@ def airing_due(
     return last_checked is None or now - last_checked >= limit
 
 
+async def _check_anime_airing(db, force: bool, now: float) -> tuple[int, int, int]:
+    anime_added = checked = 0
+    anime_rows = (
+        await db.execute(
+            select(Anime.id, Anime.anilist_id, Anime.is_airing, Anime.next_episode_air_at).where(
+                Anime.deleted_at.is_(None),
+                Anime.status != AnimeStatus.DROPPED,
+                or_(Anime.is_airing.is_(True), Anime.is_airing.is_(None)),
+            )
+        )
+    ).all()
+    due = {
+        r.id: int(r.anilist_id)
+        for r in anime_rows
+        if r.anilist_id
+        and str(r.anilist_id).isdigit()
+        and (
+            force
+            or airing_due(r.is_airing, r.next_episode_air_at, _last_checked.get(str(r.id)), now)
+        )
+    }
+    if due:
+        infos = await asyncio.to_thread(AniListClient().final_totals, sorted(set(due.values())))
+        shows = (await db.execute(select(Anime).where(Anime.id.in_(list(due))))).scalars().all()
+        for anime_show in shows:
+            info = infos.get(due[anime_show.id])
+            season = anime_show.seasons[-1] if anime_show.seasons else None
+            if info is None or season is None or not season.episodes:
+                continue
+            upcoming = info.get("next")
+            aired_total = upcoming - 1 if upcoming else info.get("episodes")
+            try:
+                anime_added += await _apply_airing(
+                    anime_show,
+                    season,
+                    aired_total=aired_total,
+                    is_airing=bool(upcoming),
+                    air_at=info.get("air_at"),
+                    next_number=upcoming,
+                )
+                _last_checked[str(anime_show.id)] = now
+                checked += 1
+            # Isolate unexpected provider data failures to this show while continuing the sweep.
+            # pylint: disable-next=broad-exception-caught
+            except Exception:
+                logger.exception("Airing check failed for anime %s", anime_show.title)
+
+    return anime_added, checked, len(anime_rows)
+
+
+async def _check_tv_airing(db, force: bool, now: float) -> tuple[int, int, int]:
+    tv_added = checked = 0
+    tv_rows = (
+        await db.execute(
+            select(TVShow.id, TVShow.is_airing, TVShow.next_episode_air_at).where(
+                TVShow.deleted_at.is_(None),
+                TVShow.status != TVShowStatus.DROPPED,
+                or_(TVShow.is_airing.is_(True), TVShow.is_airing.is_(None)),
+            )
+        )
+    ).all()
+    tv_due = [
+        r.id
+        for r in tv_rows
+        if force
+        or airing_due(r.is_airing, r.next_episode_air_at, _last_checked.get(str(r.id)), now)
+    ]
+    if tv_due:
+        tv_shows = (await db.execute(select(TVShow).where(TVShow.id.in_(tv_due)))).scalars().all()
+        for tv_show in tv_shows:
+            tv_season = tv_show.seasons[-1] if tv_show.seasons else None
+            if tv_season is None or not tv_season.episodes:
+                continue
+            try:
+                tv_added += await quick_check_tv_season(tv_show, tv_season, db)
+                _last_checked[str(tv_show.id)] = now
+                checked += 1
+            # Isolate unexpected provider data failures to this show while continuing the sweep.
+            # pylint: disable-next=broad-exception-caught
+            except Exception:
+                logger.exception("Airing check failed for TV show %s", tv_show.title)
+
+    return tv_added, checked, len(tv_rows)
+
+
 async def check_airing_episodes(force: bool = False) -> dict[str, int]:
     """The frequent, lightweight pass over shows that are airing or not yet
     checked (`is_airing` true or null); one known to have finished, or a
@@ -554,85 +640,11 @@ async def check_airing_episodes(force: bool = False) -> dict[str, int]:
     loaded only then, not for every airing show on every pass. Neither does the
     TMDB backfill, which stays on the slower full refresh."""
     now = time.time()
-    anime_added = tv_added = checked = candidates = 0
     async with SessionLocal() as db:
-        anime_rows = (
-            await db.execute(
-                select(
-                    Anime.id, Anime.anilist_id, Anime.is_airing, Anime.next_episode_air_at
-                ).where(
-                    Anime.deleted_at.is_(None),
-                    Anime.status != AnimeStatus.DROPPED,
-                    or_(Anime.is_airing.is_(True), Anime.is_airing.is_(None)),
-                )
-            )
-        ).all()
-        candidates += len(anime_rows)
-        due = {
-            r.id: int(r.anilist_id)
-            for r in anime_rows
-            if r.anilist_id
-            and str(r.anilist_id).isdigit()
-            and (
-                force
-                or airing_due(r.is_airing, r.next_episode_air_at, _last_checked.get(str(r.id)), now)
-            )
-        }
-        if due:
-            infos = await asyncio.to_thread(AniListClient().final_totals, sorted(set(due.values())))
-            shows = (await db.execute(select(Anime).where(Anime.id.in_(list(due))))).scalars().all()
-            for anime_show in shows:
-                info = infos.get(due[anime_show.id])
-                season = anime_show.seasons[-1] if anime_show.seasons else None
-                if info is None or season is None or not season.episodes:
-                    continue
-                upcoming = info.get("next")
-                aired_total = upcoming - 1 if upcoming else info.get("episodes")
-                try:
-                    anime_added += await _apply_airing(
-                        anime_show,
-                        season,
-                        aired_total,
-                        bool(upcoming),
-                        info.get("air_at"),
-                        upcoming,
-                    )
-                    _last_checked[str(anime_show.id)] = now
-                    checked += 1
-                except Exception:
-                    logger.exception("Airing check failed for anime %s", anime_show.title)
-
-        tv_rows = (
-            await db.execute(
-                select(TVShow.id, TVShow.is_airing, TVShow.next_episode_air_at).where(
-                    TVShow.deleted_at.is_(None),
-                    TVShow.status != TVShowStatus.DROPPED,
-                    or_(TVShow.is_airing.is_(True), TVShow.is_airing.is_(None)),
-                )
-            )
-        ).all()
-        candidates += len(tv_rows)
-        tv_due = [
-            r.id
-            for r in tv_rows
-            if force
-            or airing_due(r.is_airing, r.next_episode_air_at, _last_checked.get(str(r.id)), now)
-        ]
-        if tv_due:
-            tv_shows = (
-                (await db.execute(select(TVShow).where(TVShow.id.in_(tv_due)))).scalars().all()
-            )
-            for tv_show in tv_shows:
-                tv_season = tv_show.seasons[-1] if tv_show.seasons else None
-                if tv_season is None or not tv_season.episodes:
-                    continue
-                try:
-                    tv_added += await quick_check_tv_season(tv_show, tv_season, db)
-                    _last_checked[str(tv_show.id)] = now
-                    checked += 1
-                except Exception:
-                    logger.exception("Airing check failed for TV show %s", tv_show.title)
-
+        anime_added, anime_checked, anime_candidates = await _check_anime_airing(db, force, now)
+        tv_added, tv_checked, tv_candidates = await _check_tv_airing(db, force, now)
+        checked = anime_checked + tv_checked
+        candidates = anime_candidates + tv_candidates
         await db.commit()
 
     if anime_added or tv_added:
