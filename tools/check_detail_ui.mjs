@@ -1,6 +1,7 @@
 // Populated core detail/media pages, themes, settings and navigation on real data.
 // Cards, Sets and Bounties are covered by the official Collector's Archive plugin checker.
 import assert from "node:assert/strict";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 
 export async function checkDetailUi({ admin, member, origin, evidenceRoot, report, pluginsRoot }) {
@@ -109,7 +110,12 @@ export async function checkDetailUi({ admin, member, origin, evidenceRoot, repor
         await page.goto(origin + "/settings?section=plugins");
         await page.getByRole("button", { name: "Install package or URL", exact: true }).click();
         const installer = page.getByRole("dialog", { name: "Install package or URL", exact: true });
-        await installer.getByLabel("Plugin package", { exact: true }).setInputFiles(path.join(pluginsRoot, ".validation/dist/example.playtime-report-1.2.0.utp"));
+        const distributionRoot = existsSync(path.join(pluginsRoot, ".validation/list.json")) ? path.join(pluginsRoot, ".validation") : pluginsRoot;
+        const catalogue = JSON.parse(readFileSync(path.join(distributionRoot, "list.json"), "utf8"));
+        const previewPackage = catalogue.plugins.find(item => item.plugin_id === "example.playtime-report");
+        assert(previewPackage, "Playtime Report is present in the generated or published catalogue");
+        assert.match(previewPackage.package.filename, /^example\.playtime-report-\d+\.\d+\.\d+\.utp$/, "Preview stays within the selected distribution");
+        await installer.getByLabel("Plugin package", { exact: true }).setInputFiles(path.join(distributionRoot, "dist", previewPackage.package.filename));
         const previewResponse = page.waitForResponse(response => new URL(response.url()).pathname === "/api/plugins/install/preview");
         await installer.getByRole("button", { name: "Review package", exact: true }).click();
         const preview = await json(await previewResponse);
