@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import secrets
 import shutil
 import time
 from pathlib import Path
@@ -14,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.auth import (
     SESSION_TTL_SECONDS,
+    session_cookie_name,
     create_api_key,
     get_current_admin,
     get_current_user,
@@ -21,15 +23,13 @@ from src.core.auth import (
     hash_token,
     password_policy,
     revoke_session,
-    session_cookie_name,
     set_password_policy_override,
     validate_password,
     verify_password,
 )
 from src.core.config import settings
 from src.core.crypto import encrypt_secret
-from src.core.session_manager import create_session
-from src.database.models.auth import UserApiKey
+from src.database.models.auth import UserApiKey, UserSession
 from src.database.models.user import User
 from src.database.models.app_integration_settings import AppIntegrationSettings
 from src.database.session import get_db
@@ -155,8 +155,14 @@ async def login(
     ):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials.")
 
-    session_context = await create_session(db, user, request)
-    session_token = session_context.token
+    session_token = secrets.token_urlsafe(32)
+    db.add(
+        UserSession(
+            user_id=user.id,
+            token_hash=hash_token(session_token),
+            expires_at=int(time.time()) + SESSION_TTL_SECONDS,
+        )
+    )
     await db.commit()
     response.set_cookie(
         key=session_cookie_name(request.headers.get("host", "")),

@@ -8,8 +8,8 @@ Create Date: 2026-09-28 00:00:00.000000
 
 from typing import Sequence, Union
 
-import sqlalchemy as sa
 from alembic import op
+import sqlalchemy as sa
 
 from src.database import migration_helpers as h
 

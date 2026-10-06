@@ -7,7 +7,7 @@ import time
 from typing import Final
 
 from fastapi import Depends, HTTPException, Request, status
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.config import settings
@@ -103,13 +103,9 @@ def create_api_key() -> tuple[str, str, str]:
 
 
 async def revoke_session(db: AsyncSession, session_token: str) -> bool:
-    """Revoke one browser session while preserving its audit metadata."""
+    """Delete one opaque session using only the hash of its cookie value."""
     result = await db.execute(
-        update(UserSession)
-        .where(
-            UserSession.token_hash == hash_token(session_token), UserSession.revoked_at.is_(None)
-        )
-        .values(revoked_at=int(time.time()))
+        delete(UserSession).where(UserSession.token_hash == hash_token(session_token))
     )
     await db.commit()
     return bool(result.rowcount)
@@ -135,6 +131,7 @@ async def purge_expired_sessions(db: AsyncSession, now: int | None = None) -> in
 async def get_current_user(
     request: Request,
     db: AsyncSession = _DB_DEPENDENCY,
+    authorization: str | None = None,
 ) -> User:
     user: User | None = None
     session_token = request.cookies.get(session_cookie_name(request.headers.get("host", "")))
@@ -149,10 +146,6 @@ async def get_current_user(
                 headers={"WWW-Authenticate": "Bearer"},
             )
         api_key = authorization[7:].strip()
-        if api_key.startswith("utpm_"):
-            raise HTTPException(
-                status_code=403, detail="Plugin management tokens cannot access application APIs."
-            )
         if not api_key.startswith(API_KEY_PREFIX):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -181,22 +174,9 @@ async def get_current_user(
             .where(
                 UserSession.token_hash == hash_token(session_token),
                 UserSession.expires_at > now,
-                UserSession.revoked_at.is_(None),
                 User.is_active.is_(True),
             )
         )
-
-        if user is not None:
-            await db.execute(
-                update(UserSession)
-                .where(
-                    UserSession.token_hash == hash_token(session_token),
-                    UserSession.revoked_at.is_(None),
-                    UserSession.last_seen_at <= now - 60,
-                )
-                .values(last_seen_at=now)
-            )
-            await db.commit()
 
     if user is None:
         raise HTTPException(
@@ -219,9 +199,6 @@ async def ensure_primary_user(db: AsyncSession) -> User:
         user = await db.scalar(select(User).where(User.email == email))
 
     if user is None:
-        # only a new account takes its password from the environment, so
-        # only then does the policy apply; checking it on every start made a
-        # later policy change crash startup for an account that already exists
         try:
             validate_password(settings.PRIMARY_USER_PASSWORD)
         except ValueError as exc:
@@ -247,10 +224,7 @@ async def ensure_primary_user(db: AsyncSession) -> User:
     return user
 
 
-_CURRENT_USER_DEPENDENCY = Depends(get_current_user)
-
-
-async def get_current_admin(user: User = _CURRENT_USER_DEPENDENCY) -> User:
+async def get_current_admin(user: User = Depends(get_current_user)) -> User:
     if not user.is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

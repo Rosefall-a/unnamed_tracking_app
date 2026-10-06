@@ -30,105 +30,12 @@ import KeyboardShortcutsSection from "../components/settings/KeyboardShortcutsSe
 import ConnectionsSection from "../components/settings/ConnectionsSection.vue";
 import AniListImportSection from "../components/settings/AniListImportSection.vue";
 import ApiKeysSection from "../components/settings/ApiKeysSection.vue";
-import PluginManagerSection from "../components/settings/PluginManagerSection.vue";
-import PluginContributionHost from "../components/plugins/PluginContributionHost.vue";
-import {
-  pluginSettingsSections,
-  pluginNavigation,
-  pageReplacement,
-  pageReplacementConflicts,
-  refreshPluginExtensions,
-} from "../state/pluginExtensions";
 import PasswordPolicySection from "../components/settings/PasswordPolicySection.vue";
 import AccountChip from "../components/AccountChip.vue";
 import BackButton from "../components/BackButton.vue";
 
 const router = useRouter();
 const route = useRoute();
-onMounted(() => void refreshPluginExtensions());
-
-const coreSectionIds = new Set([
-  "admin",
-  "metadata",
-  "connections",
-  "notifications",
-  "calendar",
-  "shortcuts",
-  "profile",
-  "interface",
-  "appearance",
-  "api-keys",
-  "calendar-notifications",
-  "upload",
-  "library",
-  "media-prefs",
-  "media-trash",
-  "scan",
-  "sources",
-  "media-refresh",
-  "export",
-  "oidc",
-  "server-integrations",
-  "users",
-  "plugins",
-  "password-policy",
-  "stats",
-  "tasks",
-  "logs",
-]);
-const visiblePluginSettings = computed(() => {
-  const seen = new Set<string>();
-  return pluginSettingsSections.value.filter((item) => {
-    if (item.adminOnly && !currentUser.value?.is_admin) return false;
-    if (
-      coreSectionIds.has(item.contributionId) ||
-      seen.has(item.contributionId)
-    )
-      return false;
-    seen.add(item.contributionId);
-    return true;
-  });
-});
-
-function pluginSettingsId(contributionId: string): string {
-  return contributionId;
-}
-
-const settingsReplacement = computed(() => pageReplacement("settings"));
-const settingsReplacementConflicts = computed(() =>
-  pageReplacementConflicts("settings"),
-);
-const showHostSettings = computed(
-  () => currentUser.value?.is_admin && route.query.host === "1",
-);
-
-const activePluginSettings = computed(() =>
-  visiblePluginSettings.value.find(
-    (item) => pluginSettingsId(item.contributionId) === activeSection.value,
-  ),
-);
-const visiblePluginSettingsNavigation = computed(() => {
-  const seen = new Set(
-    visiblePluginSettings.value.map((item) => item.contributionId),
-  );
-  return pluginNavigation.value.filter((item) => {
-    if (item.location !== "settings.sidebar" || !item.pageId) return false;
-    if (item.adminOnly && !currentUser.value?.is_admin) return false;
-    if (
-      coreSectionIds.has(item.contributionId) ||
-      seen.has(item.contributionId)
-    )
-      return false;
-    seen.add(item.contributionId);
-    return true;
-  });
-});
-const activePluginSettingsNavigation = computed(() =>
-  visiblePluginSettingsNavigation.value.find(
-    (item) => item.contributionId === activeSection.value,
-  ),
-);
-
 function goBack() {
   if (window.history.length > 1) router.back();
   else router.push("/");
@@ -175,32 +82,12 @@ const groups = computed<SettingsGroup[]>(() => {
       ...(currentUser.value?.is_admin
         ? [
             { id: "admin", label: "Administration" },
-            { id: "plugins", label: "Plugins" },
-            { id: "password-policy", label: "Password policy" },
             { id: "tasks", label: "Tasks" },
             { id: "logs", label: "Logs", comingSoon: true },
           ]
         : []),
     ],
   });
-  if (
-    visiblePluginSettings.value.length ||
-    visiblePluginSettingsNavigation.value.length
-  ) {
-    result.push({
-      label: "Plugin sections",
-      sections: [
-        ...visiblePluginSettings.value.map((item) => ({
-          id: pluginSettingsId(item.contributionId),
-          label: item.label,
-        })),
-        ...visiblePluginSettingsNavigation.value.map((item) => ({
-          id: item.contributionId,
-          label: item.label,
-        })),
-      ],
-    });
-  }
   return result;
 });
 
@@ -239,12 +126,8 @@ function openSection(id: string) {
 watch(
   () => route.query.section,
   (section) => {
-    const next = resolveSection(
-      typeof section === "string" ? section : undefined,
-    );
-    initialTab.value = (route.query.tab as string | undefined) ?? next.tab;
-    if (activeSection.value !== next.section)
-      activeSection.value = next.section;
+    const next = typeof section === "string" && section ? section : "profile";
+    if (activeSection.value !== next) activeSection.value = next;
   },
 );
 
@@ -264,31 +147,7 @@ watch(activeSection, async () => {
 </script>
 
 <template>
-  <main
-    v-if="settingsReplacement && !showHostSettings"
-    class="settings-page plugin-settings-replacement"
-  >
-    <p v-if="currentUser?.is_admin" class="replacement-notice" role="status">
-      <template v-if="settingsReplacementConflicts.length > 1">
-        Multiple plugins requested Settings replacement. The deterministic order
-        selected {{ settingsReplacement.pluginId }}.
-      </template>
-      <template v-else>
-        Settings is replaced by {{ settingsReplacement.pluginId }}.
-      </template>
-      <router-link :to="{ path: '/settings', query: { host: '1' } }">
-        Open host Settings
-      </router-link>
-    </p>
-    <PluginContributionHost
-      :plugin-id="settingsReplacement.pluginId"
-      :document="settingsReplacement.document"
-      :page-id="settingsReplacement.page.id"
-      :context="{ host_page: 'settings' }"
-      embedded
-    />
-  </main>
-  <main v-else class="settings-page">
+  <main class="settings-page">
     <BackButton fixed @click="goBack" />
     <AccountChip fixed />
     <div class="settings-layout">
@@ -327,13 +186,8 @@ watch(activeSection, async () => {
             :key="'library' + initialTab"
             :initial-tab="initialTab"
           />
-          <PluginManagerSection
-            v-else-if="activeSection === 'plugins' && currentUser?.is_admin"
-          />
           <PasswordPolicySection
-            v-else-if="
-              activeSection === 'password-policy' && currentUser?.is_admin
-            "
+            v-else-if="activeSection === 'password-policy'"
           />
           <StatsSection v-else-if="activeSection === 'stats'" />
           <template v-else-if="activeSection === 'export'">
@@ -363,21 +217,6 @@ watch(activeSection, async () => {
               'Restore a previous value',
             ]"
           />
-          <PluginContributionHost
-            v-else-if="activePluginSettings"
-            :plugin-id="activePluginSettings.pluginId"
-            :document="activePluginSettings.document"
-            :page-id="activePluginSettings.pageId"
-            embedded
-          />
-          <PluginContributionHost
-            v-else-if="activePluginSettingsNavigation?.pageId"
-            :plugin-id="activePluginSettingsNavigation.pluginId"
-            :document="activePluginSettingsNavigation.document"
-            :page-id="activePluginSettingsNavigation.pageId"
-            :context="{ host_page: 'settings' }"
-            embedded
-          />
         </div>
       </div>
     </div>
@@ -391,14 +230,6 @@ watch(activeSection, async () => {
   padding: 84px 40px 40px;
   background: var(--ui-bg);
   font-family: system-ui, sans-serif;
-}
-.replacement-notice {
-  margin: 0 0 16px;
-  color: #d8a15e;
-}
-.replacement-notice a {
-  margin-left: 8px;
-  color: inherit;
 }
 .settings-layout {
   width: 100%;

@@ -13,6 +13,7 @@ permissions:
 
 jobs:
   build-and-push:
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     runs-on: ubuntu-latest
 
     strategy:
@@ -24,9 +25,6 @@ jobs:
           - name: frontend
             context: ./src/frontend
             dockerfile: ./src/frontend/Dockerfile
-          - name: plugin-runtime
-            context: .
-            dockerfile: src/plugin-runtime/Dockerfile
           - name: wikicontainer
             context: .
             dockerfile: src/wikicontainer/Dockerfile

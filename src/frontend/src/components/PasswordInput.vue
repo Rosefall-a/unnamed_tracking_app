@@ -1,8 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, useAttrs } from "vue";
-
-defineOptions({ inheritAttrs: false });
-const attrs = useAttrs();
+import { computed, ref } from "vue";
 
 const props = withDefaults(
   defineProps<{
@@ -31,9 +28,7 @@ const emit = defineEmits<{
 }>();
 
 const showSecret = ref(false);
-const secretLabel = computed(() =>
-  props.mode === "replace" ? "secret" : "password",
-);
+const secretLabel = computed(() => (props.mode === "replace" ? "secret" : "password"));
 const showLabel = computed(() => `Show ${secretLabel.value}`);
 const hideLabel = computed(() => `Hide ${secretLabel.value}`);
 </script>
@@ -41,7 +36,6 @@ const hideLabel = computed(() => `Hide ${secretLabel.value}`);
 <template>
   <div class="password-input">
     <input
-      v-bind="attrs"
       class="password-input-field"
       :value="modelValue"
       :type="showSecret ? 'text' : 'password'"
@@ -51,9 +45,7 @@ const hideLabel = computed(() => `Hide ${secretLabel.value}`);
       :disabled="disabled"
       :readonly="readonly"
       :aria-label="inputAriaLabel || undefined"
-      @input="
-        emit('update:modelValue', ($event.target as HTMLInputElement).value)
-      "
+      @input="emit('update:modelValue', ($event.target as HTMLInputElement).value)"
     />
     <button
       type="button"
@@ -69,11 +61,14 @@ const hideLabel = computed(() => `Hide ${secretLabel.value}`);
         aria-hidden="true"
         focusable="false"
       >
-        <path
-          d="M3 3l18 18M10.6 10.6a2 2 0 102.8 2.8M9.9 4.3A10.8 10.8 0 0112 4c5.2 0 8.8 3.5 10 8a10.8 10.8 0 01-3.1 5.2M6.2 6.2A10.9 10.9 0 002 12c1.2 4.5 4.8 8 10 8 1.5 0 2.9-.3 4.1-.9"
-        />
+        <path d="M3 3l18 18M10.6 10.6a2 2 0 102.8 2.8M9.9 4.3A10.8 10.8 0 0112 4c5.2 0 8.8 3.5 10 8a10.8 10.8 0 01-3.1 5.2M6.2 6.2A10.9 10.9 0 002 12c1.2 4.5 4.8 8 10 8 1.5 0 2.9-.3 4.1-.9" />
       </svg>
-      <svg v-else viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <svg
+        v-else
+        viewBox="0 0 24 24"
+        aria-hidden="true"
+        focusable="false"
+      >
         <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z" />
         <circle cx="12" cy="12" r="2.5" />
       </svg>
@@ -94,18 +89,17 @@ const hideLabel = computed(() => `Hide ${secretLabel.value}`);
   width: 100%;
   min-width: 0;
   box-sizing: border-box;
-  background: var(--ui-bg);
-  border: 1px solid var(--ui-border);
+  background: #111;
+  border: 1px solid #3a3a3a;
   border-radius: 8px;
-  color: var(--ui-text);
-  padding: 10px 52px 10px 12px;
-  min-height: 44px;
+  color: #fff;
+  padding: 10px 44px 10px 12px;
   font: inherit;
 }
 
 .password-input-field:focus {
   outline: none;
-  border-color: var(--ui-accent);
+  border-color: #d68a34;
 }
 
 .password-input-field:disabled {
@@ -120,9 +114,9 @@ const hideLabel = computed(() => `Hide ${secretLabel.value}`);
 .visibility-button {
   position: absolute;
   top: 50%;
-  right: 1px;
-  width: 44px;
-  height: 44px;
+  right: 8px;
+  width: 30px;
+  height: 30px;
   transform: translateY(-50%);
   display: grid;
   place-items: center;
@@ -130,17 +124,17 @@ const hideLabel = computed(() => `Hide ${secretLabel.value}`);
   border: 0;
   border-radius: 6px;
   background: transparent;
-  color: var(--ui-dim);
+  color: #777;
   cursor: pointer;
 }
 
 .visibility-button:hover:not(:disabled) {
-  color: var(--ui-accent);
-  background: var(--ui-surface-2);
+  color: #d68a34;
+  background: rgba(255, 255, 255, 0.06);
 }
 
 .visibility-button:focus-visible {
-  outline: 2px solid var(--ui-accent);
+  outline: 2px solid #d68a34;
   outline-offset: 1px;
 }
 

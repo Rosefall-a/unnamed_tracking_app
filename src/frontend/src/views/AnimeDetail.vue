@@ -39,11 +39,8 @@ import type { ChainNode, BranchNode } from "../components/RelationsGraph.vue";
 import MediaPreviewModal from "../components/MediaPreviewModal.vue";
 import { useConfirm } from "../state/dialog";
 import { displayTitle } from "../utils/displayTitle";
-import MediaProviderPanel from "../components/MediaProviderPanel.vue";
 import MediaTopBar from "../components/MediaTopBar.vue";
 import BackButton from "../components/BackButton.vue";
-import PluginExtensionSlot from "../components/plugins/PluginExtensionSlot.vue";
-import PluginContextualActions from "../components/plugins/PluginContextualActions.vue";
 import {
   STATUS_BUCKETS,
   statusBucket,
@@ -910,21 +907,6 @@ async function onRatingChange(value: number | null) {
 
   <main v-else-if="show" class="detail">
     <MediaTopBar active="anime" />
-    <PluginExtensionSlot
-      slot-id="media.detail.after-header"
-      :context="{
-        host_page: 'media.detail',
-        media_id: show.id,
-        media_type: 'anime',
-      }"
-    />
-    <PluginContextualActions
-      :context="{
-        kind: 'media',
-        resource_id: String(show.id),
-        resource_type: 'anime',
-      }"
-    />
 
     <BackButton class="back-spot" @click="goBack" />
 
@@ -1025,7 +1007,6 @@ async function onRatingChange(value: number | null) {
           :text="show.description"
         />
         <MyNote :note="show.note" @save="saveNote" />
-        <MediaProviderPanel media-type="anime" :media-id="show.id" />
 
         <div v-if="allSeasons.length > 1" class="seasons-section">
           <h3 class="seasons-heading">

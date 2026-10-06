@@ -11,11 +11,7 @@ import ToggleButton from "./ToggleButton.vue";
 import PasswordInput from "../PasswordInput.vue";
 import type { AdminUser } from "../../services/admin";
 import PasswordRequirements from "./PasswordRequirements.vue";
-import {
-  fetchPasswordPolicy,
-  passwordValidationErrors,
-  type PasswordPolicy,
-} from "../../services/passwordPolicy";
+import { fetchPasswordPolicy, passwordValidationErrors, type PasswordPolicy } from "../../services/passwordPolicy";
 
 const users = ref<AdminUser[]>([]);
 const loading = ref(true);
@@ -36,14 +32,9 @@ async function loadUsers() {
 onMounted(async () => {
   await Promise.all([
     loadUsers(),
-    fetchPasswordPolicy()
-      .then((policy) => {
-        passwordPolicy.value = policy;
-      })
-      .catch((err) => {
-        error.value =
-          err instanceof Error ? err.message : "Failed to load password policy";
-      }),
+    fetchPasswordPolicy().then((policy) => { passwordPolicy.value = policy; }).catch((err) => {
+      error.value = err instanceof Error ? err.message : "Failed to load password policy";
+    }),
   ]);
 });
 
@@ -223,12 +214,8 @@ function openCreateForm() {
             mode="new"
             autocomplete="new-password"
             :required="true"
-        /></label>
-        <PasswordRequirements
-          v-if="passwordPolicy"
-          :password="newPassword"
-          :policy="passwordPolicy"
-        />
+          /></label>
+        <PasswordRequirements v-if="passwordPolicy" :password="newPassword" :policy="passwordPolicy" />
         <label class="field"
           ><span>Confirm password</span
           ><PasswordInput
@@ -236,7 +223,7 @@ function openCreateForm() {
             mode="new"
             autocomplete="new-password"
             :required="true"
-        /></label>
+          /></label>
         <ToggleButton v-model="newIsAdmin" label="Grant admin access"
           >Grant admin access</ToggleButton
         >

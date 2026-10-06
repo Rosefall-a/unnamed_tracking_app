@@ -1911,10 +1911,7 @@ async def test_the_airing_check_starts_on_and_the_refresh_off_and_intervals_stay
             await db.execute(delete(JobSetting))
             await db.commit()
 
-            jobs = {job["id"]: job for job in await list_jobs(db)}
-            airing, refresh = jobs["airing_check"], jobs["media_refresh"]
-            assert jobs["plugin_updates"]["enabled"] is True
-            assert jobs["plugin_updates"]["interval_minutes"] == 1440
+            airing, refresh = await list_jobs(db)
             assert (
                 airing["id"] == "airing_check" and airing["enabled"] is True
             )  # new episodes appear by themselves

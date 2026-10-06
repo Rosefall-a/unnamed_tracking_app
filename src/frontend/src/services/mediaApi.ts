@@ -77,16 +77,13 @@ export function createMediaApi<
     if (filters?.onlyFavorites) params.set("favorite", "true");
     if (filters?.onlyUnrated) params.set("only_unrated", "true");
     if (filters?.onlyWithNote) params.set("only_with_note", "true");
-    if (filters?.minScore !== null && filters?.minScore !== undefined)
-      params.set("min_score", String(filters.minScore));
-    if (filters?.yearFrom.trim())
-      params.set("year_from", filters.yearFrom.trim());
+    if (filters?.minScore !== null && filters?.minScore !== undefined) params.set("min_score", String(filters.minScore));
+    if (filters?.yearFrom.trim()) params.set("year_from", filters.yearFrom.trim());
     if (filters?.yearTo.trim()) params.set("year_to", filters.yearTo.trim());
     filters?.genres.forEach((genre) => params.append("genre", genre));
     if (filters?.genreMatchAll) params.set("genre_match_all", "true");
     filters?.formats.forEach((format) => params.append("format", format));
-    if (filters?.statusBucket && filters.statusBucket !== "all")
-      params.set("status_bucket", filters.statusBucket);
+    if (filters?.statusBucket && filters.statusBucket !== "all") params.set("status_bucket", filters.statusBucket);
     const response = await fetch(`${base}/list?${params}`, {
       credentials: "include",
     });

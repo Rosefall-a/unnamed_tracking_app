@@ -1,10 +1,10 @@
 #!/bin/sh
 set -eu
-
+   
 log() {
   printf '[ENTRYPOINT] %s\n' "$1"
 }
-
+  
 STATUS_DIR="/run/unnamed-tracking"
 STATUS_FILE="$STATUS_DIR/status.json"
 DETAILS_FILE="$STATUS_DIR/details.txt"
@@ -127,16 +127,8 @@ write_status "MIGRATING_DATABASE" "starting" "ready" "starting" "unknown" "unkno
 # src/database/migrate.py adopts a database made by an older (squashed)
 # migration history instead of failing on its unknown revision, and stops
 # with the reason on a real error rather than retrying it.
-mkfifo "$MIGRATION_FIFO"
-python /srv/startup/redact_logs.py <"$MIGRATION_FIFO" | tee "$MIGRATION_LOG" &
-MIGRATION_TAIL_PID="$!"
-MIGRATION_RESULT=0
-python -m src.database.migrate >"$MIGRATION_FIFO" 2>&1 || MIGRATION_RESULT="$?"
-wait "$MIGRATION_TAIL_PID" || true
-rm -f "$MIGRATION_FIFO"
-if [ "$MIGRATION_RESULT" -ne 0 ]; then
-  printf '%s\n' "Database migration failed. See /run/unnamed-tracking/migration.log for redacted diagnostics." >> "$DETAILS_FILE"
-  fail_startup "MIGRATION_FAILED" "Database migrations failed. Redacted diagnostics are retained at /run/unnamed-tracking/migration.log." "ready" "failed" "unknown" "unknown"
+if ! python -m src.database.migrate >>"$DETAILS_FILE" 2>&1; then
+  fail_startup "MIGRATION_FAILED" "Database migrations failed. See startup details for the reason." "ready" "failed" "unknown" "unknown"
 fi
 
 log "Migrations completed"
@@ -233,3 +225,4 @@ while :; do
   fi
   sleep 2
 done
+  

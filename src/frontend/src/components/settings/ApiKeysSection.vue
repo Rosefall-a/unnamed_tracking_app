@@ -137,22 +137,9 @@ onMounted(loadKeys);
         input-aria-label="Generated API key"
       />
       <button type="button" class="primary-copy" @click="copyCreatedKey">
-        {{
-          copyStatus === "copied"
-            ? "Copied"
-            : copyStatus === "failed"
-              ? "Failed"
-              : "Copy key"
-        }}
+        {{ copyStatus === "copied" ? "Copied" : copyStatus === "failed" ? "Failed" : "Copy key" }}
       </button>
-      <button
-        type="button"
-        class="secondary"
-        @click="
-          createdKey = '';
-          copyStatus = 'idle';
-        "
-      >
+      <button type="button" class="secondary" @click="createdKey = ''; copyStatus = 'idle'">
         Done
       </button>
     </div>

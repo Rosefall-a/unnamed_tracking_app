@@ -144,11 +144,7 @@ def _merge_or_append(results: list[dict[str, Any]], candidate: dict[str, Any]) -
     provider (e.g. RetroAchievements finding the same title Steam did) —
     merge onto the existing entry (filling only blanks) instead of creating
     a visually duplicate second result."""
-    if (
-        not isinstance(candidate, dict)
-        or not isinstance(candidate.get("title"), str)
-        or not candidate["title"].strip()
-    ):
+    if not isinstance(candidate, dict) or not isinstance(candidate.get("title"), str) or not candidate["title"].strip():
         # A malformed provider response must not abort an otherwise usable refresh.
         return
     for existing in results:
@@ -298,7 +294,7 @@ def _add_steamgriddb_art(result: dict[str, Any], client: SteamGridDBClient) -> N
                 for image_type, (_, _, dimensions) in image_fields.items()
             }.items()
         }
-    for image_type, (list_field, default_field, _dimensions) in image_fields.items():
+    for image_type, (list_field, default_field, dimensions) in image_fields.items():
         images = image_results[image_type]
         # highest community score first, so the default pick (urls[0]) is
         # the best-rated option rather than whatever order the API sent
@@ -607,7 +603,9 @@ def search_game_metadata(
     # together in one pass, each respecting its own list's order
     enrichment_specs = _specs_for(provider_order, DATA_PROVIDER_NAMES, "enrichment")
     if include_image_providers:
-        enrichment_specs += _specs_for(image_provider_order, IMAGE_PROVIDER_NAMES, "enrichment")
+        enrichment_specs += _specs_for(
+            image_provider_order, IMAGE_PROVIDER_NAMES, "enrichment"
+        )
 
     # Primary providers are independent of each other (none reads another's
     # results), so they're the real bottleneck when run one at a time —

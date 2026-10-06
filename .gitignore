@@ -4,5 +4,3 @@
 .mypy_cache
 data
 .env.old
-/wiki/site/
-/.validation/

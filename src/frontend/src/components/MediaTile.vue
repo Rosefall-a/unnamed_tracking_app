@@ -17,7 +17,6 @@ import type { GameProfile } from "../services/gameProfiles";
 
 const props = defineProps<{
   item: T;
-  readerUrl?: string;
   achievements?: Achievement[];
   showGameTitle?: boolean;
   row?: boolean;
@@ -383,16 +382,6 @@ function onThumbClick() {
       </button>
     </div>
 
-    <a
-      v-if="readerUrl && !selecting"
-      :href="readerUrl"
-      class="reader-link ui-btn ui-btn-secondary"
-      target="_blank"
-      rel="noopener noreferrer"
-      @click.stop
-    >
-      Open reader
-    </a>
     <MediaEditDialog
       v-if="editing"
       :item="item"

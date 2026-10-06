@@ -25,9 +25,7 @@ def test_manual_edit_records_a_lock():
 
 
 def test_provider_refresh_skips_existing_manual_lock():
-    game = SimpleNamespace(
-        description="My description", developer="Old", locked_fields=["description"]
-    )
+    game = SimpleNamespace(description="My description", developer="Old", locked_fields=["description"])
     provider = {"description": "Provider description", "developer": "New"}
     safe = {k: v for k, v in provider.items() if k not in game.locked_fields}
     apply_updates_with_locking(game, safe, {"description", "developer"})

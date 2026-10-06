@@ -9,9 +9,9 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.sessions import SessionMiddleware
 
 from src.api.routes import (
-    anime,
-    api_keys,
     app_integrations,
+    api_keys,
+    anime,
     auth,
     calendar_events,
     calendar_feed,
@@ -25,41 +25,32 @@ from src.api.routes import (
     library_sync,
     media,
     media_extras,
-    media_images,
     media_io,
+    media_images,
     media_lists,
-    media_provider,
+    steam_tags_refresh,
     media_stats,
-    movies,
-    notification_providers,
     notifications,
     preferences,
-    session_manager,
+    movies,
     settings,
     stats,
-    steam_tags_refresh,
     tv_shows,
     users,
 )
 from src.api.routes.auth_oidc import router as auth_oidc_router
 from src.api.routes.deployment_settings import router as deployment_settings_router
-from src.api.routes.plugin_permissions import router as plugin_permissions_router
-from src.api.routes.plugins import host_router as plugin_host_routes
-from src.api.routes.plugins import router as plugins_router
 from src.api.routes.real_ip import router as real_ip_router
-from src.api.routes.settings import get_or_create_app_integration_settings
 from src.api.routes.setup import router as setup_router
+from src.api.routes.settings import get_or_create_app_integration_settings
 from src.api.routes.utils.misc import router as misc_router
 from src.core.auth import ensure_primary_user, set_password_policy_override
 from src.core.config import settings as app_settings
 from src.core.provider_credentials import apply_deployment_provider_credentials
-from src.core.session_manager import purge_old_sessions
 from src.database.session import SessionLocal
 from src.features.backup.scheduler import run_backup_loop
 from src.features.jobs import run_jobs_loop
 from src.features.trash.sweep import run_sweep_loop
-from src.plugin_api.backend_routes import reserve_host_routes
-from src.plugin_api.pwa import router as pwa_router
 
 app = FastAPI(
     title="My API", docs_url="/api/docs", redoc_url="/api/redoc", openapi_url="/api/openapi.json"
@@ -108,9 +99,6 @@ app.include_router(auth_oidc_router)
 app.include_router(setup_router)
 app.include_router(settings.router)
 app.include_router(deployment_settings_router)
-app.include_router(plugin_permissions_router)
-app.include_router(plugins_router)
-app.include_router(pwa_router)
 app.include_router(real_ip_router)
 app.include_router(app_integrations.router)
 app.include_router(media.router)
@@ -120,13 +108,10 @@ app.include_router(export_import.router)
 app.include_router(jobs.router)
 app.include_router(media_io.router)
 app.include_router(media_extras.router)
-app.include_router(media_provider.router)
 app.include_router(media_images.router)
 app.include_router(steam_tags_refresh.router)
 app.include_router(media_lists.router)
 app.include_router(notifications.router)
-app.include_router(notification_providers.router)
-app.include_router(session_manager.router)
 app.include_router(media_stats.router)
 app.include_router(preferences.router)
 app.include_router(calendar_events.router)
@@ -146,15 +131,13 @@ async def bootstrap_primary_user() -> None:
             await ensure_primary_user(db)
         app_integrations_row = await get_or_create_app_integration_settings(db)
         if app_integrations_row.password_min_length is not None:
-            set_password_policy_override(
-                {
-                    "min_length": app_integrations_row.password_min_length,
-                    "require_uppercase": bool(app_integrations_row.password_require_uppercase),
-                    "require_lowercase": bool(app_integrations_row.password_require_lowercase),
-                    "require_digit": bool(app_integrations_row.password_require_digit),
-                    "require_symbol": bool(app_integrations_row.password_require_symbol),
-                }
-            )
+            set_password_policy_override({
+                "min_length": app_integrations_row.password_min_length,
+                "require_uppercase": bool(app_integrations_row.password_require_uppercase),
+                "require_lowercase": bool(app_integrations_row.password_require_lowercase),
+                "require_digit": bool(app_integrations_row.password_require_digit),
+                "require_symbol": bool(app_integrations_row.password_require_symbol),
+            })
         apply_deployment_provider_credentials(app_integrations_row)
 
 
@@ -169,56 +152,11 @@ async def start_backup_loop() -> None:
 
 
 @app.on_event("startup")
-async def start_session_retention_loop() -> None:
-    async def loop() -> None:
-        while True:
-            await asyncio.sleep(24 * 60 * 60)
-            try:
-                async with SessionLocal() as db:
-                    await purge_old_sessions(db)
-            except Exception:
-                import logging
-
-                logging.getLogger(__name__).exception("Session retention cleanup failed")
-
-    asyncio.create_task(loop())
-
-
-@app.on_event("startup")
 async def start_jobs_loop() -> None:
     # scheduled jobs (see features/jobs.py), including the airing check
-    import logging
-
-    from src.plugin_api.recovery import recover_transactions
-    from src.plugin_api.runtime_client import PluginRuntimeClient, PluginRuntimeUnavailable
-
-    # Runtime starts alongside the host. No package can auto-start while pending;
-    # retry this reconciliation when the runtime becomes reachable.
-    async def recover_and_start_jobs() -> None:
-        for _ in range(30):
-            try:
-                async with SessionLocal() as db:
-                    await recover_transactions(PluginRuntimeClient(), db)
-                break
-            except PluginRuntimeUnavailable:
-                await asyncio.sleep(5)
-            except Exception:
-                logging.getLogger(__name__).exception("Plugin transaction recovery failed")
-                await asyncio.sleep(5)
-        await run_jobs_loop()
-
-    asyncio.create_task(recover_and_start_jobs())
+    asyncio.create_task(run_jobs_loop())
 
 
 @app.get("/health")
 def health():
     return {"status": "ok"}
-
-
-# This catch-all must remain last so plugins cannot shadow host-owned routes.
-reserve_host_routes(
-    (route.path, frozenset(route.methods or ()))
-    for route in app.routes
-    if hasattr(route, "path") and hasattr(route, "methods")
-)
-app.include_router(plugin_host_routes)

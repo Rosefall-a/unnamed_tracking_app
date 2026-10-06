@@ -146,13 +146,6 @@ echo "Startup diagnostics are reachable before PostgreSQL is ready."
 curl --fail --silent --show-error "$BASE_URL/_startup/status.json?ts=$RANDOM" >"$ARTIFACT_DIR/pre-ready-status.json"
 curl --fail --silent --show-error "$BASE_URL/_startup/details.txt?ts=$RANDOM" >"$ARTIFACT_DIR/pre-ready-details.txt"
 
-echo "Checking that startup API requests return JSON rather than the diagnostic HTML."
-startup_api_status="$(curl --silent --show-error --dump-header "$ARTIFACT_DIR/pre-ready-api-headers.txt" --output "$ARTIFACT_DIR/pre-ready-api.json" --write-out '%{http_code}' "$BASE_URL/api/auth/me")"
-[[ "$startup_api_status" == 503 ]]
-grep -qi '^Content-Type: application/json' "$ARTIFACT_DIR/pre-ready-api-headers.txt"
-grep -qi '^Retry-After: 5' "$ARTIFACT_DIR/pre-ready-api-headers.txt"
-python3 -c 'import json,sys; assert "starting" in json.load(open(sys.argv[1]))["detail"]' "$ARTIFACT_DIR/pre-ready-api.json"
-
 echo "Starting PostgreSQL and waiting for the production entrypoint."
 "${COMPOSE[@]}" start db
 wait_for_db
@@ -198,34 +191,6 @@ printf '%s\n' "$login_response" >"$ARTIFACT_DIR/login.json"
 me_response="$(curl --fail --silent --show-error -b "$ARTIFACT_DIR/cookies.txt" "$BASE_URL/api/auth/me")"
 printf '%s\n' "$me_response" >"$ARTIFACT_DIR/api-me.json"
 printf '%s\n' "$me_response" | grep -q '"username":"smoke"'
-
-echo "Checking native upload limits beyond Nginx's former 1 MB ceiling."
-curl --fail --silent --show-error -b "$ARTIFACT_DIR/cookies.txt" \
-  "$BASE_URL/api/settings/upload-limits" >"$ARTIFACT_DIR/upload-limits-before.json"
-curl --fail --silent --show-error -b "$ARTIFACT_DIR/cookies.txt" -X PUT \
-  -H 'Content-Type: application/json' -d '{"max_upload_size_mb":1}' \
-  "$BASE_URL/api/settings/upload-limit" >"$ARTIFACT_DIR/upload-limit.json"
-curl --fail --silent --show-error -b "$ARTIFACT_DIR/cookies.txt" \
-  -H 'Content-Type: application/json' \
-  -d '{"title":"Production upload boundary","folder_location":"production-upload-smoke"}' \
-  "$BASE_URL/api/game/create" >"$ARTIFACT_DIR/upload-game.json"
-game_id="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["id"])' "$ARTIFACT_DIR/upload-game.json")"
-python3 -c 'from pathlib import Path; import sys; Path(sys.argv[1]).write_bytes(b"x" * (1024 * 1024 + 1))' "$ARTIFACT_DIR/oversized.png"
-curl --fail --silent --show-error -b "$ARTIFACT_DIR/cookies.txt" \
-  -D "$ARTIFACT_DIR/upload-response-headers.txt" \
-  -F "file=@$ARTIFACT_DIR/oversized.png;type=image/png" \
-  "$BASE_URL/api/game/$game_id/screenshots" >"$ARTIFACT_DIR/upload-rejection.json"
-grep -qi 'content-type: application/json' "$ARTIFACT_DIR/upload-response-headers.txt"
-python3 -c 'import json,sys; assert "Larger than 1 MB." in str(json.load(open(sys.argv[1])))' "$ARTIFACT_DIR/upload-rejection.json"
-curl --fail --silent --show-error -b "$ARTIFACT_DIR/cookies.txt" -X PUT \
-  -H 'Content-Type: application/json' -d "@$ARTIFACT_DIR/upload-limits-before.json" \
-  "$BASE_URL/api/settings/upload-limit" >/dev/null
-curl --fail --silent --show-error -b "$ARTIFACT_DIR/cookies.txt" -X DELETE \
-  "$BASE_URL/api/game/delete/$game_id" >/dev/null
-for private_log in backend.log migration.log; do
-  status="$(curl --silent --show-error -o /dev/null -w '%{http_code}' "$BASE_URL/_startup/$private_log")"
-  [[ "$status" == 404 ]]
-done
 
 echo "Checking shutdown cleanup behavior of the current production artifact."
 "${COMPOSE[@]}" stop -t 10 app || true

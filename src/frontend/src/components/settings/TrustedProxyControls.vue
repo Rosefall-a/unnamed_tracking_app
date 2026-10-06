@@ -20,10 +20,7 @@ const custom = ref("");
 const error = ref<string | null>(null);
 
 function tokens(value: string): string[] {
-  return value
-    .split(/\s+/)
-    .map((item) => item.trim())
-    .filter(Boolean);
+  return value.split(/\s+/).map((item) => item.trim()).filter(Boolean);
 }
 
 function add(values: string[]) {
@@ -52,11 +49,9 @@ onMounted(async () => {
       credentials: "include",
     });
     if (!response.ok) throw new Error();
-    presets.value = (
-      (await response.json()) as {
-        presets: Record<string, Preset>;
-      }
-    ).presets;
+    presets.value = (await response.json() as {
+      presets: Record<string, Preset>;
+    }).presets;
   } catch {
     error.value = "Unable to load proxy presets.";
   }
@@ -80,9 +75,7 @@ onMounted(async () => {
       :value="modelValue"
       :disabled="disabled"
       placeholder="127.0.0.1/32 ::1/128"
-      @input="
-        emit('update:modelValue', ($event.target as HTMLInputElement).value)
-      "
+      @input="emit('update:modelValue', ($event.target as HTMLInputElement).value)"
     />
     <div class="custom-row">
       <input

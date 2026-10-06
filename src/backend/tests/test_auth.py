@@ -8,7 +8,6 @@ from src.core.auth import (
     hash_password,
     hash_token,
     revoke_session,
-    session_cookie_name,
     validate_password,
     verify_password,
 )
@@ -60,15 +59,14 @@ def test_api_key_contains_only_safe_persisted_derivatives() -> None:
 
 
 @pytest.mark.asyncio
-async def test_revoke_session_preserves_metadata_and_commits() -> None:
+async def test_revoke_session_deletes_hash_and_commits() -> None:
     db = AsyncMock()
     db.execute.return_value = Mock(rowcount=1)
 
     assert await revoke_session(db, "raw-browser-cookie") is True
 
     statement = db.execute.await_args.args[0]
-    assert "UPDATE user_sessions" in str(statement)
-    assert "revoked_at" in str(statement)
+    assert "DELETE FROM user_sessions" in str(statement)
     assert hash_token("raw-browser-cookie") in statement.compile().params.values()
     db.commit.assert_awaited_once()
 
@@ -98,7 +96,7 @@ async def test_revoked_api_key_cannot_fall_back_to_browser_session() -> None:
             "headers": [
                 (b"host", b"localhost"),
                 (b"authorization", f"Bearer {api_key}".encode()),
-                (b"cookie", f"{session_cookie_name('localhost')}=still-valid".encode()),
+                (b"cookie", b"session_anything=still-valid"),
             ],
         }
     )

@@ -70,10 +70,8 @@ async def library_page(  # pylint: disable=too-many-arguments,too-many-positiona
     if min_score is not None:
         stmt = stmt.where(model.rating_overall >= min_score)
     if year_column is not None:
-        if year_from is not None:
-            stmt = stmt.where(year_column >= date(year_from, 1, 1))
-        if year_to is not None:
-            stmt = stmt.where(year_column <= date(year_to, 12, 31))
+        if year_from is not None: stmt = stmt.where(year_column >= date(year_from, 1, 1))
+        if year_to is not None: stmt = stmt.where(year_column <= date(year_to, 12, 31))
 
     count_stmt = select(model.status, func.count()).where(
         model.user_id == user_id, model.deleted_at.is_(None)
@@ -86,9 +84,7 @@ async def library_page(  # pylint: disable=too-many-arguments,too-many-positiona
         count_stmt = count_stmt.where(model.status.in_(status_values))
     if genres:
         genre_clauses = [model.genres.contains([genre]) for genre in genres]
-        count_stmt = count_stmt.where(
-            *(genre_clauses if genre_match_all else [or_(*genre_clauses)])
-        )
+        count_stmt = count_stmt.where(*(genre_clauses if genre_match_all else [or_(*genre_clauses)]))
     format_column = getattr(model, "format", None)
     if formats and format_column is not None:
         count_stmt = count_stmt.where(format_column.in_(formats))
@@ -99,10 +95,8 @@ async def library_page(  # pylint: disable=too-many-arguments,too-many-positiona
     if min_score is not None:
         count_stmt = count_stmt.where(model.rating_overall >= min_score)
     if year_column is not None:
-        if year_from is not None:
-            count_stmt = count_stmt.where(year_column >= date(year_from, 1, 1))
-        if year_to is not None:
-            count_stmt = count_stmt.where(year_column <= date(year_to, 12, 31))
+        if year_from is not None: count_stmt = count_stmt.where(year_column >= date(year_from, 1, 1))
+        if year_to is not None: count_stmt = count_stmt.where(year_column <= date(year_to, 12, 31))
     counts_result = await db.execute(count_stmt.group_by(model.status))
     status_counts = {row_status.value: count for row_status, count in counts_result.all()}
 
@@ -143,9 +137,7 @@ async def trash_listing(db: AsyncSession, model: Any, user_id: Any) -> list[dict
 def require_deleted(row: Any, label: str) -> None:
     """Restoring and purging only make sense for something in the trash."""
     if row.deleted_at is None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=f"{label} isn't deleted."
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"{label} isn't deleted.")
 
 
 async def restore_row(db: AsyncSession, row: Any, label: str) -> None:

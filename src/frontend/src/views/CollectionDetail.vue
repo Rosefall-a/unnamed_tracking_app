@@ -312,9 +312,7 @@ async function onEdit(payload: CollectionFormPayload) {
       members: collectionGames.value,
     });
     if (payload.name !== oldName) {
-      await router.replace(
-        `/games/collections/${encodeURIComponent(payload.name)}`,
-      );
+      await router.replace(`/games/collections/${encodeURIComponent(payload.name)}`);
     }
   } catch (err) {
     error.value =

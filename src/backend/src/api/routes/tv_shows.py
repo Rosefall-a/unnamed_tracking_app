@@ -23,7 +23,6 @@ from src.api.routes.media_common import (
     title_search,
     trash_listing,
 )
-from src.api.routes.media_extras import log_activity, status_change_detail
 from src.api.schemas.pagination import PaginatedResponse
 from src.api.schemas.tv_show import (
     EpisodesBulkWatched,
@@ -35,6 +34,7 @@ from src.api.schemas.tv_show import (
     TVShowRead,
     TVShowUpdate,
 )
+from src.api.routes.media_extras import log_activity, status_change_detail
 from src.core.app_integrations import get_or_create_app_integration_settings
 from src.core.auth import get_current_user
 from src.core.integrations import resolve_integrations
@@ -44,31 +44,12 @@ from src.database.models.user import User
 from src.database.session import get_db
 from src.features.episode_progress import apply_counter, counter_from_flags, materialize_progress
 from src.features.metadata.locked_fields import apply_updates_with_locking
+from src.features.tv_seasons import check_in_background, is_due
 from src.features.metadata.movies.tmdb import TMDBClient
 from src.features.metadata.refresh import quick_check_tv_season
 from src.features.metadata.tv.episode_sync import fetch_season_episodes
 from src.features.metadata.tv.search import search_tv_metadata
 from src.features.metadata.tv.tvdb import TVDBClient
-from src.features.tv_seasons import check_in_background, is_due
-
-_QUERY_DEFAULT = Query(..., min_length=2, max_length=100, alias="query")
-_LIMIT_DEFAULT = Query(default=8, ge=1, le=20, alias="limit")
-_DB_DEFAULT = Depends(get_db)
-_CURRENT_USER_DEFAULT = Depends(get_current_user)
-_STATUS_FILTER_DEFAULT = Query(default=None, alias="status")
-_FAVORITE_DEFAULT = Query(default=None, alias="favorite")
-_SEARCH_DEFAULT = Query(default=None, description="Case-insensitive title search", alias="search")
-_SKIP_DEFAULT = Query(default=0, ge=0, alias="skip")
-_LIMIT_DEFAULT_2 = Query(default=100, ge=1, le=200, alias="limit")
-_STATUS_BUCKET_DEFAULT = Query(default=None, alias="status_bucket")
-_GENRE_DEFAULT = Query(default=[], alias="genre")
-_GENRE_MATCH_ALL_DEFAULT = Query(default=False, alias="genre_match_all")
-_FORMAT_DEFAULT = Query(default=[], alias="format")
-_ONLY_UNRATED_DEFAULT = Query(default=False, alias="only_unrated")
-_ONLY_WITH_NOTE_DEFAULT = Query(default=False, alias="only_with_note")
-_MIN_SCORE_DEFAULT = Query(default=None, ge=0, le=10, alias="min_score")
-_YEAR_FROM_DEFAULT = Query(default=None, ge=1, le=9999, alias="year_from")
-_YEAR_TO_DEFAULT = Query(default=None, ge=1, le=9999, alias="year_to")
 
 router = APIRouter(prefix="/api/tv", tags=["tv"], dependencies=[Depends(get_current_user)])
 logger = logging.getLogger(__name__)
@@ -140,10 +121,10 @@ async def _get_season_or_404(season_id: UUID, show_id: UUID, db: AsyncSession) -
 
 @router.get("/metadata/search", response_model=TVMetadataSearchResponse)
 async def search_metadata(
-    query: str = _QUERY_DEFAULT,
-    limit: int = _LIMIT_DEFAULT,
-    db: AsyncSession = _DB_DEFAULT,
-    current_user: User = _CURRENT_USER_DEFAULT,
+    query: str = Query(..., min_length=2, max_length=100),
+    limit: int = Query(default=8, ge=1, le=20),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> dict:
     """Search TMDB and OMDb for data that can prefill a new show,
     including its full season list where TMDB has it."""
@@ -168,8 +149,8 @@ async def search_metadata(
 @router.post("/create", response_model=TVShowRead, status_code=status.HTTP_201_CREATED)
 async def create_show(
     payload: TVShowCreate,
-    db: AsyncSession = _DB_DEFAULT,
-    current_user: User = _CURRENT_USER_DEFAULT,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> TVShow:
     """Create a show, optionally bulk-creating its seasons in the same
     transaction if the caller already has a season list (e.g. from a
@@ -207,8 +188,8 @@ async def create_show(
 @router.post("/{show_id}/refresh-airing", response_model=TVShowRead)
 async def refresh_airing(
     show_id: UUID,
-    db: AsyncSession = _DB_DEFAULT,
-    current_user: User = _CURRENT_USER_DEFAULT,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> TVShow:
     """Runs the airing check for just this show right now (the background
     loop only comes around every 30 minutes)."""
@@ -226,37 +207,32 @@ async def refresh_airing(
 
 @router.get("/list", response_model=PaginatedResponse[TVShowLibraryRead])
 async def list_shows(
-    db: AsyncSession = _DB_DEFAULT,
-    current_user: User = _CURRENT_USER_DEFAULT,
-    status_filter: TVShowStatus | None = _STATUS_FILTER_DEFAULT,
-    favorite: bool | None = _FAVORITE_DEFAULT,
-    search: str | None = _SEARCH_DEFAULT,
-    skip: int = _SKIP_DEFAULT,
-    limit: int = _LIMIT_DEFAULT_2,
-    status_bucket: str | None = _STATUS_BUCKET_DEFAULT,
-    genre: list[str] = _GENRE_DEFAULT,
-    genre_match_all: bool = _GENRE_MATCH_ALL_DEFAULT,
-    format: list[str] = _FORMAT_DEFAULT,
-    only_unrated: bool = _ONLY_UNRATED_DEFAULT,
-    only_with_note: bool = _ONLY_WITH_NOTE_DEFAULT,
-    min_score: float | None = _MIN_SCORE_DEFAULT,
-    year_from: int | None = _YEAR_FROM_DEFAULT,
-    year_to: int | None = _YEAR_TO_DEFAULT,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    status_filter: TVShowStatus | None = Query(default=None, alias="status"),
+    favorite: bool | None = Query(default=None),
+    search: str | None = Query(default=None, description="Case-insensitive title search"),
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=100, ge=1, le=200),
+    status_bucket: str | None = Query(default=None),
+    genre: list[str] = Query(default=[]),
+    genre_match_all: bool = Query(default=False),
+    format: list[str] = Query(default=[]),
+    only_unrated: bool = Query(default=False),
+    only_with_note: bool = Query(default=False),
+    min_score: float | None = Query(default=None, ge=0, le=10),
+    year_from: int | None = Query(default=None, ge=1, le=9999),
+    year_to: int | None = Query(default=None, ge=1, le=9999),
 ) -> PaginatedResponse[TVShowLibraryRead]:
     """Return one page of the current user's shows and the total matching it."""
     status_values = None
     if status_bucket and status_bucket != "all":
         status_values = {
-            "plan": {TVShowStatus.WISHLIST, TVShowStatus.WATCHLIST},
-            "hold": {TVShowStatus.BACKLOG},
+            "plan": {TVShowStatus.WISHLIST, TVShowStatus.WATCHLIST}, "hold": {TVShowStatus.BACKLOG},
             "watching": {TVShowStatus.IN_PROGRESS, TVShowStatus.REWATCH},
-            "completed": {TVShowStatus.WATCHED, TVShowStatus.FAVORITE},
-            "dropped": {TVShowStatus.DROPPED},
+            "completed": {TVShowStatus.WATCHED, TVShowStatus.FAVORITE}, "dropped": {TVShowStatus.DROPPED},
         }.get(status_bucket)
-        if status_values is None:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid status bucket."
-            )
+        if status_values is None: raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid status bucket.")
     return await library_page(
         db,
         TVShow,
@@ -266,24 +242,17 @@ async def list_shows(
         search_clause=title_search([TVShow.title], search),
         skip=skip,
         limit=limit,
-        status_values=status_values,
-        genres=genre,
-        genre_match_all=genre_match_all,
-        formats=format,
-        only_unrated=only_unrated,
-        only_with_note=only_with_note,
-        min_score=min_score,
-        year_column=TVShow.first_air_date,
-        year_from=year_from,
-        year_to=year_to,
+        status_values=status_values, genres=genre, genre_match_all=genre_match_all,
+        formats=format, only_unrated=only_unrated, only_with_note=only_with_note,
+        min_score=min_score, year_column=TVShow.first_air_date, year_from=year_from, year_to=year_to,
     )
 
 
 @router.get("/get/{show_id}", response_model=TVShowRead)
 async def get_show(
     show_id: UUID,
-    db: AsyncSession = _DB_DEFAULT,
-    current_user: User = _CURRENT_USER_DEFAULT,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> TVShow:
     """Return one show by ID, with its seasons. If it has been a while,
     also asks TVmaze in the background whether the show has a new season
@@ -298,8 +267,8 @@ async def get_show(
 async def update_show(
     show_id: UUID,
     payload: TVShowUpdate,
-    db: AsyncSession = _DB_DEFAULT,
-    current_user: User = _CURRENT_USER_DEFAULT,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> TVShow:
     """Update a show and keep its derived sort title synchronized."""
     show = await _get_show_or_404(show_id, db, current_user.id)
@@ -333,8 +302,8 @@ async def update_show(
 @router.delete("/delete/{show_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_show(
     show_id: UUID,
-    db: AsyncSession = _DB_DEFAULT,
-    current_user: User = _CURRENT_USER_DEFAULT,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> None:
     """Soft-delete a show by ID (its seasons stay attached, hidden along with it)."""
     show = await _get_show_or_404(show_id, db, current_user.id)
@@ -343,8 +312,8 @@ async def delete_show(
 
 @router.get("/trash")
 async def list_show_trash(
-    db: AsyncSession = _DB_DEFAULT,
-    current_user: User = _CURRENT_USER_DEFAULT,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> list[dict]:
     """Deleted shows, most recently deleted first. No purge job runs
     against these — unlike Game's on-disk folders, a show is just a row
@@ -356,8 +325,8 @@ async def list_show_trash(
 @router.post("/{show_id}/restore", response_model=TVShowRead)
 async def restore_show(
     show_id: UUID,
-    db: AsyncSession = _DB_DEFAULT,
-    current_user: User = _CURRENT_USER_DEFAULT,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> TVShow:
     show = await _get_show_or_404(show_id, db, current_user.id, include_deleted=True)
     await restore_row(db, show, "Show")
@@ -367,8 +336,8 @@ async def restore_show(
 @router.delete("/{show_id}/purge", status_code=status.HTTP_204_NO_CONTENT)
 async def purge_show(
     show_id: UUID,
-    db: AsyncSession = _DB_DEFAULT,
-    current_user: User = _CURRENT_USER_DEFAULT,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> None:
     """Permanently removes an already-deleted show and its seasons/
     episodes. Only reachable from trash — a show still active must be
@@ -381,8 +350,8 @@ async def purge_show(
 async def create_season(
     show_id: UUID,
     payload: SeasonCreate,
-    db: AsyncSession = _DB_DEFAULT,
-    current_user: User = _CURRENT_USER_DEFAULT,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> TVShow:
     show = await _get_show_or_404(show_id, db, current_user.id)
     db.add(TVSeason(**payload.model_dump(), show_id=show.id))
@@ -395,8 +364,8 @@ async def update_season(
     show_id: UUID,
     season_id: UUID,
     payload: SeasonUpdate,
-    db: AsyncSession = _DB_DEFAULT,
-    current_user: User = _CURRENT_USER_DEFAULT,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> TVShow:
     show = await _get_show_or_404(show_id, db, current_user.id)
     season = await _get_season_or_404(season_id, show_id, db)
@@ -431,8 +400,8 @@ async def update_season(
 async def delete_season(
     show_id: UUID,
     season_id: UUID,
-    db: AsyncSession = _DB_DEFAULT,
-    current_user: User = _CURRENT_USER_DEFAULT,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> TVShow:
     await _get_show_or_404(show_id, db, current_user.id)
     season = await _get_season_or_404(season_id, show_id, db)
@@ -456,8 +425,8 @@ async def _get_episode_or_404(episode_id: UUID, season_id: UUID, db: AsyncSessio
 async def list_episodes(
     show_id: UUID,
     season_id: UUID,
-    db: AsyncSession = _DB_DEFAULT,
-    current_user: User = _CURRENT_USER_DEFAULT,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> TVShow:
     """Return the season's episodes, syncing them in from TVmaze on the
     very first request (nothing to sync from if the show has no
@@ -499,8 +468,8 @@ async def bulk_set_episodes_watched(
     show_id: UUID,
     season_id: UUID,
     payload: EpisodesBulkWatched,
-    db: AsyncSession = _DB_DEFAULT,
-    current_user: User = _CURRENT_USER_DEFAULT,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> TVShow:
     """Sets `watched` on a whole batch of episodes in one request — see
     the anime version of this route for why. Registered ahead of the
@@ -541,8 +510,8 @@ async def update_episode(
     season_id: UUID,
     episode_id: UUID,
     payload: EpisodeUpdate,
-    db: AsyncSession = _DB_DEFAULT,
-    current_user: User = _CURRENT_USER_DEFAULT,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> TVShow:
     show = await _get_show_or_404(show_id, db, current_user.id)
     season = await _get_season_or_404(season_id, show_id, db)
@@ -578,8 +547,8 @@ async def update_episode(
 @router.get("/{show_id}/relations")
 async def get_show_relations(
     show_id: UUID,
-    db: AsyncSession = _DB_DEFAULT,
-    current_user: User = _CURRENT_USER_DEFAULT,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> dict:
     """TheTVDB is the only real franchise/relations source for TV shows —
     TMDB has no collection concept outside of movies. Requires its own
@@ -602,8 +571,8 @@ async def get_show_relations(
 @router.get("/{show_id}/recommended")
 async def get_show_recommended(
     show_id: UUID,
-    db: AsyncSession = _DB_DEFAULT,
-    current_user: User = _CURRENT_USER_DEFAULT,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> dict:
     show = await _get_show_or_404(show_id, db, current_user.id)
     app_integrations = resolve_integrations(await get_or_create_app_integration_settings(db))
