@@ -660,6 +660,7 @@ async function confirmInstall(confirmation: PluginInstallConfirmation) {
         {
           approved_permissions: confirmation.approvedPermissions,
           expected_digest: installPreview.value.digest,
+          permissions_reviewed: Boolean(stagedTarget.value),
           version_change_confirmed:
             confirmation.versionChangeConfirmed ?? false,
           expected_installed_version: confirmation.expectedInstalledVersion,

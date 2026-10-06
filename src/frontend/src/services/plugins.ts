@@ -543,6 +543,7 @@ export const updatePlugin = async (
     operation,
     allow_untrusted: allowUntrusted ? "true" : "false",
     confirm_dangerous: confirmation.confirmDangerous ? "true" : "false",
+    permissions_reviewed: confirmation.expectedDigest ? "true" : "false",
     version_change_confirmed: confirmation.versionChangeConfirmed
       ? "true"
       : "false",
@@ -584,6 +585,7 @@ export const updatePluginFromUrl = async (
   const query = new URLSearchParams({
     operation,
     allow_untrusted: allowUntrusted ? "true" : "false",
+    permissions_reviewed: "true",
   });
   for (const permission of confirmation.approvedPermissions)
     query.append("approved_permissions", permission);

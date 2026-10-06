@@ -8,6 +8,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from src.database.models.user import User
 from src.database.session import get_db
 from src.plugin_api.contracts import parse_semver
@@ -254,6 +255,7 @@ async def update_plugin_url(
     admin: User = _PLUGIN_ADMIN,
     db: AsyncSession = _PLUGIN_DB,
     operation: Literal["update", "replace"] = "update",
+    permissions_reviewed: bool = False,
 ) -> dict[str, Any]:
     """Apply the reviewed remote bytes with explicit consent for non-newer versions."""
     temporary_path: Path | None = None
@@ -274,6 +276,7 @@ async def update_plugin_url(
             admin_password=request.admin_password,
             confirm_dangerous=request.confirm_dangerous,
             expected_digest=request.expected_digest,
+            permissions_reviewed=permissions_reviewed,
             version_change_confirmed=request.version_change_confirmed,
             expected_installed_version=request.expected_installed_version,
             source_metadata=acquisition._acquisition_source(request, inspected, entries),
@@ -298,6 +301,7 @@ async def update_plugin(
     admin: User = _PLUGIN_ADMIN,
     db: AsyncSession = _PLUGIN_DB,
     operation: Literal["update", "replace"] = "update",
+    permissions_reviewed: bool = False,
     version_change_confirmed: bool = False,
     expected_installed_version: str | None = Form(default=None, min_length=1, max_length=64),
     expected_digest: str | None = Form(default=None, min_length=64, max_length=64),
@@ -311,6 +315,7 @@ async def update_plugin(
         approved_permissions=approved_permissions,
         admin_password=admin_password,
         confirm_dangerous=confirm_dangerous,
+        permissions_reviewed=permissions_reviewed,
         version_change_confirmed=version_change_confirmed,
         expected_installed_version=expected_installed_version
         if isinstance(expected_installed_version, str)
@@ -335,6 +340,7 @@ async def _update_plugin_package(
     db: AsyncSession,
     expected_digest: str | None = None,
     operation: str = "update",
+    permissions_reviewed: bool = False,
     version_change_confirmed: bool = False,
     expected_installed_version: str | None = None,
 ) -> dict[str, Any]:
@@ -348,6 +354,7 @@ async def _update_plugin_package(
             admin_password=admin_password,
             confirm_dangerous=confirm_dangerous,
             expected_digest=expected_digest,
+            permissions_reviewed=permissions_reviewed,
             version_change_confirmed=version_change_confirmed,
             expected_installed_version=expected_installed_version,
         ),

@@ -6,6 +6,7 @@ from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+
 from src.plugin_api.contracts import PluginDependency
 
 
@@ -147,6 +148,7 @@ class PackageOperationIn(BaseModel):
 
     expected_digest: str | None = Field(default=None, pattern=r"^[0-9a-fA-F]{64}$")
     approved_permissions: list[str] = Field(default_factory=list)
+    permissions_reviewed: bool = Field(default=False, strict=True)
     allow_untrusted: bool = False
     confirm_dangerous: bool = False
     admin_password: str | None = None

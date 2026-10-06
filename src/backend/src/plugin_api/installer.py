@@ -27,6 +27,7 @@ from cryptography.exceptions import InvalidSignature
 from sqlalchemy import select, update
 from sqlalchemy.exc import DataError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from src.database.models.plugin_permission_audit import PluginPermissionAudit
 from src.database.models.plugin_permissions import (
     PluginLifecycleTransaction,
@@ -228,6 +229,7 @@ class InstallationConsent:
     admin_password: str | None = None
     confirm_dangerous: bool = False
     expected_digest: str | None = None
+    permissions_reviewed: bool = False
     version_change_confirmed: bool = False
     expected_installed_version: str | None = None
 
@@ -420,6 +422,8 @@ class PluginInstaller:
         approved = set(consent.approved_permissions)
         if not approved.issubset(new_keys):
             raise InstallationError(400, "Consent contains an undeclared or unchanged permission.")
+        if consent.permissions_reviewed and not consent.expected_digest:
+            raise InstallationError(400, "Permission review requires the reviewed package digest.")
         dangerous = [
             permission_key(ref)
             for ref in plan.permissions.newly_requested_grants
@@ -539,7 +543,9 @@ class PluginInstaller:
             raise
         if plan.installed is not None:
             new_keys = {permission_key(ref) for ref in plan.permissions.newly_requested_grants}
-            if not new_keys.issubset(set(consent.approved_permissions)):
+            if not consent.permissions_reviewed and not new_keys.issubset(
+                set(consent.approved_permissions)
+            ):
                 manager_state().stage(
                     manifest.plugin_id,
                     package,

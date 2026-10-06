@@ -18,6 +18,8 @@ A candidate introducing new scopes remains staged until explicit approval. The e
 
 Denial is durable for that staged version and digest: scheduled checks do not reset it or install that release automatically. Administrators may review and approve it later. Consent is bound to the reviewed package digest, so a changed staged package requires another review.
 
+Manual review can activate an update with only selected new permissions. The manager submits `permissions_reviewed: true` with the reviewed payload digest; unchecked capabilities are recorded as denied and never granted. Without this explicit, digest-bound review, incomplete consent leaves the update staged. Denying the entire staged update still retains the current release. Unverified and highly privileged access checks apply to every selected grant.
+
 Only verified packages from the same verified publisher key inherit existing appropriate grants. Unsigned/unknown publisher updates receive a fresh permission review. Privileged unverified grants require confirmation and administrator password reauthentication. A publisher change requires the explicit Replace flow. Dependency permissions never transfer to a dependent plugin.
 
 ## Automatic updates
