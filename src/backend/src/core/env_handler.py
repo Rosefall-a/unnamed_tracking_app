@@ -1,4 +1,3 @@
-# pylint: disable=line-too-long,missing-class-docstring,missing-function-docstring,too-many-locals,too-many-branches,too-many-statements,unused-variable
 """Central environment/configuration resolution.
 
 The handler is the backend half of the self-building setup UI. It reads the
@@ -16,7 +15,14 @@ from typing import Any
 
 from dotenv import dotenv_values
 
-from .config_registry import CONFIG_REGISTRY, CONFIG_SECTIONS, ConfigSource, DefaultMode
+from .config_registry import (
+    CONFIG_REGISTRY,
+    CONFIG_SECTIONS,
+    ConfigSectionSpec,
+    ConfigSource,
+    ConfigSpec,
+    DefaultMode,
+)
 from .fernet_key import persistent_fernet_key
 
 
@@ -127,181 +133,158 @@ class EnvConfigHandler:
         persisted: dict[str, Any] | None = None,
         generated_values: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
-        """Build the complete schema consumed by Setup.vue.
+        """Build setup sections with environment precedence and secrets redacted."""
+        return [
+            self._setup_section(section, persisted or {}, generated_values or {})
+            for section in sorted(CONFIG_SECTIONS, key=lambda item: item.order)
+        ]
 
-        Environment values always win over persisted values. The same method
-        is used for first-run setup and post-install configuration.
-        """
-        persisted = persisted or {}
-        generated_values = generated_values or {}
-        sections: list[dict[str, Any]] = []
+    def _setup_field(
+        self, spec: ConfigSpec, persisted: dict[str, Any], generated_values: dict[str, Any]
+    ) -> dict[str, Any]:
+        required = spec.required
+        if spec.section == "oidc" and spec.name in {
+            "OIDC_ISSUER_URL",
+            "OIDC_CLIENT_ID",
+            "OIDC_CLIENT_SECRET",
+        }:
+            required = True
 
-        for section in sorted(CONFIG_SECTIONS, key=lambda item: item.order):
-            fields: list[dict[str, Any]] = []
-            configured_count = 0
-            required_fields = 0
-            required_configured = 0
-            env_configured_required = 0
-            env_only_missing_required = 0
-            required_groups: dict[str, dict[str, list[tuple[Any, bool, bool]]]] = {}
+        env_set = self.has(spec.name)
+        generated_value = generated_values.get(spec.name)
+        persisted_value = persisted.get(spec.name)
+        persisted_configured = bool(persisted.get(f"{spec.name}__configured", False)) or (
+            persisted_value is not None and str(persisted_value).strip() != ""
+        )
 
-            for spec in CONFIG_REGISTRY:
-                if spec.section != section.id or spec.name == "VITE_USE_MOCK_DATA":
-                    continue
+        if generated_value is not None and spec.generated:
+            value = generated_value
+            source = "generated"
+            configured = True
+        elif env_set:
+            value = self.get(spec.name)
+            source = "env"
+            configured = True
+        elif persisted_configured:
+            value = persisted_value
+            source = "database"
+            configured = True
+        else:
+            value = self.get(spec.name)
+            source = "default" if value is not None else "unset"
+            configured = False
 
-                required = spec.required
-                if section.id == "oidc" and spec.name in {
-                    "OIDC_ISSUER_URL",
-                    "OIDC_CLIENT_ID",
-                    "OIDC_CLIENT_SECRET",
-                }:
-                    required = True
+        if spec.secret:
+            value = None
 
-                env_set = self.has(spec.name)
-                generated_value = generated_values.get(spec.name)
-                persisted_value = persisted.get(spec.name)
-                persisted_configured = bool(persisted.get(f"{spec.name}__configured", False)) or (
-                    persisted_value is not None and str(persisted_value).strip() != ""
-                )
+        return {
+            "name": spec.name,
+            "label": spec.label or spec.name.replace("_", " ").title(),
+            "type": spec.input_type,
+            "choices": [{"value": value, "label": label} for value, label in spec.choices],
+            "description": spec.description,
+            "hint": spec.hint,
+            "placeholder": spec.placeholder,
+            "required": required,
+            "required_group": spec.required_group,
+            "heading": spec.heading,
+            "secret": spec.secret,
+            "generated": spec.generated,
+            "deprecated": spec.deprecated,
+            "deprecated_message": spec.deprecated_message if spec.deprecated else "",
+            "visible": spec.visible and not (spec.source is ConfigSource.ENV and spec.secret),
+            "env_only": spec.source is ConfigSource.ENV,
+            "locked": spec.generated or spec.source is ConfigSource.ENV or env_set,
+            "configured": configured,
+            "source": source,
+            "value": value,
+        }
 
-                if generated_value is not None and spec.generated:
-                    value = generated_value
-                    source = "generated"
-                    configured = True
-                elif env_set:
-                    value = self.get(spec.name)
-                    source = "env"
-                    configured = True
-                elif persisted_configured:
-                    value = persisted_value
-                    source = "database"
-                    configured = True
-                else:
-                    value = self.get(spec.name)
-                    source = "default" if value is not None else "unset"
-                    configured = False
-
-                if spec.secret:
-                    value = None
-
-                if configured:
-                    configured_count += 1
-                if spec.required_group:
-                    group, _, variant = spec.required_group.partition(":")
-                    required_groups.setdefault(group, {}).setdefault(
-                        variant or "default", []
-                    ).append((spec, configured, env_set))
-                elif required:
-                    required_fields += 1
-                    if spec.source is ConfigSource.ENV and not env_set:
-                        env_only_missing_required += 1
-                    if configured:
-                        required_configured += 1
-                    if env_set:
-                        env_configured_required += 1
-
-                fields.append(
-                    {
-                        "name": spec.name,
-                        "label": spec.label or spec.name.replace("_", " ").title(),
-                        "type": spec.input_type,
-                        "choices": [
-                            {"value": value, "label": label} for value, label in spec.choices
-                        ],
-                        "description": spec.description,
-                        "hint": spec.hint,
-                        "placeholder": spec.placeholder,
-                        "required": required,
-                        "required_group": spec.required_group,
-                        "heading": spec.heading,
-                        "secret": spec.secret,
-                        "generated": spec.generated,
-                        "deprecated": spec.deprecated,
-                        "deprecated_message": spec.deprecated_message if spec.deprecated else "",
-                        "visible": spec.visible
-                        and not (spec.source is ConfigSource.ENV and spec.secret),
-                        "env_only": spec.source is ConfigSource.ENV,
-                        "locked": spec.generated or spec.source is ConfigSource.ENV or env_set,
-                        "configured": configured,
-                        "source": source,
-                        "value": value,
-                    }
-                )
-
-            group_satisfied: dict[str, str | None] = {}
-            for group, variants in required_groups.items():
-                group_satisfied[group] = next(
-                    (
-                        variant
-                        for variant, members in variants.items()
-                        if all(configured for _, configured, _ in members)
-                    ),
-                    None,
-                )
-                if group_satisfied[group] is None and all(
-                    spec.source is ConfigSource.ENV
-                    for members in variants.values()
-                    for spec, _, _ in members
-                ):
-                    env_only_missing_required += 1
-
-            if env_only_missing_required:
-                status = "blocked_by_env"
-            elif required_fields and required_configured != required_fields:
-                status = "partial" if configured_count else "not_configured"
-            elif any(value is None for value in group_satisfied.values()):
-                status = "partial" if configured_count else "not_configured"
-            elif (
-                required_groups
-                and all(
-                    variant is not None
-                    and all(env_set for _, _, env_set in required_groups[group][variant])
-                    for group, variant in group_satisfied.items()
-                )
-                and not required_fields
-            ):
-                status = "completed_by_env"
-            elif required_fields and required_configured == required_fields:
-                status = (
-                    "completed_by_env"
-                    if env_configured_required == required_fields
-                    else "configured"
-                )
-            elif configured_count:
-                status = "partial"
-            else:
-                status = "not_configured"
-
-            sections.append(
-                {
-                    "id": section.id,
-                    "title": section.title,
-                    "description": section.description,
-                    "required": section.required,
-                    "menu": section.menu,
-                    "removable": section.removable,
-                    "visible": section.visible,
-                    "default": section.required or section.default,
-                    "status": status,
-                    "blocked": env_only_missing_required > 0,
-                    "env_configured": any(
-                        field["source"] == "env" and field["configured"] for field in fields
-                    ),
-                    "blocked_message": (
-                        "This section has required deployment-only values missing from .env: "
-                        + ", ".join(
-                            field["name"]
-                            for field in fields
-                            if field["required"] and field["env_only"] and not field["configured"]
-                        )
-                    )
-                    if env_only_missing_required
-                    else "",
-                    "fields": fields,
-                }
+    def _setup_status(self, fields: list[dict[str, Any]]) -> tuple[str, bool]:
+        """Evaluate required fields and alternative configuration groups independently."""
+        configured_count = sum(field["configured"] for field in fields)
+        required = [field for field in fields if field["required"] and not field["required_group"]]
+        required_configured = sum(field["configured"] for field in required)
+        env_configured_required = sum(self.has(field["name"]) for field in required)
+        missing_env = sum(field["env_only"] and not self.has(field["name"]) for field in required)
+        groups: dict[str, dict[str, list[dict[str, Any]]]] = {}
+        for field in fields:
+            if field["required_group"]:
+                group, _, variant = field["required_group"].partition(":")
+                groups.setdefault(group, {}).setdefault(variant or "default", []).append(field)
+        satisfied = {
+            group: next(
+                (members for members in variants.values() if all(f["configured"] for f in members)),
+                None,
             )
+            for group, variants in groups.items()
+        }
+        missing_env += sum(
+            satisfied[group] is None
+            and all(field["env_only"] for members in variants.values() for field in members)
+            for group, variants in groups.items()
+        )
+        if missing_env:
+            status = "blocked_by_env"
+        elif (required and required_configured != len(required)) or any(
+            members is None for members in satisfied.values()
+        ):
+            status = "partial" if configured_count else "not_configured"
+        elif (
+            groups
+            and not required
+            and all(
+                members is not None and all(self.has(field["name"]) for field in members)
+                for members in satisfied.values()
+            )
+        ):
+            status = "completed_by_env"
+        elif required and required_configured == len(required):
+            status = (
+                "completed_by_env" if env_configured_required == len(required) else "configured"
+            )
+        else:
+            status = "partial" if configured_count else "not_configured"
+        return status, bool(missing_env)
 
-        return sections
+    def _setup_section(
+        self,
+        section: ConfigSectionSpec,
+        persisted: dict[str, Any],
+        generated_values: dict[str, Any],
+    ) -> dict[str, Any]:
+        fields = [
+            self._setup_field(spec, persisted, generated_values)
+            for spec in CONFIG_REGISTRY
+            if spec.section == section.id and spec.name != "VITE_USE_MOCK_DATA"
+        ]
+        status, blocked = self._setup_status(fields)
+        return {
+            "id": section.id,
+            "title": section.title,
+            "description": section.description,
+            "required": section.required,
+            "menu": section.menu,
+            "removable": section.removable,
+            "visible": section.visible,
+            "default": section.required or section.default,
+            "status": status,
+            "blocked": blocked,
+            "env_configured": any(
+                field["source"] == "env" and field["configured"] for field in fields
+            ),
+            "blocked_message": (
+                "This section has required deployment-only values missing from .env: "
+                + ", ".join(
+                    field["name"]
+                    for field in fields
+                    if field["required"] and field["env_only"] and not field["configured"]
+                )
+            )
+            if blocked
+            else "",
+            "fields": fields,
+        }
 
     def validate(self) -> list[ConfigIssue]:
         values = self.resolved()
@@ -340,7 +323,8 @@ class EnvConfigHandler:
                     ConfigIssue(
                         "database",
                         "error",
-                        "Database configuration is required. Configure either POSTGRES_USER, POSTGRES_PASSWORD, and POSTGRES_DB OR DATABASE_URL.",
+                        "Database configuration is required. Configure either "
+                        "POSTGRES_USER, POSTGRES_PASSWORD, and POSTGRES_DB OR DATABASE_URL.",
                         recoverable=False,
                     )
                 )
@@ -357,7 +341,11 @@ class EnvConfigHandler:
         primary_names = ("PRIMARY_USER_USERNAME", "PRIMARY_USER_EMAIL", "PRIMARY_USER_PASSWORD")
         primary_present = [bool(str(values.get(name) or "").strip()) for name in primary_names]
         if any(primary_present) and not all(primary_present):
-            missing = [name for name, present in zip(primary_names, primary_present) if not present]
+            missing = [
+                name
+                for name, present in zip(primary_names, primary_present, strict=True)
+                if not present
+            ]
             issues.append(
                 ConfigIssue(
                     "primary_user",

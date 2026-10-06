@@ -1,10 +1,11 @@
-# pylint: disable=missing-function-docstring
 """Server-side per-user preferences: defaults live here, the database row
 (UserPreferences.data) only stores what the user changed. Adding an
 option is a one-line change to DEFAULTS, not a migration."""
 
 import math
 import re
+from collections.abc import Callable
+from functools import partial
 from typing import Any
 from uuid import UUID
 
@@ -129,32 +130,16 @@ def _validate_anilist_last_run(value: Any) -> int | None:
     return value
 
 
-_ANILIST_VALIDATORS = {
-    "anilist_import_username": _validate_anilist_username,
-    "anilist_import_interval_minutes": _validate_anilist_interval,
-    "anilist_import_last_run_at": _validate_anilist_last_run,
-}
+def _validate_theme_package(value: Any) -> str:
+    if not isinstance(value, str) or not re.fullmatch(r"[a-z0-9][a-z0-9._-]{0,127}", value):
+        raise ValueError("ui_theme_package must be a bounded theme identifier")
+    return value
 
 
 def validate_preference(key: str, value: Any) -> Any:
     """Validate and normalize one preference value."""
     if key not in DEFAULTS:
         raise ValueError(f"Unknown preference {key!r}")
-    default = DEFAULTS[key]
-    if key == "ui_theme_package":
-        if not isinstance(value, str) or not re.fullmatch(r"[a-z0-9][a-z0-9._-]{0,127}", value):
-            raise ValueError("ui_theme_package must be a bounded theme identifier")
-        return value
-    if key == "home_widgets":
-        return _validate_home_widgets(value)
-    if key == "home_widget_config":
-        return _validate_widget_config(value)
-    if key == "ui_custom_palette":
-        return _validate_custom_palette(value)
-    if key == "keyboard_shortcut_overrides":
-        return validate_shortcut_overrides(value)
-    if key == "game_page":
-        return validate_page_settings(value, partial=False)
     if key in _SET_CHOICES:
         allowed = _SET_CHOICES[key]
         if not isinstance(value, list) or any(item not in allowed for item in value):
@@ -167,7 +152,7 @@ def validate_preference(key: str, value: Any) -> Any:
             raise ValueError(f"{key} must be one of {list(choices)}")
         return value
 
-    validator = _ANILIST_VALIDATORS.get(key)
+    validator = _VALUE_VALIDATORS.get(key)
     if validator is not None:
         return validator(value)
 
@@ -244,6 +229,19 @@ def _validate_widget_config(value: Any) -> dict[str, dict[str, Any]]:
                 "widget options must be bounded strings, finite numbers or string lists"
             )
     return {identifier: dict(options) for identifier, options in value.items()}
+
+
+_VALUE_VALIDATORS: dict[str, Callable[[Any], Any]] = {
+    "ui_theme_package": _validate_theme_package,
+    "home_widgets": _validate_home_widgets,
+    "home_widget_config": _validate_widget_config,
+    "ui_custom_palette": _validate_custom_palette,
+    "keyboard_shortcut_overrides": validate_shortcut_overrides,
+    "game_page": partial(validate_page_settings, partial=False),
+    "anilist_import_username": _validate_anilist_username,
+    "anilist_import_interval_minutes": _validate_anilist_interval,
+    "anilist_import_last_run_at": _validate_anilist_last_run,
+}
 
 
 async def load_preferences(db: AsyncSession, user_id: UUID) -> dict[str, Any]:

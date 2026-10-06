@@ -13,7 +13,8 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
-class GeoLocation:
+# Geographic and network fields form the session metadata value object.
+class GeoLocation:  # pylint: disable=too-many-instance-attributes
     """Approximate location returned by the configured GeoIP database."""
 
     country: str | None = None
@@ -32,7 +33,8 @@ class GeoLocation:
         return ", ".join(part for part in (self.city, self.region, self.country) if part) or None
 
 
-class GeoIpProvider:
+# Three independent databases each retain their path, reader and loaded path.
+class GeoIpProvider:  # pylint: disable=too-many-instance-attributes
     """Read a local MaxMind-compatible database without network access."""
 
     def __init__(
@@ -61,10 +63,12 @@ class GeoIpProvider:
         if not path.is_file():
             return None
         try:
-            import maxminddb
+            # Keep missing optional lookup support from preventing application startup.
+            import maxminddb  # pylint: disable=import-outside-toplevel
 
             return maxminddb.open_database(str(path))
-        except Exception:
+        # Third-party database readers can fail with backend-specific exceptions.
+        except Exception:  # pylint: disable=broad-exception-caught
             logger.warning("GeoIP database is unavailable or invalid: %s", path, exc_info=True)
             return None
 
@@ -109,20 +113,22 @@ class GeoIpProvider:
     ) -> tuple[str, str] | None:
         if address.is_loopback:
             return ("loopback", "Loopback address")
+        networks: tuple[tuple[str, str, str], ...]
         if address.version == 4:
-            if address in ipaddress.ip_network("100.64.0.0/10"):
-                return ("cgnat", "CGNAT / RFC 6598 shared address")
-            if address in ipaddress.ip_network("10.0.0.0/8"):
-                return ("rfc1918", "RFC 1918 private address (10.0.0.0/8)")
-            if address in ipaddress.ip_network("172.16.0.0/12"):
-                return ("rfc1918", "RFC 1918 private address (172.16.0.0/12)")
-            if address in ipaddress.ip_network("192.168.0.0/16"):
-                return ("rfc1918", "RFC 1918 private address (192.168.0.0/16)")
+            networks = (
+                ("100.64.0.0/10", "cgnat", "CGNAT / RFC 6598 shared address"),
+                ("10.0.0.0/8", "rfc1918", "RFC 1918 private address (10.0.0.0/8)"),
+                ("172.16.0.0/12", "rfc1918", "RFC 1918 private address (172.16.0.0/12)"),
+                ("192.168.0.0/16", "rfc1918", "RFC 1918 private address (192.168.0.0/16)"),
+            )
         else:
-            if address in ipaddress.ip_network("fc00::/7"):
-                return ("ula", "IPv6 unique-local address (RFC 4193)")
-            if address in ipaddress.ip_network("fe80::/10"):
-                return ("link_local", "IPv6 link-local address")
+            networks = (
+                ("fc00::/7", "ula", "IPv6 unique-local address (RFC 4193)"),
+                ("fe80::/10", "link_local", "IPv6 link-local address"),
+            )
+        for network, kind, label in networks:
+            if address in ipaddress.ip_network(network):
+                return kind, label
         if address.is_link_local:
             return ("link_local", "Link-local address")
         if address.is_private:
@@ -150,36 +156,43 @@ class GeoIpProvider:
                     value = reader.get(str(address))
                     if isinstance(value, dict):
                         data = value
-            country = self._name(data, "country")
-            subdivisions = data.get("subdivisions") or []
-            region = self._name(subdivisions[0], "region") if subdivisions else None
-            city = self._name(data, "city")
-            location = data.get("location") or {}
-            latitude, longitude = location.get("latitude"), location.get("longitude")
-            if not isinstance(latitude, (int, float)) or not isinstance(longitude, (int, float)):
-                latitude = longitude = None
-            network_number = None
-            network_organization = None
-            reader = self._get_asn_reader()
-            if reader is not None:
-                value = reader.get(str(address))
-                if isinstance(value, dict):
-                    raw_number = value.get("autonomous_system_number")
-                    network_number = raw_number if isinstance(raw_number, int) else None
-                    raw_org = value.get("autonomous_system_organization")
-                    network_organization = raw_org if isinstance(raw_org, str) else None
-            return GeoLocation(
-                country,
-                region,
-                city,
-                latitude,
-                longitude,
-                network_number=network_number,
-                network_organization=network_organization,
-            )
-        except Exception:
+            return GeoLocation(**self._location_fields(data), **self._network_fields(address))
+        # Session creation must remain available when optional GeoIP readers fail.
+        except Exception:  # pylint: disable=broad-exception-caught
             logger.warning("GeoIP lookup failed", exc_info=True)
             return GeoLocation()
+
+    def _location_fields(self, data: dict) -> dict:
+        """Normalize location fields, retaining the existing missing-coordinate semantics."""
+        subdivisions = data.get("subdivisions") or []
+        location = data.get("location") or {}
+        latitude, longitude = location.get("latitude"), location.get("longitude")
+        if not isinstance(latitude, (int, float)) or not isinstance(longitude, (int, float)):
+            latitude = longitude = None
+        return {
+            "country": self._name(data, "country"),
+            "region": self._name(subdivisions[0], "region") if subdivisions else None,
+            "city": self._name(data, "city"),
+            "latitude": latitude,
+            "longitude": longitude,
+        }
+
+    def _network_fields(self, address: ipaddress.IPv4Address | ipaddress.IPv6Address) -> dict:
+        """Read optional autonomous-system metadata independently of city/country data."""
+        network_number = None
+        network_organization = None
+        reader = self._get_asn_reader()
+        if reader is not None:
+            value = reader.get(str(address))
+            if isinstance(value, dict):
+                raw_number = value.get("autonomous_system_number")
+                network_number = raw_number if isinstance(raw_number, int) else None
+                raw_org = value.get("autonomous_system_organization")
+                network_organization = raw_org if isinstance(raw_org, str) else None
+        return {
+            "network_number": network_number,
+            "network_organization": network_organization,
+        }
 
 
 geoip = GeoIpProvider()

@@ -41,7 +41,8 @@ def password_policy() -> dict[str, int | bool]:
 
 
 def set_password_policy_override(policy: dict[str, int | bool] | None) -> None:
-    global _password_policy_override
+    # The deployment override is shared by password validation in every request.
+    global _password_policy_override  # pylint: disable=global-statement
     _password_policy_override = dict(policy) if policy is not None else None
 
 

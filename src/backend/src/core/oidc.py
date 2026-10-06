@@ -1,4 +1,3 @@
-# pylint: disable=missing-class-docstring,too-many-instance-attributes,missing-function-docstring
 """OpenID Connect helpers."""
 
 from __future__ import annotations
@@ -16,7 +15,8 @@ oauth = OAuth()
 
 
 @dataclass(frozen=True)
-class OidcConfig:
+# Provider configuration mirrors the persisted OIDC settings, including branding.
+class OidcConfig:  # pylint: disable=too-many-instance-attributes
     issuer_url: str
     client_id: str
     client_secret: str
@@ -67,7 +67,8 @@ def register_oidc_provider(config: OidcConfig, client_name: str = "oidc") -> Non
     # administrator changes the issuer, credentials or scopes so sign-in uses
     # the saved configuration without requiring a server restart.
     if _registered_configs.get(client_name) != config:
-        oauth._clients.pop(client_name, None)
+        # Authlib provides no public cache invalidation method for registered clients.
+        oauth._clients.pop(client_name, None)  # pylint: disable=protected-access
     oauth.register(
         name=client_name,
         client_id=config.client_id,

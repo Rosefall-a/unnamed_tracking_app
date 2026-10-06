@@ -1,4 +1,3 @@
-# pylint: disable=missing-module-docstring,chained-comparison,missing-function-docstring
 from __future__ import annotations
 
 import os
@@ -57,7 +56,7 @@ def persistent_fernet_key() -> str:
     else:
         counts = Counter(valid)
         key, count = counts.most_common(1)[0]
-        if len(valid) >= 2 and count < 2:
+        if count < 2 <= len(valid):
             raise RuntimeError(
                 "Persistent Fernet key copies disagree. Refusing to start; "
                 f"restore at least two matching copies in {paths[0].parent}."

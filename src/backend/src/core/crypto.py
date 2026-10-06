@@ -1,9 +1,8 @@
-# pylint: disable=missing-function-docstring
 """
 src/core/crypto.py
 
 Symmetric encryption for secrets we must store at rest (e.g. a PSN npsso
-token) but never need to search/index — Fernet (AES-128-CBC + HMAC) via
+token) but never need to search/index â€” Fernet (AES-128-CBC + HMAC) via
 `settings.SECRET_KEY`.
 
 Generate a key for `.env`'s SECRET_KEY with:
@@ -23,7 +22,7 @@ def _fernet() -> Fernet:
         return Fernet(settings.SECRET_KEY.encode())
     except (ValueError, TypeError) as exc:
         raise RuntimeError(
-            "SECRET_KEY is not a valid Fernet key — generate one with "
+            "SECRET_KEY is not a valid Fernet key â€” generate one with "
             '`python -c "from cryptography.fernet import Fernet; '
             'print(Fernet.generate_key().decode())"`'
         ) from exc

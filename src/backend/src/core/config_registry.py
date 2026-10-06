@@ -1,4 +1,3 @@
-# pylint: disable=line-too-long,missing-class-docstring,too-many-instance-attributes,missing-function-docstring
 """Declarative application configuration metadata.
 
 The registry is intentionally the single source of truth for configuration
@@ -29,7 +28,8 @@ class DefaultMode(str, Enum):
 
 
 @dataclass(frozen=True)
-class ConfigSectionSpec:
+# Section fields are the serialized setup UI contract, rather than service state.
+class ConfigSectionSpec:  # pylint: disable=too-many-instance-attributes
     id: str
     title: str
     description: str
@@ -44,7 +44,8 @@ class ConfigSectionSpec:
 
 
 @dataclass(frozen=True)
-class ConfigSpec:
+# These declarative fields describe each setting exposed to the setup UI.
+class ConfigSpec:  # pylint: disable=too-many-instance-attributes
     name: str
     section: str = "general"
     source: ConfigSource = ConfigSource.BOTH
@@ -84,7 +85,8 @@ CONFIG_SECTIONS: tuple[ConfigSectionSpec, ...] = (
     ConfigSectionSpec(
         "first_admin",
         "First administrator",
-        "Create the first local administrator. Environment-provided bootstrap values can complete this section automatically.",
+        "Create the first local administrator. "
+        "Environment-provided bootstrap values can complete this section automatically.",
         10,
         required=True,
         removable=False,

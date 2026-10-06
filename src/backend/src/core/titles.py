@@ -1,4 +1,3 @@
-# pylint: disable=missing-function-docstring
 """Which spelling of an anime's title to show.
 
 `title` is the canonical one the rest of the app stores and searches by. The
