@@ -1,4 +1,5 @@
-# pylint: disable=missing-module-docstring,missing-class-docstring,missing-function-docstring,import-outside-toplevel,too-many-locals,too-many-branches,duplicate-code
+"""First-run setup and registry-owned deployment configuration."""
+
 from __future__ import annotations
 
 import json
@@ -10,6 +11,7 @@ from sqlalchemy import select, text, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.app_integrations import get_or_create_app_integration_settings
 from src.core.auth import (
     SESSION_TTL_SECONDS,
     get_current_admin,
@@ -22,6 +24,7 @@ from src.core.config import settings
 from src.core.config_registry import CONFIG_REGISTRY
 from src.core.crypto import encrypt_secret
 from src.core.env_handler import EnvConfigHandler
+from src.core.oidc import get_or_create_oidc_settings
 from src.core.provider_credentials import apply_deployment_provider_credentials
 from src.core.session_manager import create_session
 from src.database.models.app_integration_settings import AppIntegrationSettings
@@ -64,41 +67,29 @@ class SetupRequest(BaseModel):
         return validate_password(value) if value else value
 
 
-async def _app_row(db: AsyncSession) -> AppIntegrationSettings:
-    from src.api.routes.settings import get_or_create_app_integration_settings
-
-    return await get_or_create_app_integration_settings(db)
-
-
-async def _oidc_row(db: AsyncSession) -> OidcSettings:
-    row = await db.scalar(select(OidcSettings).limit(1))
-    if row is None:
-        row = OidcSettings()
-        db.add(row)
-        await db.flush()
-    return row
+_APP_FIELDS = {
+    "STEAMGRIDDB_API_KEY": "steamgriddb_api_key",
+    "RETROACHIEVEMENTS_API_KEY": "retroachievements_api_key",
+    "GIANTBOMB_API_KEY": "giantbomb_api_key",
+    "IGDB_CLIENT_ID": "igdb_client_id",
+    "IGDB_CLIENT_SECRET": "igdb_client_secret",
+    "TMDB_API_KEY": "tmdb_api_key",
+    "OMDB_API_KEY": "omdb_api_key",
+    "TVDB_API_KEY": "tvdb_api_key",
+    "SCREENSCRAPER_DEVID": "screenscraper_devid",
+    "SCREENSCRAPER_DEVPASSWORD": "screenscraper_devpassword",
+    "SCREENSCRAPER_SSID": "screenscraper_ssid",
+    "SCREENSCRAPER_SSPASSWORD": "screenscraper_sspassword",
+    "XBOX_CLIENT_ID": "xbox_client_id",
+    "XBOX_CLIENT_SECRET": "xbox_client_secret",
+    "NGINX_REALIP_HEADER": "nginx_realip_header",
+    "NGINX_REALIP_TRUSTED_PROXIES": "nginx_realip_trusted_proxies",
+}
 
 
 def _persisted_values(app: AppIntegrationSettings, oidc: OidcSettings) -> dict[str, Any]:
     values: dict[str, Any] = {}
-    for spec_name, attribute in {
-        "STEAMGRIDDB_API_KEY": "steamgriddb_api_key",
-        "RETROACHIEVEMENTS_API_KEY": "retroachievements_api_key",
-        "GIANTBOMB_API_KEY": "giantbomb_api_key",
-        "IGDB_CLIENT_ID": "igdb_client_id",
-        "IGDB_CLIENT_SECRET": "igdb_client_secret",
-        "TMDB_API_KEY": "tmdb_api_key",
-        "OMDB_API_KEY": "omdb_api_key",
-        "TVDB_API_KEY": "tvdb_api_key",
-        "SCREENSCRAPER_DEVID": "screenscraper_devid",
-        "SCREENSCRAPER_DEVPASSWORD": "screenscraper_devpassword",
-        "SCREENSCRAPER_SSID": "screenscraper_ssid",
-        "SCREENSCRAPER_SSPASSWORD": "screenscraper_sspassword",
-        "XBOX_CLIENT_ID": "xbox_client_id",
-        "XBOX_CLIENT_SECRET": "xbox_client_secret",
-        "NGINX_REALIP_HEADER": "nginx_realip_header",
-        "NGINX_REALIP_TRUSTED_PROXIES": "nginx_realip_trusted_proxies",
-    }.items():
+    for spec_name, attribute in _APP_FIELDS.items():
         value = getattr(app, attribute)
         if value:
             values[f"{spec_name}__configured"] = True
@@ -147,8 +138,8 @@ def _persisted_values(app: AppIntegrationSettings, oidc: OidcSettings) -> dict[s
 
 
 async def _configuration(db: AsyncSession, request: Request) -> dict[str, Any]:
-    app = await _app_row(db)
-    oidc = await _oidc_row(db)
+    app = await get_or_create_app_integration_settings(db)
+    oidc = await get_or_create_oidc_settings(db)
     handler = EnvConfigHandler()
     redirect_uri = str(request.url_for("oidc_callback"))
     return {
@@ -172,29 +163,11 @@ async def _save_configuration(
     Environment-owned values are deliberately ignored here: the environment
     remains authoritative even when a malicious/old client sends them.
     """
-    app = await _app_row(db)
-    oidc = await _oidc_row(db)
+    app = await get_or_create_app_integration_settings(db)
+    oidc = await get_or_create_oidc_settings(db)
     handler = EnvConfigHandler()
 
-    app_fields = {
-        "STEAMGRIDDB_API_KEY": "steamgriddb_api_key",
-        "RETROACHIEVEMENTS_API_KEY": "retroachievements_api_key",
-        "GIANTBOMB_API_KEY": "giantbomb_api_key",
-        "IGDB_CLIENT_ID": "igdb_client_id",
-        "IGDB_CLIENT_SECRET": "igdb_client_secret",
-        "TMDB_API_KEY": "tmdb_api_key",
-        "OMDB_API_KEY": "omdb_api_key",
-        "TVDB_API_KEY": "tvdb_api_key",
-        "SCREENSCRAPER_DEVID": "screenscraper_devid",
-        "SCREENSCRAPER_DEVPASSWORD": "screenscraper_devpassword",
-        "SCREENSCRAPER_SSID": "screenscraper_ssid",
-        "SCREENSCRAPER_SSPASSWORD": "screenscraper_sspassword",
-        "XBOX_CLIENT_ID": "xbox_client_id",
-        "XBOX_CLIENT_SECRET": "xbox_client_secret",
-        "NGINX_REALIP_HEADER": "nginx_realip_header",
-        "NGINX_REALIP_TRUSTED_PROXIES": "nginx_realip_trusted_proxies",
-    }
-    for name, attribute in app_fields.items():
+    for name, attribute in _APP_FIELDS.items():
         if name not in values or handler.has(name):
             continue
         value = values[name]
@@ -203,6 +176,13 @@ async def _save_configuration(
         spec = next(spec for spec in CONFIG_REGISTRY if spec.name == name)
         setattr(app, attribute, encrypt_secret(str(value)) if spec.secret else str(value))
 
+    _save_password_policy(app, values, handler)
+    _save_oidc_configuration(oidc, values, selected_sections, generated_redirect_uri, handler)
+
+
+def _save_password_policy(
+    app: AppIntegrationSettings, values: dict[str, Any], handler: EnvConfigHandler
+) -> None:
     password_fields = {
         "PASSWORD_MIN_LENGTH": ("password_min_length", int),
         "PASSWORD_REQUIRE_UPPERCASE": ("password_require_uppercase", bool),
@@ -227,6 +207,14 @@ async def _save_configuration(
             )
         setattr(app, attribute, converted)
 
+
+def _save_oidc_configuration(
+    oidc: OidcSettings,
+    values: dict[str, Any],
+    selected_sections: set[str],
+    generated_redirect_uri: str,
+    handler: EnvConfigHandler,
+) -> None:
     oidc_env_complete = all(
         handler.has(name) for name in ("OIDC_ISSUER_URL", "OIDC_CLIENT_ID", "OIDC_CLIENT_SECRET")
     )
@@ -354,7 +342,7 @@ async def update_setup_configuration(
         db, payload.configuration, selected, str(request.url_for("oidc_callback"))
     )
     await db.commit()
-    app = await _app_row(db)
+    app = await get_or_create_app_integration_settings(db)
     if (
         app.password_min_length is not None
         and app.password_require_uppercase is not None
@@ -409,15 +397,14 @@ async def setup_admin(
     # OIDC is optional as a section. Selecting it means it is being configured
     # and will enable OIDC after complete provider credentials are saved.
     selected = set(payload.sections)
-    oidc_env_complete = all(
+    if all(
         handler.has(name) for name in ("OIDC_ISSUER_URL", "OIDC_CLIENT_ID", "OIDC_CLIENT_SECRET")
-    )
-    if oidc_env_complete:
+    ):
         selected.add("oidc")
 
     await _save_configuration(db, values, selected, str(request.url_for("oidc_callback")))
     await db.flush()
-    apply_deployment_provider_credentials(await _app_row(db))
+    apply_deployment_provider_credentials(await get_or_create_app_integration_settings(db))
 
     user = User(
         username=username,

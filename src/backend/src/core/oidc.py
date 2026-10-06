@@ -7,9 +7,12 @@ from urllib.parse import urljoin, urlsplit, urlunsplit
 
 from authlib.integrations.starlette_client import OAuth
 from fastapi import HTTPException, Request
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.responses import RedirectResponse
 
 from src.core.config import settings
+from src.database.models.oidc_settings import OidcSettings
 
 oauth = OAuth()
 
@@ -42,6 +45,16 @@ class OidcConfig:  # pylint: disable=too-many-instance-attributes
 
 
 _registered_configs: dict[str, OidcConfig] = {}
+
+
+async def get_or_create_oidc_settings(db: AsyncSession) -> OidcSettings:
+    """Load the deployment singleton without committing the caller's transaction."""
+    row = await db.scalar(select(OidcSettings).limit(1))
+    if row is None:
+        row = OidcSettings()
+        db.add(row)
+        await db.flush()
+    return row
 
 
 def env_oidc_config() -> OidcConfig | None:

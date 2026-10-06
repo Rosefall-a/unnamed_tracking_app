@@ -1,23 +1,26 @@
-# pylint: disable=missing-module-docstring,missing-class-docstring,missing-function-docstring,too-many-locals,too-many-boolean-expressions,too-many-branches,too-many-statements,unused-import
+"""Administrator settings with environment locks and encrypted provider secrets."""
+
 from __future__ import annotations
 
 import json
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.routes.settings import get_or_create_app_integration_settings
+from src.core.app_integrations import get_or_create_app_integration_settings
 from src.core.auth import get_current_admin
 from src.core.crypto import encrypt_secret
 from src.core.env_handler import EnvConfigHandler
+from src.core.oidc import get_or_create_oidc_settings
 from src.core.provider_credentials import apply_deployment_provider_credentials
 from src.core.real_ip import (
     get_effective_real_ip_config,
     validate_real_ip_header,
     validate_trusted_proxies,
 )
+from src.database.models.app_integration_settings import AppIntegrationSettings
 from src.database.models.oidc_settings import OidcSettings
 from src.database.models.user import User
 from src.database.session import get_db
@@ -28,23 +31,6 @@ _ADMIN_DEFAULT = Depends(get_current_admin)
 router = APIRouter(
     prefix="/api/settings/deployment", tags=["settings"], dependencies=[Depends(get_current_admin)]
 )
-
-
-class OidcProviderRequest(BaseModel):
-    name: str
-    slug: str
-    issuer_url: str
-    client_id: str
-    client_secret: str | None = None
-    scopes: str = "openid profile email"
-    redirect_uri: str | None = None
-    groups_claim: str = "groups"
-    admin_group: str | None = None
-    user_match_field: str = "email"
-    allow_new_users: bool = True
-    button_text: str = "Continue with SSO"
-    button_image_url: str | None = None
-    enabled: bool = True
 
 
 class DeploymentSettingsRequest(BaseModel):
@@ -131,15 +117,6 @@ _OIDC_ENV_LOCKED_FIELDS = {
 }
 
 
-async def _oidc_row(db):
-    row = await db.scalar(select(OidcSettings).limit(1))
-    if row is None:
-        row = OidcSettings()
-        db.add(row)
-        await db.flush()
-    return row
-
-
 def _provider_view(raw):
     item = dict(raw)
     secret = item.pop("client_secret", "")
@@ -158,7 +135,7 @@ def _provider_rows(row):
 async def get_deployment_settings(db: AsyncSession, admin: User) -> dict:
     del admin
     app = await get_or_create_app_integration_settings(db)
-    oidc = await _oidc_row(db)
+    oidc = await get_or_create_oidc_settings(db)
     handler = EnvConfigHandler()
     provider_locks = {
         field: handler.has(env_name) for field, env_name in _PROVIDER_ENV_NAMES.items()
@@ -220,6 +197,124 @@ async def read_deployment_settings(
     return await get_deployment_settings(db, admin)
 
 
+def _normalize_oidc_provider(
+    item: Any,
+    existing: dict[str, dict[str, Any]],
+    slugs: set[str],
+    effective_oidc_enabled: bool,
+) -> dict[str, Any]:
+    if not isinstance(item, dict):
+        raise HTTPException(400, "Invalid OIDC provider entry.")
+    slug = str(item.get("slug", "")).strip().lower()
+    name = str(item.get("name", "")).strip()
+    issuer = str(item.get("issuer_url", "")).strip()
+    client_id = str(item.get("client_id", "")).strip()
+    invalid_slug = not slug or any(
+        char not in "abcdefghijklmnopqrstuvwxyz0123456789-_" for char in slug
+    )
+    missing_credentials = effective_oidc_enabled and not (issuer and client_id)
+    if not name or invalid_slug or missing_credentials or slug in slugs:
+        raise HTTPException(
+            400, "Each OIDC provider needs a unique name, slug, issuer and client ID."
+        )
+    if item.get("user_match_field", "email") not in {"email", "username"}:
+        raise HTTPException(400, "OIDC user matching must be email or username.")
+    secret = item.get("client_secret") or existing.get(slug, {}).get("client_secret")
+    if not secret and effective_oidc_enabled:
+        raise HTTPException(
+            400,
+            f"Client secret is required for OIDC provider '{name}' while OIDC is enabled.",
+        )
+    if item.get("client_secret"):
+        secret = encrypt_secret(str(item["client_secret"]))
+    return {
+        **item,
+        "slug": slug,
+        "name": name,
+        "issuer_url": issuer,
+        "client_id": client_id,
+        "client_secret": secret,
+        "enabled": bool(item.get("enabled", True)),
+    }
+
+
+def _normalize_oidc_providers(
+    value: str | None, oidc: OidcSettings, effective_oidc_enabled: bool
+) -> str:
+    try:
+        incoming = json.loads(value or "[]")
+    except ValueError as exc:
+        raise HTTPException(400, "Invalid OIDC provider configuration JSON.") from exc
+    if not isinstance(incoming, list) or len(incoming) > 20:
+        raise HTTPException(400, "OIDC provider list must contain 0–20 providers.")
+    existing = {p.get("slug"): p for p in _provider_rows(oidc)}
+    normalized = []
+    slugs: set[str] = set()
+    for item in incoming:
+        provider = _normalize_oidc_provider(item, existing, slugs, effective_oidc_enabled)
+        normalized.append(provider)
+        slugs.add(provider["slug"])
+    if effective_oidc_enabled:
+        incomplete = [
+            item["name"]
+            for item in normalized
+            if not item["issuer_url"] or not item["client_id"] or not item["client_secret"]
+        ]
+        if incomplete:
+            raise HTTPException(
+                400,
+                "OIDC is enabled, so every enabled provider must have an issuer, client ID, and client secret: "
+                + ", ".join(incomplete),
+            )
+    return json.dumps(normalized)
+
+
+def _update_oidc_field(oidc: OidcSettings, field: str, value: Any) -> None:
+    if field == "oidc_enabled":
+        oidc.enabled = bool(value)
+    elif field == "oidc_client_secret":
+        if value:
+            oidc.client_secret = encrypt_secret(value)
+    elif field == "oidc_user_match_field":
+        if value not in {"email", "username"}:
+            raise HTTPException(400, "OIDC user matching must be email or username.")
+        oidc.user_match_field = value
+    elif field == "oidc_default_login_method":
+        if value not in {"local", "sso"}:
+            raise HTTPException(400, "Default login method must be local or sso.")
+        oidc.default_login_method = value
+    elif field == "oidc_login_button_text":
+        text = (value or "").strip()
+        if not text or len(text) > 100:
+            raise HTTPException(400, "SSO button text must be 1–100 characters.")
+        oidc.login_button_text = text
+    elif field == "oidc_allow_new_users":
+        oidc.allow_new_users = bool(value)
+    elif value is not None:
+        setattr(oidc, field.removeprefix("oidc_"), value or None)
+
+
+_REAL_IP_FIELDS = {
+    "nginx_realip_header": ("NGINX_REALIP_HEADER", validate_real_ip_header),
+    "nginx_realip_trusted_proxies": ("NGINX_REALIP_TRUSTED_PROXIES", validate_trusted_proxies),
+}
+
+
+def _update_real_ip_field(
+    app: AppIntegrationSettings, handler: EnvConfigHandler, field: str, value: str | None
+) -> None:
+    env_name, validator = _REAL_IP_FIELDS[field]
+    if handler.has(env_name):
+        raise HTTPException(
+            409, f"{field} is managed by the deployment environment and cannot be changed here."
+        )
+    if value is not None:
+        try:
+            setattr(app, field, validator(value))
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
+
+
 @router.put("")
 async def update_deployment_settings(
     payload: DeploymentSettingsRequest,
@@ -227,7 +322,7 @@ async def update_deployment_settings(
     admin: User = _ADMIN_DEFAULT,
 ) -> dict:
     app = await get_or_create_app_integration_settings(db)
-    oidc = await _oidc_row(db)
+    oidc = await get_or_create_oidc_settings(db)
     handler = EnvConfigHandler()
     provider_locks = {
         field: handler.has(env_name) for field, env_name in _PROVIDER_ENV_NAMES.items()
@@ -241,29 +336,8 @@ async def update_deployment_settings(
     if payload.oidc_enabled is not None:
         effective_oidc_enabled = bool(payload.oidc_enabled)
     for field, value in payload.model_dump(exclude_unset=True).items():
-        if field == "nginx_realip_header":
-            if handler.has("NGINX_REALIP_HEADER"):
-                raise HTTPException(
-                    409,
-                    "nginx_realip_header is managed by the deployment environment and cannot be changed here.",
-                )
-            if value is not None:
-                try:
-                    app.nginx_realip_header = validate_real_ip_header(value)
-                except ValueError as exc:
-                    raise HTTPException(400, str(exc)) from exc
-            continue
-        if field == "nginx_realip_trusted_proxies":
-            if handler.has("NGINX_REALIP_TRUSTED_PROXIES"):
-                raise HTTPException(
-                    409,
-                    "nginx_realip_trusted_proxies is managed by the deployment environment and cannot be changed here.",
-                )
-            if value is not None:
-                try:
-                    app.nginx_realip_trusted_proxies = validate_trusted_proxies(value)
-                except ValueError as exc:
-                    raise HTTPException(400, str(exc)) from exc
+        if field in _REAL_IP_FIELDS:
+            _update_real_ip_field(app, handler, field, value)
             continue
         if (
             provider_locks.get(field)
@@ -274,90 +348,9 @@ async def update_deployment_settings(
                 409, f"{field} is managed by the deployment environment and cannot be changed here."
             )
         if field == "oidc_providers_json":
-            try:
-                incoming = json.loads(value or "[]")
-            except ValueError as exc:
-                raise HTTPException(400, "Invalid OIDC provider configuration JSON.") from exc
-            if not isinstance(incoming, list) or len(incoming) > 20:
-                raise HTTPException(400, "OIDC provider list must contain 0–20 providers.")
-            existing = {p.get("slug"): p for p in _provider_rows(oidc)}
-            normalized = []
-            slugs = set()
-            for item in incoming:
-                if not isinstance(item, dict):
-                    raise HTTPException(400, "Invalid OIDC provider entry.")
-                slug = str(item.get("slug", "")).strip().lower()
-                name = str(item.get("name", "")).strip()
-                issuer = str(item.get("issuer_url", "")).strip()
-                client_id = str(item.get("client_id", "")).strip()
-                if (
-                    not slug
-                    or not name
-                    or (effective_oidc_enabled and (not issuer or not client_id))
-                    or slug in slugs
-                    or any(c not in "abcdefghijklmnopqrstuvwxyz0123456789-_" for c in slug)
-                ):
-                    raise HTTPException(
-                        400, "Each OIDC provider needs a unique name, slug, issuer and client ID."
-                    )
-                if item.get("user_match_field", "email") not in {"email", "username"}:
-                    raise HTTPException(400, "OIDC user matching must be email or username.")
-                secret = item.get("client_secret") or existing.get(slug, {}).get("client_secret")
-                if not secret and effective_oidc_enabled:
-                    raise HTTPException(
-                        400,
-                        f"Client secret is required for OIDC provider '{name}' while OIDC is enabled.",
-                    )
-                if item.get("client_secret"):
-                    secret = encrypt_secret(str(item["client_secret"]))
-                normalized.append(
-                    {
-                        **item,
-                        "slug": slug,
-                        "name": name,
-                        "issuer_url": issuer,
-                        "client_id": client_id,
-                        "client_secret": secret,
-                        "enabled": bool(item.get("enabled", True)),
-                    }
-                )
-                slugs.add(slug)
-            if effective_oidc_enabled:
-                incomplete = [
-                    item["name"]
-                    for item in normalized
-                    if not item["issuer_url"] or not item["client_id"] or not item["client_secret"]
-                ]
-                if incomplete:
-                    raise HTTPException(
-                        400,
-                        "OIDC is enabled, so every enabled provider must have an issuer, client ID, and client secret: "
-                        + ", ".join(incomplete),
-                    )
-            oidc.providers_json = json.dumps(normalized)
+            oidc.providers_json = _normalize_oidc_providers(value, oidc, effective_oidc_enabled)
         elif field.startswith("oidc_"):
-            if field == "oidc_enabled":
-                oidc.enabled = bool(value)
-            elif field == "oidc_client_secret":
-                if value:
-                    oidc.client_secret = encrypt_secret(value)
-            elif field == "oidc_user_match_field":
-                if value not in {"email", "username"}:
-                    raise HTTPException(400, "OIDC user matching must be email or username.")
-                oidc.user_match_field = value
-            elif field == "oidc_default_login_method":
-                if value not in {"local", "sso"}:
-                    raise HTTPException(400, "Default login method must be local or sso.")
-                oidc.default_login_method = value
-            elif field == "oidc_login_button_text":
-                text = (value or "").strip()
-                if not text or len(text) > 100:
-                    raise HTTPException(400, "SSO button text must be 1–100 characters.")
-                oidc.login_button_text = text
-            elif field == "oidc_allow_new_users":
-                oidc.allow_new_users = bool(value)
-            elif value is not None:
-                setattr(oidc, field.removeprefix("oidc_"), value or None)
+            _update_oidc_field(oidc, field, value)
         elif field in _SECRET_FIELDS:
             if value:
                 setattr(app, field, encrypt_secret(value))
