@@ -62,6 +62,28 @@ def is_legacy_contract(version: str) -> bool:
     return parse_semver(version)[:2] == (1, 0)
 
 
+def plugin_contract_compatibility_reason(
+    declared_version: str,
+    host_version: str = PLUGIN_API_CONTRACT_VERSION,
+    *,
+    allow_legacy: bool = False,
+) -> str | None:
+    """New plugins require v1.1; explicitly eligible old installations use a limited adapter."""
+    declared = parse_semver(declared_version)
+    host = parse_semver(host_version)
+    if host >= (1, 1, 0) and declared[:2] == (1, 0):
+        if allow_legacy:
+            return None
+        return (
+            f"Plugin API contract {declared_version} is v1.0-only. "
+            "Limited compatibility is available for shipped examples and already-installed plugins. "
+            f"New plugins must target a supported v1.1 contract ({host_version})."
+        )
+    if declared[0] != host[0] or declared > host:
+        return f"Plugin API contract {declared_version} is not supported by this host ({host_version})."
+    return None
+
+
 def manifest_compatibility_checks(
     manifest: VersionRequirements,
     sdk_version: str,
@@ -70,8 +92,6 @@ def manifest_compatibility_checks(
     allow_legacy: bool = False,
 ) -> list[dict[str, str]]:
     """Report every failing requirement; a legacy SDK adapter never bypasses an app range."""
-    from .contracts import plugin_contract_compatibility_reason
-
     limited = allow_legacy and is_legacy_contract(manifest.api_contract_version)
     contract_error = plugin_contract_compatibility_reason(
         manifest.api_contract_version, sdk_version, allow_legacy=allow_legacy

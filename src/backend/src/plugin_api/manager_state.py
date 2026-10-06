@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import threading
@@ -89,8 +90,6 @@ class ManagerState:
 
     def stage_path(self, plugin_id: str) -> Path:
         # IDs originate in validated manifests, but don't trust API input paths.
-        import hashlib
-
         name = hashlib.sha256(plugin_id.encode()).hexdigest()
         return self.path.parent / "plugin-staging" / f"{name}.utp"
 

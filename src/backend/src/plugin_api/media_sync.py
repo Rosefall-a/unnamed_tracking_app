@@ -162,16 +162,16 @@ async def dispatch_media_sync(
             "conflict": "local_watch_state_changed",
             "revision": watch_revision(media, item.media_type),
         }
-    for field, value in (
+    for field_name, value in (
         ("title", item.title),
         ("sort_title", item.title.casefold()),
         ("genres", item.genres),
         ("poster_url", item.poster_url),
     ):
-        if field not in (media.locked_fields or []) and (not enrich or value):
-            if enrich and field == "genres":
+        if field_name not in (media.locked_fields or []) and (not enrich or value):
+            if enrich and field_name == "genres":
                 value = list(dict.fromkeys([*(media.genres or []), *item.genres]))
-            setattr(media, field, value)
+            setattr(media, field_name, value)
     if item.media_type == "movie":
         if "runtime_minutes" not in (media.locked_fields or []) and (
             not enrich or item.runtime_minutes is not None

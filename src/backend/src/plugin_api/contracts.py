@@ -10,272 +10,101 @@ from enum import StrEnum
 from typing import Any
 
 from .base_contracts import (
-    API_VERSION as API_VERSION,
+    API_VERSION,
+    PLUGIN_API_CONTRACT_VERSION,
+    SEMVER_RE,
+    ApiVersion,
+    BackendRouteAuthorization,
+    BackendRouteMethod,
+    BackendRouteScope,
+    Capability,
+    CapabilityRef,
+    ContractModel,
+    DocumentChunkRepresentation,
+    DocumentContentRepresentation,
+    DocumentRepresentation,
+    ErrorCode,
+    ErrorDetail,
+    ErrorEnvelope,
+    EventAck,
+    EventEnvelope,
+    EventSubscription,
+    GameRepresentation,
+    IntegrityMetadata,
+    ItemT,
+    JsonValue,
+    MediaRepresentation,
+    NotificationDeliveryRepresentation,
+    NotificationDeliveryResult,
+    NotificationProviderRegistration,
+    Page,
+    Pagination,
+    PermissionDeclaration,
+    PluginBackendRoute,
+    PluginDependency,
+    PluginFrontendDeclaration,
+    PluginIdentity,
+    PluginManifest,
+    PluginNativeFrontendDeclaration,
+    PluginPackageIdentity,
+    PluginPwaDeclaration,
+    PluginScheduledTask,
+    PluginUiDeclaration,
+    RequestContext,
+    SessionRepresentation,
+    StorageEntry,
+    StorageMetadata,
+    StorageRequirements,
+    Timestamp,
+    UserContext,
+    UserRepresentation,
+    VersionNegotiationRequest,
+    VersionNegotiationResponse,
+    parse_semver,
+    validate_version_range,
+    version_satisfies,
 )
-from .base_contracts import (
-    PLUGIN_API_CONTRACT_VERSION as PLUGIN_API_CONTRACT_VERSION,
-)
-from .base_contracts import (
-    SEMVER_RE as SEMVER_RE,
-)
-from .base_contracts import (
-    ApiVersion as ApiVersion,
-)
-from .base_contracts import (
-    BackendRouteAuthorization as BackendRouteAuthorization,
-)
-from .base_contracts import (
-    BackendRouteMethod as BackendRouteMethod,
-)
-from .base_contracts import (
-    BackendRouteScope as BackendRouteScope,
-)
-from .base_contracts import (
-    Capability as Capability,
-)
-from .base_contracts import (
-    CapabilityRef as CapabilityRef,
-)
-from .base_contracts import (
-    ContractModel as ContractModel,
-)
-from .base_contracts import (
-    DocumentChunkRepresentation as DocumentChunkRepresentation,
-)
-from .base_contracts import (
-    DocumentContentRepresentation as DocumentContentRepresentation,
-)
-from .base_contracts import (
-    DocumentRepresentation as DocumentRepresentation,
-)
-from .base_contracts import (
-    ErrorCode as ErrorCode,
-)
-from .base_contracts import (
-    ErrorDetail as ErrorDetail,
-)
-from .base_contracts import (
-    ErrorEnvelope as ErrorEnvelope,
-)
-from .base_contracts import (
-    EventAck as EventAck,
-)
-from .base_contracts import (
-    EventEnvelope as EventEnvelope,
-)
-from .base_contracts import (
-    EventSubscription as EventSubscription,
-)
-from .base_contracts import (
-    GameRepresentation as GameRepresentation,
-)
-from .base_contracts import (
-    IntegrityMetadata as IntegrityMetadata,
-)
-from .base_contracts import (
-    ItemT as ItemT,
-)
-from .base_contracts import (
-    JsonValue as JsonValue,
-)
-from .base_contracts import (
-    MediaRepresentation as MediaRepresentation,
-)
-from .base_contracts import (
-    NotificationDeliveryRepresentation as NotificationDeliveryRepresentation,
-)
-from .base_contracts import (
-    NotificationDeliveryResult as NotificationDeliveryResult,
-)
-from .base_contracts import (
-    NotificationProviderRegistration as NotificationProviderRegistration,
-)
-from .base_contracts import (
-    Page as Page,
-)
-from .base_contracts import (
-    Pagination as Pagination,
-)
-from .base_contracts import (
-    PermissionDeclaration as PermissionDeclaration,
-)
-from .base_contracts import (
-    PluginBackendRoute as PluginBackendRoute,
-)
-from .base_contracts import (
-    PluginDependency as PluginDependency,
-)
-from .base_contracts import (
-    PluginFrontendDeclaration as PluginFrontendDeclaration,
-)
-from .base_contracts import (
-    PluginIdentity as PluginIdentity,
-)
-from .base_contracts import (
-    PluginManifest as PluginManifest,
-)
-from .base_contracts import (
-    PluginNativeFrontendDeclaration as PluginNativeFrontendDeclaration,
-)
-from .base_contracts import (
-    PluginPackageIdentity as PluginPackageIdentity,
-)
-from .base_contracts import (
-    PluginPwaDeclaration as PluginPwaDeclaration,
-)
-from .base_contracts import (
-    PluginScheduledTask as PluginScheduledTask,
-)
-from .base_contracts import (
-    PluginUiDeclaration as PluginUiDeclaration,
-)
-from .base_contracts import (
-    RequestContext as RequestContext,
-)
-from .base_contracts import (
-    SessionRepresentation as SessionRepresentation,
-)
-from .base_contracts import (
-    StorageEntry as StorageEntry,
-)
-from .base_contracts import (
-    StorageMetadata as StorageMetadata,
-)
-from .base_contracts import (
-    StorageRequirements as StorageRequirements,
-)
-from .base_contracts import (
-    Timestamp as Timestamp,
-)
-from .base_contracts import (
-    UserContext as UserContext,
-)
-from .base_contracts import (
-    UserRepresentation as UserRepresentation,
-)
-from .base_contracts import (
-    VersionNegotiationRequest as VersionNegotiationRequest,
-)
-from .base_contracts import (
-    VersionNegotiationResponse as VersionNegotiationResponse,
-)
-from .base_contracts import (
-    _satisfies_constraint as _satisfies_constraint,
-)
-from .base_contracts import (
-    _validate_range_part as _validate_range_part,
-)
-from .base_contracts import (
-    parse_semver as parse_semver,
-)
-from .base_contracts import (
-    validate_version_range as validate_version_range,
-)
-from .base_contracts import (
-    version_satisfies as version_satisfies,
+from .compatibility import (
+    legacy_plugin_allowed,
+    manifest_compatibility_checks,
+    plugin_contract_compatibility_reason,
 )
 from .ui_contracts import (
-    HostExtensionSlot as HostExtensionSlot,
-)
-from .ui_contracts import (
-    HostPage as HostPage,
-)
-from .ui_contracts import (
-    PluginUiDocument as PluginUiDocument,
-)
-from .ui_contracts import (
-    ThemeColor as ThemeColor,
-)
-from .ui_contracts import (
-    UiAction as UiAction,
-)
-from .ui_contracts import (
-    UiContextLocation as UiContextLocation,
-)
-from .ui_contracts import (
-    UiContextualAction as UiContextualAction,
-)
-from .ui_contracts import (
-    UiDialog as UiDialog,
-)
-from .ui_contracts import (
-    UiDialogContribution as UiDialogContribution,
-)
-from .ui_contracts import (
-    UiDocumentReader as UiDocumentReader,
-)
-from .ui_contracts import (
-    UiExtension as UiExtension,
-)
-from .ui_contracts import (
-    UiField as UiField,
-)
-from .ui_contracts import (
-    UiFieldType as UiFieldType,
-)
-from .ui_contracts import (
-    UiHomeWidget as UiHomeWidget,
-)
-from .ui_contracts import (
-    UiMenuItem as UiMenuItem,
-)
-from .ui_contracts import (
-    UiNavigationContribution as UiNavigationContribution,
-)
-from .ui_contracts import (
-    UiNavigationLocation as UiNavigationLocation,
-)
-from .ui_contracts import (
-    UiOption as UiOption,
-)
-from .ui_contracts import (
-    UiOverlayContribution as UiOverlayContribution,
-)
-from .ui_contracts import (
-    UiPage as UiPage,
-)
-from .ui_contracts import (
-    UiPageNavigation as UiPageNavigation,
-)
-from .ui_contracts import (
-    UiPageReplacement as UiPageReplacement,
-)
-from .ui_contracts import (
-    UiPlacement as UiPlacement,
-)
-from .ui_contracts import (
-    UiPluginRoute as UiPluginRoute,
-)
-from .ui_contracts import (
-    UiSchemaVersion as UiSchemaVersion,
-)
-from .ui_contracts import (
-    UiSettingsContribution as UiSettingsContribution,
-)
-from .ui_contracts import (
-    UiSettingsSection as UiSettingsSection,
-)
-from .ui_contracts import UiShortcut as UiShortcut
-from .ui_contracts import (
-    UiTable as UiTable,
-)
-from .ui_contracts import (
-    UiTableColumn as UiTableColumn,
-)
-from .ui_contracts import (
-    UiTheme as UiTheme,
-)
-from .ui_contracts import (
-    UiThemeColors as UiThemeColors,
-)
-from .ui_contracts import (
-    UiThemePalette as UiThemePalette,
-)
-from .ui_contracts import (
-    UiValidation as UiValidation,
-)
-from .ui_contracts import (
-    UiVisibility as UiVisibility,
+    HostExtensionSlot,
+    HostPage,
+    PluginUiDocument,
+    ThemeColor,
+    UiAction,
+    UiContextLocation,
+    UiContextualAction,
+    UiDialog,
+    UiDialogContribution,
+    UiDocumentReader,
+    UiExtension,
+    UiField,
+    UiFieldType,
+    UiHomeWidget,
+    UiMenuItem,
+    UiNavigationContribution,
+    UiNavigationLocation,
+    UiOption,
+    UiOverlayContribution,
+    UiPage,
+    UiPageNavigation,
+    UiPageReplacement,
+    UiPlacement,
+    UiPluginRoute,
+    UiSchemaVersion,
+    UiSettingsContribution,
+    UiSettingsSection,
+    UiShortcut,
+    UiTable,
+    UiTableColumn,
+    UiTheme,
+    UiThemeColors,
+    UiThemePalette,
+    UiValidation,
+    UiVisibility,
 )
 
 
@@ -295,28 +124,6 @@ class CompatibilityDecision(ContractModel):
     action: str
 
 
-def plugin_contract_compatibility_reason(
-    declared_version: str,
-    host_version: str = PLUGIN_API_CONTRACT_VERSION,
-    *,
-    allow_legacy: bool = False,
-) -> str | None:
-    """New plugins require v1.1; explicitly eligible old installations use a limited adapter."""
-    declared = parse_semver(declared_version)
-    host = parse_semver(host_version)
-    if host >= (1, 1, 0) and declared[:2] == (1, 0):
-        if allow_legacy:
-            return None
-        return (
-            f"Plugin API contract {declared_version} is v1.0-only. "
-            "Limited compatibility is available for shipped examples and already-installed plugins. "
-            f"New plugins must target a supported v1.1 contract ({host_version})."
-        )
-    if declared[0] != host[0] or declared > host:
-        return f"Plugin API contract {declared_version} is not supported by this host ({host_version})."
-    return None
-
-
 def evaluate_manifest_compatibility(
     manifest: PluginManifest,
     sdk_version: str,
@@ -325,8 +132,6 @@ def evaluate_manifest_compatibility(
     allow_legacy: bool | None = None,
 ) -> CompatibilityDecision:
     """Classify a manifest without executing plugin code."""
-    from .compatibility import legacy_plugin_allowed, manifest_compatibility_checks
-
     try:
         checks = manifest_compatibility_checks(
             manifest,
@@ -458,6 +263,12 @@ def resolve_plugin_dependencies(
 
 
 __all__ = [
+    "DocumentChunkRepresentation",
+    "ItemT",
+    "StorageEntry",
+    "StorageMetadata",
+    "ThemeColor",
+    "UiDocumentReader",
     "API_VERSION",
     "PLUGIN_API_CONTRACT_VERSION",
     "ApiVersion",
