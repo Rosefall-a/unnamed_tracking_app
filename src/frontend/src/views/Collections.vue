@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
 import { useRouter } from "vue-router";
-import CollectionCard from "../components/CollectionCard.vue";
+import CollectionTile from "../components/CollectionTile.vue";
 import GameTopBar from "../components/GameTopBar.vue";
 import SegmentedTabs from "../components/SegmentedTabs.vue";
 import type { SegmentOption } from "../components/SegmentedTabs.vue";
@@ -25,6 +25,7 @@ import {
   deleteCollectionFully,
 } from "../utils/collectionEdit";
 import { useConfirm } from "../state/dialog";
+import { useCardOrder, kindOptions as kindCounts } from "../utils/useCardOrder";
 
 const confirm = useConfirm();
 
@@ -219,11 +220,6 @@ function inMyOrder(a: CollectionSummary, b: CollectionSummary): number {
     a.name.localeCompare(b.name)
   );
 }
-const myOrder = computed(() =>
-  [...collectionSummaries.value].sort(
-    (a, b) => Number(b.pinned) - Number(a.pinned) || inMyOrder(a, b),
-  ),
-);
 // moving cards only makes sense when every collection is in view, in your own order
 const reorderable = computed(
   () => sortBy.value === "custom" && !filtering.value,
@@ -234,28 +230,12 @@ function togglePin(name: string) {
   updateMeta(name, { pinned: !current });
 }
 
-// pinned collections and the rest are ordered separately
-function groupOf(name: string): CollectionSummary[] {
-  const pinned = collectionSummaries.value.find((c) => c.name === name)?.pinned;
-  return myOrder.value.filter((c) => c.pinned === !!pinned);
-}
-function canMove(name: string, direction: -1 | 1): boolean {
-  const group = groupOf(name);
-  const at = group.findIndex((c) => c.name === name);
-  return at + direction >= 0 && at + direction < group.length;
-}
-function moveCollection(name: string, direction: -1 | 1) {
-  const group = groupOf(name);
-  const at = group.findIndex((c) => c.name === name);
-  const to = at + direction;
-  if (at < 0 || to < 0 || to >= group.length) return;
-  const swapped = [...group];
-  [swapped[at], swapped[to]] = [swapped[to], swapped[at]];
-  const pinned = group[0].pinned;
-  const pinnedGroup = pinned ? swapped : myOrder.value.filter((c) => c.pinned);
-  const rest = pinned ? myOrder.value.filter((c) => !c.pinned) : swapped;
-  setCollectionOrder([...pinnedGroup, ...rest].map((c) => c.name));
-}
+const order = useCardOrder({
+  items: collectionSummaries,
+  keyOf: (c) => c.name,
+  inMyOrder,
+  apply: (ordered) => setCollectionOrder(ordered.map((c) => c.name)),
+});
 
 // ---- edit / delete ----
 const editingName = ref<string | null>(null);
@@ -318,43 +298,12 @@ async function deleteCollection(name: string) {
   await loadGames();
 }
 
-// dragging a card onto another one of the same group puts it in that place;
-// pinned and other collections stay apart
-const dragName = ref<string | null>(null);
-const dropOn = ref<string | null>(null);
-function onDrop(targetName: string) {
-  const from = dragName.value;
-  dragName.value = dropOn.value = null;
-  if (!from || from === targetName) return;
-  const moving = myOrder.value.find((c) => c.name === from);
-  if (!moving) return;
-  const group = myOrder.value.filter((c) => c.pinned === moving.pinned);
-  if (!group.some((c) => c.name === targetName)) return;
-  const rest = group.filter((c) => c.name !== from);
-  rest.splice(
-    group.findIndex((c) => c.name === targetName),
-    0,
-    moving,
-  );
-  const pinnedGroup = moving.pinned
-    ? rest
-    : myOrder.value.filter((c) => c.pinned);
-  const others = moving.pinned ? myOrder.value.filter((c) => !c.pinned) : rest;
-  setCollectionOrder([...pinnedGroup, ...others].map((c) => c.name));
-}
-
 const smartCount = computed(
   () => collectionSummaries.value.filter((c) => c.isSmart).length,
 );
-const kindOptions = computed<SegmentOption[]>(() => [
-  { value: "all", label: "All", count: collectionSummaries.value.length },
-  {
-    value: "manual",
-    label: "Manual",
-    count: collectionSummaries.value.length - smartCount.value,
-  },
-  { value: "smart", label: "Smart", count: smartCount.value },
-]);
+const kindOptions = computed<SegmentOption[]>(() =>
+  kindCounts(collectionSummaries.value.length, smartCount.value),
+);
 const filtering = computed(
   () => searchQuery.value.trim() !== "" || kindFilter.value !== "all",
 );
@@ -422,28 +371,33 @@ const tagOptions = computed(() => {
 
       <template v-else>
         <div v-if="filteredCollections.length" class="grid">
-          <CollectionCard
+          <CollectionTile
             v-for="col in filteredCollections"
+            :id="col.name"
             :key="col.name"
             :name="col.name"
-            :games="col.games"
+            :covers="col.games.slice(0, 4).map((g) => g.coverImageUrl)"
+            :count="col.games.length"
+            count-noun="game"
+            noun="collection"
+            nest-by-name
             :is-smart="col.isSmart"
             :is-system="col.isSystem"
             :description="col.description"
             :pinned="col.pinned"
             :reorderable="reorderable"
-            :can-move-earlier="canMove(col.name, -1)"
-            :can-move-later="canMove(col.name, 1)"
-            :drag-over="dropOn === col.name && dragName !== col.name"
+            :can-move-earlier="order.canMove(col.name, -1)"
+            :can-move-later="order.canMove(col.name, 1)"
+            :drag-over="order.isDropTarget(col.name)"
             @open="openCollection"
             @edit="editCollection"
             @delete="deleteCollection"
             @pin="togglePin"
-            @move="moveCollection"
-            @dragstart="dragName = $event"
-            @dragover="dropOn = $event"
-            @drop="onDrop"
-            @dragend="dragName = dropOn = null"
+            @move="order.move"
+            @dragstart="order.dragKey.value = $event"
+            @dragover="order.dropOn.value = $event"
+            @drop="order.drop"
+            @dragend="order.endDrag"
           />
         </div>
         <p v-if="!filteredCollections.length && filtering" class="ui-state">
@@ -478,30 +432,6 @@ const tagOptions = computed(() => {
   </main>
 </template>
 
-<style scoped>
-.header-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
-}
-.search-input {
-  width: 220px;
-}
-.filter-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px 14px;
-  margin-bottom: 20px;
-}
-/* as many 150px+ columns as fit, so cards stay one size at any window width */
-.grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: 20px 16px;
-}
-.grid :deep(.collection-card-wrap) {
-  width: auto;
-  min-width: 0;
-}
-</style>
+<style scoped src="../styles/shared/listIndex.css"></style>
+
+<style scoped></style>

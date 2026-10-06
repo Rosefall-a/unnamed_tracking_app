@@ -18,13 +18,17 @@ from src.api.routes import (
     default_game_assets,
     export_import,
     game_archives,
+    game_notes,
+    game_page,
     games,
     jobs,
     library_sync,
     media,
     media_extras,
     media_io,
+    media_images,
     media_lists,
+    steam_tags_refresh,
     media_stats,
     notifications,
     preferences,
@@ -85,6 +89,8 @@ app.include_router(movies.router)
 app.include_router(tv_shows.router)
 app.include_router(anime.router)
 app.include_router(game_archives.router)
+app.include_router(game_notes.router)
+app.include_router(game_page.router)
 app.include_router(users.router)
 app.include_router(api_keys.router)
 app.include_router(auth.router)
@@ -100,6 +106,8 @@ app.include_router(export_import.router)
 app.include_router(jobs.router)
 app.include_router(media_io.router)
 app.include_router(media_extras.router)
+app.include_router(media_images.router)
+app.include_router(steam_tags_refresh.router)
 app.include_router(media_lists.router)
 app.include_router(notifications.router)
 app.include_router(media_stats.router)

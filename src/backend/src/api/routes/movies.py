@@ -2,16 +2,23 @@
 
 import asyncio
 import re
-import time
 from datetime import date
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.routes.media_extras import log_activity, status_change_detail
+from src.api.routes.media_common import (
+    library_page,
+    purge_row,
+    restore_row,
+    soft_delete,
+    title_search,
+    trash_listing,
+)
 from src.api.schemas.pagination import PaginatedResponse
 from src.api.schemas.movie import MovieCreate, MovieRead, MovieUpdate
 from src.core.app_integrations import get_or_create_app_integration_settings
@@ -137,36 +144,15 @@ async def list_movies(
     limit: int = Query(default=100, ge=1, le=200),
 ) -> PaginatedResponse[MovieRead]:
     """Return one page of the current user's movies and the total matching it."""
-    stmt = select(Movie).where(Movie.user_id == current_user.id, Movie.deleted_at.is_(None))
-
-    if status_filter is not None:
-        stmt = stmt.where(Movie.status == status_filter)
-    if favorite is not None:
-        stmt = stmt.where(Movie.favorite == favorite)
-    if search:
-        stmt = stmt.where(Movie.title.ilike(f"%{search}%"))
-
-    status_count_stmt = select(Movie.status, func.count()).where(
-        Movie.user_id == current_user.id, Movie.deleted_at.is_(None)
-    )
-    if favorite is not None:
-        status_count_stmt = status_count_stmt.where(Movie.favorite == favorite)
-    if search:
-        status_count_stmt = status_count_stmt.where(Movie.title.ilike(f"%{search}%"))
-    status_counts_result = await db.execute(status_count_stmt.group_by(Movie.status))
-    status_counts = {status.value: count for status, count in status_counts_result.all()}
-
-    total = await db.scalar(select(func.count()).select_from(stmt.subquery()))
-    stmt = stmt.order_by(Movie.sort_title).offset(skip).limit(limit)
-
-    result = await db.execute(stmt)
-    items = list(result.scalars().all())
-    return PaginatedResponse(
-        items=items,
-        total=total or 0,
-        offset=skip,
+    return await library_page(
+        db,
+        Movie,
+        current_user.id,
+        status_filter=status_filter,
+        favorite=favorite,
+        search_clause=title_search([Movie.title], search),
+        skip=skip,
         limit=limit,
-        status_counts=status_counts,
     )
 
 
@@ -244,8 +230,7 @@ async def delete_movie(
 ) -> None:
     """Soft-delete a movie by ID."""
     movie = await _get_movie_or_404(movie_id, db, current_user.id)
-    movie.deleted_at = int(time.time())
-    await db.commit()
+    await soft_delete(db, movie)
 
 
 @router.get("/trash")
@@ -257,18 +242,7 @@ async def list_movie_trash(
     against these — unlike Game's on-disk folders, a movie is just a
     row, so there's nothing to clean up and it stays here until an
     admin either restores it or deletes it again to purge it for good."""
-    result = await db.execute(
-        select(Movie)
-        .where(Movie.user_id == current_user.id, Movie.deleted_at.is_not(None))
-        .order_by(Movie.deleted_at.desc())
-    )
-    trashed = []
-    for movie in result.scalars().all():
-        assert (
-            movie.deleted_at is not None
-        )  # guaranteed by the deleted_at.is_not(None) filter above
-        trashed.append({"id": str(movie.id), "title": movie.title, "deleted_at": movie.deleted_at})
-    return trashed
+    return await trash_listing(db, Movie, current_user.id)
 
 
 @router.post("/{movie_id}/restore", response_model=MovieRead)
@@ -278,10 +252,7 @@ async def restore_movie(
     current_user: User = Depends(get_current_user),
 ) -> Movie:
     movie = await _get_movie_or_404(movie_id, db, current_user.id, include_deleted=True)
-    if movie.deleted_at is None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Movie isn't deleted.")
-    movie.deleted_at = None
-    await db.commit()
+    await restore_row(db, movie, "Movie")
     await db.refresh(movie)
     return movie
 
@@ -295,10 +266,7 @@ async def purge_movie(
     """Permanently removes an already-deleted movie. Only reachable from
     trash — a movie still active must be soft-deleted first."""
     movie = await _get_movie_or_404(movie_id, db, current_user.id, include_deleted=True)
-    if movie.deleted_at is None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Movie isn't deleted.")
-    await db.delete(movie)
-    await db.commit()
+    await purge_row(db, movie, "Movie")
 
 
 @router.get("/{movie_id}/relations")
