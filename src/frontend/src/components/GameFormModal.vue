@@ -1300,16 +1300,16 @@ async function submit() {
   min-height: 380px;
 }
 .metadata-refresh-panel {
-  border: 1px solid #3a3a3a;
-  border-radius: 8px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
   padding: 12px;
-  background: #151515;
+  background: var(--ui-surface);
   display: flex;
   flex-direction: column;
   gap: 10px;
 }
 .metadata-refresh-panel strong {
-  color: #fff;
+  color: var(--ui-text);
 }
 .metadata-refresh-panel .hint {
   margin: 0;
@@ -1389,7 +1389,7 @@ async function submit() {
 }
 .metadata-result:hover {
   border-color: var(--ui-accent-line);
-  background: #282828;
+  background: var(--ui-surface-2);
 }
 .field {
   display: flex;
