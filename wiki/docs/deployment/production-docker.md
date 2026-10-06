@@ -64,9 +64,7 @@ reference Discord provider additionally requires
 `PLUGIN_RUNTIME_DISCORD_EGRESS=true`; its host/path and payload size are
 validated by the runtime.
 
-Authenticated gateway connectivity remains owned by #265, while #266 remains
-the capability authorization boundary. Plugin browser traffic is never
-published directly from the runtime.
+The host enforces authenticated gateway access and capability grants. Plugin browser traffic is served through the application and is never published directly from the runtime.
 
 ## Permissions and filesystem
 
@@ -74,10 +72,21 @@ Nginx workers run as `www-data`; the master retains the privileges required to b
 
 The Compose example persists `./data:/data` and PostgreSQL state in a named volume. Runtime diagnostics are ephemeral. Use Docker logging or an external collector when durable logs are required.
 
-## Nginx security
+## Logging and diagnostics
 
-The production edge disables version disclosure, keeps bounded proxy timeouts, forwards the original request protocol, and emits `X-Content-Type-Options`, `Referrer-Policy`, and `X-Frame-Options`. HSTS is emitted only on HTTPS.
+The production container uses Docker stdout/stderr rather than an application-specific log aggregation system. Use `docker logs <container>` or `docker logs -f <container>` for lifecycle, backend, and Nginx diagnostics.
 
+The backend log is also retained at `/run/unnamed-tracking/backend.log` and migration output at `/run/unnamed-tracking/migration.log`. Retrieve them with `docker exec <container> cat /run/unnamed-tracking/backend.log` and `docker exec <container> cat /run/unnamed-tracking/migration.log`, or copy them with `docker cp <container>:/run/unnamed-tracking/backend.log ./backend.log`. Raw logs are not exposed as public `/_startup` HTTP resources.
+
+The startup page deliberately shows concise lifecycle status instead of raw logs. This keeps normal startup readable while preserving detailed failure diagnostics for operators.
+
+## Startup diagnostics
+
+It displays the lifecycle phase, database status, migration status, backend status, frontend status, and the current message. On failure the loading indicator stops and the failure state is shown. Raw logs are deliberately not displayed by default.
+
+Diagnostic endpoints are `/_startup/status.json` and `/_startup/details.txt`. Raw backend and migration logs are not public HTTP resources.
+
+The startup JavaScript polls asynchronously and slows down after READY. When a failure is reported, the loading animation stops and concise diagnostic details open.
 ## Optional embedded TLS
 
 HTTP-only remains the default. TLS is deployment-only. When TLS is enabled, the container selects `readytls.conf` or `readytlsredirect.conf` before replacing `/etc/nginx/nginx.conf`. If `NGINX_TLS_CERTIFICATE` and `NGINX_TLS_PRIVATE_KEY` are empty, a complete `/etc/nginx/tls/tls.crt` and `/etc/nginx/tls/tls.key` pair is used automatically when present; otherwise a self-signed localhost certificate/key pair is generated under `/run/unnamed-tracking/tls`. Explicit certificate/key paths remain supported for production. TLS is disabled by default.
@@ -128,5 +137,21 @@ and the migration environment preserves those percent escapes when passing the
 URL through Alembic's configuration parser. An encoded password must not prevent
 a fresh container from migrating or starting.
 
+## Persistence
 
-The production-container workflow builds the image and validates Nginx/TLS configuration with deterministic self-signed test material. It does not run the full PostgreSQL/application runtime smoke suite; that remains #206 so normal image CI is not coupled to an environment-dependent integration stack.
+The production Compose deployment persists application data through ./data:/data and PostgreSQL data through the named pgdata volume.
+
+Do not remove these storage locations when recreating the production container.
+
+## CI and publishing
+
+.github/workflows/docker-container.yml builds the production image on pull requests and pushes images for non-pull-request events. For non-PR events it pushes both a ref-derived tag and a sha-<commit> tag to GHCR.
+
+The image-build workflow validates the image and Nginx configuration. The separate production-runtime smoke workflow exercises startup, migration, login and backend failures with PostgreSQL.
+
+## Secrets
+
+Backend and migration output passes through credential redaction before Docker forwarding and private log retention. Public startup details contain concise lifecycle status and operator log paths; raw logs are not published as HTTP resources.
+
+
+The production-container workflow builds the image and validates Nginx/TLS configuration with deterministic self-signed test material. The separate production-runtime workflow covers application startup, PostgreSQL migrations, login, JSON API responses and backend failure states.

@@ -4,6 +4,7 @@ import type { Game, GameStatus } from "../types/game";
 import {
   DEFAULT_PICKER_FILTERS,
   matchesPickerFilters,
+  parseMaxHours,
   pickRandomGame,
   pickWeight,
 } from "../utils/randomPicker";
@@ -83,6 +84,19 @@ describe("matchesPickerFilters", () => {
     );
   });
 
+  it("finds a genre whichever provider named it", () => {
+    // IGDB has no "Action" genre; Devil May Cry arrives as hack and slash
+    const igdb = game("igdb", { tags: ["Hack and slash/Beat 'em up"] });
+    const steam = game("steam", { tags: ["action"] });
+    const rpg = game("rpg", { tags: ["Role-playing (RPG)"] });
+    expect(matchesPickerFilters(igdb, filters({ genre: "Action" }))).toBe(true);
+    expect(matchesPickerFilters(steam, filters({ genre: "Action" }))).toBe(
+      true,
+    );
+    expect(matchesPickerFilters(rpg, filters({ genre: "RPG" }))).toBe(true);
+    expect(matchesPickerFilters(rpg, filters({ genre: "Action" }))).toBe(false);
+  });
+
   it("lets games with unknown length through a length limit only if asked", () => {
     const unknown = game("unknown");
     expect(matchesPickerFilters(unknown, filters({ maxHours: 10 }))).toBe(true);
@@ -121,5 +135,22 @@ describe("pickRandomGame", () => {
     expect(pickRandomGame([game("a")], filters(), Math.random, "a")?.id).toBe(
       "a",
     );
+  });
+});
+
+describe("parseMaxHours", () => {
+  it("reads the number Vue hands over from the number input", () => {
+    // v-model on type="number" casts the field's text to a number
+    expect(parseMaxHours(10)).toBe(10);
+    expect(parseMaxHours(2.5)).toBe(2.5);
+  });
+
+  it("still reads text, and treats empty or non-positive as no limit", () => {
+    expect(parseMaxHours("12")).toBe(12);
+    expect(parseMaxHours("")).toBeNull();
+    expect(parseMaxHours("   ")).toBeNull();
+    expect(parseMaxHours(0)).toBeNull();
+    expect(parseMaxHours(-3)).toBeNull();
+    expect(parseMaxHours(Number.NaN)).toBeNull();
   });
 });

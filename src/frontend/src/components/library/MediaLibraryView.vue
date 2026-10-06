@@ -121,6 +121,10 @@ const emit = defineEmits<{
   (e: "bulk-favorite", ids: string[]): void;
   (e: "bulk-delete", ids: string[]): void;
   (e: "search", query: string): void;
+  (
+    e: "filters-change",
+    filters: LibraryFilters & { statusBucket: string },
+  ): void;
   (e: "load-more"): void;
 }>();
 
@@ -221,11 +225,16 @@ const boardCardWidth = computed(() => {
 });
 const activeStatus = ref<string>("all");
 const searchQuery = ref("");
-let searchTimer: ReturnType<typeof setTimeout> | null = null;
-watch(searchQuery, (query) => {
-  if (searchTimer !== null) clearTimeout(searchTimer);
-  searchTimer = setTimeout(() => emit("search", query.trim()), 250);
-});
+let filterTimer: ReturnType<typeof setTimeout> | null = null;
+function emitFilters() {
+  if (filterTimer !== null) clearTimeout(filterTimer);
+  filterTimer = setTimeout(() => {
+    emit("filters-change", {
+      ...filters.value,
+      statusBucket: activeStatus.value,
+    });
+  }, 250);
+}
 type SortKey =
   | "rank"
   | "score"
@@ -491,7 +500,10 @@ function moveBoard(status: string, direction: -1 | 1, available: number) {
   }
   boardPageStarts[status] = current + available;
 }
-watch([activeStatus, filters], resetBoardPages);
+watch([activeStatus, filters], () => {
+  resetBoardPages();
+  emitFilters();
+});
 watch(boardViewportWidth, resetBoardPages);
 function updateBoardViewport() {
   boardViewportWidth.value = boardContainer.value?.clientWidth ?? 0;
