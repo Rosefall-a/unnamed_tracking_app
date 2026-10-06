@@ -1707,6 +1707,12 @@ class PluginRegistry:
             status = "incompatible"
             if not isinstance(raw_state, dict) or raw_state.get("status") != status:
                 self._transition(plugin_id, status=status, last_error=contract_error)
+        last_exit_code = self.supervisor.exit_code(plugin_id)
+        worker_error = (
+            f"Plugin worker exited with status {last_exit_code}. Open Diagnostics for recent events."
+            if status == "failed" and last_exit_code is not None
+            else None
+        )
         return {
             "plugin_id": plugin_id,
             "name": data.get("name", plugin_id),
@@ -1773,14 +1779,15 @@ class PluginRegistry:
             if running
             else (
                 "unhealthy"
-                if self.supervisor.exit_code(plugin_id) not in (None, 0)
+                if last_exit_code not in (None, 0)
                 else "unknown"
             ),
             "logs_available": bool(self.supervisor.logs(plugin_id)),
-            "last_exit_code": self.supervisor.exit_code(plugin_id),
+            "last_exit_code": last_exit_code,
             "status": status,
             "last_error": contract_error
-            or (raw_state.get("last_error") if isinstance(raw_state, dict) else None),
+            or (raw_state.get("last_error") if isinstance(raw_state, dict) else None)
+            or worker_error,
             "runtime": dict(self.supervisor.isolation),
             "pending_transaction": (
                 {"phase": "prepared", **raw_state["pending_installation"]}
@@ -2629,16 +2636,16 @@ class PluginRegistry:
             self.supervisor.stop(plugin_id)
 
     def diagnostics(self, plugin_id: str) -> dict[str, Any]:
-        self.package(plugin_id)
-        running = self.supervisor.running(plugin_id)
+        """Report canonical lifecycle status and bounded, redacted worker events."""
+        item = self._item(self.package(plugin_id)[0])
         return {
             "plugin_id": plugin_id,
-            "status": "running" if running else "stopped",
-            "last_exit_code": self.supervisor.exit_code(plugin_id),
+            "status": item["status"],
+            "last_exit_code": item["last_exit_code"],
             "events": self.supervisor.logs(plugin_id),
             "runtime": self.supervisor.isolation,
-            "process_running": running,
-            "last_error": self._state().get(plugin_id, {}).get("last_error"),
+            "process_running": item["health"] == "healthy",
+            "last_error": item["last_error"],
         }
 
     def storage_put(self, plugin_id: str, key: str, value: str) -> None:
