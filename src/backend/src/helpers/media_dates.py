@@ -43,9 +43,11 @@ _FULL = re.compile(
 _DAY = re.compile(r"(?<!\d)(?P<y>(?:19|20)\d{2})[-_.](?P<mo>[01]\d)[-_.](?P<d>[0-3]\d)(?!\d)")
 
 
-def _to_unix(y: int, mo: int, d: int, h: int = 0, mi: int = 0, s: int = 0) -> int | None:
+def _to_unix(
+    year: int, month: int, day: int, *, hour: int = 0, minute: int = 0, second: int = 0
+) -> int | None:
     try:
-        value = timegm(datetime(y, mo, d, h, mi, s).timetuple())
+        value = timegm(datetime(year, month, day, hour, minute, second).timetuple())
     except ValueError:
         return None
     return value
@@ -66,8 +68,10 @@ def from_filename(name: str, now: float | None = None) -> int | None:
     stem = Path(name).stem
     match = _FULL.search(stem)
     if match:
-        parts = [int(match.group(k)) for k in ("y", "mo", "d", "h", "mi", "s")]
-        found = _sane(_to_unix(*parts), now)
+        year, month, day, hour, minute, second = (
+            int(match.group(k)) for k in ("y", "mo", "d", "h", "mi", "s")
+        )
+        found = _sane(_to_unix(year, month, day, hour=hour, minute=minute, second=second), now)
         if found is not None:
             return found
     match = _DAY.search(stem)

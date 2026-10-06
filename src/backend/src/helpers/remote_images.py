@@ -41,13 +41,15 @@ def is_public_host(host: str) -> bool:
         return False
     for info in infos:
         address = ipaddress.ip_address(info[4][0])
-        if (
-            address.is_private
-            or address.is_loopback
-            or address.is_link_local
-            or address.is_multicast
-            or address.is_reserved
-            or address.is_unspecified
+        if any(
+            (
+                address.is_private,
+                address.is_loopback,
+                address.is_link_local,
+                address.is_multicast,
+                address.is_reserved,
+                address.is_unspecified,
+            )
         ):
             return False
     return True

@@ -1,4 +1,3 @@
-# pylint: disable=missing-module-docstring
 CURRENCY_CODES = [
     "AED",
     "AFN",
