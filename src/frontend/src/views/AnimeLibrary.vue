@@ -498,13 +498,13 @@ function detailRoute(id: string): string {
   width: 10px;
   height: 10px;
   border-radius: 2px;
-  background: var(--accent);
+  background: var(--ui-accent);
   transform: scale(0);
   transition: transform 0.1s ease-in-out;
 }
 
 .import-check input:checked {
-  border-color: var(--accent);
+  border-color: var(--ui-accent);
 }
 
 .import-check input:checked::before {
@@ -543,7 +543,7 @@ function detailRoute(id: string): string {
   color: var(--text-dim);
 }
 .import-actions .btn-solid {
-  background: var(--accent);
+  background: var(--ui-accent);
   border: none;
   color: #14100a;
 }
