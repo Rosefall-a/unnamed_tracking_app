@@ -126,3 +126,10 @@ def fetch_and_store(url: str, target: Path, width: int) -> None:
     for old in target.parent.glob(f"{prefix}*.jpg"):
         if old != target:
             old.unlink(missing_ok=True)
+
+
+def icon_cache_path(cache_root: Path, url: str) -> Path:
+    """Where the local copy of an achievement icon lives. Icons are the same for
+    every player, so they are kept once, named by their address."""
+    digest = hashlib.sha1(url.encode("utf-8"), usedforsecurity=False).hexdigest()
+    return cache_root / "achievement-icons" / f"{digest}.jpg"

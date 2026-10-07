@@ -14,6 +14,8 @@ from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
+from sqlalchemy import func, or_, select
+
 from src.api.routes.anime import _derive_sort_title
 from src.database.models.anime import Anime, AnimeEpisode, AnimeSeason, AnimeStatus
 from src.database.models.movies import Movie, MovieStatus
@@ -116,7 +118,9 @@ def parse_yamtrack(raw: bytes) -> list[YamtrackGroup]:
         if not source or not media_id or not media_type:
             continue
         # Yamtrack anime imports are temporarily disabled until their data can be
-        # mapped reliably. Keep the rest of the CSV importable.
+        # mapped reliably. Keep the rest of the CSV importable. (find_existing_anime
+        # below already matches by id and every title spelling, ready for turning
+        # this back on.)
         if media_type == "anime":
             continue
         if media_type not in {"movie", "tv", "season", "episode"}:
@@ -204,3 +208,25 @@ def build_yamtrack_item(group: YamtrackGroup) -> Movie | TVShow | Anime:
         return Anime(title=p["title"], sort_title=p["sort_title"], source=p["source"], external_id=p["external_id"], status=_status(row.get("status"), AnimeStatus), rating_overall=p["rating"], note=p["note"], start_date=p["start_date"], end_date=p["end_date"], poster_url=p["poster_url"], seasons=_season_rows(group, AnimeSeason, AnimeEpisode, AnimeStatus))
     p = _parent_fields(group)
     return TVShow(title=p["title"], sort_title=p["sort_title"], source=p["source"], external_id=p["external_id"], status=_status(row.get("status"), TVShowStatus), rating_overall=p["rating"], note=p["note"], start_date=p["start_date"], end_date=p["end_date"], poster_url=p["poster_url"], seasons=_season_rows(group, TVSeason, TVEpisode, TVShowStatus))
+
+
+async def find_existing_anime(db: Any, user_id: Any, group: YamtrackGroup, item: Anime) -> Anime | None:
+    """The anime already in the library that this Yamtrack row describes.
+
+    Yamtrack stores the Japanese title while an AniList or MAL import stores the
+    English one, so matching on the title alone creates a second copy of every
+    show. The provider id is checked first (MAL's id is `external_id`, AniList's
+    is `anilist_id`), then the title against every spelling the show has."""
+    id_match = []
+    source = group.source.lower()
+    if source in {"mal", "myanimelist"}:
+        id_match.append(Anime.external_id == group.media_id)
+    if source == "anilist":
+        id_match.append(Anime.anilist_id == group.media_id)
+    names = {n.lower() for n in (item.title, item.title_romaji, item.title_native, item.title_english) if n}
+    title_match = [func.lower(col).in_(names) for col in (Anime.title, Anime.title_english, Anime.title_romaji, Anime.title_native)]
+    return await db.scalar(
+        select(Anime).where(
+            Anime.user_id == user_id, Anime.deleted_at.is_(None), or_(*id_match, *title_match)
+        ).limit(1)
+    )

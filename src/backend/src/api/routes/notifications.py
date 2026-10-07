@@ -34,7 +34,9 @@ def _read(n: Notification) -> dict:
         "media_id": n.media_id,
         "title": n.title,
         "body": n.body,
-        "poster_url": n.poster_url,
+        "poster_url": f"/api/media-image/{n.media_type}/{n.media_id}/poster"
+        if n.poster_url
+        else None,
         "event_at": n.event_at,
         "read": n.read_at is not None,
     }

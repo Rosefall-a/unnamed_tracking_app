@@ -1183,6 +1183,9 @@ const activeFilterPills = computed(() => {
     });
   }
   for (const tag of tagsFilter.value) {
+    // the Genre dropdown and the Tags chips pick from the same list, so the
+    // same value in both is one filter, not two pills
+    if (tag === genreFilter.value) continue;
     pills.push({
       key: "tag:" + tag,
       label: tag,

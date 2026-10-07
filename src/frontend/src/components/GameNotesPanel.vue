@@ -13,6 +13,7 @@ import {
   onBeforeUnmount,
   nextTick,
 } from "vue";
+import { useSlowFlag } from "../utils/useSlowFlag";
 import { marked } from "marked";
 import DOMPurify from "dompurify";
 import AchievementPicker from "./AchievementPicker.vue";
@@ -53,6 +54,8 @@ function achievementName(id: string | null): string | null {
 
 const notes = ref<GameNoteSummary[]>([]);
 const loaded = ref(false);
+// the skeleton only appears if loading takes a moment, so a fast load does not flash it
+const showSkeleton = useSlowFlag(computed(() => !loaded.value));
 const error = ref<string | null>(null);
 const mode = ref<"list" | "read" | "edit">("list");
 const busy = ref(false);
@@ -753,7 +756,9 @@ onBeforeUnmount(() => document.removeEventListener("keydown", onKey));
 
       <div v-if="error" class="ui-error-box">{{ error }}</div>
       <div v-if="!loaded" class="np-grid" aria-busy="true" aria-label="Loading">
-        <div v-for="n in 3" :key="n" class="np-skel"></div>
+        <template v-if="showSkeleton">
+          <div v-for="n in 3" :key="n" class="np-skel"></div>
+        </template>
       </div>
 
       <button

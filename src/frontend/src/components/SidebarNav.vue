@@ -476,12 +476,8 @@ async function handleLogout() {
             stroke-linecap="round"
             stroke-linejoin="round"
           >
-            <line x1="8" y1="6" x2="21" y2="6" />
-            <line x1="8" y1="12" x2="21" y2="12" />
-            <line x1="8" y1="18" x2="21" y2="18" />
-            <line x1="3" y1="6" x2="3.01" y2="6" />
-            <line x1="3" y1="12" x2="3.01" y2="12" />
-            <line x1="3" y1="18" x2="3.01" y2="18" />
+            <path d="M4 7l8-4 8 4-8 4-8-4z" />
+            <path d="M4 12l8 4 8-4M4 17l8 4 8-4" />
           </svg>
           <span>Collections</span>
         </router-link>
