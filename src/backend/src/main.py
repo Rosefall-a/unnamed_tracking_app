@@ -9,6 +9,8 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.sessions import SessionMiddleware
 
 from src.api.routes import (
+    achievement_icons,
+    steam_import_steps,
     app_integrations,
     api_keys,
     anime,
@@ -51,6 +53,7 @@ from src.database.session import SessionLocal
 from src.features.backup.scheduler import run_backup_loop
 from src.features.jobs import run_jobs_loop
 from src.features.trash.sweep import run_sweep_loop
+from src.helpers import image_prefetch
 
 app = FastAPI(
     title="My API", docs_url="/api/docs", redoc_url="/api/redoc", openapi_url="/api/openapi.json"
@@ -109,6 +112,8 @@ app.include_router(jobs.router)
 app.include_router(media_io.router)
 app.include_router(media_extras.router)
 app.include_router(media_images.router)
+app.include_router(achievement_icons.router)
+app.include_router(steam_import_steps.router)
 app.include_router(steam_tags_refresh.router)
 app.include_router(media_lists.router)
 app.include_router(notifications.router)
@@ -139,6 +144,11 @@ async def bootstrap_primary_user() -> None:
                 "require_symbol": bool(app_integrations_row.password_require_symbol),
             })
         apply_deployment_provider_credentials(app_integrations_row)
+
+
+@app.on_event("startup")
+async def start_image_prefetch() -> None:
+    image_prefetch.enable()
 
 
 @app.on_event("startup")

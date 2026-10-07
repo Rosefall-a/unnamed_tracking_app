@@ -1,7 +1,6 @@
 """Local copies of the posters and backdrops of movies, TV shows and anime."""
 
 import asyncio
-from pathlib import Path
 from typing import Any, Literal
 from uuid import UUID
 
@@ -16,6 +15,7 @@ from src.database.models.movies import Movie
 from src.database.models.tv_show import TVShow
 from src.database.models.user import User
 from src.database.session import get_db
+from src.helpers.image_prefetch import MEDIA_ROOT, WIDTHS
 from src.helpers.remote_images import RemoteImageError, cache_path, fetch_and_store
 
 router = APIRouter(
@@ -24,10 +24,8 @@ router = APIRouter(
     dependencies=[Depends(get_current_user)],
 )
 
-_DATA_ROOT = Path("/data/users")
+_DATA_ROOT = MEDIA_ROOT
 _MODELS: dict[str, Any] = {"movie": Movie, "tv": TVShow, "anime": Anime}
-# a poster shows at most about 200 px wide, a backdrop spans the page
-_WIDTHS = {"poster": 400, "backdrop": 1920, "hero": 1920}
 
 
 @router.get("/{media_type}/{item_id}/{which}")
@@ -57,10 +55,12 @@ async def get_media_image(
     if not url:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No such image.")
 
-    target = cache_path(_DATA_ROOT / str(current_user.id) / ".cache", media_type, str(item_id), which, url)
+    # the hero of a title with a backdrop is that same picture: one file, not two
+    name = "backdrop" if which == "hero" and row and row.backdrop_url else which
+    target = cache_path(_DATA_ROOT / str(current_user.id) / ".cache", media_type, str(item_id), name, url)
     if not target.is_file():
         try:
-            await asyncio.to_thread(fetch_and_store, url, target, _WIDTHS[which])
+            await asyncio.to_thread(fetch_and_store, url, target, WIDTHS[which])
         except RemoteImageError:
             return RedirectResponse(
                 url,

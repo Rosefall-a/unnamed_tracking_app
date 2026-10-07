@@ -51,6 +51,14 @@ def _profile_path(user_id: UUID) -> Path:
     return _USER_DATA_ROOT / str(user_id) / _PROFILE_FILENAME
 
 
+def _is_heic(data: bytes) -> bool:
+    # HEIC/HEIF files are an ISO box whose "ftyp" brand names the format;
+    # Pillow cannot read them, so say so instead of "not a valid image"
+    return data[4:8] == b"ftyp" and data[8:12] in {
+        b"heic", b"heix", b"hevc", b"hevx", b"heim", b"heis", b"mif1", b"msf1",
+    }
+
+
 @router.put("/{user_id}/profile-picture")
 async def upload_profile_picture(
     user_id: UUID,
@@ -71,6 +79,12 @@ async def upload_profile_picture(
         raise HTTPException(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
             detail="Profile picture must be 10 MB or smaller.",
+        )
+
+    if _is_heic(image_bytes):
+        raise HTTPException(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            detail="HEIC pictures are not supported. Save it as a JPEG or PNG and try again.",
         )
 
     try:

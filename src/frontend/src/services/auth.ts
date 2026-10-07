@@ -172,9 +172,13 @@ export async function uploadProfilePicture(
   });
 
   if (!response.ok) {
-    const message = await response.text();
+    // the server's own wording ("HEIC pictures are not supported...") is
+    // what the user needs, not the status line around it
+    const body = await response.json().catch(() => null);
     throw new Error(
-      `Failed to upload profile picture: ${response.status} ${response.statusText} ${message}`,
+      typeof body?.detail === "string"
+        ? body.detail
+        : `Failed to upload profile picture (${response.status}).`,
     );
   }
 }

@@ -5,6 +5,8 @@ import type { CurrentUser } from "../services/auth";
 export const currentUser = ref<CurrentUser | null>(null);
 export const authChecked = ref(false);
 export const authCheckFailed = ref(false);
+// bumped after a new profile picture is uploaded so every avatar refetches it
+export const avatarVersion = ref(Date.now());
 
 export async function checkAuth() {
   authCheckFailed.value = false;

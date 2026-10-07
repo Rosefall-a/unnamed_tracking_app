@@ -17,7 +17,14 @@ def steam_achievement_rows(
     (name, icons, whether Steam marks it hidden), the player list says which
     are unlocked and when, and the percentages (when fetched) how many players
     have it."""
-    unlocked_by_name = {a["apiname"]: a for a in unlocked if a.get("apiname")}
+    # Steam is not consistent about the case of an achievement's internal name
+    # between the schema and the player's list (some games differ), so match
+    # without regard to case or an unlocked achievement shows as locked
+    player_by_name = {a["apiname"].lower(): a for a in unlocked if a.get("apiname")}
+
+    def player(api_name: str) -> dict:
+        return player_by_name.get(api_name.lower(), {})
+
     rows = [
         {
             "external_id": api_name,
@@ -26,15 +33,15 @@ def steam_achievement_rows(
             # the player list has it once you've unlocked it, and the community
             # feed has it either way
             "description": defn.get("description")
-            or unlocked_by_name.get(api_name, {}).get("description")
+            or player(api_name).get("description")
             or (descriptions or {}).get(api_name.lower())
             or (descriptions or {}).get(f"name:{(defn.get('displayName') or '').lower()}")
             or None,
             "icon_url": defn.get("icon")
-            if unlocked_by_name.get(api_name, {}).get("achieved")
+            if player(api_name).get("achieved")
             else defn.get("icongray"),
-            "unlocked": bool(unlocked_by_name.get(api_name, {}).get("achieved")),
-            "unlocked_at": unlocked_by_name.get(api_name, {}).get("unlocktime") or None,
+            "unlocked": bool(player(api_name).get("achieved")),
+            "unlocked_at": player(api_name).get("unlocktime") or None,
             "hidden": bool(defn.get("hidden")),
         }
         for api_name, defn in schema.items()

@@ -39,7 +39,7 @@ from src.features.metadata.movies.tmdb import TMDBClient
 from src.features.imports.mal import MAX_BYTES, MalEntry, MalImportError, parse_mal_export
 from src.features.imports.mal_apply import apply_tracking, differences, fill_details, match_entries
 from src.features.imports.restore import restore_media
-from src.features.imports.yamtrack import build_yamtrack_item, parse_yamtrack
+from src.features.imports.yamtrack import build_yamtrack_item, find_existing_anime, parse_yamtrack
 
 LIST_MAX_BYTES = 30 * 1024 * 1024
 router = APIRouter(prefix="/api", tags=["import"], dependencies=[Depends(get_current_user)])
@@ -126,8 +126,10 @@ async def import_yamtrack(file: UploadFile, db: AsyncSession = Depends(get_db), 
         key = {"movie": "movies", "tv": "tv_shows", "anime": "anime"}[group.media_type]
         try:
             item = build_yamtrack_item(group); item.user_id = current_user.id; date_field = "release_date" if group.media_type == "movie" else "first_air_date"; existing = None
-            if group.media_type in {"tv", "anime"}:
-                model: Any = TVShow if group.media_type == "tv" else Anime
+            if group.media_type == "anime":
+                existing = await find_existing_anime(db, current_user.id, group, item) if isinstance(item, Anime) else None
+            elif group.media_type == "tv":
+                model: Any = TVShow
                 existing = await db.scalar(select(model).where(model.user_id == current_user.id, model.deleted_at.is_(None), func.lower(model.source) == group.source.lower(), model.external_id == group.media_id))
             if existing is None:
                 match_model: Any = Movie if group.media_type == "movie" else TVShow if group.media_type == "tv" else Anime; title = item.title.lower(); release = getattr(item, date_field)

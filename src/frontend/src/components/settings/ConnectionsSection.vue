@@ -49,12 +49,12 @@ function isConnected(s: ProviderCredentialStatus): boolean {
 }
 
 function timeAgo(unix: number | null | undefined): string {
-  if (!unix) return "never synced";
+  if (!unix) return "Never synced";
   const s = Math.max(0, Math.floor(Date.now() / 1000 - unix));
-  if (s < 60) return "synced just now";
-  if (s < 3600) return `synced ${Math.floor(s / 60)}m ago`;
-  if (s < 86400) return `synced ${Math.floor(s / 3600)}h ago`;
-  return `synced ${Math.floor(s / 86400)}d ago`;
+  if (s < 60) return "Synced just now";
+  if (s < 3600) return `Synced ${Math.floor(s / 60)}m ago`;
+  if (s < 86400) return `Synced ${Math.floor(s / 3600)}h ago`;
+  return `Synced ${Math.floor(s / 86400)}d ago`;
 }
 
 interface Row {
@@ -69,16 +69,23 @@ const accountRows = computed<Row[]>(() =>
   Object.entries(credentials.value)
     .filter(([name]) => ACCOUNT_PROVIDERS.includes(name))
     .map(([name, s]) => {
+      const connected = isConnected(s);
       const bits: string[] = [];
-      if (s.display_name) bits.push(s.display_name);
-      if (s.library_games != null) bits.push(`${s.library_games} games`);
-      if (SYNCABLE[name] && isConnected(s))
-        bits.push(timeAgo(s.last_synced_at));
+      // The server reports a game count of 0 for providers that were never
+      // set up; only a connected account has a real count to show.
+      if (connected) {
+        if (s.display_name) bits.push(s.display_name);
+        if (s.library_games != null)
+          bits.push(`${s.library_games} ${s.library_games === 1 ? "Game" : "Games"}`);
+        if (SYNCABLE[name]) bits.push(timeAgo(s.last_synced_at));
+      }
       return {
         name,
-        connected: isConnected(s),
+        connected,
         error: s.status === "error",
-        detail: bits.join(" · ") || (s.detail ?? ""),
+        detail:
+          bits.join(" · ") ||
+          (s.status === "error" ? (s.detail ?? "Connection error") : "Not connected"),
         syncable: SYNCABLE[name] ?? null,
       };
     })
@@ -102,7 +109,8 @@ async function sync(row: Row) {
   syncMessage.value = null;
   try {
     const r = await syncLibrary(row.syncable);
-    syncMessage.value = `${row.name}: ${r.games_added} added, ${r.games_updated} updated.`;
+    const wishlist = r.wishlist_added ? `, ${r.wishlist_added} wishlisted` : "";
+    syncMessage.value = `${row.name}: ${r.games_added} added, ${r.games_updated} updated${wishlist}.`;
     await load();
   } catch (e) {
     syncMessage.value = e instanceof Error ? e.message : "Sync failed.";
@@ -135,10 +143,10 @@ async function sync(row: Row) {
         >
         <span class="info">
           <strong>{{ row.name }}</strong>
-          <span class="detail">{{ row.detail || "Not connected" }}</span>
+          <span class="detail">{{ row.detail }}</span>
         </span>
         <span class="pill" :class="{ ok: row.connected, bad: row.error }">{{
-          row.error ? "Error" : row.connected ? "Connected" : "Not set up"
+          row.error ? "Error" : row.connected ? "Connected" : "Not connected"
         }}</span>
         <button
           v-if="row.syncable && row.connected"

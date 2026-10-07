@@ -9,10 +9,14 @@
 import { ref, watch, onMounted, onBeforeUnmount } from "vue";
 import { useRouter } from "vue-router";
 import { openTopbarPopover } from "../state/topbarPopover";
-import { currentUser } from "../state/auth";
-import { logout } from "../services/auth";
+import { currentUser, avatarVersion } from "../state/auth";
+import { logout, profilePictureUrl } from "../services/auth";
 
 defineProps<{ initials: string }>();
+
+// falls back to the initials when the user has no picture (the request 404s)
+const avatarFailed = ref(false);
+watch(avatarVersion, () => (avatarFailed.value = false));
 
 const router = useRouter();
 const root = ref<HTMLElement | null>(null);
@@ -114,7 +118,16 @@ onBeforeUnmount(() => {
     >
       <slot />
       <div class="profile-menu-avatar-wrap">
-        <div class="profile-menu-avatar">{{ initials }}</div>
+        <div class="profile-menu-avatar">
+          <img
+            v-if="currentUser && !avatarFailed"
+            :src="`${profilePictureUrl(currentUser.id)}?t=${avatarVersion}`"
+            alt=""
+            class="profile-menu-avatar-img"
+            @error="avatarFailed = true"
+          />
+          <template v-else>{{ initials }}</template>
+        </div>
         <div class="profile-menu-chevron-badge">
           <svg
             class="profile-menu-chevron"
@@ -233,6 +246,12 @@ onBeforeUnmount(() => {
   justify-content: center;
   font-size: 12px;
   font-weight: 700;
+}
+.profile-menu-avatar-img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
 }
 .profile-menu-chevron-badge {
   position: absolute;

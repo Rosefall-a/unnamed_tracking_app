@@ -220,7 +220,31 @@ const boardCardMinWidth = computed(() => {
   if (shelfCardSize.value === "large") return 260;
   return 196;
 });
-const activeStatus = ref<string>("all");
+// The status tab survives a page refresh (nothing unmounts on reload) but is
+// cleared when you leave the library, so coming back starts on All.
+const statusKey = `libraryStatus:${props.kind}`;
+function readSavedStatus(): string {
+  try {
+    return sessionStorage.getItem(statusKey) || "all";
+  } catch {
+    return "all";
+  }
+}
+const activeStatus = ref<string>(readSavedStatus());
+watch(activeStatus, (v) => {
+  try {
+    sessionStorage.setItem(statusKey, v);
+  } catch {
+    /* storage unavailable: the tab just won't survive a refresh */
+  }
+});
+onBeforeUnmount(() => {
+  try {
+    sessionStorage.removeItem(statusKey);
+  } catch {
+    /* nothing to clear */
+  }
+});
 const searchQuery = ref("");
 let filterTimer: ReturnType<typeof setTimeout> | null = null;
 function emitFilters() {
@@ -490,6 +514,8 @@ function moveBoard(status: string, direction: -1 | 1, available: number) {
   boardPageStarts[status] = current + available;
 }
 watch([activeStatus, filters], () => { resetBoardPages(); emitFilters(); });
+// a tab restored after a refresh has to reach the server query too
+if (activeStatus.value !== "all") emitFilters();
 watch(boardViewportWidth, resetBoardPages);
 function updateBoardViewport() {
   const shelf = document.querySelector<HTMLElement>(".board-shelf");
@@ -1069,7 +1095,9 @@ defineExpose({ openQuickAdd });
       </div>
 
       <div class="body">
-        <p v-if="loading" class="empty-state">Loading…</p>
+        <!-- only when nothing is on screen: loading the next page must not
+             unmount the list, which would throw the scroll position away -->
+        <p v-if="loading && !items.length" class="empty-state">Loading…</p>
         <p v-else-if="error" class="empty-state error">{{ error }}</p>
 
         <!-- ===== STATS ===== -->
