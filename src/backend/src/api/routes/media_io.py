@@ -127,7 +127,7 @@ async def import_yamtrack(file: UploadFile, db: AsyncSession = Depends(get_db), 
         try:
             item = build_yamtrack_item(group); item.user_id = current_user.id; date_field = "release_date" if group.media_type == "movie" else "first_air_date"; existing = None
             if group.media_type == "anime":
-                existing = await find_existing_anime(db, current_user.id, group, item)
+                existing = await find_existing_anime(db, current_user.id, group, item) if isinstance(item, Anime) else None
             elif group.media_type == "tv":
                 model: Any = TVShow
                 existing = await db.scalar(select(model).where(model.user_id == current_user.id, model.deleted_at.is_(None), func.lower(model.source) == group.source.lower(), model.external_id == group.media_id))

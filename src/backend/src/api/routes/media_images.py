@@ -56,7 +56,7 @@ async def get_media_image(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No such image.")
 
     # the hero of a title with a backdrop is that same picture: one file, not two
-    name = "backdrop" if which == "hero" and row.backdrop_url else which
+    name = "backdrop" if which == "hero" and row and row.backdrop_url else which
     target = cache_path(_DATA_ROOT / str(current_user.id) / ".cache", media_type, str(item_id), name, url)
     if not target.is_file():
         try:
