@@ -30,7 +30,6 @@ from src.helpers.steam_achievement_rows import (  # noqa: F401
     steam_achievement_rows as _steam_achievement_rows,
 )
 from src.api.routes.games import _scan_settings_to_preferences
-from src.core.preferences import load_preferences
 from src.api.routes.settings import (
     get_or_create_app_integration_settings,
     get_or_create_scan_settings,
@@ -142,6 +141,9 @@ async def _enrich_steam_game_by_appid(
     except Exception:
         details = None
     if details:
+        if game.title.startswith("Steam app ") and details.get("name"):
+            # a wishlisted game is saved under a placeholder until now
+            game.title, game.sort_title = details["name"], details["name"].lower()
         if details.get("developers"):
             game.developer = ", ".join(details["developers"])
         if details.get("publishers"):
@@ -449,7 +451,11 @@ async def _flag_stale_games(
     on a later sync has its flag cleared in _get_or_create_game."""
     result = await db.execute(
         select(Game).where(
-            Game.user_id == user_id, Game.source == source, Game.deleted_at.is_(None)
+            Game.user_id == user_id,
+            Game.source == source,
+            Game.deleted_at.is_(None),
+            # a wishlisted game is not in the owned list by definition
+            Game.status != GameStatus.WISHLIST,
         )
     )
     now = int(time.time())
@@ -622,11 +628,24 @@ async def _fetch_steam_rows(user: User, external_id: str) -> list[dict]:
     try:
         steam_id = await asyncio.to_thread(steam.resolve_steam_id, user.steam_id, api_key)
         schema = await asyncio.to_thread(steam.get_schema_for_game, api_key, app_id)
-        unlocked = await asyncio.to_thread(steam.get_player_achievements, steam_id, api_key, app_id)
+        if not schema:
+            return []
+        unlocked = await asyncio.to_thread(
+            steam.get_player_achievements, steam_id, api_key, app_id, True
+        )
     except steam.SteamLibraryError as exc:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
-    if not schema:
-        return []
+    if not unlocked:
+        # Steam lists every achievement of a game the player owns, locked ones
+        # included, so an empty answer means it gave this account no data at
+        # all, not that nothing is unlocked. Saying so beats showing 0 unlocked.
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Steam returned no achievement data for this account on app {app_id} "
+            f"({len(schema)} achievements exist). Check that Game details are public in "
+            "Steam's privacy settings, that the API key and Steam ID belong to the same "
+            "account, and that this entry's Steam app id is the edition you own.",
+        )
     percentages = await asyncio.to_thread(steam.get_global_percentages, app_id)
     descriptions = None
     if _needs_community_descriptions(schema):
@@ -690,12 +709,6 @@ async def sync_steam_library(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Save your Steam ID and API key first."
         )
 
-    scan_settings = await get_or_create_scan_settings(current_user.id, db)
-    preferences = _scan_settings_to_preferences(scan_settings)
-    preferences["steam_user_tags"] = (await load_preferences(db, current_user.id))["steam_user_tags"]
-    app_integrations = resolve_integrations(await get_or_create_app_integration_settings(db))
-    igdb_client_id = app_integrations.igdb_client_id
-    igdb_client_secret = app_integrations.igdb_client_secret
     api_key = current_user.steam_api_key
     try:
         # cheap no-op once the credentials-save flow has already resolved
@@ -760,6 +773,7 @@ async def sync_steam_library(
         games_added += created
         games_updated += not created
         synced_titles.append(title)
+        became_owned = not created and game.status == GameStatus.WISHLIST
 
         total_achievements = unlocked_count = 0
         if schema:
@@ -769,7 +783,7 @@ async def sync_steam_library(
             total_achievements = len(rows)
             unlocked_count = sum(1 for r in rows if r["unlocked"])
 
-        if created:
+        if created or became_owned:
             _apply_status(
                 game,
                 _infer_status(
@@ -778,19 +792,9 @@ async def sync_steam_library(
                     unlocked_achievements=unlocked_count,
                 ),
             )
+        if created:
             _add_source_tag_and_collection(game, "Steam")
             newly_created.append((game, app_id))
-
-    async def _enrich(game: Game, app_id: int) -> None:
-        async with semaphore:
-            # appid-anchored — no text matching, so no risk of attaching a
-            # different game's data/art the way the generic search-based
-            # _enrich_new_game occasionally did
-            await _enrich_steam_game_by_appid(
-                game, app_id, current_user, igdb_client_id, igdb_client_secret, preferences["steam_user_tags"]
-            )
-
-    await asyncio.gather(*(_enrich(g, app_id) for g, app_id in newly_created))
 
     games_flagged_stale = await _flag_stale_games(db, current_user.id, "Steam", touched_ids)
     current_user.steam_library_synced_at = int(time.time())
@@ -801,6 +805,9 @@ async def sync_steam_library(
         "achievements_synced": achievements_synced,
         "games_flagged_stale": games_flagged_stale,
         "games": synced_titles,
+        # the new games still to be enriched (store details, tags, artwork), which
+        # is slow, so the app asks for it in batches: see steam_import_steps.py
+        "enrich_game_ids": [str(g.id) for g, _ in newly_created],
     }
 
 

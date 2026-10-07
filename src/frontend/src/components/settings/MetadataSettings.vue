@@ -4,6 +4,7 @@ import SettingsTabs from "./SettingsTabs.vue";
 import MetadataSourcesSection from "./MetadataSourcesSection.vue";
 import ScanSettingsSection from "./ScanSettingsSection.vue";
 import SteamTagsSection from "./SteamTagsSection.vue";
+import SteamWishlistSection from "./SteamWishlistSection.vue";
 import MediaRefreshSection from "./MediaRefreshSection.vue";
 
 const props = defineProps<{ initialTab?: string }>();
@@ -25,6 +26,7 @@ const tab = ref(
     <template v-else-if="tab === 'scan'">
       <ScanSettingsSection />
       <SteamTagsSection />
+      <SteamWishlistSection />
     </template>
     <MediaRefreshSection v-else />
   </div>

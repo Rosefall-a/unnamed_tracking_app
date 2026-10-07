@@ -28,6 +28,8 @@ export interface Preferences {
   anilist_import_last_run_at: number | null;
   // genres from the tags Steam players vote on, not just Steam's broad ones
   steam_user_tags: boolean;
+  // also add the Steam wishlist, as Wishlist games, when importing from Steam
+  steam_import_wishlist: boolean;
   // what every game page shows; a game can override it
   game_page: PageSettings;
 }
@@ -57,6 +59,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   anilist_import_update_existing: false,
   anilist_import_last_run_at: null,
   steam_user_tags: true,
+  steam_import_wishlist: false,
   game_page: DEFAULT_PAGE_SETTINGS,
 };
 

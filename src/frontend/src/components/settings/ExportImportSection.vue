@@ -111,7 +111,7 @@ const SOURCES: {
     value: "imdb",
     label: "IMDb",
     accept: ".csv,text/csv",
-    what: "movies and TV shows",
+    what: "movies, TV shows and anime",
     how: "Use an IMDb ratings or watchlist export (the CSV from your list's Export button). Rated titles come in as watched with your rating, unrated ones as plan to watch. Episodes and other kinds are skipped.",
   },
   {
@@ -119,7 +119,7 @@ const SOURCES: {
     label: "Yamtrack",
     accept: ".csv,text/csv",
     what: "movies and TV shows",
-    how: "Use Yamtrack's CSV export. Movies and TV shows are grouped by Yamtrack's provider ID, with seasons and watched episodes restored under the correct parent. Anime is currently not imported.",
+    how: "Use Yamtrack's CSV export. Movies, TV shows and anime are grouped by Yamtrack's provider ID, with seasons and watched episodes restored under the correct parent. Anime already in your library is matched by its ID or any of its titles, so Japanese and English names do not create duplicates.",
   },
 ];
 const source = ref<ImportSource>("mal");
@@ -364,9 +364,6 @@ async function onFileSelected(e: Event) {
           Yamtrack imports directly and skips items already in your library.
         </template>
       </p>
-      <div v-if="source === 'yamtrack'" class="form-warning">
-        Anime from Yamtrack is currently not imported. Movies and TV shows will still be imported.
-      </div>
       <div v-if="malError" class="form-error">{{ malError }}</div>
       <div v-if="yamtrackError" class="form-error">{{ yamtrackError }}</div>
       <div v-if="yamtrackResult" class="form-success">

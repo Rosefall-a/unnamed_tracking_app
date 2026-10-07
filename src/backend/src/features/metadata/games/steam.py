@@ -246,7 +246,15 @@ def get_global_percentages(app_id: int) -> dict[str, float]:
     return percentages
 
 
-def get_player_achievements(steam_id: str, api_key: str, app_id: int) -> list[dict]:
+_PRIVATE_DETAILS = (
+    "Steam is not sharing this account's game details. In Steam, set Profile > "
+    "Privacy Settings > Game details to Public, then refresh."
+)
+
+
+def get_player_achievements(
+    steam_id: str, api_key: str, app_id: int, strict: bool = False
+) -> list[dict]:
     """Which achievements this player has unlocked for one app. Many games
     have no achievement schema at all — that's a normal empty result, not
     an error."""
@@ -261,13 +269,16 @@ def get_player_achievements(steam_id: str, api_key: str, app_id: int) -> list[di
         )
     except requests.RequestException as exc:
         raise SteamLibraryError(f"Could not reach Steam: {exc}") from exc
-    if resp.status_code >= 400:
-        return []
     try:
         payload = resp.json().get("playerstats", {})
     except ValueError:
-        return []
-    if not payload.get("success"):
+        payload = {}
+    # a private profile says so in its answer; without this it reads as "this
+    # player has unlocked nothing". A bad key or an app without achievements
+    # also fails, with no such message, and stays an empty result.
+    if strict and "not public" in str(payload.get("error", "")).lower():
+        raise SteamLibraryError(_PRIVATE_DETAILS)
+    if resp.status_code >= 400 or not payload.get("success"):
         return []
     return payload.get("achievements", [])
 

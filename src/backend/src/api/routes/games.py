@@ -474,7 +474,9 @@ async def list_game_achievements(
             "provider": a.provider,
             "name": a.name,
             "description": a.description,
-            "icon_url": a.icon_url,
+            "icon_url": f"/api/achievement-icon/{a.id}"
+            if a.icon_url and a.icon_url.startswith(("http://", "https://"))
+            else a.icon_url,
             "unlocked": a.unlocked,
             "unlocked_at": a.unlocked_at,
             "hidden": a.hidden,

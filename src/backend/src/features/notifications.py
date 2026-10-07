@@ -239,7 +239,7 @@ async def record_sequel_announcements(
                 "media_id": show.id,
                 "title": show.title,
                 "body": f"A new season is listed: {node['title']}",
-                "poster_url": node.get("poster_url") or show.poster_url,
+                "poster_url": show.poster_url,
                 "event_at": int(time.time()),
                 "dedupe_key": f"seq:{show.id}:{node['id']}",
             }
