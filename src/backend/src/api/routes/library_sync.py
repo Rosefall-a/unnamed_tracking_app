@@ -20,7 +20,6 @@ import time
 from datetime import UTC, date, datetime
 from uuid import UUID
 
-import requests
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -35,7 +34,6 @@ from src.api.routes.settings import (
     get_or_create_scan_settings,
 )
 from src.core.auth import get_current_user
-from src.core.config import settings as app_settings
 from src.core.crypto import decrypt_secret
 from src.core.integrations import resolve_integrations
 from src.database.models.achievement import Achievement
@@ -51,7 +49,9 @@ from src.features.metadata.games.retroachievements import (
 )
 from src.features.metadata.games.search import search_game_metadata
 from src.features.metadata.games.steam_grid_db import SteamGridDBClient
-from src.helpers.save_game_asset import AssetKind, create_game_folder, save_game_asset
+from src.helpers.game_art_download import download_asset as _download_asset
+from src.helpers.game_art_download import steam_cdn_art_urls as _steam_cdn_art_urls
+from src.helpers.save_game_asset import AssetKind, create_game_folder
 
 router = APIRouter(
     prefix="/api/library-sync", tags=["library-sync"], dependencies=[Depends(get_current_user)]
@@ -74,6 +74,9 @@ def _normalize_title(title: str) -> str:
 
 
 _SYNC_CONCURRENCY = 5
+# the games.title column holds 150 characters; a longer name from a provider would
+# fail the insert, and with it the whole import
+_MAX_TITLE = 150
 
 # Steam's owned-games list includes non-game companion apps alongside real
 # games — public playtests, test/staging servers, and Valve's own
@@ -89,20 +92,6 @@ _JUNK_TITLE_PATTERN = re.compile(
 
 def _is_junk_title(title: str) -> bool:
     return bool(_JUNK_TITLE_PATTERN.search(title))
-
-
-# Steam's CDN asset naming convention is stable and public (used by Playnite,
-# LaunchBox, etc.) — since a Steam library sync already knows the exact
-# appid, art can come straight from here instead of a text search that might
-# match the wrong game. _download_asset silently no-ops on a 404, so trying
-# a URL that doesn't exist for an older game is harmless.
-def _steam_cdn_art_urls(app_id: int) -> dict[AssetKind, str]:
-    base = f"https://cdn.akamai.steamstatic.com/steam/apps/{app_id}"
-    return {
-        "key_art": f"{base}/library_600x900.jpg",
-        "banner": f"{base}/library_hero.jpg",
-        "logo": f"{base}/logo.png",
-    }
 
 
 async def _fetch_key_art_from_steamgriddb(app_id: int, api_key: str | None) -> str | None:
@@ -143,7 +132,8 @@ async def _enrich_steam_game_by_appid(
     if details:
         if game.title.startswith("Steam app ") and details.get("name"):
             # a wishlisted game is saved under a placeholder until now
-            game.title, game.sort_title = details["name"], details["name"].lower()
+            game.title = details["name"][:_MAX_TITLE]
+            game.sort_title = game.title.lower()
         if details.get("developers"):
             game.developer = ", ".join(details["developers"])
         if details.get("publishers"):
@@ -256,28 +246,6 @@ def _add_to_series_collection(game: Game, series: str) -> None:
     `_enrich_steam_game_by_appid`'s callers)."""
     if series not in game.collections:
         game.collections = [*game.collections, series]
-
-
-async def _download_asset(url: str, game_id: UUID, asset_kind: AssetKind) -> bool:
-    """Best-effort — mirrors games.py's download_game_asset route but never
-    raises, since one bad art URL must not fail an entire library sync.
-    Returns whether it actually saved something, so callers can fall back
-    to a different URL."""
-    try:
-        response = await asyncio.to_thread(requests.get, url, timeout=20)
-        response.raise_for_status()
-    except requests.RequestException:
-        return False
-    content_type = response.headers.get("content-type", "").split(";", 1)[0].lower()
-    if not content_type.startswith("image/"):
-        return False
-    if len(response.content) > app_settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024:
-        return False
-    try:
-        await save_game_asset(response.content, game_id, asset_kind)
-        return True
-    except (OSError, ValueError):
-        return False
 
 
 async def _fetch_series_from_igdb(
@@ -405,14 +373,17 @@ async def _get_or_create_game(
             )
         )
     if existing is None:
-        existing = await db.scalar(
-            select(Game).where(
-                Game.user_id == user_id,
-                Game.source == source,
-                Game.title == title,
-                Game.deleted_at.is_(None),
-            )
+        by_title = select(Game).where(
+            Game.user_id == user_id,
+            Game.source == source,
+            Game.title == title,
+            Game.deleted_at.is_(None),
         )
+        if external_id:
+            # two different games can share a name (Prey 2006 and Prey 2017); one
+            # that has its own id is not the game being synced
+            by_title = by_title.where(Game.external_id.is_(None))
+        existing = await db.scalar(by_title.limit(1))
     if existing:
         if existing.title != title:
             existing.title = title
@@ -636,6 +607,8 @@ async def _fetch_steam_rows(user: User, external_id: str) -> list[dict]:
     except steam.SteamLibraryError as exc:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
     if not unlocked:
+        # Steam may only be busy: that is retried, but a long enough burst of
+        # requests can still be refused, so the message says to wait and retry
         # Steam lists every achievement of a game the player owns, locked ones
         # included, so an empty answer means it gave this account no data at
         # all, not that nothing is unlocked. Saying so beats showing 0 unlocked.
@@ -644,7 +617,8 @@ async def _fetch_steam_rows(user: User, external_id: str) -> list[dict]:
             detail=f"Steam returned no achievement data for this account on app {app_id} "
             f"({len(schema)} achievements exist). Check that Game details are public in "
             "Steam's privacy settings, that the API key and Steam ID belong to the same "
-            "account, and that this entry's Steam app id is the edition you own.",
+            "account, and that this entry's Steam app id is the edition you own. If it "
+            "keeps happening Steam may be limiting requests: wait a few minutes and retry.",
         )
     percentages = await asyncio.to_thread(steam.get_global_percentages, app_id)
     descriptions = None
@@ -727,7 +701,7 @@ async def sync_steam_library(
 
     async def _fetch_achievements(
         app_id: int,
-    ) -> tuple[dict[str, dict], list[dict], dict[str, str] | None]:
+    ) -> tuple[dict[str, dict], list[dict] | None, dict[str, str] | None]:
         async with semaphore:
             try:
                 schema = await asyncio.to_thread(steam.get_schema_for_game, api_key, app_id)
@@ -754,12 +728,14 @@ async def sync_steam_library(
     games_added = games_updated = achievements_synced = 0
     newly_created: list[tuple[Game, int]] = []
     synced_titles: list[str] = []
+    unreadable: list[str] = []
     touched_ids: set[UUID] = set()
     fetch_index = 0
     for entry in owned_games:
         title, app_id = entry.get("name"), entry.get("appid")
         if not title or not app_id:
             continue
+        title = title[:_MAX_TITLE]
         schema, unlocked, descriptions = fetches[fetch_index]
         fetch_index += 1
 
@@ -776,7 +752,11 @@ async def sync_steam_library(
         became_owned = not created and game.status == GameStatus.WISHLIST
 
         total_achievements = unlocked_count = 0
-        if schema:
+        if schema and unlocked is None:
+            # Steam would not say what is unlocked: keep what is stored rather
+            # than replace it with an all-locked list
+            unreadable.append(title)
+        elif schema and unlocked is not None:
             rows = _steam_achievement_rows(schema, unlocked, None, descriptions)
             await _replace_achievements(db, game.id, "Steam", rows)
             achievements_synced += len(rows)
@@ -805,6 +785,8 @@ async def sync_steam_library(
         "achievements_synced": achievements_synced,
         "games_flagged_stale": games_flagged_stale,
         "games": synced_titles,
+        # games whose unlocked achievements Steam would not give this time
+        "achievements_unavailable": unreadable,
         # the new games still to be enriched (store details, tags, artwork), which
         # is slow, so the app asks for it in batches: see steam_import_steps.py
         "enrich_game_ids": [str(g.id) for g, _ in newly_created],

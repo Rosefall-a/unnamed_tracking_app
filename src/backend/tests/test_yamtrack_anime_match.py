@@ -1,13 +1,15 @@
 """A Yamtrack anime row finds the show already in the library under another
 spelling of its name instead of creating a second copy."""
 
+import csv
+import io
+
 from src.database.models.anime import Anime
 from src.database.session import SessionLocal
 from src.features.imports.yamtrack import (
     YamtrackGroup,
     build_yamtrack_item,
     find_existing_anime,
-    parse_yamtrack,
 )
 from tests.test_game_files_flow import flow  # noqa: F401  (the fixture)
 
@@ -17,8 +19,13 @@ _CSV = b"""media_id,source,media_type,title,image,season_number,episode_number,s
 
 
 async def _group_and_item() -> tuple[YamtrackGroup, Anime]:
-    group = parse_yamtrack(_CSV)[0]
-    return group, build_yamtrack_item(group)
+    # built by hand: the importer skips anime rows for now, but the matching must
+    # be right for when it is turned back on
+    row = next(csv.DictReader(io.StringIO(_CSV.decode())))
+    group = YamtrackGroup("mal", "50265", "anime", parent=row)
+    item = build_yamtrack_item(group)
+    assert isinstance(item, Anime)
+    return group, item
 
 
 async def test_matches_by_mal_id_even_when_the_titles_differ(flow) -> None:

@@ -122,15 +122,36 @@ def get_player_summary(steam_id: str, api_key: str) -> dict:
     return players[0] if players else {}
 
 
+_BUSY = frozenset({429, 500, 502, 503, 504})
+_TRIES = 3
+
+
+def _web_api_get(url: str, params: dict[str, str]) -> requests.Response:
+    """GET that tries again, a little later each time, when Steam says it is
+    busy. A big library makes over a thousand of these calls, and Steam answers
+    a burst of them with 429; treating that as a real answer is how a game ends
+    up with every achievement locked."""
+    resp = SESSION.get(url, params=params, timeout=20)
+    for attempt in range(1, _TRIES):
+        if resp.status_code not in _BUSY:
+            break
+        try:
+            delay = float(resp.headers.get("Retry-After", ""))
+        except ValueError:
+            delay = 2.0**attempt
+        time.sleep(min(delay, 8.0))
+        resp = SESSION.get(url, params=params, timeout=20)
+    return resp
+
+
 def get_schema_for_game(api_key: str, app_id: int) -> dict[str, dict]:
     """Achievement definitions (display name/description/icons) for one
     app, keyed by their internal `apiname` — `GetPlayerAchievements` below
     only returns which ones are unlocked, not what they mean."""
     try:
-        resp = SESSION.get(
+        resp = _web_api_get(
             f"{_WEB_API_BASE}/ISteamUserStats/GetSchemaForGame/v2/",
-            params={"key": api_key, "appid": str(app_id)},
-            timeout=20,
+            {"key": api_key, "appid": str(app_id)},
         )
     except requests.RequestException as exc:
         raise SteamLibraryError(f"Could not reach Steam: {exc}") from exc
@@ -254,18 +275,18 @@ _PRIVATE_DETAILS = (
 
 def get_player_achievements(
     steam_id: str, api_key: str, app_id: int, strict: bool = False
-) -> list[dict]:
+) -> list[dict] | None:
     """Which achievements this player has unlocked for one app. Many games
     have no achievement schema at all — that's a normal empty result, not
-    an error."""
+    an error. None means Steam did not answer (busy, or access refused), which
+    is not the same as nothing being unlocked."""
     try:
-        resp = SESSION.get(
+        resp = _web_api_get(
             f"{_WEB_API_BASE}/ISteamUserStats/GetPlayerAchievements/v1/",
             # `l` makes Steam include each achievement's name and description,
             # which for a hidden one you've unlocked is the only place the
             # description shows up: the schema leaves it out
-            params={"key": api_key, "steamid": steam_id, "appid": str(app_id), "l": "english"},
-            timeout=20,
+            {"key": api_key, "steamid": steam_id, "appid": str(app_id), "l": "english"},
         )
     except requests.RequestException as exc:
         raise SteamLibraryError(f"Could not reach Steam: {exc}") from exc
@@ -278,6 +299,8 @@ def get_player_achievements(
     # also fails, with no such message, and stays an empty result.
     if strict and "not public" in str(payload.get("error", "")).lower():
         raise SteamLibraryError(_PRIVATE_DETAILS)
+    if resp.status_code in _BUSY or resp.status_code in (401, 403):
+        return None
     if resp.status_code >= 400 or not payload.get("success"):
         return []
     return payload.get("achievements", [])
