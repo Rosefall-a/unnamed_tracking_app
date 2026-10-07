@@ -473,9 +473,42 @@ function detailRoute(id: string): string {
 }
 .import-check {
   display: flex;
-  gap: 8px;
+  gap: 9px;
   align-items: center;
   color: #ddd;
+  cursor: pointer;
+}
+
+.import-check input {
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  flex: 0 0 18px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 4px;
+  background: #111;
+  display: grid;
+  place-content: center;
+  cursor: pointer;
+}
+
+.import-check input::before {
+  content: "";
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  background: var(--accent);
+  transform: scale(0);
+  transition: transform 0.1s ease-in-out;
+}
+
+.import-check input:checked {
+  border-color: var(--accent);
+}
+
+.import-check input:checked::before {
+  transform: scale(1);
 }
 .import-error {
   color: #e57373 !important;
