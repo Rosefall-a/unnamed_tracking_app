@@ -43,7 +43,10 @@ class TMDBClient:
     def _details(self, movie_id: int) -> dict[str, Any]:
         return self._get(f"/movie/{movie_id}", {"append_to_response": "credits"})
 
-    def search(self, query: str, limit: int = 8, year: int | None = None) -> list[dict[str, Any]]:
+    def search(
+        self, query: str, limit: int = 8, year: int | None = None, light: bool = False
+    ) -> list[dict[str, Any]]:
+        # `light`: just what the search answer carries, no detail page per result
         if not query.strip():
             return []
         payload = self._get(
@@ -57,7 +60,7 @@ class TMDBClient:
             if movie_id is None:
                 continue
             try:
-                details = self._details(movie_id)
+                details = candidate if light else self._details(movie_id)
             except TMDBError:
                 details = candidate
 
@@ -102,7 +105,7 @@ class TMDBClient:
         return self._get(f"/tv/{tv_id}", {})
 
     def search_tv(
-        self, query: str, limit: int = 8, year: int | None = None
+        self, query: str, limit: int = 8, year: int | None = None, light: bool = False
     ) -> list[dict[str, Any]]:
         """Like `search`, but for TV shows. Also returns each show's full
         season list (TMDB's `/tv/{id}` details response includes every
@@ -121,7 +124,7 @@ class TMDBClient:
             if tv_id is None:
                 continue
             try:
-                details = self._tv_details(tv_id)
+                details = candidate if light else self._tv_details(tv_id)
             except TMDBError:
                 details = candidate
 
