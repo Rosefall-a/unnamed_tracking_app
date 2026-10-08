@@ -391,10 +391,16 @@ async def get_provider_credentials(
     # `last_synced_at` is the real timestamp of the last successful sync
     # run (not derived from Game.updated_at, which unrelated metadata-search
     # edits would also touch and make "last synced" lie).
+    # Epic signs in with a one-time code (see epic_import.py), so it has no
+    # fields here, only whether a sign-in is saved
+    result["Epic Games"] = {
+        "status": "configured" if current_user.epic_refresh_token else "not_configured"
+    }
     sync_timestamp_columns = {
         "Steam": current_user.steam_library_synced_at,
         "RetroAchievements": current_user.retroachievements_library_synced_at,
         "PlayStation": current_user.psn_library_synced_at,
+        "Epic Games": current_user.epic_library_synced_at,
     }
     for provider, last_synced in sync_timestamp_columns.items():
         count = await db.scalar(
@@ -416,6 +422,8 @@ async def get_provider_credentials(
     if current_user.psn_online_id:
         result["PlayStation"]["display_name"] = current_user.psn_online_id
         result["PlayStation"]["avatar_url"] = current_user.psn_avatar_url
+    if current_user.epic_refresh_token and current_user.epic_display_name:
+        result["Epic Games"]["display_name"] = current_user.epic_display_name
 
     return result
 

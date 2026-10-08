@@ -4,6 +4,11 @@ import PasswordInput from "../PasswordInput.vue";
 import { currentUser, checkAuth } from "../../state/auth";
 import { updateProfile } from "../../services/auth";
 import { fetchPsnStatus, connectPsn, disconnectPsn } from "../../services/psn";
+import {
+  fetchEpicLoginUrl,
+  connectEpic,
+  disconnectEpic,
+} from "../../services/epic";
 import type { PsnStatus } from "../../services/psn";
 import {
   fetchProviderCredentials,
@@ -16,12 +21,16 @@ import {
 } from "../../services/settings";
 import type { ProviderCredentialStatus } from "../../services/settings";
 import { syncLibrary } from "../../services/librarySync";
-import type { LibrarySyncProvider } from "../../services/librarySync";
+import type {
+  LibrarySyncProvider,
+  LibrarySyncResult,
+} from "../../services/librarySync";
 import {
   startTask,
   completeTask,
   errorTask,
   addFeedItem,
+  setTaskStep,
 } from "../../state/taskProgress";
 
 // small colored monogram badge per provider, no real logos bundled, so a
@@ -46,6 +55,7 @@ const SHORT_DESC: Record<string, string> = {
   LaunchBox: "Local app, not a cloud API",
   RetroAchievements: "Retro metadata & achievements",
   PlayStation: "Trophies & PSN Store data",
+  "Epic Games": "Library & playtime (no achievements)",
   Xbox: "Saved only: no live pull yet",
   HowLongToBeat: "Time-to-beat data",
 };
@@ -64,6 +74,7 @@ const VISUALS: Record<string, CardVisual> = {
   GOG: { bg: "#2a1a3d", fg: "#c084fc", mark: "GOG" },
   LaunchBox: { bg: "#1a1a1a", fg: "#999999", mark: "LB" },
   PlayStation: { bg: "#0a1a3d", fg: "#60a5fa", mark: "PS" },
+  "Epic Games": { bg: "#202020", fg: "#f5f5f5", mark: "EG" },
   HowLongToBeat: { bg: "#1f1f1f", fg: "#d1d5db", mark: "HL" },
 };
 
@@ -400,9 +411,9 @@ const PROVIDER_CARDS: Record<string, ProviderCardConfig> = {
     key: "Steam",
     label: "Steam",
     description:
-      "No account needed for metadata search. Importing your library and achievements requires both fields below: your profile ID (the part after steamcommunity.com/id/, not the full link) and a Web API key. Your profile's game details must also be set to Public, or Steam silently returns an empty library.",
+      "No account needed for metadata search. Importing your library and achievements requires both fields below: your Steam profile (its link, the name after steamcommunity.com/id/, or your SteamID) and a Web API key. Your profile's game details must also be set to Public.",
     fields: [
-      { key: "steam_id", label: "Profile ID", type: "text" },
+      { key: "steam_id", label: "Profile link or ID", type: "text" },
       { key: "api_key", label: "Web API Key", type: "password" },
     ],
     kind: "wired",
@@ -613,11 +624,13 @@ const librarySyncing = reactive<Record<LibrarySyncProvider, boolean>>({
   steam: false,
   psn: false,
   retroachievements: false,
+  epic: false,
 });
 const LIBRARY_SYNC_LABELS: Record<LibrarySyncProvider, string> = {
   steam: "Steam",
   psn: "PlayStation",
   retroachievements: "RetroAchievements",
+  epic: "Epic Games",
 };
 
 async function handleSyncLibrary(provider: LibrarySyncProvider) {
@@ -630,12 +643,13 @@ async function handleSyncLibrary(provider: LibrarySyncProvider) {
     1,
     { indeterminate: true },
   );
+  const label = LIBRARY_SYNC_LABELS[provider];
   try {
-    const result = await syncLibrary(provider);
-    completeTask(
-      taskId,
-      `${result.games_added} added, ${result.games_updated} updated, ${result.achievements_synced} achievements`,
+    const result = await syncLibrary(provider, (step, done, total) =>
+      setTaskStep(taskId, `${label}: ${step}`, done, total),
     );
+    setTaskStep(taskId, `${label} library synced`, 1, 1);
+    completeTask(taskId, librarySyncSummary(result));
     // the request itself wasn't live, but revealing the touched titles one
     // at a time still reads as a real "feed" once the result is in
     for (const [i, title] of result.games.entries()) {
@@ -649,6 +663,21 @@ async function handleSyncLibrary(provider: LibrarySyncProvider) {
   } finally {
     librarySyncing[provider] = false;
   }
+}
+
+function librarySyncSummary(result: LibrarySyncResult): string {
+  const parts = [
+    `${result.games_added} added`,
+    `${result.games_updated} updated`,
+    `${result.achievements_synced} achievements`,
+  ];
+  if (result.wishlist_added) parts.push(`${result.wishlist_added} wishlisted`);
+  const hidden = result.achievements_unavailable?.length ?? 0;
+  if (hidden)
+    parts.push(
+      `achievements not shared for ${hidden} game${hidden === 1 ? "" : "s"}`,
+    );
+  return parts.join(", ");
 }
 
 // only claims "synced" once a library sync has actually run, a game
@@ -668,6 +697,64 @@ function formatLastSynced(
   );
   const count = status.library_games ?? 0;
   return `${count} game${count === 1 ? "" : "s"} · synced ${when}`;
+}
+
+// --- Epic Games: sign in on epicgames.com, paste the code it shows -------
+
+const epicCode = ref("");
+const epicConnecting = ref(false);
+const epicError = ref<string | null>(null);
+const epicLoginUrl = ref<string | null>(null);
+
+function epicConnected(): boolean {
+  const status = credentialStatus["Epic Games"]?.status;
+  return status === "configured" || status === "connected";
+}
+
+onMounted(async () => {
+  try {
+    epicLoginUrl.value = await fetchEpicLoginUrl();
+  } catch {
+    // the card then explains the steps without the direct link
+  }
+});
+
+async function handleConnectEpic() {
+  if (!epicCode.value.trim()) {
+    epicError.value = "Paste the code from Epic's page first.";
+    return;
+  }
+  epicConnecting.value = true;
+  epicError.value = null;
+  try {
+    const result = await connectEpic(epicCode.value.trim());
+    credentialStatus["Epic Games"] = {
+      ...credentialStatus["Epic Games"],
+      status: "connected",
+      display_name: result.display_name,
+    };
+    epicCode.value = "";
+  } catch (err) {
+    epicError.value =
+      err instanceof Error ? err.message : "Could not connect Epic Games";
+  } finally {
+    epicConnecting.value = false;
+  }
+}
+
+async function handleDisconnectEpic() {
+  epicError.value = null;
+  try {
+    await disconnectEpic();
+    credentialStatus["Epic Games"] = {
+      ...credentialStatus["Epic Games"],
+      status: "not_configured",
+      display_name: null,
+    };
+  } catch (err) {
+    epicError.value =
+      err instanceof Error ? err.message : "Could not disconnect Epic Games";
+  }
 }
 
 // HowLongToBeat, a real toggle now, not just informational. "Enabled"
@@ -1530,9 +1617,9 @@ async function toggleHltb(enabled: boolean) {
           @submit.prevent="saveCard(PROVIDER_CARDS.Steam)"
         >
           <p class="tile-hint">
-            Both fields are required to import your library: your profile ID
-            (after steamcommunity.com/id/, not the full link) and a Web API key.
-            Your profile's game details must be set to Public.
+            Both fields are required to import your library: your Steam profile
+            (paste its link, or your SteamID) and a Web API key. Your profile's
+            game details must be set to Public.
           </p>
           <label
             v-for="field in PROVIDER_CARDS.Steam.fields"
@@ -1885,6 +1972,154 @@ async function toggleHltb(enabled: boolean) {
             </template>
           </template>
         </div>
+      </div>
+
+      <!-- Epic Games -->
+      <div class="source-tile">
+        <div
+          class="tile-icon"
+          :style="{
+            background: VISUALS['Epic Games'].bg,
+            color: VISUALS['Epic Games'].fg,
+          }"
+        >
+          {{ VISUALS["Epic Games"].mark }}
+        </div>
+        <div class="tile-body">
+          <span
+            class="tile-name"
+            title="Unofficial: the same sign-in the open-source Epic launchers (Legendary, Heroic) use. Imports owned games and playtime; Epic offers no achievements to it."
+            >Epic Games</span
+          >
+          <span
+            v-if="
+              epicConnected() && credentialStatus['Epic Games']?.display_name
+            "
+            class="tile-profile"
+          >
+            {{ credentialStatus["Epic Games"]?.display_name }}
+          </span>
+          <span
+            v-else-if="!credentialsLoading"
+            class="tile-status"
+            :class="epicConnected() ? 'connected' : 'disconnected'"
+          >
+            {{ epicConnected() ? "Connected" : "Not connected" }}
+          </span>
+        </div>
+        <p class="tile-desc">
+          {{
+            formatLastSynced(credentialStatus["Epic Games"]) ??
+            SHORT_DESC["Epic Games"]
+          }}
+        </p>
+        <div class="tile-actions">
+          <button
+            type="button"
+            class="icon-btn"
+            :class="{ active: expanded['Epic Games'] }"
+            title="Connect account to import your library"
+            @click="toggleExpanded('Epic Games')"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              width="14"
+              height="14"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path
+                d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"
+              />
+            </svg>
+          </button>
+        </div>
+        <button
+          v-if="epicConnected()"
+          type="button"
+          class="import-button"
+          :disabled="librarySyncing.epic"
+          @click="handleSyncLibrary('epic')"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            width="14"
+            height="14"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M23 4v6h-6M1 20v-6h6" />
+            <path
+              d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"
+            />
+          </svg>
+          {{ librarySyncing.epic ? "Importing…" : "Import Library" }}
+        </button>
+        <form
+          v-if="expanded['Epic Games']"
+          class="tile-form"
+          @submit.prevent="handleConnectEpic"
+        >
+          <template v-if="!epicConnected()">
+            <ol class="tile-steps">
+              <li>
+                <a
+                  v-if="epicLoginUrl"
+                  :href="epicLoginUrl"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  >Sign in to Epic Games</a
+                >
+                <template v-else>Sign in at epicgames.com</template>
+                in a new tab.
+              </li>
+              <li>
+                The page then shows a short block of text: copy the
+                <code>authorizationCode</code> value (or the whole page).
+              </li>
+              <li>Paste it below within a few minutes, and connect.</li>
+            </ol>
+            <label class="field">
+              <span>Authorization code</span>
+              <PasswordInput
+                v-model="epicCode"
+                placeholder="Paste the code from Epic's page"
+              />
+            </label>
+            <div v-if="epicError" class="form-error">{{ epicError }}</div>
+            <div class="card-actions">
+              <button
+                type="submit"
+                class="primary-button"
+                :disabled="epicConnecting"
+              >
+                {{ epicConnecting ? "Connecting…" : "Connect" }}
+              </button>
+            </div>
+          </template>
+          <template v-else>
+            <p class="tile-hint">
+              Connected. If an import says the sign-in expired, disconnect and
+              connect again with a new code.
+            </p>
+            <div v-if="epicError" class="form-error">{{ epicError }}</div>
+            <div class="card-actions">
+              <button
+                type="button"
+                class="secondary-button"
+                @click="handleDisconnectEpic"
+              >
+                Disconnect
+              </button>
+            </div>
+          </template>
+        </form>
       </div>
 
       <!-- Xbox -->
@@ -2286,6 +2521,20 @@ async function toggleHltb(enabled: boolean) {
   font-size: 0.72rem;
   line-height: 1.5;
   margin: 0;
+}
+.tile-steps {
+  margin: 0 0 10px;
+  padding-left: 16px;
+  color: #999;
+  font-size: 0.72rem;
+  line-height: 1.5;
+}
+.tile-steps a {
+  color: #d68a34;
+}
+.tile-steps code {
+  font-size: 0.7rem;
+  color: #ddd;
 }
 .field {
   display: flex;

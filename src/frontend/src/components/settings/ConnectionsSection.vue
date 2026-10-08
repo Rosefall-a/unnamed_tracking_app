@@ -9,7 +9,13 @@ const emit = defineEmits<{ navigate: [section: string] }>();
 
 // Only providers you sign in to and pull a library from. Metadata sources
 // (TMDB, IGDB, SteamGridDB...) live under Library > Metadata.
-const ACCOUNT_PROVIDERS = ["Steam", "PlayStation", "RetroAchievements", "Xbox"];
+const ACCOUNT_PROVIDERS = [
+  "Steam",
+  "Epic Games",
+  "PlayStation",
+  "RetroAchievements",
+  "Xbox",
+];
 
 const credentials = ref<Record<string, ProviderCredentialStatus>>({});
 const loading = ref(true);
@@ -19,6 +25,7 @@ const syncMessage = ref<string | null>(null);
 
 const SYNCABLE: Record<string, LibrarySyncProvider> = {
   Steam: "steam",
+  "Epic Games": "epic",
   PlayStation: "psn",
   RetroAchievements: "retroachievements",
 };
@@ -32,6 +39,7 @@ const MARKS: Record<string, { bg: string; fg: string; mark: string }> = {
   TVDB: { bg: "#1a2a3d", fg: "#7ba7d9", mark: "TV" },
   RetroAchievements: { bg: "#3b0a0a", fg: "#f87171", mark: "RA" },
   PlayStation: { bg: "#0a1a3d", fg: "#60a5fa", mark: "PS" },
+  "Epic Games": { bg: "#202020", fg: "#f5f5f5", mark: "EG" },
   GOG: { bg: "#2a1a3d", fg: "#c084fc", mark: "GOG" },
 };
 const FALLBACK = { bg: "#1f1f1f", fg: "#d1d5db", mark: "•" };
@@ -76,7 +84,9 @@ const accountRows = computed<Row[]>(() =>
       if (connected) {
         if (s.display_name) bits.push(s.display_name);
         if (s.library_games != null)
-          bits.push(`${s.library_games} ${s.library_games === 1 ? "Game" : "Games"}`);
+          bits.push(
+            `${s.library_games} ${s.library_games === 1 ? "Game" : "Games"}`,
+          );
         if (SYNCABLE[name]) bits.push(timeAgo(s.last_synced_at));
       }
       return {
@@ -85,7 +95,9 @@ const accountRows = computed<Row[]>(() =>
         error: s.status === "error",
         detail:
           bits.join(" · ") ||
-          (s.status === "error" ? (s.detail ?? "Connection error") : "Not connected"),
+          (s.status === "error"
+            ? (s.detail ?? "Connection error")
+            : "Not connected"),
         syncable: SYNCABLE[name] ?? null,
       };
     })
@@ -108,7 +120,9 @@ async function sync(row: Row) {
   syncing.value = row.name;
   syncMessage.value = null;
   try {
-    const r = await syncLibrary(row.syncable);
+    const r = await syncLibrary(row.syncable, (step, done, total) => {
+      syncMessage.value = `${row.name}: ${step} (${done} of ${total})…`;
+    });
     const wishlist = r.wishlist_added ? `, ${r.wishlist_added} wishlisted` : "";
     syncMessage.value = `${row.name}: ${r.games_added} added, ${r.games_updated} updated${wishlist}.`;
     await load();

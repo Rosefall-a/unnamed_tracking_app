@@ -218,8 +218,8 @@ const onboardingSteps = computed(() => [
   {
     done: games.value.some((g) => g.source),
     label: "Connect a library",
-    hint: "Steam, GOG, or PlayStation, Settings → Metadata/API",
-    to: "/settings",
+    hint: "Steam, Epic Games or PlayStation: Settings → Metadata",
+    to: "/settings?section=sources",
   },
   {
     done: games.value.some((g) => g.favorite),

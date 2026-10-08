@@ -42,6 +42,7 @@ nav:
   - Integrations:
       - Overview: integrations/index.md
       - Playnite: integrations/playnite.md
+      - Game Library Imports: integrations/game-libraries.md
       - Metadata Providers: integrations/metadata.md
   - Administration:
       - Overview: administration/index.md
