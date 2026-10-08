@@ -291,4 +291,23 @@ h3 {
   opacity: 0.6;
   cursor: not-allowed;
 }
+/* a phone can't fit the name, the status and both buttons on one line (the
+   status pill covered the name and "Sync now" broke in two): the buttons move
+   to a second line, and the pill goes, since the line under the name already
+   says "Not connected" or what went wrong */
+@media (max-width: 560px) {
+  .row {
+    flex-wrap: wrap;
+    gap: 10px 8px;
+  }
+  .info {
+    flex-basis: calc(100% - 42px);
+  }
+  .pill {
+    display: none;
+  }
+  .pill + .btn {
+    margin-left: auto;
+  }
+}
 </style>
