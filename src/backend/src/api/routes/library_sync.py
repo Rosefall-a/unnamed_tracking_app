@@ -38,7 +38,7 @@ from src.core.auth import get_current_user
 from src.core.crypto import decrypt_secret
 from src.core.integrations import resolve_integrations
 from src.database.models.achievement import Achievement
-from src.database.models.game import FOLDER_NAME_MAX_LENGTH, Game, GameStatus
+from src.database.models.game import Game, GameStatus
 from src.database.models.user import User
 from src.database.session import get_db
 from src.features.metadata.games import steam, steam_tags
@@ -56,13 +56,15 @@ from src.features.metadata.games.steam_achievements import (
 from src.features.metadata.games.steam_grid_db import SteamGridDBClient
 from src.helpers.game_art_download import download_asset as _download_asset
 from src.helpers.game_art_download import steam_cdn_art_urls as _steam_cdn_art_urls
-from src.helpers.save_game_asset import AssetKind, create_game_folder
+from src.helpers.library_games import LibraryIndex
+from src.helpers.library_games import get_or_create_game as _get_or_create_game
+from src.helpers.library_games import unique_folder_location as _unique_folder_location  # noqa: F401
+from src.helpers.save_game_asset import AssetKind
 
 router = APIRouter(
     prefix="/api/library-sync", tags=["library-sync"], dependencies=[Depends(get_current_user)]
 )
 
-_SLUG_INVALID = re.compile(r"[^A-Za-z0-9_-]+")
 _TITLE_NOISE = re.compile(r"[™®©]")
 
 
@@ -342,82 +344,6 @@ async def _enrich_new_game(
         url = match.get(field)
         if url:
             await _download_asset(url, game.id, asset_kind)
-
-
-def _slugify(title: str) -> str:
-    slug = _SLUG_INVALID.sub("-", title).strip("-")
-    return slug or "game"
-
-
-async def _unique_folder_location(db: AsyncSession, user_id: UUID, title: str) -> str:
-    """Folder names are per user (trashed games keep theirs), and the "-2"
-    suffix must still fit the column: a 150-character title failed the insert."""
-    base = _slugify(title)[:FOLDER_NAME_MAX_LENGTH]
-    candidate = base
-    suffix = 2
-    taken = select(Game.id).where(Game.user_id == user_id)
-    while await db.scalar(taken.where(Game.folder_location == candidate)) is not None:
-        tail = f"-{suffix}"
-        candidate = f"{base[: FOLDER_NAME_MAX_LENGTH - len(tail)]}{tail}"
-        suffix += 1
-    return candidate
-
-
-async def _get_or_create_game(
-    db: AsyncSession, user_id: UUID, title: str, source: str, external_id: str | None = None
-) -> tuple[Game, bool]:
-    """Match by (user, source, external_id) when the provider gives a
-    stable id — a title alone drifts (Steam has reported a different
-    display name for the same appid between calls, e.g. briefly appending
-    "- GOTY Edition"), which was creating duplicate rows for one real game.
-    Falls back to matching by (user, source, title) when no id is given."""
-    existing: Game | None = None
-    if external_id:
-        existing = await db.scalar(
-            select(Game).where(
-                Game.user_id == user_id,
-                Game.source == source,
-                Game.external_id == external_id,
-                Game.deleted_at.is_(None),
-            )
-        )
-    if existing is None:
-        by_title = select(Game).where(
-            Game.user_id == user_id,
-            Game.source == source,
-            Game.title == title,
-            Game.deleted_at.is_(None),
-        )
-        if external_id:
-            # two different games can share a name (Prey 2006 and Prey 2017); one
-            # that has its own id is not the game being synced
-            by_title = by_title.where(Game.external_id.is_(None))
-        existing = await db.scalar(by_title.limit(1))
-    if existing:
-        if existing.title != title:
-            existing.title = title
-            existing.sort_title = title.lower()
-        if external_id and not existing.external_id:
-            existing.external_id = external_id
-        # this sync just saw it again — clear any earlier "missing from your
-        # library" flag (see _flag_stale_games)
-        existing.stale_since = None
-        return existing, False
-
-    folder_location = await _unique_folder_location(db, user_id, title)
-    game = Game(
-        user_id=user_id,
-        title=title,
-        sort_title=title.lower(),
-        folder_location=folder_location,
-        source=source,
-        external_id=external_id,
-        status=GameStatus.BACKLOG,
-    )
-    db.add(game)
-    await db.flush()
-    create_game_folder(user_id, folder_location)
-    return game, True
 
 
 async def _flag_stale_games(
@@ -734,6 +660,7 @@ async def sync_steam_library(
     touched_ids: set[UUID] = set()
     status_ids: list[str] = []
     fetch_index = 0
+    library = await LibraryIndex.load(db, current_user.id, "Steam")
     for entry in owned_games:
         title, app_id = entry.get("name"), entry.get("appid")
         if not title or not app_id:
@@ -743,7 +670,7 @@ async def sync_steam_library(
         fetch_index += 1
 
         game, created = await _get_or_create_game(
-            db, current_user.id, title, "Steam", external_id=str(app_id)
+            db, current_user.id, title, "Steam", external_id=str(app_id), index=library
         )
         touched_ids.add(game.id)
         game.playtime_seconds = int(entry.get("playtime_forever", 0)) * 60
@@ -841,6 +768,7 @@ async def sync_retroachievements_library(
     newly_created: list[Game] = []
     synced_titles: list[str] = []
     touched_ids: set[UUID] = set()
+    library = await LibraryIndex.load(db, current_user.id, "RetroAchievements")
     for entry, progress in zip(owned_games, progress_results):
         title = entry.get("Title")
         if not title:
@@ -851,6 +779,7 @@ async def sync_retroachievements_library(
             title,
             "RetroAchievements",
             external_id=str(entry.get("GameID") or "") or None,
+            index=library,
         )
         touched_ids.add(game.id)
         games_added += created
@@ -941,6 +870,7 @@ async def sync_psn_library(
     synced_titles: list[str] = []
     touched_ids: set[UUID] = set()
     result_index = 0
+    library = await LibraryIndex.load(db, current_user.id, "PlayStation")
     for entry in titles:
         title = entry.get("trophyTitleName")
         if not title or not entry.get("npCommunicationId"):
@@ -949,7 +879,12 @@ async def sync_psn_library(
         result_index += 1
 
         game, created = await _get_or_create_game(
-            db, current_user.id, title, "PlayStation", external_id=entry.get("npCommunicationId")
+            db,
+            current_user.id,
+            title,
+            "PlayStation",
+            external_id=entry.get("npCommunicationId"),
+            index=library,
         )
         touched_ids.add(game.id)
         games_added += created

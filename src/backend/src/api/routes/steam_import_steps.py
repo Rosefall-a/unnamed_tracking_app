@@ -38,6 +38,7 @@ from src.features.metadata.games.steam_achievements import (
     SteamAchievementData,
     fetch_steam_achievements,
 )
+from src.helpers.library_games import LibraryIndex
 from src.helpers.steam_achievement_rows import steam_achievement_rows
 
 router = APIRouter(
@@ -155,9 +156,15 @@ async def import_wishlist(
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
 
     game_ids: list[str] = []
+    library = await LibraryIndex.load(db, current_user.id, "Steam")
     for app_id in app_ids:
         game, created = await _get_or_create_game(
-            db, current_user.id, f"{_PLACEHOLDER}{app_id}", "Steam", external_id=str(app_id)
+            db,
+            current_user.id,
+            f"{_PLACEHOLDER}{app_id}",
+            "Steam",
+            external_id=str(app_id),
+            index=library,
         )
         if created:
             game.status = GameStatus.WISHLIST
