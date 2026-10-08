@@ -20,7 +20,13 @@ from src.database.models.achievement import Achievement
 from src.database.models.anime import Anime
 from src.database.models.movies import Movie
 from src.database.models.tv_show import TVShow
-from src.helpers.remote_images import RemoteImageError, cache_path, fetch_and_store, icon_cache_path
+from src.helpers.remote_images import (
+    RemoteImageError,
+    cache_path,
+    fetch_and_store,
+    fetch_icon,
+    icon_cache_path,
+)
 
 MEDIA_ROOT = Path("/data/users")
 ICON_ROOT = Path("/data/cache")
@@ -48,7 +54,10 @@ def enable() -> None:
 async def _download(url: str, target: Path, width: int, lane: asyncio.Semaphore) -> None:
     try:
         async with lane:
-            await asyncio.to_thread(fetch_and_store, url, target, width)
+            if width == WIDTHS["icon"]:
+                await asyncio.to_thread(fetch_icon, url, target)
+            else:
+                await asyncio.to_thread(fetch_and_store, url, target, width)
     except (RemoteImageError, OSError):
         _gave_up.add(target)
     finally:

@@ -209,7 +209,7 @@ async function handleLogout() {
 
       <div
         class="sidebar-parent-row"
-        :class="{ active: route.path === '/games' || (route.path.startsWith('/games/') && !route.path.startsWith('/games/collections')) }"
+        :class="{ active: isActive('/games') }"
       >
         <button
           type="button"
@@ -263,7 +263,9 @@ async function handleLogout() {
         <router-link
           to="/games"
           class="sidebar-item sidebar-subitem"
-          :class="{ active: isActive('/games') }"
+          :class="{
+            active: isActive('/games') && !isActive('/games/collections'),
+          }"
           @click="close"
         >
           <svg

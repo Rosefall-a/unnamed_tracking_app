@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, nextTick, onMounted, watch } from "vue";
+import MediaMetadataSearch from "./MediaMetadataSearch.vue";
 import {
   attachGameAssetFromUrl,
   createGame,
@@ -420,7 +421,11 @@ async function searchMetadata() {
   metadataMessage.value = null;
   providerWarnings.value = [];
   try {
-    const response = await searchGameMetadata(query, { includeImages: false });
+    // a quick list: names only. The details are read for the game that is picked.
+    const response = await searchGameMetadata(query, {
+      includeImages: false,
+      light: true,
+    });
     if (requestId !== metadataSearchRequest) return;
     metadataResults.value = rankMetadataResults(
       response.results.filter((result) => result.provider !== "SteamGridDB"),
@@ -492,6 +497,53 @@ watch(metadataQuery, () => {
   if (metadataSearchTimer) clearTimeout(metadataSearchTimer);
   metadataSearchTimer = setTimeout(() => void searchMetadata(), 250);
 });
+
+// what the shared search box lists for each match
+const metadataListResults = computed(() =>
+  metadataResults.value.map((result) => ({
+    key: `${result.provider}-${result.provider_id}`,
+    title: result.title,
+    provider: result.provider,
+    detail: result.release_date?.slice(0, 4),
+  })),
+);
+function pickByKey(key: string) {
+  const result = metadataResults.value.find(
+    (r) => `${r.provider}-${r.provider_id}` === key,
+  );
+  if (result) void pickResult(result);
+}
+
+// The list is a quick search, so a result has little more than its name. Fill in
+// what it has at once, then read the full details (description, developer,
+// genres, time to beat) for just this game.
+async function pickResult(result: MetadataSearchResult) {
+  applyMetadata(result);
+  const done = metadataMessage.value;
+  metadataMessage.value = "Reading the details…";
+  try {
+    const found = await searchGameMetadata(result.title, {
+      includeImages: false,
+      limit: 3,
+    });
+    const match =
+      found.results.find(
+        (r) =>
+          r.provider === result.provider && r.provider_id === result.provider_id,
+      ) ??
+      found.results.find(
+        (r) => r.title.toLowerCase() === result.title.toLowerCase(),
+      );
+    // only if the form still shows the game that was picked
+    if (match && title.value === result.title) applyMetadata(match);
+  } catch {
+    /* the quick result stays */
+  } finally {
+    if (metadataMessage.value === "Reading the details…") {
+      metadataMessage.value = done;
+    }
+  }
+}
 
 function applyMetadata(result: MetadataSearchResult) {
   title.value = result.title;
@@ -704,46 +756,17 @@ async function submit() {
                 to also pull real cover and hero art automatically: without it,
                 only Steam's own (often lower-quality) images are used.
               </p>
-              <div class="search-row">
-                <input
-                  v-model="metadataQuery"
-                  type="search"
-                  placeholder="Search by game title"
-                  aria-label="Search game metadata by title"
-                  @keydown.enter.prevent="searchMetadata"
-                />
-                <button
-                  type="button"
-                  class="secondary-button"
-                  :disabled="searchingMetadata"
-                  @click="searchMetadata"
-                >
-                  {{ searchingMetadata ? "Searching…" : "Search" }}
-                </button>
-              </div>
-              <div v-if="metadataResults.length" class="metadata-results">
-                <button
-                  v-for="result in metadataResults"
-                  :key="`${result.provider}-${result.provider_id}`"
-                  type="button"
-                  class="metadata-result"
-                  @click="applyMetadata(result)"
-                >
-                  <span>{{ result.title }}</span>
-                  <small
-                    >{{ result.provider
-                    }}<span v-if="result.release_date">
-                      · {{ result.release_date.slice(0, 4) }}</span
-                    ></small
-                  >
-                </button>
-              </div>
-              <p v-if="metadataMessage" class="hint">{{ metadataMessage }}</p>
-              <ul v-if="providerWarnings.length" class="provider-warnings">
-                <li v-for="warning in providerWarnings" :key="warning">
-                  {{ warning }}
-                </li>
-              </ul>
+              <MediaMetadataSearch
+                v-model:query="metadataQuery"
+                label="Search metadata sources"
+                noun="game"
+                :results="metadataListResults"
+                :searching="searchingMetadata"
+                :message="metadataMessage"
+                :warnings="providerWarnings"
+                @search="searchMetadata"
+                @pick="pickByKey"
+              />
               <p v-if="activeTab === 'Find'" class="hint">
                 Pick a match to fill in the next steps for you, or skip this and
                 enter everything by hand.
@@ -1445,8 +1468,7 @@ async function submit() {
   gap: 3px;
   margin-bottom: 10px;
 }
-.search-heading span,
-.metadata-result small {
+.search-heading span {
   color: #999;
   font-size: 0.78rem;
 }
@@ -1467,47 +1489,6 @@ async function submit() {
 }
 .steamgriddb-hint a:hover {
   text-decoration: underline;
-}
-.search-row {
-  display: flex;
-  gap: 8px;
-}
-.search-row input {
-  flex: 1;
-  min-width: 0;
-  background: #111;
-  border: 1px solid #3a3a3a;
-  border-radius: 8px;
-  color: #fff;
-  padding: 9px 11px;
-  font: inherit;
-}
-.search-row input:focus {
-  outline: none;
-  border-color: #d68a34;
-}
-.metadata-results {
-  display: grid;
-  gap: 6px;
-  margin-top: 10px;
-}
-.metadata-result {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  align-items: center;
-  width: 100%;
-  padding: 9px 10px;
-  text-align: left;
-  color: #fff;
-  background: #202020;
-  border: 1px solid #3a3a3a;
-  border-radius: 6px;
-  cursor: pointer;
-}
-.metadata-result:hover {
-  border-color: #d68a34;
-  background: #282828;
 }
 .field {
   display: flex;
@@ -1604,18 +1585,6 @@ async function submit() {
   color: #888;
   font-size: 0.75rem;
   font-weight: 400;
-}
-.provider-warnings {
-  list-style: none;
-  margin: 6px 0 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-.provider-warnings li {
-  color: #f0b458;
-  font-size: 0.78rem;
 }
 .media-candidates {
   display: flex;

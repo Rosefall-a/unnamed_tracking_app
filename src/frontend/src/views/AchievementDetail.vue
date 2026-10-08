@@ -9,16 +9,28 @@ import {
 import type { GameNoteSummary } from "../services/games";
 import { isUnlocked } from "../utils/achievements";
 import {
+  deleteGameScreenshot,
   listGameScreenshots,
   uploadGameScreenshots,
   updateMediaItem,
 } from "../services/media";
-import type { MediaItem } from "../services/media";
+import type { MediaItem, MediaItemUpdate } from "../services/media";
+import GameNoteCard from "../components/GameNoteCard.vue";
+import MediaTile from "../components/MediaTile.vue";
+import {
+  copyImage,
+  copyLink,
+  downloadMedia,
+  originalName,
+} from "../utils/copyMedia";
 import {
   loadAchievementLocal,
   saveAchievementLocal,
 } from "../state/achievementLocal";
 import type { Achievement, Game } from "../types/game";
+import { HERO_WIDTH, sizedAssetUrl } from "../utils/gameImages";
+import BackButton from "../components/BackButton.vue";
+import GameTopBar from "../components/GameTopBar.vue";
 
 const route = useRoute();
 const router = useRouter();
@@ -109,7 +121,7 @@ function openNote(name: string) {
 const linkedMedia = ref<MediaItem[]>([]);
 const mediaError = ref<string | null>(null);
 const mediaBusy = ref(false);
-const lightbox = ref<string | null>(null);
+const lightbox = ref<MediaItem | null>(null);
 
 async function loadLinkedMedia() {
   const gameId = route.params.gameId as string;
@@ -157,15 +169,38 @@ async function onMediaFileChange(e: Event) {
   }
 }
 
-async function unlinkMedia(item: MediaItem) {
+// The same actions as the game's Screenshots tab: edit (which includes
+// un-tying it from this achievement), delete (to Deleted), copy and download.
+async function saveMedia(item: MediaItem, patch: MediaItemUpdate) {
   try {
-    await updateMediaItem(route.params.gameId as string, item.id, {
-      linked_achievement_id: null,
-    });
-    linkedMedia.value = linkedMedia.value.filter((m) => m.id !== item.id);
+    await updateMediaItem(route.params.gameId as string, item.id, patch);
+    await loadLinkedMedia();
   } catch (err) {
-    mediaError.value = err instanceof Error ? err.message : "Failed to remove";
+    mediaError.value = err instanceof Error ? err.message : "Failed to save";
   }
+}
+async function deleteMedia(item: MediaItem) {
+  try {
+    await deleteGameScreenshot(
+      route.params.gameId as string,
+      item.kind,
+      item.filename,
+    );
+    await loadLinkedMedia();
+  } catch (err) {
+    mediaError.value = err instanceof Error ? err.message : "Failed to delete";
+  }
+}
+async function copyMedia(item: MediaItem) {
+  try {
+    if (item.kind === "screenshot") await copyImage(item.url);
+    else await copyLink(item.url);
+  } catch {
+    mediaError.value = "Could not copy. Your browser blocked clipboard access.";
+  }
+}
+function downloadItem(item: MediaItem) {
+  downloadMedia(item.url, originalName(item.filename));
 }
 
 function formatUnlockedAt(dateStr: string) {
@@ -173,284 +208,281 @@ function formatUnlockedAt(dateStr: string) {
   return `${d.toLocaleDateString()} ${d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
 }
 
+const unlocked = computed(
+  () => !!achievement.value && isUnlocked(achievement.value),
+);
+// the larger copy the server makes of the (small) provider icon
+const iconSrc = computed(() => {
+  const url = achievement.value?.iconUrl;
+  if (!url) return null;
+  return url.startsWith("/api/achievement-icon/") ? `${url}?large=1` : url;
+});
+const heroStyle = computed(() =>
+  game.value?.bannerImageUrl
+    ? {
+        backgroundImage: `url(${sizedAssetUrl(game.value.bannerImageUrl, HERO_WIDTH)})`,
+      }
+    : {},
+);
+
+// Going back means back in history. Pushing the game page again would add a
+// new entry each time, and the game page's own back would return here: a loop.
 function goBack() {
-  router.push({ name: "game-detail", params: { id: route.params.gameId } });
+  if (router.options.history.state.back) router.back();
+  else
+    void router.push({
+      name: "game-detail",
+      params: { id: route.params.gameId },
+    });
 }
 </script>
 
 <template>
-  <main v-if="loading" class="achievement-detail loading-state">
-    <p>Loading…</p>
+  <main v-if="loading" class="detail loading-state">
+    <GameTopBar active="games" />
+    <p class="loading-text">Loading…</p>
   </main>
 
-  <main v-else-if="error" class="achievement-detail error-state">
-    <p>{{ error }}</p>
+  <main v-else-if="error" class="detail error-state">
+    <GameTopBar active="games" />
+    <p class="loading-text">{{ error }}</p>
   </main>
 
-  <main v-else-if="achievement" class="achievement-detail">
-    <button type="button" class="back-button" @click="goBack">
-      ← Back to {{ game?.title }}
-    </button>
+  <main v-else-if="achievement && game" class="detail">
+    <GameTopBar active="games" />
+    <BackButton class="back-spot" @click="goBack" />
 
-    <div class="achievement-header">
-      <div
-        class="achievement-icon-large"
-        :style="
-          achievement.iconUrl
-            ? { backgroundImage: `url(${achievement.iconUrl})` }
-            : {}
-        "
-      ></div>
-      <div>
-        <h1>{{ achievement.name }}</h1>
-        <p v-if="achievement.description" class="achievement-desc">
-          {{ achievement.description }}
-        </p>
-        <p v-if="isUnlocked(achievement)" class="achievement-unlocked">
-          Unlocked<template v-if="achievement.unlockedAt">
-            {{ formatUnlockedAt(achievement.unlockedAt) }}</template
-          >
-        </p>
-        <p v-else class="achievement-locked">Not yet unlocked</p>
-      </div>
-    </div>
-
-    <section class="detail-section">
-      <h2>Notes</h2>
-      <textarea
-        v-model="noteDraft"
-        placeholder="Write notes about how you got this…"
-        rows="6"
-      ></textarea>
-      <button type="button" class="primary-button" @click="saveNote">
-        {{ noteSaved ? "Saved" : "Save note" }}
-      </button>
-    </section>
-
-    <section v-if="tiedNotes.length" class="detail-section">
-      <h2>Notes about this</h2>
-      <ul class="tied-notes">
-        <li v-for="n in tiedNotes" :key="n.name">
-          <button type="button" @click="openNote(n.name)">
-            <strong>{{ n.name }}</strong>
-            <span>{{
-              n.preview
-                .replace(/[#*_`>\-]/g, "")
-                .trim()
-                .slice(0, 140)
+    <section class="hero">
+      <div class="hero-backdrop" :style="heroStyle"></div>
+      <div class="hero-overlay"></div>
+      <div class="hero-content">
+        <div
+          class="icon-card"
+          :style="iconSrc ? { backgroundImage: `url(${iconSrc})` } : {}"
+        ></div>
+        <div class="hero-text">
+          <router-link :to="`/games/${game.id}`" class="game-link">{{
+            game.title
+          }}</router-link>
+          <h1 class="title">{{ achievement.name }}</h1>
+          <p v-if="achievement.description" class="desc">
+            {{ achievement.description }}
+          </p>
+          <div class="chip-row">
+            <span class="chip" :class="{ primary: unlocked }">{{
+              unlocked ? "Unlocked" : "Locked"
             }}</span>
-          </button>
-        </li>
-      </ul>
-    </section>
-
-    <section class="detail-section">
-      <h2>Media</h2>
-      <label class="add-media">
-        <input
-          type="file"
-          accept="image/*,video/*,audio/*"
-          multiple
-          :disabled="mediaBusy"
-          @change="onMediaFileChange"
-        />
-        <span>{{ mediaBusy ? "Uploading…" : "+ Add media" }}</span>
-      </label>
-      <p v-if="mediaError" class="media-error">{{ mediaError }}</p>
-      <div v-if="linkedMedia.length" class="media-grid">
-        <div v-for="m in linkedMedia" :key="m.id" class="media-item">
-          <img
-            v-if="m.kind === 'screenshot'"
-            :src="m.url"
-            alt=""
-            @click="lightbox = m.url"
-          />
-          <video v-else-if="m.kind === 'clip'" :src="m.url" controls></video>
-          <audio v-else :src="m.url" controls></audio>
-          <button
-            type="button"
-            class="remove-button"
-            title="Untie from this achievement"
-            @click="unlinkMedia(m)"
-          >
-            ✕
-          </button>
+            <span v-if="achievement.hidden" class="chip">Hidden</span>
+            <span v-if="achievement.provider" class="chip">{{
+              achievement.provider
+            }}</span>
+          </div>
         </div>
       </div>
-      <p v-else class="empty-state">
-        Nothing tied to this achievement yet. Add media here, or tie an existing
-        screenshot or clip from its tab.
-      </p>
     </section>
+
+    <div class="body">
+      <div class="meta-grid">
+        <div class="meta-item">
+          <span class="meta-label">Status</span>
+          <span class="meta-value" :class="{ accent: unlocked }">
+            {{ unlocked ? "Unlocked" : "Not yet unlocked" }}
+            <template v-if="unlocked && achievement.unlockedAt">
+              {{ formatUnlockedAt(achievement.unlockedAt) }}</template
+            >
+          </span>
+        </div>
+        <div v-if="achievement.rarityPercent != null" class="meta-item">
+          <span class="meta-label">Rarity</span>
+          <span class="meta-value"
+            >{{ achievement.rarityPercent }}% of players</span
+          >
+        </div>
+        <div v-if="achievement.progressTarget" class="meta-item">
+          <span class="meta-label">Progress</span>
+          <span class="meta-value"
+            >{{ achievement.progressCurrent ?? 0 }} /
+            {{ achievement.progressTarget }}</span
+          >
+        </div>
+      </div>
+
+      <section class="block">
+        <div class="section-heading"><h2>Notes</h2></div>
+        <textarea
+          v-model="noteDraft"
+          class="ui-field note-field"
+          placeholder="Write notes about how you got this…"
+          rows="6"
+        ></textarea>
+        <button
+          type="button"
+          class="ui-btn ui-btn-primary ui-btn-sm"
+          @click="saveNote"
+        >
+          {{ noteSaved ? "Saved" : "Save note" }}
+        </button>
+      </section>
+
+      <section v-if="tiedNotes.length" class="block">
+        <div class="section-heading"><h2>Notes about this</h2></div>
+        <div class="card-grid notes-grid">
+          <GameNoteCard
+            v-for="n in tiedNotes"
+            :key="n.name"
+            :note="n"
+            :achievement-name="achievement.name"
+            @open="openNote(n.name)"
+          />
+        </div>
+      </section>
+
+      <section class="block">
+        <div class="section-heading">
+          <h2>Media</h2>
+          <label class="ui-btn ui-btn-primary ui-btn-sm">
+            <input
+              type="file"
+              accept="image/*,video/*,audio/*"
+              multiple
+              hidden
+              :disabled="mediaBusy"
+              @change="onMediaFileChange"
+            />
+            {{ mediaBusy ? "Uploading…" : "+ Add media" }}
+          </label>
+        </div>
+        <p v-if="mediaError" class="ui-error-box">{{ mediaError }}</p>
+        <div v-if="linkedMedia.length" class="card-grid media-grid">
+          <MediaTile
+            v-for="m in linkedMedia"
+            :key="m.id"
+            :item="m"
+            :achievements="game.achievements"
+            @preview="lightbox = $event"
+            @save="saveMedia"
+            @delete="deleteMedia"
+            @copy="copyMedia"
+            @download="downloadItem"
+          />
+        </div>
+        <p v-else class="empty-state">
+          Nothing tied to this achievement yet. Add media here, or tie an
+          existing screenshot or clip from its tab.
+        </p>
+      </section>
+    </div>
     <div v-if="lightbox" class="lightbox" @click="lightbox = null">
-      <img :src="lightbox" alt="" />
+      <img v-if="lightbox.kind === 'screenshot'" :src="lightbox.url" alt="" />
+      <video v-else :src="lightbox.url" controls autoplay @click.stop></video>
     </div>
   </main>
 
-  <main v-else class="not-found">
-    <p>Achievement not found.</p>
+  <main v-else class="detail loading-state">
+    <GameTopBar active="games" />
+    <p class="loading-text">Achievement not found.</p>
   </main>
 </template>
 
+<style scoped src="../styles/shared/mediaDetail.css"></style>
 <style scoped>
-.achievement-detail {
-  max-width: 900px;
-  margin: 0 auto;
-  padding: 32px 24px;
-  color: #fff;
-  font-family: system-ui, sans-serif;
-  background: #121212;
-  min-height: 100vh;
-  box-sizing: border-box;
-}
-.back-button {
-  background: none;
-  border: none;
-  color: #d68a34;
-  font-size: 14px;
-  cursor: pointer;
-  padding: 0;
-  margin-bottom: 24px;
-}
-.achievement-header {
+/* the hero is the Game page's, with a smaller icon card in place of the poster */
+.hero {
+  position: relative;
+  background-color: #1a1a1a;
+  min-height: 300px;
   display: flex;
-  gap: 20px;
-  align-items: flex-start;
-  padding-bottom: 24px;
-  border-bottom: 1px solid #2a2a2a;
-  margin-bottom: 24px;
+  align-items: flex-end;
+  overflow: hidden;
 }
-.achievement-icon-large {
-  width: 96px;
-  height: 96px;
-  border-radius: 14px;
+.hero-backdrop {
+  position: absolute;
+  inset: 0;
   background-size: cover;
-  background-repeat: no-repeat;
-  background-position: center;
+  background-position: center 20%;
+  filter: brightness(0.55) saturate(1.15);
+}
+.hero-overlay {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(13, 13, 13, 0.25) 0%,
+      rgba(13, 13, 13, 0.55) 45%,
+      #0d0d0d 96%
+    ),
+    linear-gradient(
+      90deg,
+      rgba(13, 13, 13, 0.75) 0%,
+      rgba(13, 13, 13, 0.15) 40%
+    );
+}
+.hero-content {
+  position: relative;
+  width: 100%;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 0 24px 28px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: flex-end;
+  gap: 26px;
+}
+.icon-card {
+  width: 120px;
+  height: 120px;
   flex-shrink: 0;
+  border-radius: 14px;
+  background: #222222 center / cover no-repeat;
+  box-shadow: 0 24px 48px -14px rgba(0, 0, 0, 0.8);
 }
-.achievement-header h1 {
-  margin: 0 0 8px;
-  font-size: 1.6rem;
+.hero-text {
+  min-width: 0;
 }
-.achievement-desc {
+.game-link {
+  color: #9c9c9c;
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+.game-link:hover {
+  color: #fff;
+}
+.title {
+  font-weight: 800;
+  font-size: 2.2rem;
+  line-height: 1.05;
+  margin: 4px 0 10px;
+  letter-spacing: -0.01em;
+  text-shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
+}
+.desc {
   color: #ccc;
-  margin: 0 0 8px;
+  margin: 0 0 12px;
+  max-width: 640px;
 }
-.achievement-unlocked {
-  color: #d68a34;
-  font-size: 13px;
-  margin: 0;
-}
-.achievement-locked {
-  color: #777;
-  font-size: 13px;
-  margin: 0;
-}
-.detail-section {
+.block {
   margin-bottom: 32px;
 }
-.detail-section h2 {
-  font-size: 1.1rem;
-  margin: 0 0 12px;
-}
-.detail-section textarea {
+.note-field {
   width: 100%;
-  min-height: 140px;
-  box-sizing: border-box;
-  border: 1px solid #3a3a3a;
-  border-radius: 10px;
-  background: #111;
-  color: #f5f5f5;
-  resize: vertical;
-  padding: 12px;
-  font: inherit;
   margin-bottom: 10px;
 }
-.primary-button {
-  background: #d68a34;
-  color: #111;
-  border: none;
-  border-radius: 8px;
-  padding: 10px 18px;
-  font-weight: 600;
-  cursor: pointer;
+.card-grid {
+  display: grid;
+  gap: 16px;
+}
+.notes-grid {
+  grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
 }
 .media-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin-top: 14px;
-}
-.media-item {
-  position: relative;
-  width: 140px;
-  height: 140px;
-  border-radius: 10px;
-  overflow: hidden;
-  border: 1px solid #2a2a2a;
-}
-.media-item img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-.remove-button {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  background: rgba(0, 0, 0, 0.6);
-  color: #fff;
-  border: none;
-  border-radius: 50%;
-  width: 24px;
-  height: 24px;
-  cursor: pointer;
-}
-.empty-state {
-  color: #777;
-  margin-top: 10px;
-}
-.not-found,
-.loading-state,
-.error-state {
-  padding: 40px;
-  color: #fff;
-  text-align: center;
-}
-.add-media {
-  display: inline-flex;
-  align-items: center;
-  height: 34px;
-  padding: 0 16px;
-  border-radius: 8px;
-  background: #d68a34;
-  color: #14100a;
-  font-size: 0.82rem;
-  font-weight: 700;
-  cursor: pointer;
-  align-self: flex-start;
-}
-.add-media input {
-  display: none;
-}
-.media-error {
-  color: #fca5a5;
-  font-size: 0.82rem;
-  margin: 8px 0 0;
-}
-.media-item img {
-  cursor: zoom-in;
-}
-.media-item video,
-.media-item audio {
-  width: 100%;
-  display: block;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
 }
 .lightbox {
   position: fixed;
   inset: 0;
-  z-index: 300;
+  z-index: var(--ui-z-modal);
   background: rgba(0, 0, 0, 0.9);
   display: flex;
   align-items: center;
@@ -458,43 +490,16 @@ function goBack() {
   padding: 24px;
   cursor: zoom-out;
 }
-.lightbox img {
+.lightbox img,
+.lightbox video {
   max-width: 100%;
   max-height: 100%;
   border-radius: 8px;
 }
-.tied-notes {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.tied-notes button {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 12px 14px;
-  background: #161616;
-  border: 1px solid #262626;
-  border-radius: 10px;
-  color: inherit;
-  font-family: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-.tied-notes button:hover {
-  border-color: rgba(214, 138, 52, 0.5);
-}
-.tied-notes strong {
-  font-size: 0.92rem;
-  color: #f2f2f2;
-}
-.tied-notes span {
-  font-size: 0.8rem;
-  color: #888;
-  overflow-wrap: anywhere;
+@media (max-width: 640px) {
+  .hero-content {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 }
 </style>

@@ -67,7 +67,8 @@ const deleting = ref(false);
 const error = ref<string | null>(null);
 
 const search = useMetadataSearch<MovieMetadataResult>({
-  search: searchMovieMetadata,
+  search: (query) => searchMovieMetadata(query, 8, true),
+  details: (title) => searchMovieMetadata(title, 3),
   noun: "movie",
   keyHint: "TMDB or OMDb",
 });
@@ -136,11 +137,11 @@ const searchResults = computed(() =>
   })),
 );
 
-function pickResult(key: string) {
+async function pickResult(key: string) {
   const result = search.results.value.find(
     (r) => `${r.provider}-${r.providerId}` === key,
   );
-  if (result) applyMetadata(result);
+  if (result) applyMetadata(await search.resolve(result));
 }
 
 async function submit() {

@@ -541,11 +541,14 @@ interface BackendTVShowMetadataSearchResponse {
   results: BackendTVShowMetadataResult[];
 }
 
+// `light` is for a results list: it skips the detail page read for each result
 export async function searchTVShowMetadata(
   query: string,
   limit = 8,
+  light = false,
 ): Promise<TVShowMetadataSearchResponse> {
   const params = new URLSearchParams({ query, limit: String(limit) });
+  if (light) params.set("light", "true");
   const response = await fetch(`/api/tv/metadata/search?${params}`, {
     credentials: "include",
   });

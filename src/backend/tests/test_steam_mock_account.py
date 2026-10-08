@@ -432,10 +432,13 @@ async def test_achievement_icons_are_served_from_disk(account) -> None:
     listed = (await account.client.get(f"/api/game/{stored[72850][0].id}/achievements")).json()
     assert len(listed) == 75
     assert all(a["icon_url"].startswith("/api/achievement-icon/") for a in listed), listed[:2]
-    icons = list((account.tmp / "shared" / "achievement-icons").glob("*.jpg"))
+    icons = list((account.tmp / "shared" / "achievement-icons").glob("*.png"))
     assert len(icons) > 400, f"only {len(icons)} icons were saved ahead of time"
     first = await account.client.get(listed[0]["icon_url"])
-    assert first.status_code == 200 and first.headers["content-type"] == "image/jpeg"
+    assert first.status_code == 200 and first.headers["content-type"] == "image/png"
+    assert Image.open(io.BytesIO(first.content)).size == (64, 64), "the small icon must stay as the provider made it"
+    large = await account.client.get(listed[0]["icon_url"], params={"large": 1})
+    assert large.status_code == 200 and Image.open(io.BytesIO(large.content)).size == (256, 256)
 
 
 async def test_skyrim_refresh_shows_what_steam_says(account) -> None:

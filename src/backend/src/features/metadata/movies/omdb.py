@@ -105,7 +105,7 @@ class OMDBClient:
             "seasons": [],
         }
 
-    def search(self, query: str, limit: int = 8) -> list[dict[str, Any]]:
+    def search(self, query: str, limit: int = 8, light: bool = False) -> list[dict[str, Any]]:
         if not query.strip():
             return []
         try:
@@ -126,7 +126,7 @@ class OMDBClient:
             if not imdb_id:
                 continue
             try:
-                details = self._get({"i": imdb_id})
+                details = candidate if light else self._get({"i": imdb_id})
             except OMDBError:
                 details = candidate
 
@@ -152,7 +152,7 @@ class OMDBClient:
             )
         return results
 
-    def search_tv(self, query: str, limit: int = 8) -> list[dict[str, Any]]:
+    def search_tv(self, query: str, limit: int = 8, light: bool = False) -> list[dict[str, Any]]:
         """Like `search`, but for series. OMDb's `totalSeasons` gives a
         count only — no per-season episode counts or air dates, unlike
         TMDB's `seasons` array, so this never contributes a season list."""
@@ -172,7 +172,7 @@ class OMDBClient:
             if not imdb_id:
                 continue
             try:
-                details = self._get({"i": imdb_id})
+                details = candidate if light else self._get({"i": imdb_id})
             except OMDBError:
                 details = candidate
 

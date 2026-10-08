@@ -67,6 +67,7 @@ from src.features.metadata.locked_fields import apply_updates_with_locking
 from src.features.metadata.games import wiseoldman
 from src.core.preferences import load_preferences
 from src.features.metadata.games.search import search_game_metadata
+from src.features.metadata.search_utils import cached_search
 from src.features.trash.game_trash import move_game_to_trash, restore_game_from_trash
 from src.features.trash.media_trash import move_media_file_to_trash, restore_media_file_from_trash
 from src.features.trash.sweep import RETENTION_SECONDS
@@ -163,6 +164,7 @@ async def search_metadata(
     query: str = Query(..., min_length=2, max_length=100),
     limit: int = Query(default=8, ge=1, le=20),
     include_images: bool = Query(default=True),
+    light: bool = Query(default=False),
     db: AsyncSession = _DB_DEPENDENCY,
     current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> dict:
@@ -178,15 +180,19 @@ async def search_metadata(
     app_integrations = resolve_integrations(await get_or_create_app_integration_settings(db))
     try:
         result = await asyncio.to_thread(
-            search_game_metadata,
-            query.strip(),
-            limit,
-            current_user.steamgriddb_api_key,
-            preferences,
-            current_user,
-            app_integrations.igdb_client_id,
-            app_integrations.igdb_client_secret,
-            include_images,
+            cached_search,
+            ("game", current_user.id, query.strip().lower(), limit, include_images, light),
+            lambda: search_game_metadata(
+                query.strip(),
+                limit,
+                current_user.steamgriddb_api_key,
+                preferences,
+                current_user,
+                app_integrations.igdb_client_id,
+                app_integrations.igdb_client_secret,
+                include_images,
+                light,
+            ),
         )
     except Exception as exc:
         raise HTTPException(

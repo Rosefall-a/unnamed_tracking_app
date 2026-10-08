@@ -19,6 +19,7 @@ from src.features.metadata.games.igdb import IGDBClient
 from src.features.metadata.games.retroachievements import RetroAchievementsClient
 from src.features.metadata.games.screenscraper import ScreenScraperClient, ScreenScraperError
 from src.features.metadata.games.steam_grid_db import SteamGridDBClient, SteamGridDBError
+from src.features.metadata.search_utils import format_provider_error, visible_errors
 
 if TYPE_CHECKING:
     from src.database.models.user import User
@@ -103,15 +104,7 @@ def _steam_result(item: dict[str, Any], details: dict[str, Any] | None) -> dict[
     return result
 
 
-def _friendly_provider_error(name: str, message: str) -> str:
-    """A 429 (or a provider's own "rate limit"/"too many requests" wording)
-    reads as just another opaque failure otherwise — worth calling out
-    specifically since the fix ("wait a bit") is different from a real
-    outage or bad credentials."""
-    lowered = message.lower()
-    if "429" in message or "rate limit" in lowered or "too many requests" in lowered:
-        return f"{name}: rate limited by the provider, try again in a few minutes."
-    return f"{name}: {message}"
+_friendly_provider_error = format_provider_error
 
 
 # how many results get their tags looked up: each is one more store page request
@@ -179,6 +172,9 @@ class ProviderContext:
     igdb_client_secret: str | None = None
     # take the tags Steam players vote on as a Steam game's genres
     steam_user_tags: bool = True
+    # a quick search for a results list: names only, no per-result detail pages,
+    # player tags or time-to-beat. Those are read for the one game that is picked.
+    light: bool = False
 
 
 ProviderRun = Callable[
@@ -202,11 +198,15 @@ class ProviderSpec:
 def _run_steam(
     query: str, limit: int, ctx: ProviderContext, existing: list[dict[str, Any]]
 ) -> list[dict[str, Any]]:
-    del ctx, existing
+    del existing
     found: list[dict[str, Any]] = []
     for item in steam.search_store(query)[:limit]:
         app_id = item.get("id")
         if app_id is None:
+            continue
+        if ctx.light:
+            # one store page per result is what made the list slow
+            found.append(_steam_result(item, None))
             continue
         details = steam.get_app_details(int(app_id)) if app_id else None
         if details and details.get("type") not in (None, "game"):
@@ -549,6 +549,7 @@ def search_game_metadata(
     igdb_client_id: str | None = None,
     igdb_client_secret: str | None = None,
     include_image_providers: bool = True,
+    light: bool = False,
 ) -> dict[str, Any]:
     """Search configured providers and return normalized creation-form data.
 
@@ -580,6 +581,7 @@ def search_game_metadata(
         igdb_client_id=igdb_client_id or settings.IGDB_CLIENT_ID,
         igdb_client_secret=igdb_client_secret or settings.IGDB_CLIENT_SECRET,
         steam_user_tags=bool(preferences.get("steam_user_tags", True)),
+        light=light,
     )
 
     results: list[dict[str, Any]] = []
@@ -606,6 +608,9 @@ def search_game_metadata(
         enrichment_specs += _specs_for(
             image_provider_order, IMAGE_PROVIDER_NAMES, "enrichment"
         )
+
+    if light:
+        enrichment_specs = []
 
     # Primary providers are independent of each other (none reads another's
     # results), so they're the real bottleneck when run one at a time —
@@ -666,13 +671,13 @@ def search_game_metadata(
             providers_used.append(spec.name)
         executor.shutdown(wait=False)
 
-    _apply_steam_user_tags(results, ctx.steam_user_tags)
+    _apply_steam_user_tags(results, ctx.steam_user_tags and not light)
     _strip_unsaved_fields(results, preferences)
 
     return {
         "query": query,
         "providers": providers_used,
         "steamgriddb_configured": bool(ctx.steamgriddb_api_key),
-        "provider_errors": provider_errors,
+        "provider_errors": visible_errors(provider_errors, bool(results)),
         "results": results,
     }

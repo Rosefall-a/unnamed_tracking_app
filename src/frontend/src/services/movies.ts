@@ -293,11 +293,14 @@ interface BackendMovieMetadataSearchResponse {
   results: BackendMovieMetadataResult[];
 }
 
+// `light` is for a results list: it skips the detail page read for each result
 export async function searchMovieMetadata(
   query: string,
   limit = 8,
+  light = false,
 ): Promise<MovieMetadataSearchResponse> {
   const params = new URLSearchParams({ query, limit: String(limit) });
+  if (light) params.set("light", "true");
   const response = await fetch(`/api/movie/metadata/search?${params}`, {
     credentials: "include",
   });

@@ -166,7 +166,11 @@ async function onBulkDelete(ids: string[]) {
 async function search(
   query: string,
 ): Promise<{ results: SearchResultVM[]; providerErrors: string[] }> {
-  const { results, providerErrors } = await searchMovieMetadata(query);
+  const { results, providerErrors } = await searchMovieMetadata(
+    query,
+    8,
+    true,
+  );
   return {
     results: results.map((r) => ({
       title: r.title,

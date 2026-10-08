@@ -30,6 +30,7 @@ from src.database.models.user import User
 from src.database.session import get_db
 from src.features.metadata.locked_fields import apply_updates_with_locking
 from src.features.metadata.movies.search import search_movie_metadata
+from src.features.metadata.search_utils import cached_search
 from src.features.metadata.movies.tmdb import TMDBClient
 
 router = APIRouter(prefix="/api/movie", tags=["movie"], dependencies=[Depends(get_current_user)])
@@ -87,6 +88,7 @@ async def _get_movie_or_404(
 async def search_metadata(
     query: str = Query(..., min_length=2, max_length=100),
     limit: int = Query(default=8, ge=1, le=20),
+    light: bool = Query(default=False),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
@@ -97,11 +99,22 @@ async def search_metadata(
     app_integrations = resolve_integrations(await get_or_create_app_integration_settings(db))
     try:
         result = await asyncio.to_thread(
-            search_movie_metadata,
-            query.strip(),
-            limit,
-            app_integrations.tmdb_api_key,
-            app_integrations.omdb_api_key,
+            cached_search,
+            (
+                "movie",
+                query.strip().lower(),
+                limit,
+                light,
+                bool(app_integrations.tmdb_api_key),
+                bool(app_integrations.omdb_api_key),
+            ),
+            lambda: search_movie_metadata(
+                query.strip(),
+                limit,
+                app_integrations.tmdb_api_key,
+                app_integrations.omdb_api_key,
+                light,
+            ),
         )
     except Exception as exc:
         raise HTTPException(
