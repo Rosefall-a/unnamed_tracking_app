@@ -9,6 +9,13 @@ from src.api.routes.library_sync import _unique_folder_location
 from src.database.models.game import FOLDER_NAME_MAX_LENGTH, Game, GameStatus
 from src.database.models.user import User
 from src.database.session import SessionLocal
+from src.helpers import save_game_asset
+
+
+@pytest.fixture(autouse=True)
+def game_folders(tmp_path, monkeypatch):
+    # creating a game makes its folder: keep that out of /data
+    monkeypatch.setattr(save_game_asset, "DATA_ROOT", tmp_path)
 
 
 @pytest.fixture
