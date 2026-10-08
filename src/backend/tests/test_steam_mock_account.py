@@ -322,11 +322,24 @@ async def account(tmp_path, monkeypatch):
         await db.commit()
 
 
-async def _import_like_the_app(acc, batch: int = 5) -> dict:
-    """The sync request, then the enrich batches the frontend asks for."""
-    first = await acc.client.post("/api/library-sync/steam")
+async def _import_like_the_app(acc, batch: int = 5, achievements: str = "later") -> dict:
+    """The sync request, then the achievement and enrich batches the frontend
+    asks for. `achievements="now"` is the single-request sync instead."""
+    first = await acc.client.post(f"/api/library-sync/steam?achievements={achievements}")
     assert first.status_code == 200, first.text
     result = first.json()
+    ach_ids, settle = result["achievement_game_ids"], set(result["status_game_ids"])
+    if achievements == "now":
+        assert not ach_ids and not settle
+    for start in range(0, len(ach_ids), 10):
+        chunk = ach_ids[start : start + 10]
+        step = await acc.client.post(
+            "/api/library-sync/steam/achievements",
+            json={"game_ids": chunk, "status_game_ids": [i for i in chunk if i in settle]},
+        )
+        assert step.status_code == 200, step.text
+        result["achievements_synced"] += step.json()["achievements_synced"]
+        result["achievements_unavailable"] += step.json()["achievements_unavailable"]
     wishlist = await acc.client.post("/api/library-sync/steam/wishlist")
     assert wishlist.status_code == 200, wishlist.text
     ids = result["enrich_game_ids"] + wishlist.json()["game_ids"]
@@ -353,12 +366,13 @@ async def _stored(acc) -> dict[int, tuple[Game, list[Achievement]]]:
 
 
 # ---------------------------------------------------------------- the checks
+@pytest.mark.parametrize("achievements", ["later", "now"])
 @pytest.mark.parametrize("enable_wishlist", [False, True])
-async def test_full_account_import(account, enable_wishlist) -> None:
+async def test_full_account_import(account, enable_wishlist, achievements) -> None:
     if enable_wishlist:
         patched = await account.client.patch("/api/preferences", json={"steam_import_wishlist": True})
         assert patched.status_code == 200, patched.text
-    result = await _import_like_the_app(account)
+    result = await _import_like_the_app(account, achievements=achievements)
     stored = await _stored(account)
     problems: list[str] = []
 
@@ -385,6 +399,15 @@ async def test_full_account_import(account, enable_wishlist) -> None:
         hidden = sum(1 for r in rows if r.hidden)
         if hidden != sum(d["hidden"] for d in fake_game.schema.values()):
             problems.append(f"{game.title!r}: hidden flags differ")
+        # a new game's status comes from its playtime and achievements
+        if want and fake_game.expected_unlocked == want:
+            expected_status = "MASTERED"
+        elif fake_game.playtime or fake_game.expected_unlocked:
+            expected_status = "PLAYED"
+        else:
+            expected_status = "BACKLOG"
+        if game.status.name != expected_status:
+            problems.append(f"{game.title!r}: status {game.status.name}, expected {expected_status}")
         if fake_game.has_store_page and not game.description:
             problems.append(f"{game.title!r}: no description from the store page")
         if fake_game.has_store_page and not game.tags:

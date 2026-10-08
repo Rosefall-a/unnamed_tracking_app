@@ -18,6 +18,7 @@ import asyncio
 import re
 import time
 from datetime import UTC, date, datetime
+from typing import Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -37,7 +38,7 @@ from src.core.auth import get_current_user
 from src.core.crypto import decrypt_secret
 from src.core.integrations import resolve_integrations
 from src.database.models.achievement import Achievement
-from src.database.models.game import Game, GameStatus
+from src.database.models.game import FOLDER_NAME_MAX_LENGTH, Game, GameStatus
 from src.database.models.user import User
 from src.database.session import get_db
 from src.features.metadata.games import steam, steam_tags
@@ -48,6 +49,10 @@ from src.features.metadata.games.retroachievements import (
     RetroAchievementsError,
 )
 from src.features.metadata.games.search import search_game_metadata
+from src.features.metadata.games.steam_achievements import (
+    SteamAchievementData,
+    fetch_steam_achievements,
+)
 from src.features.metadata.games.steam_grid_db import SteamGridDBClient
 from src.helpers.game_art_download import download_asset as _download_asset
 from src.helpers.game_art_download import steam_cdn_art_urls as _steam_cdn_art_urls
@@ -344,12 +349,16 @@ def _slugify(title: str) -> str:
     return slug or "game"
 
 
-async def _unique_folder_location(db: AsyncSession, title: str) -> str:
-    base = _slugify(title)
+async def _unique_folder_location(db: AsyncSession, user_id: UUID, title: str) -> str:
+    """Folder names are per user (trashed games keep theirs), and the "-2"
+    suffix must still fit the column: a 150-character title failed the insert."""
+    base = _slugify(title)[:FOLDER_NAME_MAX_LENGTH]
     candidate = base
     suffix = 2
-    while await db.scalar(select(Game.id).where(Game.folder_location == candidate)) is not None:
-        candidate = f"{base}-{suffix}"
+    taken = select(Game.id).where(Game.user_id == user_id)
+    while await db.scalar(taken.where(Game.folder_location == candidate)) is not None:
+        tail = f"-{suffix}"
+        candidate = f"{base[: FOLDER_NAME_MAX_LENGTH - len(tail)]}{tail}"
         suffix += 1
     return candidate
 
@@ -395,7 +404,7 @@ async def _get_or_create_game(
         existing.stale_since = None
         return existing, False
 
-    folder_location = await _unique_folder_location(db, title)
+    folder_location = await _unique_folder_location(db, user_id, title)
     game = Game(
         user_id=user_id,
         title=title,
@@ -675,9 +684,14 @@ async def _fetch_psn_rows(user: User, external_id: str, platform: str | None) ->
 
 @router.post("/steam")
 async def sync_steam_library(
+    achievements: Literal["now", "later"] = "now",
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
+    """Saves the owned games and their playtime, and with `achievements=now`
+    their achievements too. That reads each game from Steam, which for a big
+    library outlasts a proxy's timeout, so the app asks for `later` and then
+    has the achievements read in batches (see steam_import_steps.py)."""
     if not current_user.steam_id or not current_user.steam_api_key:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Save your Steam ID and API key first."
@@ -699,23 +713,11 @@ async def sync_steam_library(
 
     semaphore = asyncio.Semaphore(_SYNC_CONCURRENCY)
 
-    async def _fetch_achievements(
-        app_id: int,
-    ) -> tuple[dict[str, dict], list[dict] | None, dict[str, str] | None]:
+    async def _fetch_achievements(app_id: int) -> SteamAchievementData:
+        if achievements == "later":
+            return {}, [], None
         async with semaphore:
-            try:
-                schema = await asyncio.to_thread(steam.get_schema_for_game, api_key, app_id)
-                unlocked = await asyncio.to_thread(
-                    steam.get_player_achievements, steam_id, api_key, app_id
-                )
-            except steam.SteamLibraryError:
-                return {}, [], None
-            descriptions = None
-            if _needs_community_descriptions(schema):
-                descriptions = await asyncio.to_thread(
-                    steam.get_community_descriptions, steam_id, app_id
-                )
-            return schema, unlocked, descriptions
+            return await fetch_steam_achievements(steam_id, api_key, app_id)
 
     fetches = await asyncio.gather(
         *(
@@ -730,6 +732,7 @@ async def sync_steam_library(
     synced_titles: list[str] = []
     unreadable: list[str] = []
     touched_ids: set[UUID] = set()
+    status_ids: list[str] = []
     fetch_index = 0
     for entry in owned_games:
         title, app_id = entry.get("name"), entry.get("appid")
@@ -772,6 +775,7 @@ async def sync_steam_library(
                     unlocked_achievements=unlocked_count,
                 ),
             )
+            status_ids.append(str(game.id))
         if created:
             _add_source_tag_and_collection(game, "Steam")
             newly_created.append((game, app_id))
@@ -790,6 +794,10 @@ async def sync_steam_library(
         # the new games still to be enriched (store details, tags, artwork), which
         # is slow, so the app asks for it in batches: see steam_import_steps.py
         "enrich_game_ids": [str(g.id) for g, _ in newly_created],
+        # with achievements=later: every synced game, to read achievements for,
+        # and the ones whose status still depends on them (new or just bought)
+        "achievement_game_ids": [str(i) for i in touched_ids] if achievements == "later" else [],
+        "status_game_ids": status_ids if achievements == "later" else [],
     }
 
 
