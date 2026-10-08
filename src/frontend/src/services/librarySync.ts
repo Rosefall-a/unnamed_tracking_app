@@ -8,11 +8,13 @@ export interface LibrarySyncResult {
   // streaming endpoint for this yet.
   games: string[];
   // Steam only: wishlist games added, games whose store details, tags or
-  // artwork could not be filled in (they keep what they have), and games
-  // whose unlocked achievements Steam would not share
+  // artwork could not be filled in (they keep what they have), games whose
+  // unlocked achievements Steam would not share, and games whose achievements
+  // could not be read this time (Steam busy; the next sync tries again)
   wishlist_added?: number;
   enrich_failed?: number;
   achievements_unavailable?: string[];
+  achievements_failed?: number;
 }
 
 export type LibrarySyncProvider =
@@ -99,6 +101,7 @@ async function finishSteamImport(
   const achievementIds = result.achievement_game_ids ?? [];
   const settle = new Set(result.status_game_ids ?? []);
   const unavailable = [...(result.achievements_unavailable ?? [])];
+  let achievementsFailed = 0;
   for (let i = 0; i < achievementIds.length; i += ACHIEVEMENT_BATCH) {
     onProgress?.("Reading achievements", i, achievementIds.length);
     const gameIds = achievementIds.slice(i, i + ACHIEVEMENT_BATCH);
@@ -114,9 +117,11 @@ async function finishSteamImport(
       unavailable.push(...batch.achievements_unavailable);
     } catch {
       // the games are saved; their achievements come in on the next sync
+      achievementsFailed += gameIds.length;
     }
   }
   result.achievements_unavailable = unavailable;
+  result.achievements_failed = achievementsFailed;
 
   const ids = [...(result.enrich_game_ids ?? [])];
   // the wishlist is an extra: if Steam won't give it, the owned games still

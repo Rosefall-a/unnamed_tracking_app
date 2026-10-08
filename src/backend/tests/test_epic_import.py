@@ -129,11 +129,19 @@ class FakeEpic:
         self.issued = 0
         self.token_calls = 0
         self.expired = False
+        # the token service's answer when set: a status code, or "down"
+        self.token_trouble: int | str | None = None
+        # namespaces whose catalog lookup can't be reached
+        self.catalog_down: set[str] = set()
 
     # requests.Session().post / .get
     def post(self, url: str, data: dict, **_kw: Any) -> Reply:
         assert "oauth/token" in url
         self.token_calls += 1
+        if self.token_trouble == "down":
+            raise requests.ConnectionError("connection refused")
+        if self.token_trouble:
+            return Reply(int(self.token_trouble), content=b"<html>busy</html>", ctype="text/html")
         if data["grant_type"] == "authorization_code" and data["code"] != CODE:
             return Reply(
                 400,
@@ -178,6 +186,8 @@ class FakeEpic:
         if "/bulk/items" in url:
             ids = [v for k, v in params if k == "id"]
             namespace = url.split("/namespace/")[1].split("/")[0]
+            if namespace in self.catalog_down:
+                raise requests.ConnectionError("connection reset")
             assert all(
                 r["namespace"] == namespace for r in self.records if r["catalogItemId"] in ids
             )
@@ -404,3 +414,54 @@ def test_art_slots() -> None:
 def test_login_url_points_at_epics_code_page() -> None:
     query = parse_qs(urlparse(epic.LOGIN_URL).query)
     assert "responseType=code" in query["redirectUrl"][0]
+
+
+@pytest.mark.parametrize(
+    ("trouble", "message"), [("down", "Could not reach Epic"), (429, "busy"), (503, "trouble")]
+)
+async def test_epic_being_unreachable_is_not_an_expired_sign_in(acc, trouble, message) -> None:
+    assert (await _connect(acc)).status_code == 200
+    epic_import._SESSIONS.clear()
+    acc.fake.token_trouble = trouble
+    reply = await acc.client.post("/api/library-sync/epic")
+    assert reply.status_code == 502, reply.text
+    assert message in reply.json()["detail"]
+    # the saved sign-in is untouched, and works once Epic is back
+    acc.fake.token_trouble = None
+    assert (await acc.client.post("/api/library-sync/epic")).status_code == 200
+
+
+async def test_an_unreachable_catalog_skips_those_games_until_next_sync(acc) -> None:
+    assert (await _connect(acc)).status_code == 200
+    down = acc.fake.records[0]["namespace"]
+    acc.fake.catalog_down.add(down)
+    first = await _import_like_the_app(acc)
+    assert first["games_added"] == 29
+    acc.fake.catalog_down.clear()
+    second = await _import_like_the_app(acc)
+    assert second["games_added"] == 1
+    assert len(await _games(acc)) == 30
+
+
+async def test_a_game_added_by_hand_keeps_its_playtime(acc) -> None:
+    assert (await _connect(acc)).status_code == 200
+    unplayed = next(r for r in acc.fake.records if r["appName"] == "App1")
+    assert "App1" not in acc.fake.playtime
+    async with SessionLocal() as db:
+        db.add(
+            Game(
+                user_id=acc.user_id,
+                title="Epic Game 1",
+                sort_title="epic game 1",
+                folder_location="Epic-Game-1",
+                source="Epic Games",
+                status=GameStatus.PLAYING,
+                playtime_seconds=5400,
+            )
+        )
+        await db.commit()
+    result = await _import_like_the_app(acc)
+    assert result["games_added"] == 29
+    game = (await _games(acc))[unplayed["catalogItemId"]]
+    assert game.playtime_seconds == 5400
+    assert game.status == GameStatus.PLAYING

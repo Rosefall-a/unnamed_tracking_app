@@ -677,6 +677,11 @@ function librarySyncSummary(result: LibrarySyncResult): string {
     parts.push(
       `achievements not shared for ${hidden} game${hidden === 1 ? "" : "s"}`,
     );
+  const unread = result.achievements_failed ?? 0;
+  if (unread)
+    parts.push(
+      `achievements of ${unread} game${unread === 1 ? "" : "s"} not read (Steam busy: sync again later)`,
+    );
   return parts.join(", ");
 }
 

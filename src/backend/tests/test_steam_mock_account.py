@@ -500,6 +500,10 @@ async def test_import_makes_a_sane_number_of_steam_requests(account) -> None:
     owned = len(account.world)
     assert store_pages <= owned + 1, f"{store_pages} store pages for {owned} games: {dict(kinds)}"
     assert details <= owned * 2 + len(account.wishlist), f"{details} appdetails calls for {owned} games"
+    # a game without achievements is not asked for the player's unlocked list
+    player_calls = sum(1 for u in account.fake.calls if "GetPlayerAchievements" in u)
+    with_schema = sum(1 for g in account.world if g.schema)
+    assert player_calls <= with_schema * 3, f"{player_calls} player lists for {with_schema} games"
 
 
 async def test_rate_limited_answers_are_retried_not_read_as_nothing_unlocked(account) -> None:

@@ -117,14 +117,17 @@ class EpicClient:
             )
         except requests.RequestException as exc:
             raise EpicError(f"Could not reach Epic Games: {exc}") from exc
+        if resp.status_code >= 500:
+            raise EpicError(f"Epic Games is having trouble ({resp.status_code}): try again later.")
+        if resp.status_code == 429:
+            # busy, not a refused sign-in: the saved one still works later
+            raise EpicError("Epic Games is busy: try again in a minute.")
         try:
             payload: dict[str, Any] = resp.json()
         except ValueError as exc:
             raise EpicError(
                 f"Epic Games returned an unreadable answer ({resp.status_code})."
             ) from exc
-        if resp.status_code >= 500:
-            raise EpicError(f"Epic Games is having trouble ({resp.status_code}): try again later.")
         if payload.get("errorCode") or resp.status_code >= 400:
             raise _sign_in_error(payload, form["grant_type"])
         try:
@@ -211,7 +214,9 @@ class EpicClient:
         self, access_token: str, namespace: str, ids: list[str]
     ) -> dict[str, dict]:
         """Catalog details (title, description, developer, artwork, categories)
-        of some items in one namespace, keyed by catalog item id."""
+        of some items in one namespace, keyed by catalog item id. Empty when
+        Epic doesn't answer: those entries are just looked up again on the
+        next sync, which beats failing every other game in the batch."""
         params: list[tuple[str, str]] = [("id", i) for i in ids]
         params += [
             ("includeDLCDetails", "true"),
@@ -226,8 +231,8 @@ class EpicClient:
                 headers={"Authorization": f"bearer {access_token}"},
                 timeout=_TIMEOUT,
             )
-        except requests.RequestException as exc:
-            raise EpicError(f"Could not reach Epic Games: {exc}") from exc
+        except requests.RequestException:
+            return {}
         if resp.status_code >= 400:
             return {}
         try:

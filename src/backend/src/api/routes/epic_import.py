@@ -128,10 +128,16 @@ async def _session(db: AsyncSession, user: User) -> epic.EpicSession:
         )
     try:
         refresh_token = decrypt_secret(user.epic_refresh_token)
+    except RuntimeError as exc:  # saved under a SECRET_KEY that has since changed
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Connect Epic Games again."
+        ) from exc
+    # EpicError is a RuntimeError too, so it is caught here on its own: a sign-in
+    # Epic refuses means connecting again, anything else (Epic down) is a 502
+    try:
         session = await asyncio.to_thread(epic.EpicClient().refresh, refresh_token)
-    except (epic.EpicSignInExpired, RuntimeError) as exc:
-        detail = str(exc) if isinstance(exc, epic.EpicError) else "Connect Epic Games again."
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=detail) from exc
+    except epic.EpicSignInExpired as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     except epic.EpicError as exc:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
     _remember(user, session)
@@ -174,6 +180,7 @@ async def sync_epic_library(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     except epic.EpicError as exc:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+    played = playtime or {}
 
     owned = {r["catalogItemId"]: r for r in records}
     existing = {
@@ -191,7 +198,7 @@ async def sync_epic_library(
     }
     for item_id, game in existing.items():
         game.stale_since = None
-        seconds = (playtime or {}).get(owned[str(item_id)]["appName"])
+        seconds = played.get(owned[str(item_id)]["appName"])
         if seconds is not None:
             game.playtime_seconds = seconds
 
@@ -214,10 +221,14 @@ async def sync_epic_library(
         game, created = await _get_or_create_game(
             db, current_user.id, str(item["title"])[:_MAX_TITLE], SOURCE, external_id=item_id
         )
-        game.playtime_seconds = (playtime or {}).get(owned[item_id]["appName"], 0)
+        seconds = played.get(owned[item_id]["appName"])
         if not created:
+            # a game added by hand keeps its own playtime unless Epic has one
+            if seconds is not None:
+                game.playtime_seconds = seconds
             matched.append(game)
             continue
+        game.playtime_seconds = seconds or 0
         _apply_catalog(game, item)
         _apply_status(game, _infer_status(playtime_seconds=game.playtime_seconds))
         _add_source_tag_and_collection(game, SOURCE)

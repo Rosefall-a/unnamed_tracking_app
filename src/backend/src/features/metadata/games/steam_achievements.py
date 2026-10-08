@@ -19,6 +19,11 @@ async def fetch_steam_achievements(
     without achievements, so one game cannot fail a whole import."""
     try:
         schema = await asyncio.to_thread(steam.get_schema_for_game, api_key, app_id)
+        if not schema:
+            # no achievements to ask about: skipping the player's list saves a
+            # request for every such game (often a third of a library), and
+            # fewer requests means fewer of Steam's "too many requests"
+            return {}, [], None
         unlocked = await asyncio.to_thread(steam.get_player_achievements, steam_id, api_key, app_id)
     except steam.SteamLibraryError:
         return {}, [], None

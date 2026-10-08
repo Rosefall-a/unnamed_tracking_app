@@ -458,7 +458,9 @@ async def save_provider_credentials(
                 steam_id_input, api_key_input = api_key_input, steam_id_input
 
         if steam_id_input:
-            current_user.steam_id = steam_id_input
+            # a pasted profile link is kept as the ID or name in it: the link
+            # itself can be longer than the column
+            current_user.steam_id = steam.parse_steam_identifier(steam_id_input)[:255]
         if api_key_input:
             current_user.steam_api_key = api_key_input
         await db.commit()
