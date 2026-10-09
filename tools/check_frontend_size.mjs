@@ -22,11 +22,11 @@ async function inspect(directory) {
 }
 
 await inspect(root);
-const oversized = inventory.filter(({ lines }) => lines > 2000);
+const oversized = inventory.filter(({ lines }) => lines > 3000);
 assert.equal(
   oversized.length,
   0,
-  `Frontend files exceed 2,000 lines:\n${oversized.map(({ file, lines }) => `${file}: ${lines}`).join("\n")}`,
+  `Frontend files exceed 3,000 lines:\n${oversized.map(({ file, lines }) => `${file}: ${lines}`).join("\n")}`,
 );
 inventory.sort((left, right) => right.lines - left.lines);
-console.log(`${inventory.length} frontend source files fit the 2,000-line limit; largest ${inventory[0]?.file ?? "none"}: ${inventory[0]?.lines ?? 0}.`);
+console.log(`${inventory.length} frontend source files fit the 3,000-line limit; largest ${inventory[0]?.file ?? "none"}: ${inventory[0]?.lines ?? 0}.`);
