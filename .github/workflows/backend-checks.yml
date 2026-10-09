@@ -220,7 +220,8 @@ jobs:
       strict: ${{ github.event_name != 'pull_request' || github.event.pull_request.number != 448 }}
 
   backend-checks:
-    name: Backend checks
+    # Keep this exact job name aligned with the repository's required status check.
+    name: backend-checks
     if: always() && (github.event_name != 'pull_request' || !github.event.pull_request.draft)
     needs:
       - backend-tests
