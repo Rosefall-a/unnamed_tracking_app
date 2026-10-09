@@ -1,5 +1,9 @@
 name: Ruff Format
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
 on:
   pull_request:
     branches:
@@ -24,6 +28,8 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          cache: pip
+          cache-dependency-path: src/backend/requirements.txt
 
       - name: Install Ruff
         run: python -m pip install ruff

@@ -1,5 +1,9 @@
 name: Production runtime smoke tests
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
@@ -26,7 +30,7 @@ jobs:
   runtime-smoke:
     if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
-    timeout-minutes: 15 # Bounded runtime validation window.
+    timeout-minutes: 15
     steps:
       - name: Check out source
         uses: actions/checkout@v4
@@ -45,7 +49,10 @@ jobs:
           file: src/docker-container/Dockerfile
           load: true
           tags: unnamed_tracking_app:runtime-smoke
-          cache-from: type=gha,scope=production-runtime-smoke
+          # Reuse production-container layers, with a smoke-specific cache as fallback.
+          cache-from: |
+            type=gha,scope=production-container
+            type=gha,scope=production-runtime-smoke
           cache-to: type=gha,mode=max,scope=production-runtime-smoke
 
       - name: Pull the exact published production image

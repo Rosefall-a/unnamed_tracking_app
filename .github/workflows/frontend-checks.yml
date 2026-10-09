@@ -1,5 +1,9 @@
 name: Frontend Checks
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
 on:
   push:
   pull_request:
@@ -52,13 +56,27 @@ jobs:
         run: npm run format
 
       - name: Lint
+        id: frontend-lint
         working-directory: src/frontend
         run: npm run lint
 
       - name: Type check
+        id: frontend-typecheck
         working-directory: src/frontend
         run: npm run typecheck
 
       - name: Tests
+        id: frontend-tests
         working-directory: src/frontend
         run: npm run test
+
+      - name: Report to Actions Dashboard
+        if: always() && vars.PUSH_TO_DISPLAY_ENABLED == 'true'
+        uses: pushtodisplay/actions-dashboard@ce26532a36af079259315587543935064f22e6b4
+        env:
+          PUSH_TO_DISPLAY_API_KEY: ${{ secrets.PUSH_TO_DISPLAY_API_KEY }}
+          PUSH_TO_DISPLAY_BOARD: ${{ vars.PUSH_TO_DISPLAY_BOARD }}
+        with:
+          steps-json: ${{ toJSON(steps) }}
+          panel-id: 1
+          label: Frontend CI
