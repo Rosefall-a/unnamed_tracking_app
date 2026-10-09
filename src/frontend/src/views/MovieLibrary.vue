@@ -12,6 +12,7 @@ import {
 } from "../services/movies";
 import type { Movie, MovieStatus } from "../types/movie";
 import { localMediaImage } from "../utils/mediaImages";
+import { formatProgressMinutes, progressPercent } from "../utils/watchProgress";
 import MediaLibraryView from "../components/library/MediaLibraryView.vue";
 import type {
   LibraryCardVM,
@@ -33,6 +34,14 @@ function formatRuntime(minutes: number | null): string {
   return hrs > 0 ? `${hrs}h ${mins}m` : `${mins}m`;
 }
 
+// a watched movie says so; one left off part way shows where; otherwise its length
+function movieProgressLabel(m: Movie, seen: boolean): string {
+  if (seen) return "Watched";
+  if (m.progressMinutes && m.runtimeMinutes)
+    return `${formatProgressMinutes(m.progressMinutes)} / ${formatProgressMinutes(m.runtimeMinutes)}`;
+  return formatRuntime(m.runtimeMinutes);
+}
+
 function toVM(m: Movie): LibraryCardVM {
   const seen = COMPLETED_STATUSES.includes(m.status);
   return {
@@ -48,7 +57,10 @@ function toVM(m: Movie): LibraryCardVM {
     isEpisodic: false,
     watched: seen ? 1 : 0,
     total: 1,
-    progressLabel: formatRuntime(m.runtimeMinutes),
+    progressPercent: seen
+      ? 100
+      : progressPercent(m.progressMinutes, m.runtimeMinutes),
+    progressLabel: movieProgressLabel(m, seen),
     canAdvance: false,
     releaseYear: m.releaseDate ? m.releaseDate.slice(0, 4) : null,
     addedAt: Date.parse(m.createdAt) || null,
