@@ -1,4 +1,5 @@
 name: Ruff
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
@@ -7,12 +8,10 @@ on:
   push:
     paths:
       - "src/backend/**"
-      - ".github/workflows/ruff.yml"
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - "src/backend/**"
-      - ".github/workflows/ruff.yml"
 
 permissions:
   contents: read
@@ -23,59 +22,17 @@ defaults:
     working-directory: src/backend
 
 jobs:
-  ruff-format:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-          cache: pip
-          cache-dependency-path: src/backend/requirements.txt
-      - name: Install Ruff
-        run: python -m pip install ruff
-      - name: Check Ruff formatting
-        run: |
-          if [[ "${{ github.event_name }}" == "pull_request" && "${{ github.event.pull_request.number }}" == "448" ]]; then
-            ruff format . --check || echo "::warning::Ruff formatting findings are tolerated for migration PR #448."
-          else
-            ruff format . --check
-          fi
-
-  ruff-lint:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-          cache: pip
-          cache-dependency-path: src/backend/requirements.txt
-      - name: Install Ruff
-        run: python -m pip install ruff
-      - name: Run Ruff lint
-        run: |
-          if [[ "${{ github.event_name }}" == "pull_request" && "${{ github.event.pull_request.number }}" == "448" ]]; then
-            ruff check . --output-format=github --exit-zero
-          else
-            ruff check . --output-format=github
-          fi
-
-  ruff-autofix:
-    if: >-
-      github.event_name == 'pull_request' &&
-      github.event.pull_request.head.repo.full_name == github.repository
+  ruff:
+    name: Ruff
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    concurrency:
-      group: ruff-autofix-${{ github.event.pull_request.number }}
-      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
         with:
-          repository: ${{ github.event.pull_request.head.repo.full_name }}
-          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -83,28 +40,31 @@ jobs:
           cache-dependency-path: src/backend/requirements.txt
       - name: Install Ruff
         run: python -m pip install ruff
-      - name: Apply Ruff safe fixes
-        id: fixes
-        run: ruff check . --fix --exit-zero
-      - name: Apply Ruff formatting
-        if: ${{ !cancelled() }}
-        run: ruff format .
+      - name: Apply Ruff fixes
+        run: |
+          ruff format .
+          ruff check . --fix
       - name: Commit Ruff fixes to the PR branch
-        if: ${{ !cancelled() && steps.fixes.outcome == 'success' }}
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
         env:
           PR_BRANCH: ${{ github.event.pull_request.head.ref }}
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
         run: |
           git add -- src/backend
           if git diff --cached --quiet; then
-            exit 0
+            echo "No Ruff fixes needed."
+          else
+            git fetch origin "refs/heads/$PR_BRANCH"
+            if [ "$(git rev-parse FETCH_HEAD)" != "$EXPECTED_HEAD" ]; then
+              echo "::notice::The PR branch advanced; a newer run will apply Ruff fixes."
+              exit 0
+            fi
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git commit -m "chore: apply Ruff fixes"
+            git push origin "HEAD:refs/heads/$PR_BRANCH"
           fi
-          git fetch origin "refs/heads/$PR_BRANCH"
-          if [ "$(git rev-parse FETCH_HEAD)" != "$EXPECTED_HEAD" ]; then
-            echo "::notice::The PR branch advanced; a newer run will apply Ruff fixes."
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "chore: apply Ruff safe fixes and formatting"
-          git push origin "HEAD:refs/heads/$PR_BRANCH"
+      - name: Check Ruff formatting
+        run: ruff format . --check
+      - name: Check Ruff lint
+        run: ruff check . --output-format=github
