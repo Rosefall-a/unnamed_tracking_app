@@ -231,6 +231,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Require every backend check to pass
+        id: backend-result
         env:
           CHECK_RESULTS: ${{ toJSON(needs) }}
         run: |
