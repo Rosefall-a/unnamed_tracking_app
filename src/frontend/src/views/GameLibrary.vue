@@ -7,6 +7,7 @@ import { useWindowVirtualizer } from "@tanstack/vue-virtual";
 import GameCard from "../components/GameCard.vue";
 import CheckIcon from "../components/CheckIcon.vue";
 import GameFormModal from "../components/GameFormModal.vue";
+import GameQuickAdd from "../components/GameQuickAdd.vue";
 import BulkEditModal from "../components/BulkEditModal.vue";
 import RandomGamePicker from "../components/RandomGamePicker.vue";
 import { activePriority, priorityLabel } from "../utils/priority";
@@ -65,6 +66,7 @@ const loading = ref(true);
 const error = ref<string | null>(null);
 
 const showFormModal = ref(false);
+const showQuickAdd = ref(false);
 const editingGame = ref<Game | null>(null);
 
 const deletingGame = ref<Game | null>(null);
@@ -684,6 +686,7 @@ function isTypingTarget(target: EventTarget | null): boolean {
 function anyModalOpen(): boolean {
   return (
     showFormModal.value ||
+    showQuickAdd.value ||
     !!deletingGame.value ||
     showBulkEditModal.value ||
     !!collectionPickerGame.value ||
@@ -781,6 +784,17 @@ onMounted(() => window.addEventListener("keydown", onGlobalKeydown));
 onUnmounted(() => window.removeEventListener("keydown", onGlobalKeydown));
 
 function openAddModal() {
+  showQuickAdd.value = true;
+}
+
+async function onQuickAdded() {
+  showQuickAdd.value = false;
+  await loadGames();
+}
+
+// a game no provider knows: the full form
+function openManualAdd() {
+  showQuickAdd.value = false;
   editingGame.value = null;
   showFormModal.value = true;
 }
@@ -2169,6 +2183,13 @@ function cardsInRow(rowIndex: number): Game[] {
         </div>
       </template>
 
+      <GameQuickAdd
+        v-if="showQuickAdd"
+        @close="showQuickAdd = false"
+        @added="onQuickAdded"
+        @refreshed="loadGames"
+        @manual="openManualAdd"
+      />
       <GameFormModal
         v-if="showFormModal"
         :game="editingGame"
