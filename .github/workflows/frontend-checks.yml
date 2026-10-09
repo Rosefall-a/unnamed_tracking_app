@@ -13,8 +13,33 @@ permissions:
   contents: write
 
 jobs:
+  changes:
+    name: Detect frontend changes
+    runs-on: ubuntu-latest
+    outputs:
+      frontend: ${{ steps.changes.outputs.frontend }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Detect changed frontend files
+        id: changes
+        run: |
+          if [[ "${{ github.event_name }}" != "pull_request" ]]; then
+            echo "frontend=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if git diff --name-only "${{ github.event.pull_request.base.sha }}" "${{ github.sha }}" | grep -q '^src/frontend/'; then
+            echo "frontend=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "frontend=false" >> "$GITHUB_OUTPUT"
+          fi
+
   frontend-checks:
-    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    needs: changes
+    if: needs.changes.result == 'success' && (github.event_name != 'pull_request' || !github.event.pull_request.draft)
     name: Frontend
     runs-on: ubuntu-latest
 
@@ -34,12 +59,8 @@ jobs:
         run: npm ci
 
       - name: Check frontend source file sizes
-        run: |
-          if [[ "${{ github.event_name }}" == "pull_request" && "${{ github.event.pull_request.number }}" == "448" ]]; then
-            echo "::notice::Frontend source-size enforcement is skipped for migration PR #448."
-          else
-            node tools/check_frontend_size.mjs
-          fi
+        if: needs.changes.outputs.frontend == 'true'
+        run: node tools/check_frontend_size.mjs
 
       - name: Fix formatting
         working-directory: src/frontend
