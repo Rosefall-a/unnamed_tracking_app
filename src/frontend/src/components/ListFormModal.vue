@@ -74,7 +74,7 @@ function buildRule(): SmartRule {
 function submit() {
   const trimmed = name.value.trim();
   if (!trimmed) {
-    error.value = "Give the list a name.";
+    error.value = "Give the collection a name.";
     return;
   }
   const clash = props.existingNames.some(
@@ -87,7 +87,7 @@ function submit() {
   const smartRule = smart.value ? buildRule() : null;
   if (smartRule && !Object.keys(smartRule).length) {
     error.value =
-      "Pick at least one filter, or the list would just be your whole library.";
+      "Pick at least one filter, or the collection would just be your whole library.";
     return;
   }
   emit("save", {
@@ -106,7 +106,7 @@ function submit() {
       aria-modal="true"
       @submit.prevent="submit"
     >
-      <h3>{{ editing ? "Edit list" : "Create a list" }}</h3>
+      <h3>{{ editing ? "Edit collection" : "Create a collection" }}</h3>
 
       <div v-if="!editing" class="kind-pick">
         <button

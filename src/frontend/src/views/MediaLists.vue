@@ -8,6 +8,7 @@ import { ref, computed, onMounted, watch } from "vue";
 import { useRouter } from "vue-router";
 import CollectionTile from "../components/CollectionTile.vue";
 import SegmentedTabs from "../components/SegmentedTabs.vue";
+import CollectionIndexHead from "../components/CollectionIndexHead.vue";
 import type { SegmentOption } from "../components/SegmentedTabs.vue";
 import { useConfirm } from "../state/dialog";
 import { useCardOrder, kindOptions as kindCounts } from "../utils/useCardOrder";
@@ -33,6 +34,12 @@ const loading = ref(true);
 const error = ref<string | null>(null);
 const searchQuery = ref("");
 const sortBy = ref<SortBy>(preferences.value.lists_default_sort);
+const SORT_OPTIONS: { value: SortBy; label: string }[] = [
+  { value: "custom", label: "My order" },
+  { value: "name", label: "Name" },
+  { value: "count", label: "Most titles" },
+  { value: "recent", label: "Recently updated" },
+];
 watch(
   () => preferences.value.lists_default_sort,
   (v) => {
@@ -50,7 +57,7 @@ async function load() {
   try {
     lists.value = await fetchMediaLists();
   } catch (e) {
-    error.value = e instanceof Error ? e.message : "Failed to load lists.";
+    error.value = e instanceof Error ? e.message : "Failed to load collections.";
   } finally {
     loading.value = false;
   }
@@ -76,7 +83,7 @@ async function onCreate(payload: {
   } catch (e) {
     showCreate.value = false;
     createError.value =
-      e instanceof Error ? e.message : "Failed to create list.";
+      e instanceof Error ? e.message : "Failed to create collection.";
   }
 }
 
@@ -126,7 +133,7 @@ async function togglePin(id: string) {
     const updated = await updateMediaList(id, { pinned: !list.pinned });
     lists.value = lists.value.map((l) => (l.id === updated.id ? updated : l));
   } catch (e) {
-    error.value = e instanceof Error ? e.message : "Failed to pin the list.";
+    error.value = e instanceof Error ? e.message : "Failed to pin the collection.";
   }
 }
 
@@ -180,7 +187,7 @@ async function onEditSave(payload: {
     });
     lists.value = lists.value.map((l) => (l.id === updated.id ? updated : l));
   } catch (e) {
-    error.value = e instanceof Error ? e.message : "Failed to save the list.";
+    error.value = e instanceof Error ? e.message : "Failed to save the collection.";
   } finally {
     editingList.value = null;
   }
@@ -195,8 +202,8 @@ async function deleteList(id: string) {
   const list = lists.value.find((l) => l.id === id);
   if (!list) return;
   const ok = await confirm({
-    message: `Delete "${list.name}"? This doesn't delete the titles in it, just the list.`,
-    confirmLabel: "Delete list",
+    message: `Delete "${list.name}"? This doesn't delete the titles in it, just the collection.`,
+    confirmLabel: "Delete collection",
     danger: true,
   });
   if (!ok) return;
@@ -204,7 +211,7 @@ async function deleteList(id: string) {
     await deleteMediaList(id);
     lists.value = lists.value.filter((l) => l.id !== id);
   } catch (e) {
-    error.value = e instanceof Error ? e.message : "Failed to delete list.";
+    error.value = e instanceof Error ? e.message : "Failed to delete collection.";
   }
 }
 </script>
@@ -214,50 +221,27 @@ async function deleteList(id: string) {
     <MediaTopBar active="lists" />
 
     <div class="ui-content">
-      <div class="ui-head">
-        <h1>Lists</h1>
-        <div class="header-actions">
-          <input
-            v-model="searchQuery"
-            type="text"
-            class="ui-field search-input"
-            placeholder="Search lists…"
-            aria-label="Search lists"
+      <CollectionIndexHead
+        v-model:search="searchQuery"
+        v-model:sort="sortBy"
+        v-model:kind="kindFilter"
+        title="Collections"
+        search-label="collections"
+        :sort-options="SORT_OPTIONS"
+        :kind-options="kindOptions"
+        @create="showCreate = true"
+      >
+        <template #filters>
+          <SegmentedTabs
+            :options="TYPE_OPTIONS"
+            :model-value="typeFilter"
+            aria-label="Filter by type"
+            @update:model-value="
+              typeFilter = $event as 'all' | 'movie' | 'tv' | 'anime'
+            "
           />
-          <select v-model="sortBy" class="ui-field" aria-label="Sort by">
-            <option value="custom">My order</option>
-            <option value="name">Name</option>
-            <option value="count">Most titles</option>
-            <option value="recent">Recently updated</option>
-          </select>
-          <button
-            type="button"
-            class="ui-btn ui-btn-primary"
-            @click="showCreate = true"
-          >
-            + Create List
-          </button>
-        </div>
-      </div>
-
-      <div class="filter-row">
-        <SegmentedTabs
-          :options="kindOptions"
-          :model-value="kindFilter"
-          aria-label="Filter by kind of list"
-          @update:model-value="
-            kindFilter = $event as 'all' | 'manual' | 'smart'
-          "
-        />
-        <SegmentedTabs
-          :options="TYPE_OPTIONS"
-          :model-value="typeFilter"
-          aria-label="Filter by type"
-          @update:model-value="
-            typeFilter = $event as 'all' | 'movie' | 'tv' | 'anime'
-          "
-        />
-      </div>
+        </template>
+      </CollectionIndexHead>
 
       <p v-if="createError" class="ui-error-box">{{ createError }}</p>
 
@@ -274,7 +258,7 @@ async function deleteList(id: string) {
             :covers="list.previewPosters"
             :count="list.itemCount"
             count-noun="title"
-            noun="list"
+            noun="collection"
             :is-smart="list.isSmart"
             :is-system="list.isSystem"
             :description="list.description"
@@ -295,15 +279,16 @@ async function deleteList(id: string) {
           />
         </div>
         <p v-if="!filteredLists.length && filtering" class="ui-state">
-          No lists match the search and filters.
+          No collections match the search and filters.
         </p>
         <p v-else-if="!filteredLists.length" class="ui-state">
-          No lists yet: create one above, or use a movie/TV/anime page's list
-          button to start one. A smart list fills itself from a filter, like
+          No collections yet: create one above, or use a movie/TV/anime page's
+          collection button to start one. A smart collection fills itself from a
+          filter, like
           every anime you rated 9 or higher.
         </p>
         <p v-else-if="sortBy === 'custom' && filtering" class="ui-state">
-          Clear the search and filters to move lists around.
+          Clear the search and filters to move collections around.
         </p>
       </template>
     </div>

@@ -293,6 +293,23 @@ interface BackendMovieMetadataSearchResponse {
   results: BackendMovieMetadataResult[];
 }
 
+// Looks up the length (and other empty details) of up to ten movies that have
+// none. Ask again with the returned `next` until it is null.
+export async function fillMovieDetails(
+  after: string | null,
+): Promise<{ checked: number; filled: number; next: string | null }> {
+  const params = new URLSearchParams({ limit: "10" });
+  if (after) params.set("after", after);
+  const response = await fetch(`/api/movie/fill-details?${params}`, {
+    method: "POST",
+    credentials: "include",
+  });
+  return handle<{ checked: number; filled: number; next: string | null }>(
+    response,
+    "fill in movie details",
+  );
+}
+
 // `light` is for a results list: it skips the detail page read for each result
 export async function searchMovieMetadata(
   query: string,

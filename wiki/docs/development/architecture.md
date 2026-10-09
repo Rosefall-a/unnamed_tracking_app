@@ -127,7 +127,7 @@ Both caches are disposable. Deleting `.cache/` loses nothing that cannot be rebu
 
 ## Shared building blocks
 
-Movies, TV shows and anime, and game collections and media lists, were near copies of each other. They now share code, and a change to one of these pieces changes all of them:
+Movies, TV shows and anime, and game collections and media collections, were near copies of each other. They now share code, and a change to one of these pieces changes all of them:
 
 | Piece | Used by |
 | --- | --- |
@@ -135,8 +135,8 @@ Movies, TV shows and anime, and game collections and media lists, were near copi
 | `MediaFormShell`, `MediaMetadataSearch`, `useMetadataSearch` | The three Add and Edit dialogs. |
 | `services/mediaApi.ts` | The movie, TV and anime services (list, get, create, update, delete, trash). |
 | `api/routes/media_common.py` | The movie, TV and anime routes (library list, soft delete, trash, restore, purge, title search). |
-| `CollectionTile`, `useCardOrder` | The Collections and Lists overview pages. |
-| `CollectionDetailHeader`, `CollectionItemTile`, `CollectionAddDialog`, `useReorderGrid` | The collection and list detail pages. |
+| `CollectionTile`, `useCardOrder` | The Collections overview pages (games and media). |
+| `CollectionDetailHeader`, `CollectionItemTile`, `CollectionAddDialog`, `useReorderGrid` | The collection detail pages. |
 | `GameMediaPanel`, `MediaTile`, `MediaEditDialog` | Screenshots, Clips, Soundtrack and Docs. |
 | `GameArchivesPanel`, `ArchiveCard`, `ArchiveEditDialog` | Saves and Worlds. |
 

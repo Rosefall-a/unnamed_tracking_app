@@ -22,5 +22,5 @@ when you save it. The same applies to TV shows and anime.
 ## Library features shared with TV shows and anime
 
 Ranks, clickable genres, local pictures and the Add and Edit dialog work the same way here. See
-[Movie, TV and Anime Libraries](media-libraries.md). Lists are described in
-[Collections and Lists](collections-and-lists.md).
+[Movie, TV and Anime Libraries](media-libraries.md). Collections are described in
+[Collections](collections-and-lists.md).
