@@ -25,6 +25,30 @@ env:
   SECRET_KEY: XJVqc8r7Uj801VzGUYhlQV8A2tZTBepjOYEiP2pTzFk=
 
 jobs:
+  changes:
+    name: Detect backend changes
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.changes.outputs.backend }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Detect changed backend files
+        id: changes
+        run: |
+          if [[ "${{ github.event_name }}" != "pull_request" ]]; then
+            echo "backend=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if git diff --name-only "${{ github.event.pull_request.base.sha }}" "${{ github.sha }}" | grep -q '^src/backend/'; then
+            echo "backend=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "backend=false" >> "$GITHUB_OUTPUT"
+          fi
+
   backend-tests:
     name: Backend tests
     if: github.event_name != 'pull_request' || !github.event.pull_request.draft
@@ -150,7 +174,8 @@ jobs:
 
   backend-file-size:
     name: Backend file size
-    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    needs: changes
+    if: needs.changes.result == 'success' && needs.changes.outputs.backend == 'true' && (github.event_name != 'pull_request' || !github.event.pull_request.draft)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -214,16 +239,18 @@ jobs:
 
   backend-pylint:
     name: Backend pylint
-    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    needs: changes
+    if: needs.changes.result == 'success' && needs.changes.outputs.backend == 'true' && (github.event_name != 'pull_request' || !github.event.pull_request.draft)
     uses: ./.github/workflows/pylint.yml
     with:
-      strict: ${{ github.event_name != 'pull_request' || github.event.pull_request.number != 448 }}
+      strict: true
 
   backend-checks:
     # Keep this exact job name aligned with the repository's required status check.
     name: backend-checks
     if: always() && (github.event_name != 'pull_request' || !github.event.pull_request.draft)
     needs:
+      - changes
       - backend-tests
       - migration-graph
       - backend-file-size
@@ -240,7 +267,11 @@ jobs:
           import json
           import os
           results = json.loads(os.environ["CHECK_RESULTS"])
-          failures = {name: job["result"] for name, job in results.items() if job["result"] != "success"}
+          failures = {
+              name: job["result"]
+              for name, job in results.items()
+              if job["result"] not in {"success", "skipped"}
+          }
           for name, job in results.items():
               print(f"{name}: {job['result']}")
           if failures:
