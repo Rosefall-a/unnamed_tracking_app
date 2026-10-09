@@ -31,6 +31,8 @@ import {
 // entities into this shape and reacts to the events below.
 export interface LibraryCardVM {
   id: string;
+  // 0 to 100 when the card knows better than watched/total (a movie left off part way)
+  progressPercent?: number | null;
   title: string;
   poster: string | null;
   status: string;
@@ -431,6 +433,7 @@ const statusCounts = computed<Record<string, number>>(() => ({
 }));
 
 function progressPct(it: LibraryCardVM): number {
+  if (it.progressPercent != null) return it.progressPercent;
   if (!it.isEpisodic) return it.watched > 0 ? 100 : 0;
   return it.total ? (it.watched / it.total) * 100 : 0;
 }

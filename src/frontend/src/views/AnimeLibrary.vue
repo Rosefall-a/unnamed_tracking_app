@@ -17,6 +17,7 @@ import { localMediaImage } from "../utils/mediaImages";
 import MediaLibraryView from "../components/library/MediaLibraryView.vue";
 import { displayTitle } from "../utils/displayTitle";
 import { statusBucket, bucketToReal } from "../utils/mediaStatus";
+import { useCompletionPrompt } from "../utils/completion";
 import type {
   LibraryCardVM,
   SearchResultVM,
@@ -166,6 +167,19 @@ async function onSaveNote(id: string, note: string | null) {
 
 // No cap on episodes watched — metadata's episode count is often wrong
 // or stale, and a rewatch can genuinely outrun it too.
+const askToComplete = useCompletionPrompt();
+// the last episode watched: offer to move it to Completed
+async function offerCompleted(id: string) {
+  const show = findShow(id);
+  if (!(await askToComplete(show))) return;
+  replaceShow(
+    await updateAnime(id, {
+      ...animeToInput(show),
+      status: bucketToReal("completed") as AnimeStatus,
+    }),
+  );
+}
+
 async function onAdvanceEpisode(id: string) {
   const show = findShow(id);
   const season = currentSeason(show);
@@ -185,6 +199,7 @@ async function onAdvanceEpisode(id: string) {
       }),
     );
   }
+  await offerCompleted(id);
 }
 
 async function onSaveEdit(id: string, form: EditForm) {
@@ -223,6 +238,7 @@ async function onSaveEdit(id: string, form: EditForm) {
       replaceShow(await updateSeason(id, season.id, seasonUpdates));
     }
   }
+  await offerCompleted(id);
 }
 
 async function onBulkSetStatus(ids: string[], status: string) {
