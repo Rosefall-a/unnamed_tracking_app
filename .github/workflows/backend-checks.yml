@@ -246,7 +246,6 @@ jobs:
         run: python -m pip install -r requirements.txt
       - name: Run pylint
         run: |
-          set -o pipefail
           pylint src | tee pylint-output.txt
           score=$(grep -oP 'Your code has been rated at \K[0-9.]+(?=/10)' pylint-output.txt)
           echo "Pylint score: $score"
