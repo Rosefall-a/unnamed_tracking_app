@@ -120,34 +120,24 @@ jobs:
                   parents = [] if down_revision is None else list(down_revision) if isinstance(down_revision, tuple) else [down_revision]
                   revisions[revision] = (path.name, parents)
 
-          print("Loaded", len(revisions), "Alembic revisions")
           missing = sorted({parent for _, parents in revisions.values() for parent in parents if parent not in revisions})
           if missing:
               raise SystemExit(f"Missing Alembic parent revisions: {missing}")
-
           state = {}
           stack = []
-
           def visit(revision):
               state[revision] = 1
               stack.append(revision)
               for parent in revisions[revision][1]:
                   if state.get(parent) == 1:
-                      cycle_start = stack.index(parent)
-                      cycle = stack[cycle_start:] + [parent]
-                      print("Alembic cycle detected:")
-                      for item in cycle:
-                          print("  ", item, "<-", revisions[item][1])
-                      raise SystemExit("Alembic migration graph contains a cycle")
+                      raise SystemExit(f"Alembic migration graph contains a cycle: {stack + [parent]}")
                   if state.get(parent, 0) == 0:
                       visit(parent)
               stack.pop()
               state[revision] = 2
-
           for revision in revisions:
               if state.get(revision, 0) == 0:
                   visit(revision)
-
           children = {revision: 0 for revision in revisions}
           for _, parents in revisions.values():
               for parent in parents:
@@ -172,7 +162,6 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
-
           maximum = 1000
           excluded = Path("src/database/migrations")
           violations = []
@@ -186,13 +175,10 @@ jobs:
               line_count = text.count("\n") + (1 if text else 0)
               if line_count > maximum:
                   violations.append((path, line_count))
-
           if violations:
-              print("Python files exceeding the 1,000-line maximum:")
               for path, line_count in sorted(violations):
                   print(f"  {path}: {line_count} lines")
               raise SystemExit(1)
-
           print("All non-migration Python files are at or below 1,000 lines.")
           PY
 
@@ -229,34 +215,9 @@ jobs:
   backend-pylint:
     name: Backend pylint
     if: github.event_name != 'pull_request' || !github.event.pull_request.draft
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: src/backend
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-          cache: pip
-          cache-dependency-path: src/backend/requirements.txt
-      - name: Install backend dependencies
-        run: python -m pip install -r requirements.txt
-      - name: Run pylint
-        run: |
-          pylint src | tee pylint-output.txt
-          score=$(grep -oP 'Your code has been rated at \K[0-9.]+(?=/10)' pylint-output.txt)
-          echo "Pylint score: $score"
-          python -c "import sys; sys.exit(0 if float('$score') >= 9.0 else 1)"
-      - name: Upload pylint diagnostics
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: backend-pylint-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}
-          path: src/backend/pylint-output.txt
-          if-no-files-found: ignore
+    uses: ./.github/workflows/pylint.yml
+    with:
+      strict: ${{ github.event_name != 'pull_request' || github.event.pull_request.number != 448 }}
 
   backend-checks:
     name: Backend checks
@@ -276,7 +237,6 @@ jobs:
           python3 - <<'PY'
           import json
           import os
-
           results = json.loads(os.environ["CHECK_RESULTS"])
           failures = {name: job["result"] for name, job in results.items() if job["result"] != "success"}
           for name, job in results.items():

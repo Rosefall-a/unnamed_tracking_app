@@ -1,2 +1,5 @@
 blank_issues_enabled: true
-contact_links: []
+contact_links:
+  - name: Rosefall-a / Unnamed Tracking App issues
+    url: https://github.com/Rosefall-a/unnamed_tracking_app/issues
+    about: Search existing Rosefall-a issues before opening a new one.
