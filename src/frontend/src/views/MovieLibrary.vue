@@ -12,7 +12,7 @@ import {
 } from "../services/movies";
 import type { Movie, MovieStatus } from "../types/movie";
 import { localMediaImage } from "../utils/mediaImages";
-import { formatProgressMinutes, progressPercent } from "../utils/watchProgress";
+import { formatDuration, progressPercent } from "../utils/watchProgress";
 import MediaLibraryView from "../components/library/MediaLibraryView.vue";
 import type {
   LibraryCardVM,
@@ -28,18 +28,15 @@ const error = ref<string | null>(null);
 const COMPLETED_STATUSES: MovieStatus[] = ["watched", "favorite", "rewatch"];
 
 function formatRuntime(minutes: number | null): string {
-  if (!minutes) return "–";
-  const hrs = Math.floor(minutes / 60);
-  const mins = minutes % 60;
-  return hrs > 0 ? `${hrs}h ${mins}m` : `${mins}m`;
+  return minutes ? formatDuration(minutes) : "–";
 }
 
-// a watched movie says so; one left off part way shows where; otherwise its length
+// a watched movie shows its whole length, one left off part way shows where,
+// otherwise just its length
+// Finished: just the length. Not finished: minutes watched out of the length.
 function movieProgressLabel(m: Movie, seen: boolean): string {
-  if (seen) return "Watched";
-  if (m.progressMinutes && m.runtimeMinutes)
-    return `${formatProgressMinutes(m.progressMinutes)} / ${formatProgressMinutes(m.runtimeMinutes)}`;
-  return formatRuntime(m.runtimeMinutes);
+  if (seen) return formatRuntime(m.runtimeMinutes);
+  return `${m.progressMinutes ? formatDuration(m.progressMinutes) : 0}/${formatRuntime(m.runtimeMinutes)}`;
 }
 
 function toVM(m: Movie): LibraryCardVM {
@@ -209,6 +206,7 @@ async function createFromResult(
     title: result.title,
     description: match?.description ?? null,
     releaseDate: match?.releaseDate ?? null,
+    runtimeMinutes: match?.runtimeMinutes ?? null,
     director: match?.director ?? null,
     writer: match?.writer ?? null,
     studios: match?.studios ?? [],

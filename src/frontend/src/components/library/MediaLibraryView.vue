@@ -2396,10 +2396,17 @@ defineExpose({ openQuickAdd });
    under the "Progress" header — matching how Score/Rank/Status center
    under their own headers. */
 .list-progress {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 12px;
+}
+/* the advance button sits at the cell's right edge so it never pushes the
+   count off the center of the "Progress" header */
+.list-progress > .plus-btn,
+.list-progress > .plus-btn-spacer {
+  position: absolute;
+  right: 0;
 }
 .list-progress-track {
   flex: 1;
@@ -2422,15 +2429,12 @@ defineExpose({ openQuickAdd });
   white-space: nowrap;
 }
 /* Bigger in the List row specifically — with the bar gone, the count is
-   the only content in that cell, so it carries more visual weight. A
-   fixed width, right-aligned, means "37/37" and "0/6" both end at the
-   same x position instead of drifting depending on digit count. */
+   the only content in that cell, so it carries more visual weight. */
 .list-progress > .list-progress-label {
   font-size: 0.95rem;
   font-weight: 700;
   color: var(--text);
-  width: 56px;
-  text-align: right;
+  text-align: center;
 }
 .list-row-header {
   display: grid;

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  formatDuration,
   formatProgressMinutes,
   parseProgressMinutes,
   progressPercent,
@@ -27,5 +28,21 @@ describe("movie left-off point (#191)", () => {
     expect(progressPercent(200, 148)).toBe(100);
     expect(progressPercent(30, null)).toBeNull();
     expect(progressPercent(null, 148)).toBeNull();
+  });
+});
+
+describe("friendlier times", () => {
+  it("reads hours and minutes written out", () => {
+    expect(parseProgressMinutes("1h 12m")).toBe(72);
+    expect(parseProgressMinutes("1h12")).toBe(72);
+    expect(parseProgressMinutes("2h")).toBe(120);
+    expect(parseProgressMinutes("45m")).toBe(45);
+    expect(parseProgressMinutes("1.5h")).toBe(90);
+    expect(parseProgressMinutes("1h 75m")).toBeNaN();
+  });
+  it("shows hours and minutes", () => {
+    expect(formatDuration(105)).toBe("1h 45m");
+    expect(formatDuration(120)).toBe("2h");
+    expect(formatDuration(45)).toBe("45m");
   });
 });
