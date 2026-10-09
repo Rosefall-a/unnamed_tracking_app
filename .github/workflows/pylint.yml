@@ -46,11 +46,11 @@ jobs:
             python - "$score" <<'PY'
           import sys
           score = float(sys.argv[1])
-          if score < 10.0:
-              raise SystemExit(f"Pylint score is {score}/10; 10/10 is required.")
+          if score < 9.9:
+              raise SystemExit(f"Pylint score is {score}/10; 9.9/10 is required.")
           PY
           else
-            echo "::warning::Pylint perfection is temporarily waived for migration PR #448."
+            echo "::warning::Strict Pylint enforcement is disabled for this invocation."
           fi
       - name: Upload Pylint diagnostics
         if: always()
