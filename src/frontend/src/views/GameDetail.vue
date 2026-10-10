@@ -92,6 +92,7 @@ import type {
   WorldMapEntry,
   TrashedArchive,
 } from "../services/gameArchives";
+import DuplicateNotice from "../components/DuplicateNotice.vue";
 import UploadDropzone from "../components/UploadDropzone.vue";
 import SkeletonBlock from "../components/SkeletonBlock.vue";
 import MediaTile from "../components/MediaTile.vue";
@@ -2620,6 +2621,7 @@ void loadGame(route.params.id as string);
     </div>
 
     <section class="hero">
+      <DuplicateNotice v-if="game" class="hero-notice" :game-id="game.id" />
       <div
         class="hero-backdrop"
         :style="{
@@ -4312,6 +4314,21 @@ void loadGame(route.params.id as string);
   display: flex;
   align-items: flex-end;
   overflow: hidden;
+}
+/* the possible-duplicate pill floats at the hero's top right, clear of the back
+   button on the left, and takes the full width less the gutters on a narrow screen */
+.hero-notice {
+  position: absolute;
+  top: 16px;
+  right: 24px;
+  z-index: 3;
+  max-width: calc(100% - 48px);
+}
+@media (max-width: 640px) {
+  .hero-notice {
+    right: 16px;
+    max-width: calc(100% - 32px);
+  }
 }
 .hero-backdrop {
   position: absolute;

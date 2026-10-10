@@ -53,6 +53,8 @@ export function mediaNotificationRoute(n: MediaNotification): string {
       ? "/movies"
       : n.mediaType === "tv"
         ? "/tv"
-        : "/anime";
+        : n.mediaType === "game"
+          ? "/games"
+          : "/anime";
   return `${base}/${n.mediaId}`;
 }

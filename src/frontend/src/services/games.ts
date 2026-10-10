@@ -1511,6 +1511,30 @@ export async function uploadGameAsset(
   return await response.json();
 }
 
+export interface ArtOptions {
+  configured: boolean;
+  covers: string[];
+  banners: string[];
+}
+
+// The covers and banners SteamGridDB has for a game that is about to be added
+export async function fetchArtOptions(
+  title: string,
+  provider: string,
+  providerId: string,
+): Promise<ArtOptions> {
+  const params = new URLSearchParams({
+    title,
+    provider,
+    provider_id: providerId,
+  });
+  const response = await fetch(`/api/game/art-options?${params}`, {
+    credentials: "include",
+  });
+  if (!response.ok) throw new Error("Could not load artwork options.");
+  return await response.json();
+}
+
 export async function attachGameAssetFromUrl(
   gameId: string,
   assetKind: "key_art" | "banner" | "logo" | "icon",

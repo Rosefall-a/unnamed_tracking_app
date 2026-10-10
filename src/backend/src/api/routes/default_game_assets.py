@@ -128,5 +128,7 @@ async def get_game_asset_with_fallback(
     return Response(
         content=_default_cover_svg(game.id, game.title),
         media_type="image/svg+xml",
-        headers={"Cache-Control": "private, max-age=3600, must-revalidate"},
+        # not kept: the real cover is usually saved a moment after the game is
+        # added, and a stored placeholder would hide it for the next hour
+        headers={"Cache-Control": "private, no-cache"},
     )

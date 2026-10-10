@@ -11,6 +11,11 @@ class IGDBError(RuntimeError):
     responds unsuccessfully."""
 
 
+# Searches build a new client each time, so the token lives here, shared by
+# every client with the same credentials, instead of being fetched per search.
+_TOKENS: dict[tuple[str, str], tuple[str, float]] = {}
+
+
 class IGDBClient:
     """Minimal client for the IGDB v4 API. IGDB auth rides on Twitch's
     developer platform — a client_id/client_secret pair from a registered
@@ -32,12 +37,11 @@ class IGDBClient:
         self.client_id = client_id
         self.client_secret = client_secret
         self.session = session or requests.Session()
-        self._access_token: str | None = None
-        self._token_expires_at: float = 0.0
 
     def _authenticate(self) -> str:
-        if self._access_token and time.time() < self._token_expires_at:
-            return self._access_token
+        cached = _TOKENS.get((self.client_id, self.client_secret))
+        if cached and time.time() < cached[1]:
+            return cached[0]
         try:
             response = self.session.post(
                 self.TOKEN_URL,
@@ -60,9 +64,9 @@ class IGDBClient:
         token = payload.get("access_token")
         if not token:
             raise IGDBError("Twitch's token response had no access_token.")
-        self._access_token = token
         # renew a little early rather than exactly at expiry
-        self._token_expires_at = time.time() + int(payload.get("expires_in", 3600)) - 60
+        expires_at = time.time() + int(payload.get("expires_in", 3600)) - 60
+        _TOKENS[(self.client_id, self.client_secret)] = (token, expires_at)
         return token
 
     def search(self, query: str, limit: int = 8) -> list[dict[str, Any]]:
