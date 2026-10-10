@@ -1,23 +1,20 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from "vue";
 import PasswordInput from "../PasswordInput.vue";
-import { currentUser, checkAuth, avatarVersion } from "../../state/auth";
+import { currentUser, checkAuth } from "../../state/auth";
 import PasswordRequirements from "./PasswordRequirements.vue";
 import { fetchPasswordPolicy, passwordValidationErrors, type PasswordPolicy } from "../../services/passwordPolicy";
 import {
   updateProfile,
   uploadProfilePicture,
-  profilePictureUrl,
+  profilePictureSrc,
 } from "../../services/auth";
 
 const isMock = computed(() => currentUser.value?.id === "mock");
 
-const avatarUrl = computed(() =>
-  currentUser.value
-    ? `${profilePictureUrl(currentUser.value.id)}?t=${avatarVersion.value}`
-    : "",
-);
+const avatarUrl = computed(() => profilePictureSrc(currentUser.value));
 const avatarFailed = ref(false);
+watch(avatarUrl, () => (avatarFailed.value = false));
 
 const username = ref("");
 const email = ref("");
@@ -110,9 +107,10 @@ async function onAvatarFileChange(e: Event) {
   uploadError.value = null;
 
   try {
-    await uploadProfilePicture(currentUser.value.id, file);
-    avatarFailed.value = false;
-    avatarVersion.value = Date.now();
+    const version = await uploadProfilePicture(currentUser.value.id, file);
+    // changed in place, so every avatar picks up the new address without the
+    // username/email fields being refilled over unsaved edits
+    currentUser.value.profile_picture_version = version;
   } catch (err) {
     uploadError.value =
       err instanceof Error ? err.message : "Failed to upload picture";
@@ -131,7 +129,7 @@ async function onAvatarFileChange(e: Event) {
 
     <div class="avatar-row">
       <img
-        v-if="!isMock && !avatarFailed"
+        v-if="!isMock && avatarUrl && !avatarFailed"
         :src="avatarUrl"
         alt=""
         class="avatar-image"

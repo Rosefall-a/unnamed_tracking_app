@@ -11,13 +11,35 @@ import type { MediaNotification } from "../services/notifications";
 export const mediaNotifications = ref<MediaNotification[]>([]);
 export const mediaUnread = ref(0);
 
-export async function refreshMediaNotifications() {
+let lastFetchedAt = 0;
+let inFlight: Promise<void> | null = null;
+
+// With `maxAgeMs`, a list fetched that recently is kept, and a request
+// already on its way is shared: every page change mounts a new bell, which
+// asked the server again each time (and, at startup, alongside the sidebar).
+// Without it the list is always fetched, as after marking or deleting.
+export async function refreshMediaNotifications(
+  options: { maxAgeMs?: number } = {},
+): Promise<void> {
+  if (options.maxAgeMs) {
+    if (Date.now() - lastFetchedAt < options.maxAgeMs) return;
+    if (inFlight) return inFlight;
+  }
+  const request = (async () => {
+    try {
+      const res = await fetchMediaNotifications();
+      mediaNotifications.value = res.items;
+      mediaUnread.value = res.unread;
+      lastFetchedAt = Date.now();
+    } catch {
+      // the badge simply doesn't change this tick
+    }
+  })();
+  inFlight = request;
   try {
-    const res = await fetchMediaNotifications();
-    mediaNotifications.value = res.items;
-    mediaUnread.value = res.unread;
-  } catch {
-    // the badge simply doesn't change this tick
+    await request;
+  } finally {
+    if (inFlight === request) inFlight = null;
   }
 }
 

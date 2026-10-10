@@ -4,6 +4,8 @@ export interface CurrentUser {
   email: string;
   is_admin: boolean;
   steamgriddb_api_key: string | null;
+  // when the profile picture was last saved; null or missing when there is none
+  profile_picture_version?: number | null;
 }
 
 export interface ApiKeySummary {
@@ -158,10 +160,11 @@ export interface UpdateProfilePayload {
   steamgriddbApiKey?: string;
 }
 
+// resolves to the new picture's version (see CurrentUser.profile_picture_version)
 export async function uploadProfilePicture(
   userId: string,
   file: File,
-): Promise<void> {
+): Promise<number | null> {
   const formData = new FormData();
   formData.append("file", file);
 
@@ -181,8 +184,21 @@ export async function uploadProfilePicture(
         : `Failed to upload profile picture (${response.status}).`,
     );
   }
+  const body = (await response.json().catch(() => null)) as {
+    version?: string;
+  } | null;
+  const version = Number(body?.version);
+  return Number.isFinite(version) && version > 0 ? version : Date.now();
 }
 
 export function profilePictureUrl(userId: string): string {
   return `/api/user/${userId}/profile-picture`;
+}
+
+// The picture's address, or null when the user has none: asking anyway got a
+// 404 (and a console error) on every page. The version in the address lets the
+// browser keep the picture until a new one is uploaded.
+export function profilePictureSrc(user: CurrentUser | null): string | null {
+  if (!user?.profile_picture_version) return null;
+  return `${profilePictureUrl(user.id)}?v=${user.profile_picture_version}`;
 }

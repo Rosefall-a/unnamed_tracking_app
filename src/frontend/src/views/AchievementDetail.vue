@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
+import GameTopBar from "../components/GameTopBar.vue";
 import {
   fetchGame,
   fetchGameAchievements,
@@ -179,128 +180,139 @@ function goBack() {
 </script>
 
 <template>
-  <main v-if="loading" class="achievement-detail loading-state">
-    <p>Loading…</p>
+  <main v-if="loading" class="achievement-detail">
+    <GameTopBar active="games" />
+    <p class="loading-state">Loading…</p>
   </main>
 
-  <main v-else-if="error" class="achievement-detail error-state">
-    <p>{{ error }}</p>
+  <main v-else-if="error" class="achievement-detail">
+    <GameTopBar active="games" />
+    <p class="error-state">{{ error }}</p>
   </main>
 
   <main v-else-if="achievement" class="achievement-detail">
-    <button type="button" class="back-button" @click="goBack">
-      ← Back to {{ game?.title }}
-    </button>
-
-    <div class="achievement-header">
-      <div
-        class="achievement-icon-large"
-        :style="
-          achievement.iconUrl
-            ? { backgroundImage: `url(${achievement.iconUrl})` }
-            : {}
-        "
-      ></div>
-      <div>
-        <h1>{{ achievement.name }}</h1>
-        <p v-if="achievement.description" class="achievement-desc">
-          {{ achievement.description }}
-        </p>
-        <p v-if="isUnlocked(achievement)" class="achievement-unlocked">
-          Unlocked<template v-if="achievement.unlockedAt">
-            {{ formatUnlockedAt(achievement.unlockedAt) }}</template
-          >
-        </p>
-        <p v-else class="achievement-locked">Not yet unlocked</p>
-      </div>
-    </div>
-
-    <section class="detail-section">
-      <h2>Notes</h2>
-      <textarea
-        v-model="noteDraft"
-        placeholder="Write notes about how you got this…"
-        rows="6"
-      ></textarea>
-      <button type="button" class="primary-button" @click="saveNote">
-        {{ noteSaved ? "Saved" : "Save note" }}
+    <GameTopBar active="games" />
+    <div class="achievement-body">
+      <button type="button" class="back-button" @click="goBack">
+        ← Back to {{ game?.title }}
       </button>
-    </section>
 
-    <section v-if="tiedNotes.length" class="detail-section">
-      <h2>Notes about this</h2>
-      <ul class="tied-notes">
-        <li v-for="n in tiedNotes" :key="n.name">
-          <button type="button" @click="openNote(n.name)">
-            <strong>{{ n.name }}</strong>
-            <span>{{
-              n.preview
-                .replace(/[#*_`>\-]/g, "")
-                .trim()
-                .slice(0, 140)
-            }}</span>
-          </button>
-        </li>
-      </ul>
-    </section>
-
-    <section class="detail-section">
-      <h2>Media</h2>
-      <label class="add-media">
-        <input
-          type="file"
-          accept="image/*,video/*,audio/*"
-          multiple
-          :disabled="mediaBusy"
-          @change="onMediaFileChange"
-        />
-        <span>{{ mediaBusy ? "Uploading…" : "+ Add media" }}</span>
-      </label>
-      <p v-if="mediaError" class="media-error">{{ mediaError }}</p>
-      <div v-if="linkedMedia.length" class="media-grid">
-        <div v-for="m in linkedMedia" :key="m.id" class="media-item">
-          <img
-            v-if="m.kind === 'screenshot'"
-            :src="m.url"
-            alt=""
-            @click="lightbox = m.url"
-          />
-          <video v-else-if="m.kind === 'clip'" :src="m.url" controls></video>
-          <audio v-else :src="m.url" controls></audio>
-          <button
-            type="button"
-            class="remove-button"
-            title="Untie from this achievement"
-            @click="unlinkMedia(m)"
-          >
-            ✕
-          </button>
+      <div class="achievement-header">
+        <div
+          class="achievement-icon-large"
+          :style="
+            achievement.iconUrl
+              ? { backgroundImage: `url(${achievement.iconUrl})` }
+              : {}
+          "
+        ></div>
+        <div>
+          <h1>{{ achievement.name }}</h1>
+          <p v-if="achievement.description" class="achievement-desc">
+            {{ achievement.description }}
+          </p>
+          <p v-if="isUnlocked(achievement)" class="achievement-unlocked">
+            {{
+              achievement.unlockedAt
+                ? `Unlocked ${formatUnlockedAt(achievement.unlockedAt)}`
+                : "Unlocked"
+            }}
+          </p>
+          <p v-else class="achievement-locked">Not yet unlocked</p>
         </div>
       </div>
-      <p v-else class="empty-state">
-        Nothing tied to this achievement yet. Add media here, or tie an existing
-        screenshot or clip from its tab.
-      </p>
-    </section>
+
+      <section class="detail-section">
+        <h2>Notes</h2>
+        <textarea
+          v-model="noteDraft"
+          placeholder="Write notes about how you got this…"
+          rows="6"
+        ></textarea>
+        <button type="button" class="primary-button" @click="saveNote">
+          {{ noteSaved ? "Saved" : "Save note" }}
+        </button>
+      </section>
+
+      <section v-if="tiedNotes.length" class="detail-section">
+        <h2>Notes about this</h2>
+        <ul class="tied-notes">
+          <li v-for="n in tiedNotes" :key="n.name">
+            <button type="button" @click="openNote(n.name)">
+              <strong>{{ n.name }}</strong>
+              <span>{{
+                n.preview
+                  .replace(/[#*_`>\-]/g, "")
+                  .trim()
+                  .slice(0, 140)
+              }}</span>
+            </button>
+          </li>
+        </ul>
+      </section>
+
+      <section class="detail-section">
+        <h2>Media</h2>
+        <label class="add-media">
+          <input
+            type="file"
+            accept="image/*,video/*,audio/*"
+            multiple
+            :disabled="mediaBusy"
+            @change="onMediaFileChange"
+          />
+          <span>{{ mediaBusy ? "Uploading…" : "+ Add media" }}</span>
+        </label>
+        <p v-if="mediaError" class="media-error">{{ mediaError }}</p>
+        <div v-if="linkedMedia.length" class="media-grid">
+          <div v-for="m in linkedMedia" :key="m.id" class="media-item">
+            <img
+              v-if="m.kind === 'screenshot'"
+              :src="m.url"
+              alt=""
+              @click="lightbox = m.url"
+            />
+            <video v-else-if="m.kind === 'clip'" :src="m.url" controls></video>
+            <audio v-else :src="m.url" controls></audio>
+            <button
+              type="button"
+              class="remove-button"
+              title="Untie from this achievement"
+              @click="unlinkMedia(m)"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+        <p v-else class="empty-state">
+          Nothing tied to this achievement yet. Add media here, or tie an
+          existing screenshot or clip from its tab.
+        </p>
+      </section>
+    </div>
     <div v-if="lightbox" class="lightbox" @click="lightbox = null">
       <img :src="lightbox" alt="" />
     </div>
   </main>
 
-  <main v-else class="not-found">
-    <p>Achievement not found.</p>
+  <main v-else class="achievement-detail">
+    <GameTopBar active="games" />
+    <p class="not-found">Achievement not found.</p>
   </main>
 </template>
 
 <style scoped>
 .achievement-detail {
-  max-width: 900px;
-  margin: 0 auto;
-  padding: 32px 24px;
   color: #fff;
   font-family: system-ui, sans-serif;
   background: #121212;
   min-height: 100vh;
+  box-sizing: border-box;
+}
+.achievement-body {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 32px 24px;
   box-sizing: border-box;
 }
 .back-button {

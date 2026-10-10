@@ -51,6 +51,17 @@ def _profile_path(user_id: UUID) -> Path:
     return _USER_DATA_ROOT / str(user_id) / _PROFILE_FILENAME
 
 
+def profile_picture_version(user_id: UUID) -> int | None:
+    """When the user's picture was last saved (unix milliseconds), or None
+    when they have none. The app puts it in the picture's address, so it asks
+    for a picture only when there is one, and a browser can keep the picture
+    until a new one is uploaded (which changes the address)."""
+    try:
+        return _profile_path(user_id).stat().st_mtime_ns // 1_000_000
+    except OSError:
+        return None
+
+
 def _is_heic(data: bytes) -> bool:
     # HEIC/HEIF files are an ISO box whose "ftyp" brand names the format;
     # Pillow cannot read them, so say so instead of "not a valid image"
@@ -119,16 +130,20 @@ async def upload_profile_picture(
         "user_id": str(user_id),
         "path": str(target_path),
         "status": "saved",
+        "version": str(profile_picture_version(user_id)),
     }
 
 
 @router.get("/{user_id}/profile-picture", response_class=FileResponse)
 async def get_profile_picture(
     user_id: UUID,
+    v: str | None = None,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> FileResponse:
-    """Return the user's stored profile picture."""
+    """Return the user's stored profile picture. Asked for with its version
+    (`?v=`, see profile_picture_version) the answer never changes, so the
+    browser may keep it; without one it must not be kept."""
     await _get_authorized_user(user_id, db, current_user)
     target_path = _profile_path(user_id)
     if not target_path.is_file():
@@ -137,8 +152,5 @@ async def get_profile_picture(
             detail=f"Profile picture not found for user {user_id}.",
         )
 
-    return FileResponse(
-        target_path,
-        media_type="image/png",
-        headers={"Cache-Control": "no-store, max-age=0"},
-    )
+    cache = "private, max-age=31536000, immutable" if v else "no-store, max-age=0"
+    return FileResponse(target_path, media_type="image/png", headers={"Cache-Control": cache})

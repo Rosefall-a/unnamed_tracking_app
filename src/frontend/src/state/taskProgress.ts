@@ -92,6 +92,23 @@ export function updateTask(
   }
 }
 
+// a task that started without a count (indeterminate) once it has one: a
+// long import moving on to a step it can count, e.g. "Reading achievements"
+export function setTaskStep(
+  id: string,
+  label: string,
+  done: number,
+  total: number,
+) {
+  const task = tasks.find((t) => t.id === id);
+  if (task) {
+    task.label = label;
+    task.done = done;
+    task.total = total;
+    task.indeterminate = false;
+  }
+}
+
 // appends one line to the task's completion feed, called as each
 // individual item (a file, a game) finishes, not just at the end
 export function addFeedItem(id: string, text: string) {

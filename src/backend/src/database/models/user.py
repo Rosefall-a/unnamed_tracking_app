@@ -49,6 +49,12 @@ class User(Base):
     retroachievements_avatar_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     psn_online_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     psn_avatar_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Epic Games: the sign-in's refresh token (Fernet-encrypted) and whose
+    # account it is; the library sync trades the token for a short-lived one
+    epic_refresh_token: Mapped[str | None] = mapped_column(Text, nullable=True)
+    epic_account_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    epic_display_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    epic_library_synced_at: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     created_at: Mapped[int] = mapped_column(BigInteger, nullable=False, default=time.time)
     updated_at: Mapped[int] = mapped_column(
         BigInteger, nullable=False, default=time.time, onupdate=time.time

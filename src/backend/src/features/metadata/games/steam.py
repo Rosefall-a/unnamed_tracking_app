@@ -44,13 +44,50 @@ class SteamLibraryError(RuntimeError):
     """Raised when the Steam Web API rejects a library-sync call."""
 
 
+_PRIVATE_DETAILS = (
+    "Steam is not sharing this account's game details. In Steam, set Profile > "
+    "Privacy Settings > Game details to Public, then refresh."
+)
+_PRIVATE_LIBRARY = (
+    "Steam did not share this account's games. In Steam, set Profile > Privacy "
+    "Settings > Game details to Public, check that the profile ID is your own "
+    "account, then try again."
+)
+
+
+# SteamID64 = this base + the 32-bit account number that SteamID2
+# ("STEAM_0:Y:Z", account = Z*2+Y) and SteamID3 ("[U:1:N]") spell differently
+_STEAMID64_BASE = 76561197960265728
+_PROFILE_LINK = re.compile(r"steamcommunity\.com/(id|profiles)/([^/?#\s]+)", re.IGNORECASE)
+_STEAMID2 = re.compile(r"^STEAM_[0-5]:([01]):(\d+)$", re.IGNORECASE)
+_STEAMID3 = re.compile(r"^\[?U:1:(\d+)\]?$", re.IGNORECASE)
+
+
+def parse_steam_identifier(identifier: str) -> str:
+    """What people paste as their Steam profile, reduced to a SteamID64 when it
+    already says which account it is, else to the vanity name to look up: a
+    full profile link (steamcommunity.com/id/name or /profiles/7656...), a
+    SteamID2 or SteamID3 as shown by sites like steamid.io, a bare SteamID64,
+    or a bare vanity name."""
+    value = identifier.strip()
+    link = _PROFILE_LINK.search(value)
+    if link:
+        value = link.group(2)
+    steamid2 = _STEAMID2.match(value)
+    if steamid2:
+        return str(_STEAMID64_BASE + int(steamid2.group(2)) * 2 + int(steamid2.group(1)))
+    steamid3 = _STEAMID3.match(value)
+    if steamid3:
+        return str(_STEAMID64_BASE + int(steamid3.group(1)))
+    return value
+
+
 def resolve_steam_id(identifier: str, api_key: str) -> str:
     """Every Steam Web API library call needs a numeric SteamID64 — the API
     key alone only identifies the calling app, not whose library to fetch.
-    Takes just the plain profile ID: either your vanity name (the part
-    after steamcommunity.com/id/) or the raw 17-digit SteamID64 itself —
-    not the full profile link."""
-    vanity = identifier.strip()
+    Takes the profile link, a vanity name (the part after
+    steamcommunity.com/id/), or a SteamID in any of its usual spellings."""
+    vanity = parse_steam_identifier(identifier)
     if vanity.isdigit() and len(vanity) == 17:
         return vanity
     if not vanity:
@@ -75,9 +112,10 @@ def resolve_steam_id(identifier: str, api_key: str) -> str:
 
 
 def get_owned_games(steam_id: str, api_key: str) -> list[dict]:
-    """The caller's owned-games library — requires their Community profile
-    to have game details set to public, or this returns an empty list with
-    no error (Steam's API silently omits games rather than rejecting)."""
+    """The caller's owned-games library. It needs the profile's game details
+    to be public: Steam then answers with an empty `response` (no game count,
+    no games) instead of an error, which is reported here rather than read as
+    an empty library."""
     try:
         resp = SESSION.get(
             f"{_WEB_API_BASE}/IPlayerService/GetOwnedGames/v1/",
@@ -91,14 +129,17 @@ def get_owned_games(steam_id: str, api_key: str) -> list[dict]:
         )
     except requests.RequestException as exc:
         raise SteamLibraryError(f"Could not reach Steam: {exc}") from exc
-    if resp.status_code == 403:
+    if resp.status_code in (401, 403):
         raise SteamLibraryError("Steam rejected the API key.")
     if resp.status_code >= 400:
         raise SteamLibraryError(f"Steam library request failed ({resp.status_code}).")
     try:
-        return resp.json().get("response", {}).get("games", [])
+        payload = resp.json().get("response", {})
     except ValueError as exc:
         raise SteamLibraryError("Steam returned invalid JSON.") from exc
+    if "games" not in payload and "game_count" not in payload:
+        raise SteamLibraryError(_PRIVATE_LIBRARY)
+    return payload.get("games", [])
 
 
 def get_player_summary(steam_id: str, api_key: str) -> dict:
@@ -265,12 +306,6 @@ def get_global_percentages(app_id: int) -> dict[str, float]:
         except (KeyError, TypeError, ValueError):
             continue
     return percentages
-
-
-_PRIVATE_DETAILS = (
-    "Steam is not sharing this account's game details. In Steam, set Profile > "
-    "Privacy Settings > Game details to Public, then refresh."
-)
 
 
 def get_player_achievements(

@@ -15,6 +15,14 @@ Use an OpenID Connect provider to let users sign in with an external identity pr
 
 See the [OIDC / SSO guide](../user-guide/oidc.md).
 
+### Steam and Epic Games
+
+Connect a Steam or Epic Games account to import the games you own, with
+playtime, and achievements for Steam. PlayStation and RetroAchievements
+libraries can be imported the same way.
+
+See [Game library imports](game-libraries.md).
+
 ### Playnite
 
 The Playnite integration connects the desktop game launcher with Unnamed Tracking App.

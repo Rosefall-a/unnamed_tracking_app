@@ -19,9 +19,19 @@ declare module "vue-router" {
 
 const router = createRouter({
   history: createWebHistory(),
-  scrollBehavior(to, _from, savedPosition) {
+  scrollBehavior(to, from, savedPosition) {
     if (to.path === "/games") return { top: 0 };
     if (savedPosition) return savedPosition;
+    if (to.name === "settings") {
+      // switching sections: Settings scrolls the section into view itself,
+      // and going back to the top here undid that
+      if (from.name === "settings") return false;
+      // a link to one section (Connections' Manage, the command palette,
+      // /upload) on a phone, where the section list sits above the section:
+      // land on the section, below the fixed menu and account buttons
+      if (to.query.section && window.matchMedia("(max-width: 760px)").matches)
+        return { el: ".settings-card", top: 64 };
+    }
     return { top: 0 };
   },
   routes: [
