@@ -66,7 +66,7 @@ from src.database.session import get_db
 from src.features.metadata.locked_fields import apply_updates_with_locking
 from src.features.metadata.games import wiseoldman
 from src.core.preferences import load_preferences
-from src.features.metadata.games.search import search_game_metadata
+from src.features.metadata.games.search import find_art_options, search_game_metadata
 from src.features.metadata.search_utils import cached_search
 from src.features.trash.game_trash import move_game_to_trash, restore_game_from_trash
 from src.features.trash.media_trash import move_media_file_to_trash, restore_media_file_from_trash
@@ -208,6 +208,25 @@ async def search_metadata(
         scan_settings.provider_last_used = last_used
         await db.commit()
     return result
+
+
+@router.get("/art-options")
+async def get_art_options(
+    title: str = Query(..., min_length=1, max_length=200),
+    provider: str = Query(default=""),
+    provider_id: str = Query(default=""),
+    current_user: User = _CURRENT_USER_DEPENDENCY,
+) -> dict:
+    """Covers and banners to choose from for a game that is about to be added."""
+    try:
+        return await asyncio.to_thread(
+            find_art_options, title.strip(), provider, provider_id, current_user.steamgriddb_api_key
+        )
+    except Exception as exc:  # noqa: BLE001 - the picker is optional, so say why and move on
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Artwork could not be loaded: {exc}",
+        ) from exc
 
 
 @router.get("/{game_id}/assets/{asset_kind}", response_class=FileResponse)
@@ -2297,6 +2316,17 @@ _GAME_METADATA_FIELDS = frozenset({
 })
 
 
+def _metadata_change(game: Game, field: str, fresh: object) -> object | None:
+    """What to write for `field` when a provider's value is `fresh`, or None when
+    the game already has it. Links are a relationship, so a provider only ever adds
+    the ones the game lacks, and never drops the ones you added yourself."""
+    if field == "links":
+        have = {link.url for link in game.links}
+        added = [link for link in fresh if link.get("url") not in have]  # type: ignore[attr-defined]
+        return added or None
+    return fresh if getattr(game, field) != fresh else None
+
+
 def _normalize_metadata_title(title: str) -> str:
     return title.replace("™", "").replace("®", "").replace("©", "").strip().lower()
 
@@ -2319,8 +2349,11 @@ async def refresh_game_metadata(
     history, artwork protection, and stale-editor detection cannot be bypassed
     by a client replaying a provider result.
     """
-    game = await _get_game_or_404(game_id, db, current_user.id)
-    scan_settings = await get_or_create_scan_settings(current_user.id, db)
+    # the rollback below expires current_user, and reading it afterwards would
+    # need a lazy load that an async session cannot do
+    user_id = current_user.id
+    game = await _get_game_or_404(game_id, db, user_id)
+    scan_settings = await get_or_create_scan_settings(user_id, db)
     preferences = _scan_settings_to_preferences(scan_settings)
     app_integrations = resolve_integrations(await get_or_create_app_integration_settings(db))
 
@@ -2334,6 +2367,7 @@ async def refresh_game_metadata(
             current_user,
             app_integrations.igdb_client_id,
             app_integrations.igdb_client_secret,
+            only_matching=True,
         )
     except Exception as exc:
         raise HTTPException(
@@ -2407,9 +2441,9 @@ async def refresh_game_metadata(
         if field in game.locked_fields:
             skipped_locked.append(field)
             continue
-        current = getattr(game, field)
-        if fresh != current:
-            updates[field] = fresh
+        change = _metadata_change(game, field, fresh)
+        if change is not None:
+            updates[field] = change
 
     changed_fields = sorted(updates)
     key_art_url = match.get("key_art_url")
@@ -2446,7 +2480,7 @@ async def refresh_game_metadata(
         await db.rollback()
         locked_game = await db.scalar(
             select(Game)
-            .where(Game.id == game_id, Game.user_id == current_user.id, Game.deleted_at.is_(None))
+            .where(Game.id == game_id, Game.user_id == user_id, Game.deleted_at.is_(None))
             .with_for_update()
         )
         if locked_game is None:
@@ -2469,16 +2503,20 @@ async def refresh_game_metadata(
             if field in game.locked_fields:
                 skipped_locked.append(field)
                 continue
-            if getattr(game, field) != fresh:
-                updates[field] = fresh
+            change = _metadata_change(game, field, fresh)
+            if change is not None:
+                updates[field] = change
         changed_fields = sorted(updates)
         key_art_exists = (game_dir / ASSET_FILENAMES["key_art"]).is_file()
         banner_exists = (game_dir / ASSET_FILENAMES["banner"]).is_file()
 
     if payload.update_text:
-        _record_field_changes(game, updates, db)
+        _record_field_changes(game, {k: v for k, v in updates.items() if k != "links"}, db)
         for field, value in updates.items():
-            setattr(game, field, value)
+            if field == "links":
+                game.links.extend(GameLink(label=link["label"], url=link["url"]) for link in value)  # type: ignore[attr-defined]
+            else:
+                setattr(game, field, value)
 
     if payload.fill_missing_art:
         async def _download_art(url: str) -> bytes:

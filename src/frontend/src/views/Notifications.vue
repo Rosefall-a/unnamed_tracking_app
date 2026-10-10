@@ -23,13 +23,15 @@ import { refreshMediaNotifications } from "../state/notifications";
 import { useKeptAlive } from "../utils/useKeptAlive";
 import { useConfirm } from "../state/dialog";
 
-type Filter = "all" | "unread" | "episodes" | "seasons" | "releases";
+type Filter =
+  "all" | "unread" | "episodes" | "seasons" | "releases" | "library";
 const FILTERS: { key: Filter; label: string }[] = [
   { key: "all", label: "All" },
   { key: "unread", label: "Unread" },
   { key: "episodes", label: "Episodes" },
   { key: "seasons", label: "Seasons" },
   { key: "releases", label: "Releases" },
+  { key: "library", label: "Library" },
 ];
 
 const router = useRouter();
@@ -70,6 +72,11 @@ const KIND_META: Record<
     tone: "violet",
     group: "releases",
   },
+  possible_duplicate: {
+    label: "Possible duplicate",
+    tone: "amber",
+    group: "library",
+  },
 };
 
 const unreadCount = computed(() => items.value.filter((n) => !n.read).length);
@@ -80,6 +87,7 @@ const counts = computed(() => {
     episodes: 0,
     seasons: 0,
     releases: 0,
+    library: 0,
   };
   for (const n of items.value) c[KIND_META[n.kind].group] += 1;
   return c;
@@ -158,10 +166,13 @@ function route(n: MediaNotification): string {
       ? "/movies"
       : n.mediaType === "tv"
         ? "/tv"
-        : "/anime";
+        : n.mediaType === "game"
+          ? "/games"
+          : "/anime";
   return `${base}/${n.mediaId}`;
 }
 const TYPE_LABEL: Record<string, string> = {
+  game: "Game",
   movie: "Movie",
   tv: "TV show",
   anime: "Anime",

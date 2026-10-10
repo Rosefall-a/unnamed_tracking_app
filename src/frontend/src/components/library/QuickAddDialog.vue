@@ -8,6 +8,8 @@ import { onBeforeUnmount, onMounted, ref, shallowRef } from "vue";
 export interface QuickAddResult {
   title: string;
   poster: string | null;
+  // shown behind the poster, so a poster that fails to load falls back to these
+  fallbackPosters?: string[];
   description: string | null;
   releaseYear: string | null;
 }
@@ -52,6 +54,18 @@ async function runSearch() {
     searching.value = false;
   }
 }
+// layered, top one first: an image that fails to load leaves the next one showing
+function hasArt(r: QuickAddResult): boolean {
+  return !!r.poster || !!r.fallbackPosters?.length;
+}
+
+function artStyle(r: QuickAddResult) {
+  const urls = [r.poster, ...(r.fallbackPosters ?? [])].filter(Boolean);
+  return urls.length
+    ? { backgroundImage: urls.map((u) => `url(${u})`).join(", ") }
+    : {};
+}
+
 function pick(result: T) {
   picked.value = result;
   step.value = "form";
@@ -110,10 +124,11 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onEscape));
           </p>
           <div v-else class="qa-results">
             <div v-for="(r, i) in results" :key="i" class="qa-result">
-              <div
-                class="qa-result-art"
-                :style="r.poster ? { backgroundImage: `url(${r.poster})` } : {}"
-              ></div>
+              <div class="qa-result-art" :style="artStyle(r)">
+                <span v-if="!hasArt(r)" class="qa-art-initial">{{
+                  r.title.charAt(0)
+                }}</span>
+              </div>
               <div class="qa-result-titles">
                 <div class="qa-result-english">{{ r.title }}</div>
                 <div class="qa-result-meta">
@@ -145,17 +160,18 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onEscape));
             &larr; Back to results
           </button>
           <div class="qa-form-header">
-            <div
-              class="qa-form-art"
-              :style="
-                picked.poster ? { backgroundImage: `url(${picked.poster})` } : {}
-              "
-            ></div>
+            <div class="qa-form-art" :style="artStyle(picked)">
+              <span v-if="!hasArt(picked)" class="qa-art-initial">{{
+                picked.title.charAt(0)
+              }}</span>
+            </div>
             <div class="qa-form-titles">
               <div class="qa-result-english">{{ picked.title }}</div>
               <div class="qa-result-meta">
                 <slot name="meta" :result="picked">
-                  <span v-if="picked.releaseYear">{{ picked.releaseYear }}</span>
+                  <span v-if="picked.releaseYear">{{
+                    picked.releaseYear
+                  }}</span>
                 </slot>
               </div>
             </div>
@@ -390,6 +406,16 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onEscape));
   background-position: center;
   background-color: var(--surface);
   box-shadow: 0 8px 18px -6px rgba(0, 0, 0, 0.6);
+}
+.qa-art-initial {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  font-size: 1.4rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: var(--text-faint, #5a5a5a);
 }
 .qa-result-titles {
   min-width: 0;

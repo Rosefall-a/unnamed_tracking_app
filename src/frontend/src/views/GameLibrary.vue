@@ -20,7 +20,14 @@ import {
   setFavorite,
   fetchAchievementsSummary,
   addGameToCollection,
+  refreshGameMetadata,
 } from "../services/games";
+import {
+  addFeedItem,
+  completeTask,
+  errorTask,
+  updateTask,
+} from "../state/taskProgress";
 import { setLibraryNavOrder } from "../state/libraryNav";
 import { isCommandPaletteOpen } from "../state/commandPalette";
 import CollectionPickerModal from "../components/CollectionPickerModal.vue";
@@ -237,13 +244,9 @@ const companyFilter = ref<string>("all");
 const ageRatingFilter = ref<string>("all");
 const regionFilter = ref<string>("all");
 const languageFilter = ref<string>("all");
-const metadataProviderFilter = ref<string>(
-  "all",
-);
+const metadataProviderFilter = ref<string>("all");
 const favoritesOnly = ref(false);
-const achievementsFilter = ref<AchievementsFilter>(
-  "all",
-);
+const achievementsFilter = ref<AchievementsFilter>("all");
 const retroAchievementsOnly = ref(false);
 const missingFilter = ref<MissingFilter>("none");
 // multi-select, OR'd together, layered on top of the single-pick Genre
@@ -531,9 +534,18 @@ function applyLinkedFilter() {
 }
 // the link's filter is applied once, then dropped from the address: otherwise a
 // refresh would put it back on after it had been taken off
-const LINK_KEYS = ["tag", "company", "platform", "series", "status", "sort", "collection"];
+const LINK_KEYS = [
+  "tag",
+  "company",
+  "platform",
+  "series",
+  "status",
+  "sort",
+  "collection",
+];
 function dropLinkQuery() {
-  if (route.path !== "/games" || !LINK_KEYS.some((k) => k in route.query)) return;
+  if (route.path !== "/games" || !LINK_KEYS.some((k) => k in route.query))
+    return;
   const rest = { ...route.query };
   for (const key of LINK_KEYS) delete rest[key];
   void router.replace({ query: rest });
@@ -541,10 +553,13 @@ function dropLinkQuery() {
 applyLinkedFilter();
 dropLinkQuery();
 // the library is kept alive, so a link can arrive while it already exists
-watch(() => route.fullPath, () => {
-  applyLinkedFilter();
-  dropLinkQuery();
-});
+watch(
+  () => route.fullPath,
+  () => {
+    applyLinkedFilter();
+    dropLinkQuery();
+  },
+);
 
 const platformOptions = computed(() => {
   const set = new Set<string>(PLATFORM_OPTIONS);
@@ -787,9 +802,28 @@ function openAddModal() {
   showQuickAdd.value = true;
 }
 
-async function onQuickAdded() {
+async function onQuickAdded(game: Game, taskId: string) {
   showQuickAdd.value = false;
+  // Started first, so it goes out even if the person opens the game, or leaves,
+  // before the list has reloaded. It only has the search result's text so far;
+  // the artwork and the rest arrive a moment later.
+  const refreshing = refreshGameMetadata(game);
   await loadGames();
+  const outcome = await refreshing;
+  await loadGames();
+  if (outcome.status === "error") {
+    errorTask(
+      taskId,
+      `${game.title} was added, but its details could not be read`,
+    );
+    return;
+  }
+  updateTask(taskId, 3);
+  addFeedItem(
+    taskId,
+    outcome.bannerAdded ? "Details and banner saved" : "Details saved",
+  );
+  completeTask(taskId, `${game.title} is ready`);
 }
 
 // a game no provider knows: the full form
@@ -1615,7 +1649,9 @@ function cardsInRow(rowIndex: number): Game[] {
               :key="tag"
               type="button"
               class="tag-chip"
-              :class="{ active: tagsFilter.includes(tag) || genreFilter === tag }"
+              :class="{
+                active: tagsFilter.includes(tag) || genreFilter === tag,
+              }"
               @click="toggleTagFilter(tag)"
             >
               {{ tag }}
@@ -2187,7 +2223,6 @@ function cardsInRow(rowIndex: number): Game[] {
         v-if="showQuickAdd"
         @close="showQuickAdd = false"
         @added="onQuickAdded"
-        @refreshed="loadGames"
         @manual="openManualAdd"
       />
       <GameFormModal
