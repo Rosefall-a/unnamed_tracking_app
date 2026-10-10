@@ -1,7 +1,7 @@
 """Add game_matches: pairs of entries that may be the same game.
 
 revision: d8a2f6b1c3e4
-down_revision: c4f1d2e8a9b0
+down_revision: e7b3c9d1a5f2
 """
 
 from collections.abc import Sequence
@@ -13,7 +13,7 @@ from sqlalchemy.dialects import postgresql
 from src.database import migration_helpers as h
 
 revision: str = "d8a2f6b1c3e4"
-down_revision: str | None = "c4f1d2e8a9b0"
+down_revision: str | None = "e7b3c9d1a5f2"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
