@@ -1,0 +1,61 @@
+name: pylint
+
+on:
+  workflow_call:
+    inputs:
+      strict:
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  pylint:
+    runs-on: ubuntu-latest
+    env:
+      PYTHONPATH: ${{ github.workspace }}/src/backend
+      PYLINT_STRICT: ${{ inputs.strict }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: src/backend
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: src/backend/requirements.txt
+      - name: Install backend dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Run Pylint
+        run: |
+          set +e
+          pylint --rcfile=pyproject.toml --score=y src 2>&1 | tee pylint-output.txt
+          status=${PIPESTATUS[0]}
+          score=$(grep -oP 'Your code has been rated at \K[0-9.]+(?=/10)' pylint-output.txt | tail -1)
+          echo "Pylint score: ${score:-unknown}/10"
+          if [[ "$PYLINT_STRICT" == "true" ]]; then
+            if [[ "$status" -ne 0 ]]; then
+              exit "$status"
+            fi
+            python - "$score" <<'PY'
+          import sys
+          score = float(sys.argv[1])
+          if score < 9.9:
+              raise SystemExit(f"Pylint score is {score}/10; 9.9/10 is required.")
+          PY
+          else
+            echo "::warning::Strict Pylint enforcement is disabled for this invocation."
+          fi
+      - name: Upload Pylint diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pylint-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}
+          path: src/backend/pylint-output.txt
+          if-no-files-found: ignore
