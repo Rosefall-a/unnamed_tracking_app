@@ -23,9 +23,10 @@ onMounted(refreshInboxCount);
 // polls — NotificationBell.vue only refreshes once on mount.
 let notificationTimer: number | undefined;
 onMounted(() => {
-  refreshMediaNotifications();
+  // shared with the topbar bell, which mounts at the same moment
+  void refreshMediaNotifications({ maxAgeMs: 30_000 });
   notificationTimer = window.setInterval(
-    refreshMediaNotifications,
+    () => void refreshMediaNotifications(),
     5 * 60 * 1000,
   );
 });

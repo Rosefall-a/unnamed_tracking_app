@@ -136,58 +136,61 @@ function openCreateForm() {
     <p v-if="loading">Loading…</p>
     <p v-else-if="error" class="form-error">{{ error }}</p>
     <template v-else>
-      <table class="user-table">
-        <thead>
-          <tr>
-            <th>Username</th>
-            <th>Email</th>
-            <th>Role</th>
-            <th>Joined</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="user in users" :key="user.id">
-            <td>{{ user.username }}</td>
-            <td>{{ user.email }}</td>
-            <td>
-              <span class="role-badge" :class="{ admin: user.is_admin }">{{
-                user.is_admin ? "Admin" : "User"
-              }}</span>
-            </td>
-            <td class="joined">
-              {{
-                user.created_at
-                  ? new Date(user.created_at * 1000).toLocaleDateString()
-                  : "N/A"
-              }}
-            </td>
-            <td class="actions">
-              <button
-                type="button"
-                class="small-button"
-                :disabled="
-                  user.id === currentUser?.id || togglingAdminId === user.id
-                "
-                @click="toggleAdmin(user)"
-              >
-                {{ user.is_admin ? "Demote" : "Promote" }}
-              </button>
-              <button
-                type="button"
-                class="small-button danger"
-                :disabled="user.id === currentUser?.id"
-                @click="
-                  deletingUser = user;
-                  deleteError = null;
-                "
-              >
-                Delete
-              </button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+      <!-- scrolls sideways on a phone instead of widening the whole page -->
+      <div class="user-table-scroll">
+        <table class="user-table">
+          <thead>
+            <tr>
+              <th>Username</th>
+              <th>Email</th>
+              <th>Role</th>
+              <th>Joined</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="user in users" :key="user.id">
+              <td>{{ user.username }}</td>
+              <td>{{ user.email }}</td>
+              <td>
+                <span class="role-badge" :class="{ admin: user.is_admin }">{{
+                  user.is_admin ? "Admin" : "User"
+                }}</span>
+              </td>
+              <td class="joined">
+                {{
+                  user.created_at
+                    ? new Date(user.created_at * 1000).toLocaleDateString()
+                    : "N/A"
+                }}
+              </td>
+              <td class="actions">
+                <button
+                  type="button"
+                  class="small-button"
+                  :disabled="
+                    user.id === currentUser?.id || togglingAdminId === user.id
+                  "
+                  @click="toggleAdmin(user)"
+                >
+                  {{ user.is_admin ? "Demote" : "Promote" }}
+                </button>
+                <button
+                  type="button"
+                  class="small-button danger"
+                  :disabled="user.id === currentUser?.id"
+                  @click="
+                    deletingUser = user;
+                    deleteError = null;
+                  "
+                >
+                  Delete
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
       <button
         type="button"
         class="secondary-button"
@@ -277,10 +280,13 @@ function openCreateForm() {
   line-height: 1.6;
   margin: 0 0 16px;
 }
+.user-table-scroll {
+  overflow-x: auto;
+  margin-bottom: 16px;
+}
 .user-table {
   width: 100%;
   border-collapse: collapse;
-  margin-bottom: 16px;
   font-size: 0.85rem;
 }
 .user-table th {

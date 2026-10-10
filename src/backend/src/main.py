@@ -18,6 +18,7 @@ from src.api.routes import (
     calendar_events,
     calendar_feed,
     default_game_assets,
+    epic_import,
     export_import,
     game_archives,
     game_notes,
@@ -114,6 +115,7 @@ app.include_router(media_extras.router)
 app.include_router(media_images.router)
 app.include_router(achievement_icons.router)
 app.include_router(steam_import_steps.router)
+app.include_router(epic_import.router)
 app.include_router(steam_tags_refresh.router)
 app.include_router(media_lists.router)
 app.include_router(notifications.router)

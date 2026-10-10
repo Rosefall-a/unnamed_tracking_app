@@ -28,6 +28,7 @@ from src.core.auth import (
     verify_password,
 )
 from src.core.config import settings
+from src.api.routes.users import profile_picture_version
 from src.core.crypto import encrypt_secret
 from src.database.models.auth import UserApiKey, UserSession
 from src.database.models.user import User
@@ -188,15 +189,22 @@ async def logout(
     return {"status": "logged_out"}
 
 
-@router.get("/me")
-async def current_user(user: User = Depends(get_current_user)) -> dict[str, str | bool | None]:
+def _me(user: User) -> dict[str, str | bool | int | None]:
     return {
         "id": str(user.id),
         "username": user.username,
         "email": user.email,
         "is_admin": user.is_admin,
         "steamgriddb_api_key": user.steamgriddb_api_key,
+        "profile_picture_version": profile_picture_version(user.id),
     }
+
+
+@router.get("/me")
+async def current_user(
+    user: User = Depends(get_current_user),
+) -> dict[str, str | bool | int | None]:
+    return _me(user)
 
 
 @router.patch("/me")
@@ -204,7 +212,7 @@ async def update_current_user(
     payload: UserProfileUpdateRequest,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-) -> dict[str, str | bool | None]:
+) -> dict[str, str | bool | int | None]:
     if payload.new_password is not None:
         if not payload.current_password or not verify_password(
             payload.current_password, user.password_hash
@@ -237,13 +245,7 @@ async def update_current_user(
             status_code=status.HTTP_409_CONFLICT, detail="Username or email already exists."
         ) from exc
 
-    return {
-        "id": str(user.id),
-        "username": user.username,
-        "email": user.email,
-        "is_admin": user.is_admin,
-        "steamgriddb_api_key": user.steamgriddb_api_key,
-    }
+    return _me(user)
 
 
 @router.post("/me/psn")

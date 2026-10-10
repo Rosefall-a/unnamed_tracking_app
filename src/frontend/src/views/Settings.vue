@@ -268,6 +268,11 @@ watch(activeSection, async () => {
   .settings-card {
     width: 100%;
     padding: 20px;
+    /* at least a screen tall, so there is always room to scroll a section to
+       the top while its content is still loading (a short card left the page
+       too short to scroll that far, and the section half off-screen) */
+    min-height: calc(100vh - 64px);
+    box-sizing: border-box;
   }
 }
 </style>

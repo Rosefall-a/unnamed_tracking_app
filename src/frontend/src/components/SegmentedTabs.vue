@@ -43,7 +43,7 @@ const emit = defineEmits<{ "update:modelValue": [value: string] }>();
           aria-hidden="true"
           v-html="o.icon"
         ></svg>
-        {{ o.label }}
+        <span class="seg-label">{{ o.label }}</span>
         <span v-if="o.count" class="seg-count">{{ o.count }}</span>
       </RouterLink>
       <button
@@ -65,7 +65,7 @@ const emit = defineEmits<{ "update:modelValue": [value: string] }>();
           aria-hidden="true"
           v-html="o.icon"
         ></svg>
-        {{ o.label }}
+        <span class="seg-label">{{ o.label }}</span>
         <span v-if="o.count" class="seg-count">{{ o.count }}</span>
       </button>
     </template>

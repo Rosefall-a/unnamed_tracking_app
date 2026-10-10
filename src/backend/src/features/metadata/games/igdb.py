@@ -1,9 +1,16 @@
 from __future__ import annotations
 
+import threading
 import time
 from typing import Any
 
 import requests
+
+# Twitch app tokens last about two months, so one is shared per credential
+# pair. Every metadata search and every imported game's series lookup builds
+# its own client, and each of those used to ask Twitch for a new token first.
+_TOKENS: dict[tuple[str, str], tuple[str, float]] = {}
+_TOKENS_LOCK = threading.Lock()
 
 
 class IGDBError(RuntimeError):
@@ -38,6 +45,12 @@ class IGDBClient:
     def _authenticate(self) -> str:
         if self._access_token and time.time() < self._token_expires_at:
             return self._access_token
+        key = (self.client_id, self.client_secret)
+        with _TOKENS_LOCK:
+            shared = _TOKENS.get(key)
+        if shared and time.time() < shared[1]:
+            self._access_token, self._token_expires_at = shared
+            return shared[0]
         try:
             response = self.session.post(
                 self.TOKEN_URL,
@@ -63,22 +76,23 @@ class IGDBClient:
         self._access_token = token
         # renew a little early rather than exactly at expiry
         self._token_expires_at = time.time() + int(payload.get("expires_in", 3600)) - 60
+        with _TOKENS_LOCK:
+            _TOKENS[key] = (token, self._token_expires_at)
         return token
 
-    def search(self, query: str, limit: int = 8) -> list[dict[str, Any]]:
-        if not query.strip():
-            return []
+    def _forget_token(self) -> None:
+        """Drop a token Twitch no longer accepts (revoked, or the app's secret
+        was rotated), here and for every other client."""
+        with _TOKENS_LOCK:
+            if _TOKENS.get((self.client_id, self.client_secret), ("",))[0] == self._access_token:
+                _TOKENS.pop((self.client_id, self.client_secret), None)
+        self._access_token = None
+        self._token_expires_at = 0.0
+
+    def _post_games(self, body: str) -> requests.Response:
         token = self._authenticate()
-        safe_query = query.replace('"', "'")
-        body = (
-            f'search "{safe_query}"; '
-            "fields name,summary,first_release_date,url,cover.url,genres.name,"
-            "involved_companies.company.name,involved_companies.developer,"
-            "involved_companies.publisher,collection.name,franchises.name; "
-            f"limit {limit};"
-        )
         try:
-            response = self.session.post(
+            return self.session.post(
                 f"{self.BASE_URL}/games",
                 headers={
                     "Client-ID": self.client_id,
@@ -89,6 +103,23 @@ class IGDBClient:
             )
         except requests.RequestException as exc:
             raise IGDBError(f"Could not reach IGDB: {exc}") from exc
+
+    def search(self, query: str, limit: int = 8) -> list[dict[str, Any]]:
+        if not query.strip():
+            return []
+        safe_query = query.replace('"', "'")
+        body = (
+            f'search "{safe_query}"; '
+            "fields name,summary,first_release_date,url,cover.url,genres.name,"
+            "involved_companies.company.name,involved_companies.developer,"
+            "involved_companies.publisher,collection.name,franchises.name; "
+            f"limit {limit};"
+        )
+        response = self._post_games(body)
+        if response.status_code == 401:
+            # the shared token went stale: get a new one and ask once more
+            self._forget_token()
+            response = self._post_games(body)
 
         if response.status_code >= 400:
             raise IGDBError(f"IGDB search failed ({response.status_code}): {response.text[:200]}")

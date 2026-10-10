@@ -89,7 +89,9 @@ function onResize() {
 }
 
 onMounted(() => {
-  void refreshMediaNotifications();
+  // a list fetched in the last half minute (by the previous page's bell, or
+  // the sidebar) is still current
+  void refreshMediaNotifications({ maxAgeMs: 30_000 });
   document.addEventListener("click", onDocumentClick);
   document.addEventListener("keydown", onKeydown);
   window.addEventListener("resize", onResize);

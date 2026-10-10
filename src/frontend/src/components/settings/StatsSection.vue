@@ -317,7 +317,7 @@ const formatBreakdown = computed(() => stats.value?.format_breakdown ?? []);
         </div>
         <ol v-else class="ranked-list">
           <li v-for="entry in stats.most_played" :key="entry.id">
-            <span>{{ entry.title }}</span>
+            <span :title="entry.title">{{ entry.title }}</span>
             <span class="ranked-value">{{
               formatPlaytime(entry.playtime_seconds)
             }}</span>
@@ -636,13 +636,24 @@ const formatBreakdown = computed(() => stats.value?.format_breakdown ?? []);
 .ranked-list li {
   display: flex;
   justify-content: space-between;
+  gap: 12px;
   font-size: 0.82rem;
   color: #ccc;
   background: #111;
   border-radius: 6px;
   padding: 8px 12px;
 }
+/* a long title is cut short with an ellipsis instead of pushing the row,
+   and the whole page with it, past the right edge */
+.plain-list li > span:first-child,
+.ranked-list li > span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .ranked-value {
+  flex-shrink: 0;
   color: #d68a34;
   font-weight: 600;
 }

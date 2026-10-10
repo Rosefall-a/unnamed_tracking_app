@@ -18,6 +18,7 @@ import asyncio
 import re
 import time
 from datetime import UTC, date, datetime
+from typing import Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -48,16 +49,22 @@ from src.features.metadata.games.retroachievements import (
     RetroAchievementsError,
 )
 from src.features.metadata.games.search import search_game_metadata
+from src.features.metadata.games.steam_achievements import (
+    SteamAchievementData,
+    fetch_steam_achievements,
+)
 from src.features.metadata.games.steam_grid_db import SteamGridDBClient
 from src.helpers.game_art_download import download_asset as _download_asset
 from src.helpers.game_art_download import steam_cdn_art_urls as _steam_cdn_art_urls
-from src.helpers.save_game_asset import AssetKind, create_game_folder
+from src.helpers.library_games import LibraryIndex
+from src.helpers.library_games import get_or_create_game as _get_or_create_game
+from src.helpers.library_games import unique_folder_location as _unique_folder_location  # noqa: F401
+from src.helpers.save_game_asset import AssetKind
 
 router = APIRouter(
     prefix="/api/library-sync", tags=["library-sync"], dependencies=[Depends(get_current_user)]
 )
 
-_SLUG_INVALID = re.compile(r"[^A-Za-z0-9_-]+")
 _TITLE_NOISE = re.compile(r"[™®©]")
 
 
@@ -339,78 +346,6 @@ async def _enrich_new_game(
             await _download_asset(url, game.id, asset_kind)
 
 
-def _slugify(title: str) -> str:
-    slug = _SLUG_INVALID.sub("-", title).strip("-")
-    return slug or "game"
-
-
-async def _unique_folder_location(db: AsyncSession, title: str) -> str:
-    base = _slugify(title)
-    candidate = base
-    suffix = 2
-    while await db.scalar(select(Game.id).where(Game.folder_location == candidate)) is not None:
-        candidate = f"{base}-{suffix}"
-        suffix += 1
-    return candidate
-
-
-async def _get_or_create_game(
-    db: AsyncSession, user_id: UUID, title: str, source: str, external_id: str | None = None
-) -> tuple[Game, bool]:
-    """Match by (user, source, external_id) when the provider gives a
-    stable id — a title alone drifts (Steam has reported a different
-    display name for the same appid between calls, e.g. briefly appending
-    "- GOTY Edition"), which was creating duplicate rows for one real game.
-    Falls back to matching by (user, source, title) when no id is given."""
-    existing: Game | None = None
-    if external_id:
-        existing = await db.scalar(
-            select(Game).where(
-                Game.user_id == user_id,
-                Game.source == source,
-                Game.external_id == external_id,
-                Game.deleted_at.is_(None),
-            )
-        )
-    if existing is None:
-        by_title = select(Game).where(
-            Game.user_id == user_id,
-            Game.source == source,
-            Game.title == title,
-            Game.deleted_at.is_(None),
-        )
-        if external_id:
-            # two different games can share a name (Prey 2006 and Prey 2017); one
-            # that has its own id is not the game being synced
-            by_title = by_title.where(Game.external_id.is_(None))
-        existing = await db.scalar(by_title.limit(1))
-    if existing:
-        if existing.title != title:
-            existing.title = title
-            existing.sort_title = title.lower()
-        if external_id and not existing.external_id:
-            existing.external_id = external_id
-        # this sync just saw it again — clear any earlier "missing from your
-        # library" flag (see _flag_stale_games)
-        existing.stale_since = None
-        return existing, False
-
-    folder_location = await _unique_folder_location(db, title)
-    game = Game(
-        user_id=user_id,
-        title=title,
-        sort_title=title.lower(),
-        folder_location=folder_location,
-        source=source,
-        external_id=external_id,
-        status=GameStatus.BACKLOG,
-    )
-    db.add(game)
-    await db.flush()
-    create_game_folder(user_id, folder_location)
-    return game, True
-
-
 async def _flag_stale_games(
     db: AsyncSession, user_id: UUID, source: str, touched_ids: set[UUID]
 ) -> int:
@@ -675,9 +610,14 @@ async def _fetch_psn_rows(user: User, external_id: str, platform: str | None) ->
 
 @router.post("/steam")
 async def sync_steam_library(
+    achievements: Literal["now", "later"] = "now",
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
+    """Saves the owned games and their playtime, and with `achievements=now`
+    their achievements too. That reads each game from Steam, which for a big
+    library outlasts a proxy's timeout, so the app asks for `later` and then
+    has the achievements read in batches (see steam_import_steps.py)."""
     if not current_user.steam_id or not current_user.steam_api_key:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Save your Steam ID and API key first."
@@ -699,23 +639,11 @@ async def sync_steam_library(
 
     semaphore = asyncio.Semaphore(_SYNC_CONCURRENCY)
 
-    async def _fetch_achievements(
-        app_id: int,
-    ) -> tuple[dict[str, dict], list[dict] | None, dict[str, str] | None]:
+    async def _fetch_achievements(app_id: int) -> SteamAchievementData:
+        if achievements == "later":
+            return {}, [], None
         async with semaphore:
-            try:
-                schema = await asyncio.to_thread(steam.get_schema_for_game, api_key, app_id)
-                unlocked = await asyncio.to_thread(
-                    steam.get_player_achievements, steam_id, api_key, app_id
-                )
-            except steam.SteamLibraryError:
-                return {}, [], None
-            descriptions = None
-            if _needs_community_descriptions(schema):
-                descriptions = await asyncio.to_thread(
-                    steam.get_community_descriptions, steam_id, app_id
-                )
-            return schema, unlocked, descriptions
+            return await fetch_steam_achievements(steam_id, api_key, app_id)
 
     fetches = await asyncio.gather(
         *(
@@ -730,7 +658,9 @@ async def sync_steam_library(
     synced_titles: list[str] = []
     unreadable: list[str] = []
     touched_ids: set[UUID] = set()
+    status_ids: list[str] = []
     fetch_index = 0
+    library = await LibraryIndex.load(db, current_user.id, "Steam")
     for entry in owned_games:
         title, app_id = entry.get("name"), entry.get("appid")
         if not title or not app_id:
@@ -740,7 +670,7 @@ async def sync_steam_library(
         fetch_index += 1
 
         game, created = await _get_or_create_game(
-            db, current_user.id, title, "Steam", external_id=str(app_id)
+            db, current_user.id, title, "Steam", external_id=str(app_id), index=library
         )
         touched_ids.add(game.id)
         game.playtime_seconds = int(entry.get("playtime_forever", 0)) * 60
@@ -772,6 +702,7 @@ async def sync_steam_library(
                     unlocked_achievements=unlocked_count,
                 ),
             )
+            status_ids.append(str(game.id))
         if created:
             _add_source_tag_and_collection(game, "Steam")
             newly_created.append((game, app_id))
@@ -790,6 +721,10 @@ async def sync_steam_library(
         # the new games still to be enriched (store details, tags, artwork), which
         # is slow, so the app asks for it in batches: see steam_import_steps.py
         "enrich_game_ids": [str(g.id) for g, _ in newly_created],
+        # with achievements=later: every synced game, to read achievements for,
+        # and the ones whose status still depends on them (new or just bought)
+        "achievement_game_ids": [str(i) for i in touched_ids] if achievements == "later" else [],
+        "status_game_ids": status_ids if achievements == "later" else [],
     }
 
 
@@ -833,6 +768,7 @@ async def sync_retroachievements_library(
     newly_created: list[Game] = []
     synced_titles: list[str] = []
     touched_ids: set[UUID] = set()
+    library = await LibraryIndex.load(db, current_user.id, "RetroAchievements")
     for entry, progress in zip(owned_games, progress_results):
         title = entry.get("Title")
         if not title:
@@ -843,6 +779,7 @@ async def sync_retroachievements_library(
             title,
             "RetroAchievements",
             external_id=str(entry.get("GameID") or "") or None,
+            index=library,
         )
         touched_ids.add(game.id)
         games_added += created
@@ -933,6 +870,7 @@ async def sync_psn_library(
     synced_titles: list[str] = []
     touched_ids: set[UUID] = set()
     result_index = 0
+    library = await LibraryIndex.load(db, current_user.id, "PlayStation")
     for entry in titles:
         title = entry.get("trophyTitleName")
         if not title or not entry.get("npCommunicationId"):
@@ -941,7 +879,12 @@ async def sync_psn_library(
         result_index += 1
 
         game, created = await _get_or_create_game(
-            db, current_user.id, title, "PlayStation", external_id=entry.get("npCommunicationId")
+            db,
+            current_user.id,
+            title,
+            "PlayStation",
+            external_id=entry.get("npCommunicationId"),
+            index=library,
         )
         touched_ids.add(game.id)
         games_added += created

@@ -1747,8 +1747,8 @@ function cardsInRow(rowIndex: number): Game[] {
           </button>
           <ul class="empty-hint-list">
             <li>
-              Add a game manually, or connect Steam/GOG/PlayStation in Settings
-              to sync a library
+              Add a game manually, or connect Steam, Epic Games or PlayStation
+              in Settings to sync a library
             </li>
             <li>
               Drop screenshots or files into Upload and assign them to a game

@@ -204,8 +204,21 @@ if ! nginx -s reload; then
   fail_startup "FRONTEND_FAILED" "Nginx could not activate the production frontend configuration. See Docker stderr for Nginx diagnostics." "ready" "ready" "ready" "failed"
 fi
 
+# Nginx reloads gracefully: workers still on the startup configuration go on
+# answering for a moment, with the startup page and a 200, so "/" answering
+# is not enough. Wait until the startup page is gone (the app, or a TLS
+# redirect, whichever this configuration serves); declaring READY earlier
+# showed the startup page after "ready" and failed the runtime smoke test.
+frontend_ready() {
+  page="$(curl -fsS http://127.0.0.1/ 2>/dev/null)" || return 1
+  case "$page" in
+    *"Starting application"*) return 1 ;;
+  esac
+  return 0
+}
+
 attempt=1
-while ! curl -fsS http://127.0.0.1/ >/dev/null 2>&1; do
+while ! frontend_ready; do
   log "Frontend not ready (attempt $attempt)"
   if [ "$attempt" -ge 15 ]; then fail_startup "FRONTEND_FAILED" "Nginx could not serve the production frontend. See Docker stderr for Nginx diagnostics." "ready" "ready" "ready" "failed"; fi
   attempt=$((attempt + 1)); sleep 1
