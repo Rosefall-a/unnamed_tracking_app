@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
 import { useKeptAlive } from "../utils/useKeptAlive";
+import { mediaPriority } from "../utils/priority";
 import type { LibraryFilters } from "../utils/libraryFilters";
 import {
   fetchMoviesPage,
@@ -61,6 +62,7 @@ function toVM(m: Movie): LibraryCardVM {
     canAdvance: false,
     releaseYear: m.releaseDate ? m.releaseDate.slice(0, 4) : null,
     addedAt: Date.parse(m.createdAt) || null,
+    priority: mediaPriority(m.status, m.priority),
   };
 }
 

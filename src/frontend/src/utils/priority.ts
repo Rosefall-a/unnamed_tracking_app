@@ -1,4 +1,5 @@
 import type { GameStatus } from "../types/game";
+import { statusBucket } from "./mediaStatus";
 
 // Game priority (#32): "1" is the most wanted, "5" the least, the same
 // direction as the AniList import's 1 = HIGH. Stored as a string because the
@@ -48,6 +49,18 @@ export function activePriority(game: {
   priority?: string | null;
 }): number | null {
   return isFinished(game.status) ? null : priorityRank(game.priority);
+}
+
+// The same for a movie, show or anime: nothing left to prioritize once it is
+// Completed or Dropped.
+export function mediaPriority(
+  status: string,
+  priority: string | null | undefined,
+): number | null {
+  const bucket = statusBucket(status);
+  return bucket === "completed" || bucket === "dropped"
+    ? null
+    : priorityRank(priority);
 }
 
 export function priorityLabel(rank: number): string {

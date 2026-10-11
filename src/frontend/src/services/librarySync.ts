@@ -156,6 +156,8 @@ interface EpicSyncStep extends LibrarySyncResult {
   next: string | null;
 }
 
+const EPIC_MAX_STEPS = 1000;
+
 // Epic's library only lists ids, so each new game needs its own catalog
 // lookup and artwork. The server adds a few per request and says where to
 // carry on (`next`); the first request's update count is the real one, later
@@ -169,7 +171,12 @@ async function syncEpic(onProgress?: SyncProgress): Promise<LibrarySyncResult> {
   };
   let after: string | null = null;
   let total: number | null = null;
+  // The server adds a few games per request, so a library of a few thousand
+  // needs a few hundred at most. A bound stops a server that keeps answering
+  // "carry on" (or the same place twice) from looping for ever.
   for (let step = 0; ; step++) {
+    if (step >= EPIC_MAX_STEPS)
+      throw new Error("Epic import stopped: the server never finished.");
     const query: string = after ? `?after=${encodeURIComponent(after)}` : "";
     const response = await fetch(`/api/library-sync/epic${query}`, {
       method: "POST",
@@ -182,6 +189,8 @@ async function syncEpic(onProgress?: SyncProgress): Promise<LibrarySyncResult> {
     result.games_added += batch.games_added;
     result.games.push(...batch.games);
     if (!batch.next) return result;
+    if (batch.next === after)
+      throw new Error("Epic import stopped: the server did not move on.");
     total ??= batch.pending;
     onProgress?.("Adding games", total - batch.remaining, total);
     after = batch.next;

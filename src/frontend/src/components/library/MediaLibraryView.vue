@@ -61,6 +61,8 @@ export interface LibraryCardVM {
   releaseYear: string | null;
   // when it was added to the library (ms), for sorting by recently added
   addedAt?: number | null;
+  // 1 (most wanted) to 5, or null when unset or nothing is left to prioritize
+  priority?: number | null;
   // other spellings of the title, so search finds any of them
   altTitles?: string[];
 }
@@ -1113,6 +1115,8 @@ defineExpose({ openQuickAdd });
                     {{ it.format ?? typeLabel
                     }}<template v-if="it.releaseYear">
                       · {{ it.releaseYear }}</template
+                    ><template v-if="it.priority">
+                      · Priority {{ it.priority }}</template
                     >
                   </div>
                   <div class="airing-tag" :class="{ invisible: !it.airing }">

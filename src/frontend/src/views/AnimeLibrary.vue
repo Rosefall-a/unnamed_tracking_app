@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
 import { useKeptAlive } from "../utils/useKeptAlive";
+import { mediaPriority } from "../utils/priority";
 import type { LibraryFilters } from "../utils/libraryFilters";
 import {
   fetchAnimePage,
@@ -66,6 +67,7 @@ function toVM(show: Anime): LibraryCardVM {
     format: show.format,
     releaseYear: show.firstAirDate ? show.firstAirDate.slice(0, 4) : null,
     addedAt: Date.parse(show.createdAt) || null,
+    priority: mediaPriority(show.status, show.priority),
     altTitles: [
       show.title,
       show.titleEnglish,
