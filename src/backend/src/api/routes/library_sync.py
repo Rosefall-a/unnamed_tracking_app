@@ -41,6 +41,7 @@ from src.database.models.achievement import Achievement
 from src.database.models.game import Game, GameStatus
 from src.database.models.user import User
 from src.database.session import get_db
+from src.features.game_matches import find_matches
 from src.features.metadata.games import steam, steam_tags
 from src.features.metadata.games.igdb import IGDBClient
 from src.features.metadata.games.psn import PSNClient, PSNError
@@ -708,9 +709,12 @@ async def sync_steam_library(
             newly_created.append((game, app_id))
 
     games_flagged_stale = await _flag_stale_games(db, current_user.id, "Steam", touched_ids)
+    # a game added by hand that this sync brought in again: ask, never merge
+    possible_duplicates = await find_matches(db, current_user.id)
     current_user.steam_library_synced_at = int(time.time())
     await db.commit()
     return {
+        "possible_duplicates": possible_duplicates,
         "games_added": games_added,
         "games_updated": games_updated,
         "achievements_synced": achievements_synced,

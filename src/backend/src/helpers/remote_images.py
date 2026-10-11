@@ -19,7 +19,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 import requests
-from PIL import Image, UnidentifiedImageError
+from PIL import Image, ImageFilter, UnidentifiedImageError
 
 MAX_BYTES = 15 * 1024 * 1024
 _TIMEOUT = (5, 15)  # connect, read
@@ -128,8 +128,53 @@ def fetch_and_store(url: str, target: Path, width: int) -> None:
             old.unlink(missing_ok=True)
 
 
-def icon_cache_path(cache_root: Path, url: str) -> Path:
+ICON_LARGE = 256
+
+
+def icon_cache_path(cache_root: Path, url: str, large: bool = False) -> Path:
     """Where the local copy of an achievement icon lives. Icons are the same for
-    every player, so they are kept once, named by their address."""
+    every player, so they are kept once, named by their address. `large` is the
+    bigger copy made for the achievement's own page."""
     digest = hashlib.sha1(url.encode("utf-8"), usedforsecurity=False).hexdigest()
-    return cache_root / "achievement-icons" / f"{digest}.jpg"
+    return cache_root / "achievement-icons" / f"{digest}{'-large' if large else ''}.png"
+
+
+def _write_png(image: Image.Image, target: Path) -> None:
+    target.parent.mkdir(parents=True, exist_ok=True)
+    handle, temp_name = tempfile.mkstemp(dir=target.parent, suffix=".tmp")
+    os.close(handle)
+    try:
+        image.save(temp_name, format="PNG", optimize=True)
+        os.replace(temp_name, target)
+    finally:
+        if os.path.exists(temp_name):
+            os.unlink(temp_name)
+
+
+def fetch_icon(url: str, target: Path) -> None:
+    """Keep an achievement icon exactly as the provider made it, as a lossless PNG.
+    Steam's are 64 px JPEGs; saving them as JPEG again would damage them twice."""
+    try:
+        with Image.open(io.BytesIO(download_image(url))) as opened:
+            image = opened.convert("RGBA")
+    except (UnidentifiedImageError, OSError, Image.DecompressionBombError) as exc:
+        raise RemoteImageError("not an image") from exc
+    if image.width > ICON_LARGE:
+        image = image.resize((ICON_LARGE, round(image.height * ICON_LARGE / image.width)), Image.Resampling.LANCZOS)
+    _write_png(image, target)
+
+
+def make_large_icon(source: Path, target: Path) -> None:
+    """A 256 px copy of a small icon for the achievement's page. Enlarged with
+    Lanczos and a light sharpen, which keeps edges cleaner than the browser's
+    own stretching; shown at half that size it is downscaled, so it stays crisp.
+    It cannot add detail the provider never had."""
+    with Image.open(source) as opened:
+        image = opened.convert("RGBA")
+    if image.width < ICON_LARGE:
+        height = round(image.height * ICON_LARGE / image.width)
+        image = image.resize((ICON_LARGE, height), Image.Resampling.LANCZOS)
+        rgb = image.convert("RGB").filter(ImageFilter.UnsharpMask(radius=1.4, percent=110, threshold=2))
+        rgb.putalpha(image.getchannel("A"))
+        image = rgb
+    _write_png(image, target)

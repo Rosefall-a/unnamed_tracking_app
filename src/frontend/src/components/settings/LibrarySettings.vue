@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import SettingsTabs from "./SettingsTabs.vue";
+import DuplicateGamesSection from "./DuplicateGamesSection.vue";
 import LibraryManagementSection from "./LibraryManagementSection.vue";
 import MediaPreferencesSection from "./MediaPreferencesSection.vue";
 import MediaTrashSection from "./MediaTrashSection.vue";
@@ -20,7 +21,10 @@ const tab = ref(
 <template>
   <div>
     <SettingsTabs v-model="tab" :tabs="TABS" />
-    <LibraryManagementSection v-if="tab === 'manage'" />
+    <template v-if="tab === 'manage'">
+      <DuplicateGamesSection />
+      <LibraryManagementSection />
+    </template>
     <MediaPreferencesSection v-else-if="tab === 'preferences'" />
     <MediaTrashSection v-else />
   </div>

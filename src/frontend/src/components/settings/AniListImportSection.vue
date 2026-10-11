@@ -13,6 +13,35 @@ const prefs = ref<Preferences>({ ...DEFAULT_PREFERENCES });
 const loaded = ref(false);
 const error = ref<string | null>(null);
 const saved = ref(false);
+const importing = ref(false);
+const importMessage = ref<string | null>(null);
+
+// a one-time import of the saved username, on top of the scheduled one
+async function importNow() {
+  const username = prefs.value.anilist_import_username.trim();
+  if (!username) return;
+  importing.value = true;
+  importMessage.value = null;
+  error.value = null;
+  try {
+    const response = await fetch("/api/anime/import/anilist", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        username,
+        update_existing: prefs.value.anilist_import_update_existing,
+      }),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.detail ?? "AniList import failed.");
+    importMessage.value = `Fetched ${data.fetched}, created ${data.created}, updated ${data.updated}, skipped ${data.skipped}.`;
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "AniList import failed.";
+  } finally {
+    importing.value = false;
+  }
+}
 
 const cadenceOptions = [
   { value: "60", label: "Hourly" },
@@ -141,6 +170,19 @@ async function setCustomCadence(hours: number) {
       <strong>Update existing titles</strong>: apply AniList list changes to
       titles already in the library
     </ToggleButton>
+    <div class="import-now">
+      <button
+        type="button"
+        class="ui-btn ui-btn-secondary"
+        :disabled="
+          !loaded || importing || !prefs.anilist_import_username.trim()
+        "
+        @click="importNow"
+      >
+        {{ importing ? "Importing…" : "Import now" }}
+      </button>
+      <span v-if="importMessage" class="saved">{{ importMessage }}</span>
+    </div>
     <p class="section-hint">
       The scheduler runs in the app background once a minute. Imports are
       bounded so a large multi-user deployment cannot monopolize the worker.
@@ -199,6 +241,12 @@ async function setCustomCadence(hours: number) {
   background: #222;
   color: #ddd;
   cursor: pointer;
+}
+.import-now {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 14px 0;
 }
 .settings-section :deep(.toggle-button) {
   margin: 12px 0;

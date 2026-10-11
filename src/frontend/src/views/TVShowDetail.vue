@@ -34,6 +34,7 @@ import MediaTopBar from "../components/MediaTopBar.vue";
 import BackButton from "../components/BackButton.vue";
 import { formatAiringCountdown } from "../utils/countdown";
 import { statusBucket, bucketToReal } from "../utils/mediaStatus";
+import { isFullyWatched } from "../utils/completion";
 
 const route = useRoute();
 const router = useRouter();
@@ -230,16 +231,8 @@ function maybePromptMoveToCompleted(): boolean {
   if (!show.value || moveToCompletedPromptShown.value) return false;
   const bucket = statusBucket(show.value.status);
   if (bucket === "completed" || bucket === "dropped") return false;
-  if (show.value.nextEpisodeAirAt || show.value.isAiring) return false;
-  const seasons = show.value.seasons;
-  if (!seasons.length) return false;
-  const allDone = seasons.every(
-    (s) =>
-      s.episodes.length > 0 &&
-      s.episodes.every((e) => e.watched) &&
-      (s.episodeCount == null || s.episodes.length >= s.episodeCount),
-  );
-  if (!allDone) return false;
+  // finished by ticking episodes or by the "+" count, and nothing more coming
+  if (!isFullyWatched(show.value)) return false;
   moveToCompletedPromptShown.value = true;
   void confirm({
     message: "You've watched every episode. Move this to Completed?",

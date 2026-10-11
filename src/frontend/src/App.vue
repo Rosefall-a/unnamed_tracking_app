@@ -14,12 +14,24 @@ import {
   sidebarWidth,
   sidebarResizing,
 } from "./state/sidebarMode";
-import { computed, watch, watchEffect } from "vue";
+import { computed, ref, watch, watchEffect } from "vue";
 import { startupError, startupState } from "./state/startup";
 import { useRouter } from "vue-router";
 
 const route = useRoute();
 const router = useRouter();
+// Until the first navigation (and any redirect, such as to the login screen)
+// has finished, the route is still the empty start location; drawing the app
+// then flashes the home page's chrome before the login screen replaces it.
+const routerReady = ref(false);
+router
+  .isReady()
+  .then(() => {
+    routerReady.value = true;
+  })
+  .catch(() => {
+    /* an aborted first navigation shows the startup screens below instead */
+  });
 // "(2) Hades | Archive": the page (or what it shows) and unread notifications
 watchEffect(() => {
   document.title = formatDocumentTitle(
@@ -67,7 +79,7 @@ const KEPT_ALIVE = [
   <!-- First-run setup and the direct OIDC entrypoint deliberately bypass
        normal authentication, so both must render while authChecked is false. -->
   <template v-if="
-    authChecked ||
+    (authChecked && routerReady) ||
     route.path === '/setup' ||
     route.path === '/login/oidcstart'
   ">
