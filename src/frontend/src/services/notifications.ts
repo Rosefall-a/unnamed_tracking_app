@@ -4,12 +4,16 @@
 // polling this is what makes them appear.
 
 export type MediaNotificationKind =
-  "episode_aired" | "season_started" | "sequel_announced" | "movie_released";
+  | "episode_aired"
+  | "season_started"
+  | "sequel_announced"
+  | "movie_released"
+  | "possible_duplicate";
 
 export interface MediaNotification {
   id: string;
   kind: MediaNotificationKind;
-  mediaType: "movie" | "tv" | "anime";
+  mediaType: "movie" | "tv" | "anime" | "game";
   mediaId: string;
   title: string;
   body: string;
@@ -21,7 +25,7 @@ export interface MediaNotification {
 interface BackendNotification {
   id: string;
   kind: MediaNotificationKind;
-  media_type: "movie" | "tv" | "anime";
+  media_type: "movie" | "tv" | "anime" | "game";
   media_id: string;
   title: string;
   body: string;

@@ -17,6 +17,7 @@ import { localMediaImage } from "../utils/mediaImages";
 import MediaLibraryView from "../components/library/MediaLibraryView.vue";
 import { displayTitle } from "../utils/displayTitle";
 import { statusBucket, bucketToReal } from "../utils/mediaStatus";
+import { useCompletionPrompt } from "../utils/completion";
 import type {
   LibraryCardVM,
   SearchResultVM,
@@ -27,46 +28,6 @@ import type {
 const shows = ref<Anime[]>([]);
 const loading = ref(true);
 const error = ref<string | null>(null);
-const showAniListImport = ref(false);
-const aniListUsername = ref("");
-const aniListUpdateExisting = ref(false);
-const aniListImporting = ref(false);
-const aniListImportError = ref<string | null>(null);
-const aniListImportResult = ref<{
-  fetched: number;
-  created: number;
-  updated: number;
-  skipped: number;
-  errors: string[];
-} | null>(null);
-
-async function importFromAniList() {
-  if (!aniListUsername.value.trim()) return;
-  aniListImporting.value = true;
-  aniListImportError.value = null;
-  aniListImportResult.value = null;
-  try {
-    const response = await fetch("/api/anime/import/anilist", {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        username: aniListUsername.value.trim(),
-        update_existing: aniListUpdateExisting.value,
-      }),
-    });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.detail ?? "AniList import failed.");
-    aniListImportResult.value = data;
-    await load();
-  } catch (e) {
-    aniListImportError.value =
-      e instanceof Error ? e.message : "AniList import failed.";
-  } finally {
-    aniListImporting.value = false;
-  }
-}
-
 function seasonProgress(show: Anime): {
   watched: number;
   total: number | null;
@@ -125,10 +86,21 @@ const scoreRanks = ref<Record<string, number>>({});
 const pageSize = 100;
 const currentSearch = ref("");
 const currentFilters = ref<LibraryFilters & { statusBucket: string }>({
-  search: "", genres: [], genreMatchAll: false, formats: [], onlyFavorites: false,
-  onlyUnrated: false, onlyWithNote: false, minScore: null, yearFrom: "", yearTo: "", statusBucket: "all",
+  search: "",
+  genres: [],
+  genreMatchAll: false,
+  formats: [],
+  onlyFavorites: false,
+  onlyUnrated: false,
+  onlyWithNote: false,
+  minScore: null,
+  yearFrom: "",
+  yearTo: "",
+  statusBucket: "all",
 });
-async function load(filters: LibraryFilters & { statusBucket: string } = currentFilters.value) {
+async function load(
+  filters: LibraryFilters & { statusBucket: string } = currentFilters.value,
+) {
   currentFilters.value = filters;
   currentSearch.value = filters.search;
   const request = ++loadRequest;
@@ -142,17 +114,25 @@ async function load(filters: LibraryFilters & { statusBucket: string } = current
     scoreRanks.value = page.scoreRanks;
   } catch (e) {
     error.value = e instanceof Error ? e.message : "Failed to load anime.";
-  } finally { loading.value = false; }
+  } finally {
+    loading.value = false;
+  }
 }
 async function loadMore() {
   if (loading.value || shows.value.length >= total.value) return;
   loading.value = true;
   try {
-    const page = await fetchAnimePage(shows.value.length, pageSize, currentFilters.value);
+    const page = await fetchAnimePage(
+      shows.value.length,
+      pageSize,
+      currentFilters.value,
+    );
     shows.value.push(...page.items);
   } catch (e) {
     error.value = e instanceof Error ? e.message : "Failed to load more anime.";
-  } finally { loading.value = false; }
+  } finally {
+    loading.value = false;
+  }
 }
 onMounted(load);
 useKeptAlive(load);
@@ -187,6 +167,19 @@ async function onSaveNote(id: string, note: string | null) {
 
 // No cap on episodes watched — metadata's episode count is often wrong
 // or stale, and a rewatch can genuinely outrun it too.
+const askToComplete = useCompletionPrompt();
+// the last episode watched: offer to move it to Completed
+async function offerCompleted(id: string) {
+  const show = findShow(id);
+  if (!(await askToComplete(show))) return;
+  replaceShow(
+    await updateAnime(id, {
+      ...animeToInput(show),
+      status: bucketToReal("completed") as AnimeStatus,
+    }),
+  );
+}
+
 async function onAdvanceEpisode(id: string) {
   const show = findShow(id);
   const season = currentSeason(show);
@@ -206,6 +199,7 @@ async function onAdvanceEpisode(id: string) {
       }),
     );
   }
+  await offerCompleted(id);
 }
 
 async function onSaveEdit(id: string, form: EditForm) {
@@ -244,6 +238,7 @@ async function onSaveEdit(id: string, form: EditForm) {
       replaceShow(await updateSeason(id, season.id, seasonUpdates));
     }
   }
+  await offerCompleted(id);
 }
 
 async function onBulkSetStatus(ids: string[], status: string) {
@@ -361,194 +356,5 @@ function detailRoute(id: string): string {
     @bulk-favorite="onBulkFavorite"
     @bulk-delete="onBulkDelete"
   >
-    <template #actions>
-      <button
-        type="button"
-        class="anilist-import-btn"
-        @click="showAniListImport = true"
-      >
-        Import AniList
-      </button>
-    </template>
   </MediaLibraryView>
-
-  <div
-    v-if="showAniListImport"
-    class="import-backdrop"
-    @click.self="showAniListImport = false"
-  >
-    <div class="import-modal">
-      <h2>Import from AniList</h2>
-      <p>
-        Enter your public AniList username. This imports your anime list into
-        this library and never changes AniList.
-      </p>
-      <input
-        v-model="aniListUsername"
-        class="import-input"
-        placeholder="AniList username"
-        @keyup.enter="importFromAniList"
-      />
-      <label class="import-check">
-        <input v-model="aniListUpdateExisting" type="checkbox" />
-        Update existing titles
-      </label>
-      <p v-if="aniListImportError" class="import-error">
-        {{ aniListImportError }}
-      </p>
-      <p v-if="aniListImportResult" class="import-result">
-        Fetched {{ aniListImportResult.fetched }} · Created
-        {{ aniListImportResult.created }} · Updated
-        {{ aniListImportResult.updated }} · Skipped
-        {{ aniListImportResult.skipped }}
-      </p>
-      <ul v-if="aniListImportResult?.errors.length" class="import-errors">
-        <li v-for="item in aniListImportResult.errors" :key="item">
-          {{ item }}
-        </li>
-      </ul>
-      <div class="import-actions">
-        <button
-          type="button"
-          class="ui-btn ui-btn-secondary"
-          @click="showAniListImport = false"
-        >
-          Close
-        </button>
-        <button
-          type="button"
-          class="ui-btn ui-btn-primary"
-          :disabled="aniListImporting || !aniListUsername.trim()"
-          @click="importFromAniList"
-        >
-          {{ aniListImporting ? "Importing…" : "Import" }}
-        </button>
-      </div>
-    </div>
-  </div>
 </template>
-
-<style scoped>
-.anilist-import-btn {
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  background: rgba(255, 255, 255, 0.06);
-  color: #ddd;
-  border-radius: 8px;
-  padding: 9px 13px;
-  cursor: pointer;
-}
-.import-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 100;
-  display: grid;
-  place-items: center;
-  background: rgba(0, 0, 0, 0.7);
-}
-.import-modal {
-  width: min(520px, calc(100vw - 32px));
-  background: #191919;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 12px;
-  padding: 22px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-.import-modal h2 {
-  margin: 0;
-}
-.import-modal p {
-  color: #aaa;
-  margin: 0;
-}
-.import-input {
-  width: 100%;
-  box-sizing: border-box;
-  padding: 10px;
-  border-radius: 7px;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  background: #111;
-  color: #fff;
-}
-.import-check {
-  display: flex;
-  gap: 9px;
-  align-items: center;
-  color: #ddd;
-  cursor: pointer;
-}
-
-.import-check input {
-  appearance: none;
-  width: 18px;
-  height: 18px;
-  margin: 0;
-  flex: 0 0 18px;
-  border: 1px solid rgba(255, 255, 255, 0.28);
-  border-radius: 4px;
-  background: #111;
-  display: grid;
-  place-content: center;
-  cursor: pointer;
-}
-
-.import-check input::before {
-  content: "";
-  width: 10px;
-  height: 10px;
-  border-radius: 2px;
-  background: var(--ui-accent);
-  transform: scale(0);
-  transition: transform 0.1s ease-in-out;
-}
-
-.import-check input:checked {
-  border-color: var(--ui-accent);
-}
-
-.import-check input:checked::before {
-  transform: scale(1);
-}
-.import-error {
-  color: #e57373 !important;
-}
-.import-result {
-  color: #8bc98f !important;
-}
-.import-errors {
-  max-height: 120px;
-  overflow: auto;
-  color: #e57373;
-  margin: 0;
-}
-.import-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-}
-.import-actions .btn-outline,
-.import-actions .btn-solid {
-  height: 36px;
-  padding: 0 16px;
-  border-radius: 8px;
-  font-family: inherit;
-  font-size: 0.82rem;
-  font-weight: 700;
-  cursor: pointer;
-}
-.import-actions .btn-outline {
-  background: transparent;
-  border: 1px solid var(--border);
-  color: var(--text-dim);
-}
-.import-actions .btn-solid {
-  background: var(--ui-accent);
-  border: none;
-  color: #14100a;
-}
-.import-actions .btn-solid:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-</style>

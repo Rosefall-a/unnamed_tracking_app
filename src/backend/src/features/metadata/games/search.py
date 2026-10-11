@@ -19,6 +19,8 @@ from src.features.metadata.games.igdb import IGDBClient
 from src.features.metadata.games.retroachievements import RetroAchievementsClient
 from src.features.metadata.games.screenscraper import ScreenScraperClient, ScreenScraperError
 from src.features.metadata.games.steam_grid_db import SteamGridDBClient, SteamGridDBError
+from src.features.metadata.search_utils import format_provider_error, visible_errors
+from src.helpers.game_art_download import steam_cdn_art_urls
 
 if TYPE_CHECKING:
     from src.database.models.user import User
@@ -103,15 +105,7 @@ def _steam_result(item: dict[str, Any], details: dict[str, Any] | None) -> dict[
     return result
 
 
-def _friendly_provider_error(name: str, message: str) -> str:
-    """A 429 (or a provider's own "rate limit"/"too many requests" wording)
-    reads as just another opaque failure otherwise — worth calling out
-    specifically since the fix ("wait a bit") is different from a real
-    outage or bad credentials."""
-    lowered = message.lower()
-    if "429" in message or "rate limit" in lowered or "too many requests" in lowered:
-        return f"{name}: rate limited by the provider, try again in a few minutes."
-    return f"{name}: {message}"
+_friendly_provider_error = format_provider_error
 
 
 # how many results get their tags looked up: each is one more store page request
@@ -179,6 +173,11 @@ class ProviderContext:
     igdb_client_secret: str | None = None
     # take the tags Steam players vote on as a Steam game's genres
     steam_user_tags: bool = True
+    # a quick search for a results list: names only, no per-result detail pages,
+    # player tags or time-to-beat. Those are read for the one game that is picked.
+    light: bool = False
+    # filling in one known game: only its own entry is worth the extra lookups
+    only_matching: bool = False
 
 
 ProviderRun = Callable[
@@ -202,11 +201,15 @@ class ProviderSpec:
 def _run_steam(
     query: str, limit: int, ctx: ProviderContext, existing: list[dict[str, Any]]
 ) -> list[dict[str, Any]]:
-    del ctx, existing
+    del existing
     found: list[dict[str, Any]] = []
     for item in steam.search_store(query)[:limit]:
         app_id = item.get("id")
         if app_id is None:
+            continue
+        if ctx.light or (ctx.only_matching and not _titles_match(str(item.get("name")), query)):
+            # one store page per result is what made the list slow
+            found.append(_steam_result(item, None))
             continue
         details = steam.get_app_details(int(app_id)) if app_id else None
         if details and details.get("type") not in (None, "game"):
@@ -305,6 +308,70 @@ def _add_steamgriddb_art(result: dict[str, Any], client: SteamGridDBClient) -> N
             result[default_field] = urls[0]
 
 
+def find_art_options(
+    title: str, provider: str, provider_id: str, steamgriddb_api_key: str | None
+) -> dict[str, Any]:
+    """The covers and banners SteamGridDB has for one game, so a person can pick
+    which to keep. A Steam game is looked up by its app id, which is exact; any
+    other by name."""
+    api_key = steamgriddb_api_key or settings.STEAMGRIDDB_API_KEY
+    if not api_key:
+        return {"configured": False, "covers": [], "banners": []}
+    result = _blank_result(provider, provider_id if provider == "Steam" else "", title)
+    _add_steamgriddb_art(result, SteamGridDBClient(api_key=api_key))
+    return {
+        "configured": True,
+        "covers": result["key_art_urls"],
+        "banners": result["banner_urls"],
+    }
+
+
+def _steam_art_exists(url: str) -> bool:
+    """Steam's own art exists only for some games (older and niche ones have none),
+    and a missing file is a 404, so ask before offering it."""
+    try:
+        response = steam.SESSION.head(url, timeout=5, allow_redirects=True)
+    except Exception:  # noqa: BLE001 - no answer just means no fallback art
+        return False
+    return response.status_code == 200 and response.headers.get("content-type", "").startswith(
+        "image/"
+    )
+
+
+# the result's field, and which of Steam's images fills it
+_STEAM_FALLBACK_ART: tuple[tuple[str, Literal["key_art", "banner"]], ...] = (
+    ("key_art_url", "key_art"),
+    ("banner_url", "banner"),
+)
+
+
+def _add_steam_art_fallback(results: list[dict[str, Any]]) -> None:
+    """Back a Steam game's cover and banner with Steam's own art when the image
+    providers (SteamGridDB, ScreenScraper) had none, so it is not left bare. Only
+    the portrait cover and the wide hero are used: Steam's wide header would be
+    cropped into the portrait cover slot. Art an image provider found is never
+    replaced."""
+    wanted = [
+        (result, field, steam_cdn_art_urls(int(result["steam_app_id"]))[kind])
+        for result in results
+        if result.get("steam_app_id")
+        for field, kind in _STEAM_FALLBACK_ART
+        if not result.get(field)
+    ]
+    if not wanted:
+        return
+    with ThreadPoolExecutor(max_workers=min(8, len(wanted))) as executor:
+        found = list(executor.map(lambda item: _steam_art_exists(item[2]), wanted))
+    for (result, field, url), exists in zip(wanted, found, strict=True):
+        if not exists:
+            continue
+        result[field] = url
+        if field == "key_art_url":
+            result["key_art_urls"] = [url]
+        else:
+            result["banner_urls"] = [url]
+
+
 def _run_igdb(
     query: str, limit: int, ctx: ProviderContext, existing: list[dict[str, Any]]
 ) -> list[dict[str, Any]]:
@@ -325,6 +392,9 @@ def _run_igdb(
                 "links": [{"label": "IGDB", "url": game["url"]}] if game.get("url") else [],
             }
         )
+        if ctx.light:
+            # the list shows a cover for each result; a full search gets art elsewhere
+            result["key_art_url"] = game.get("cover_url")
         found.append(result)
     return found
 
@@ -377,14 +447,17 @@ def _run_giant_bomb(
 def _run_gog(
     query: str, limit: int, ctx: ProviderContext, existing: list[dict[str, Any]]
 ) -> list[dict[str, Any]]:
-    del ctx, existing
+    del existing
     found: list[dict[str, Any]] = []
     for product in gog.search(query, limit=limit):
         product_id = str(product.get("id", ""))
         result = _blank_result("GOG", product_id, product.get("title", ""))
         result.update(
             {
-                "description": gog.get_description(product_id) if product_id else None,
+                # one extra request per result, so a quick search leaves it out
+                "description": (
+                    gog.get_description(product_id) if product_id and not ctx.light else None
+                ),
                 "release_date": _parse_release_date(product.get("releaseDate")),
                 "developer": ", ".join(product.get("developers", [])) or None,
                 "publisher": ", ".join(product.get("publishers", [])) or None,
@@ -394,6 +467,8 @@ def _run_gog(
                 else [],
             }
         )
+        if ctx.light:
+            result["key_art_url"] = product.get("coverVertical")
         found.append(result)
     return found
 
@@ -549,6 +624,8 @@ def search_game_metadata(
     igdb_client_id: str | None = None,
     igdb_client_secret: str | None = None,
     include_image_providers: bool = True,
+    light: bool = False,
+    only_matching: bool = False,
 ) -> dict[str, Any]:
     """Search configured providers and return normalized creation-form data.
 
@@ -580,6 +657,8 @@ def search_game_metadata(
         igdb_client_id=igdb_client_id or settings.IGDB_CLIENT_ID,
         igdb_client_secret=igdb_client_secret or settings.IGDB_CLIENT_SECRET,
         steam_user_tags=bool(preferences.get("steam_user_tags", True)),
+        light=light,
+        only_matching=only_matching,
     )
 
     results: list[dict[str, Any]] = []
@@ -606,6 +685,9 @@ def search_game_metadata(
         enrichment_specs += _specs_for(
             image_provider_order, IMAGE_PROVIDER_NAMES, "enrichment"
         )
+
+    if light:
+        enrichment_specs = []
 
     # Primary providers are independent of each other (none reads another's
     # results), so they're the real bottleneck when run one at a time —
@@ -647,10 +729,15 @@ def search_game_metadata(
     # wall-clock deadline; a timed-out provider's thread is left to finish
     # (or hang) on its own, unwaited (`wait=False`) rather than blocking
     # `ThreadPoolExecutor.__exit__`'s default `shutdown(wait=True)`.
+    # When one game is being filled in (a refresh), art and time-to-beat are looked
+    # up only for the results that are that game, not for every near match: each
+    # lookup is its own round trip, so that is most of the wait.
+    targets = [r for r in results if _titles_match(r["title"], query)] if only_matching else results
+    known = len(targets)
     if enrichment_specs:
         executor = ThreadPoolExecutor(max_workers=len(enrichment_specs))
         futures = {
-            executor.submit(spec.run, query, limit, ctx, results): spec for spec in enrichment_specs
+            executor.submit(spec.run, query, limit, ctx, targets): spec for spec in enrichment_specs
         }
         for future, spec in futures.items():
             try:
@@ -665,14 +752,19 @@ def search_game_metadata(
                 continue
             providers_used.append(spec.name)
         executor.shutdown(wait=False)
+    if only_matching:
+        results.extend(targets[known:])  # a result an art provider found on its own
 
-    _apply_steam_user_tags(results, ctx.steam_user_tags)
+    if include_image_providers and not light:
+        _add_steam_art_fallback(targets if only_matching else results)
+
+    _apply_steam_user_tags(results, ctx.steam_user_tags and not light)
     _strip_unsaved_fields(results, preferences)
 
     return {
         "query": query,
         "providers": providers_used,
         "steamgriddb_configured": bool(ctx.steamgriddb_api_key),
-        "provider_errors": provider_errors,
+        "provider_errors": visible_errors(provider_errors, bool(results)),
         "results": results,
     }

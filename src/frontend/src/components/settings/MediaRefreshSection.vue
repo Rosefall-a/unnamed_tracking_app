@@ -5,6 +5,7 @@ import {
   fetchMediaRefreshProgress,
 } from "../../services/settings";
 import type { MediaRefreshProgress } from "../../services/settings";
+import { fillMovieDetails } from "../../services/movies";
 
 const progress = ref<MediaRefreshProgress | null>(null);
 const error = ref<string | null>(null);
@@ -46,6 +47,37 @@ async function run(mode: "needed" | "all") {
     startPolling();
   } catch (err) {
     error.value = err instanceof Error ? err.message : "Refresh failed";
+  }
+}
+
+// ---- movies saved without a length ----
+const movieFilling = ref(false);
+const movieResult = ref<string | null>(null);
+const movieError = ref<string | null>(null);
+
+async function fillMovies() {
+  movieFilling.value = true;
+  movieError.value = null;
+  movieResult.value = null;
+  let after: string | null = null;
+  let checked = 0;
+  let filled = 0;
+  try {
+    do {
+      const step = await fillMovieDetails(after);
+      checked += step.checked;
+      filled += step.filled;
+      after = step.next;
+      movieResult.value = `Checked ${checked}, filled in ${filled}…`;
+    } while (after);
+    movieResult.value = checked
+      ? `Checked ${checked} movie${checked === 1 ? "" : "s"} with no length: filled in ${filled}.`
+      : "Every movie already has its length.";
+  } catch (err) {
+    movieError.value =
+      err instanceof Error ? err.message : "Could not fill in the details.";
+  } finally {
+    movieFilling.value = false;
   }
 }
 
@@ -175,6 +207,28 @@ function formatTime(epochSeconds: number): string {
         >
       </div>
     </div>
+
+    <div class="tile">
+      <h3>Movie details</h3>
+      <p class="tile-desc">
+        A movie added before its length was being saved shows no time. This
+        looks up each movie that has none and fills in only what is empty:
+        its length, and the director, genres and so on. Anything you wrote
+        or locked is never changed.
+      </p>
+      <div v-if="movieError" class="form-error">{{ movieError }}</div>
+      <p v-if="movieResult" class="refresh-note">{{ movieResult }}</p>
+      <div class="tile-footer">
+        <button
+          type="button"
+          class="primary-button"
+          :disabled="movieFilling"
+          @click="fillMovies"
+        >
+          {{ movieFilling ? "Filling in…" : "Fill in missing movie details" }}
+        </button>
+      </div>
+    </div>
   </section>
 </template>
 
@@ -191,6 +245,9 @@ function formatTime(epochSeconds: number): string {
   font-size: 0.82rem;
   line-height: 1.6;
   margin: 0 0 20px;
+}
+.tile + .tile {
+  margin-top: 16px;
 }
 .tile {
   background: #111;

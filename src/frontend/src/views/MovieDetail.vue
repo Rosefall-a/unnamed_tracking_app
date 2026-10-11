@@ -28,7 +28,7 @@ import MediaTopBar from "../components/MediaTopBar.vue";
 import BackButton from "../components/BackButton.vue";
 import { statusBucket, bucketToReal } from "../utils/mediaStatus";
 import {
-  formatProgressMinutes,
+  formatDuration,
   parseProgressMinutes,
   progressPercent,
 } from "../utils/watchProgress";
@@ -128,7 +128,7 @@ watch(
     progressInput.value =
       minutes === null || minutes === undefined
         ? ""
-        : formatProgressMinutes(minutes);
+        : formatDuration(minutes);
     progressError.value = null;
   },
   { immediate: true },
@@ -150,7 +150,7 @@ async function saveProgress() {
   if (!movie.value || savingProgress.value) return;
   const parsed = parseProgressMinutes(progressInput.value);
   if (parsed !== null && Number.isNaN(parsed)) {
-    progressError.value = "Enter minutes (72) or hours:minutes (1:12).";
+    progressError.value = "Try 72, 1:12 or 1h 12m.";
     return;
   }
   const runtime = movie.value.runtimeMinutes;
@@ -477,13 +477,13 @@ async function onRatingChange(value: number | null) {
             v-model="progressInput"
             class="resume-input"
             inputmode="numeric"
-            placeholder="h:mm"
+            placeholder="1h 12m"
             aria-describedby="movie-left-off-hint"
             @keydown.enter.prevent="saveProgress"
             @blur="saveProgress"
           />
           <span v-if="movie.runtimeMinutes" class="resume-of"
-            >of {{ formatProgressMinutes(movie.runtimeMinutes) }}</span
+            >of {{ formatDuration(movie.runtimeMinutes) }}</span
           >
           <span
             v-if="progressPct !== null"
@@ -498,7 +498,7 @@ async function onRatingChange(value: number | null) {
           <span id="movie-left-off-hint" class="resume-hint">{{
             savingProgress
               ? "Saving…"
-              : (progressError ?? "Minutes or h:mm; blank clears it.")
+              : (progressError ?? "Minutes, 1:12 or 1h 12m; blank clears it.")
           }}</span>
         </div>
       </template>

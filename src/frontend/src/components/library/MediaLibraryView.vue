@@ -11,6 +11,7 @@ import {
 import { useRoute, useRouter } from "vue-router";
 import CheckIcon from "../CheckIcon.vue";
 import MediaTopBar from "../MediaTopBar.vue";
+import QuickAddDialog from "./QuickAddDialog.vue";
 import SegmentedTabs from "../SegmentedTabs.vue";
 import type { SegmentOption } from "../SegmentedTabs.vue";
 import { preferences } from "../../state/preferences";
@@ -30,6 +31,8 @@ import {
 // entities into this shape and reacts to the events below.
 export interface LibraryCardVM {
   id: string;
+  // 0 to 100 when the card knows better than watched/total (a movie left off part way)
+  progressPercent?: number | null;
   title: string;
   poster: string | null;
   status: string;
@@ -430,6 +433,7 @@ const statusCounts = computed<Record<string, number>>(() => ({
 }));
 
 function progressPct(it: LibraryCardVM): number {
+  if (it.progressPercent != null) return it.progressPercent;
   if (!it.isEpisodic) return it.watched > 0 ? 100 : 0;
   return it.total ? (it.watched / it.total) * 100 : 0;
 }
@@ -743,13 +747,8 @@ function saveEdit() {
   }
 }
 
-// ---- quick add (two-step: search -> fill-out form) ----
+// ---- quick add: the shared dialog; this view says what the form asks and what adding does ----
 const quickAddOpen = ref(false);
-const quickAddStep = ref<"search" | "form">("search");
-const quickAddQuery = ref("");
-const quickAddResults = ref<SearchResultVM[]>([]);
-const quickAddProviderErrors = ref<string[]>([]);
-const quickAddSearching = ref(false);
 const quickAddPick = ref<SearchResultVM | null>(null);
 const quickAddForm = reactive<QuickAddForm>({
   status: "plan",
@@ -762,34 +761,11 @@ const quickAddForm = reactive<QuickAddForm>({
 const quickAddSaving = ref(false);
 
 function openQuickAdd() {
-  quickAddStep.value = "search";
-  quickAddQuery.value = "";
-  quickAddResults.value = [];
-  quickAddProviderErrors.value = [];
   quickAddOpen.value = true;
 }
-function onEscape(e: KeyboardEvent) {
-  if (e.key === "Escape" && quickAddOpen.value) closeQuickAdd();
-}
-onMounted(() => window.addEventListener("keydown", onEscape));
-onBeforeUnmount(() => window.removeEventListener("keydown", onEscape));
 function closeQuickAdd() {
   quickAddOpen.value = false;
   quickAddPick.value = null;
-}
-async function runQuickAddSearch() {
-  if (!quickAddQuery.value.trim()) {
-    quickAddResults.value = [];
-    return;
-  }
-  quickAddSearching.value = true;
-  try {
-    const { results, providerErrors } = await props.search(quickAddQuery.value);
-    quickAddResults.value = results;
-    quickAddProviderErrors.value = providerErrors;
-  } finally {
-    quickAddSearching.value = false;
-  }
 }
 function pickQuickAddResult(result: SearchResultVM) {
   quickAddPick.value = result;
@@ -799,10 +775,6 @@ function pickQuickAddResult(result: SearchResultVM) {
   quickAddForm.score = null;
   quickAddForm.startDate = null;
   quickAddForm.endDate = null;
-  quickAddStep.value = "form";
-}
-function quickAddBackToSearch() {
-  quickAddStep.value = "search";
 }
 // The max attribute alone doesn't stop someone from typing past it — a
 // fresh add has no legitimate reason to start above the known total
@@ -813,18 +785,16 @@ function clampQuickAddWatched() {
     quickAddForm.watched = max;
   }
 }
-async function saveQuickAdd() {
-  if (!quickAddPick.value) return;
+async function saveQuickAdd(result: SearchResultVM) {
   quickAddSaving.value = true;
   // Same as the edit modal: picking Completed catches episodes watched up
   // to the known total automatically instead of leaving it at 0.
   const watched =
-    quickAddForm.status === "completed" &&
-    quickAddPick.value.episodeTotal !== null
-      ? quickAddPick.value.episodeTotal
+    quickAddForm.status === "completed" && result.episodeTotal !== null
+      ? result.episodeTotal
       : quickAddForm.watched;
   try {
-    await props.createFromResult(quickAddPick.value, {
+    await props.createFromResult(result, {
       ...quickAddForm,
       watched,
       status: bucketToReal(quickAddForm.status),
@@ -1683,190 +1653,67 @@ defineExpose({ openQuickAdd });
     </div>
 
     <!-- ===== Quick Add ===== -->
-    <div v-if="quickAddOpen" class="modal-overlay" @click.self="closeQuickAdd">
-      <div class="modal-card qa-card">
-        <div v-if="quickAddStep === 'search'">
-          <div class="qa-header">
-            <div class="qa-header-row">
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-              >
-                <circle cx="11" cy="11" r="7" />
-                <line x1="21" y1="21" x2="16.65" y2="16.65" />
-              </svg>
-              <h3>{{ addLabel.replace("+ ", "") }}</h3>
-            </div>
-            <div class="sub">Search, then pick the right result.</div>
-          </div>
-          <div class="qa-body">
-            <div class="qa-search-row">
-              <input
-                v-model="quickAddQuery"
-                autofocus
-                placeholder="Search by title..."
-                @keyup.enter="runQuickAddSearch"
-              />
-              <button
-                type="button"
-                class="qa-add-btn"
-                @click="runQuickAddSearch"
-              >
-                Search
-              </button>
-            </div>
-            <p
-              v-if="quickAddProviderErrors.length"
-              class="empty-state error"
-              style="padding: 8px 0; font-size: 0.78rem"
-            >
-              {{ quickAddProviderErrors.join(" · ") }}
-            </p>
-            <p v-if="quickAddSearching" class="empty-state">Searching…</p>
-            <p v-else-if="!quickAddResults.length" class="empty-state">
-              No results yet. Search above.
-            </p>
-            <div v-else class="qa-results">
-              <div v-for="(r, i) in quickAddResults" :key="i" class="qa-result">
-                <div
-                  class="qa-result-art"
-                  :style="
-                    r.poster ? { backgroundImage: `url(${r.poster})` } : {}
-                  "
-                ></div>
-                <div class="qa-result-titles">
-                  <div class="qa-result-english">{{ r.title }}</div>
-                  <div
-                    v-if="r.releaseYear || r.episodeTotal"
-                    class="qa-result-meta"
-                  >
-                    <span v-if="r.releaseYear">{{ r.releaseYear }}</span>
-                    <span v-if="r.episodeTotal"
-                      >{{ r.episodeTotal }} episode{{
-                        r.episodeTotal === 1 ? "" : "s"
-                      }}</span
-                    >
-                  </div>
-                  <div v-if="r.description" class="qa-result-desc">
-                    {{ r.description }}
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  class="qa-add-btn"
-                  @click="pickQuickAddResult(r)"
-                >
-                  + Add
-                </button>
-              </div>
-            </div>
-            <div class="qa-search-foot">
-              <button type="button" class="btn-outline" @click="closeQuickAdd">
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div v-else>
-          <div class="qa-body">
-            <button
-              type="button"
-              class="qa-back-link"
-              @click="quickAddBackToSearch"
-            >
-              &larr; Back to results
-            </button>
-            <div class="qa-form-header">
-              <div
-                class="qa-form-art"
-                :style="
-                  quickAddPick?.poster
-                    ? { backgroundImage: `url(${quickAddPick.poster})` }
-                    : {}
-                "
-              ></div>
-              <div class="qa-form-titles">
-                <div class="qa-result-english">{{ quickAddPick?.title }}</div>
-                <div
-                  v-if="quickAddPick?.releaseYear || quickAddPick?.episodeTotal"
-                  class="qa-result-meta"
-                >
-                  <span v-if="quickAddPick?.releaseYear">{{
-                    quickAddPick.releaseYear
-                  }}</span>
-                  <span v-if="quickAddPick?.episodeTotal"
-                    >{{ quickAddPick.episodeTotal }} episode{{
-                      quickAddPick.episodeTotal === 1 ? "" : "s"
-                    }}</span
-                  >
-                </div>
-              </div>
-            </div>
-            <p class="qa-section-label">Your progress</p>
-            <div class="qa-field-grid">
-              <label class="qa-field">
-                <span>Status</span>
-                <select v-model="quickAddForm.status">
-                  <option v-for="s in STATUSES" :key="s.key" :value="s.key">
-                    {{ s.label }}
-                  </option>
-                </select>
-              </label>
-              <label v-if="kind !== 'movie'" class="qa-field">
-                <span
-                  >Episodes watched<template v-if="quickAddPick?.episodeTotal">
-                    of {{ quickAddPick.episodeTotal }}</template
-                  ></span
-                >
-                <input
-                  v-model.number="quickAddForm.watched"
-                  type="number"
-                  min="0"
-                  :max="quickAddPick?.episodeTotal ?? undefined"
-                  @change="clampQuickAddWatched"
-                />
-              </label>
-              <label class="qa-field">
-                <span>Your rating (0–10)</span>
-                <input
-                  v-model.number="quickAddForm.score"
-                  type="number"
-                  min="0"
-                  max="10"
-                  step="0.1"
-                  placeholder="–"
-                />
-              </label>
-              <label class="qa-field">
-                <span>Start date</span>
-                <input v-model="quickAddForm.startDate" type="date" />
-              </label>
-              <label class="qa-field">
-                <span>End date</span>
-                <input v-model="quickAddForm.endDate" type="date" />
-              </label>
-            </div>
-            <div class="modal-actions">
-              <button type="button" class="btn-outline" @click="closeQuickAdd">
-                Cancel
-              </button>
-              <button
-                type="button"
-                class="btn-solid"
-                :disabled="quickAddSaving"
-                @click="saveQuickAdd"
-              >
-                {{ quickAddSaving ? "Adding…" : "Add to Library" }}
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+    <QuickAddDialog
+      v-if="quickAddOpen"
+      :title="addLabel.replace('+ ', '')"
+      :search="search"
+      :saving="quickAddSaving"
+      @close="closeQuickAdd"
+      @pick="pickQuickAddResult"
+      @add="saveQuickAdd"
+    >
+      <template #meta="{ result }">
+        <span v-if="result.releaseYear">{{ result.releaseYear }}</span>
+        <span v-if="result.episodeTotal"
+          >{{ result.episodeTotal }} episode{{
+            result.episodeTotal === 1 ? "" : "s"
+          }}</span
+        >
+      </template>
+      <template #fields="{ result }">
+        <label class="qa-field">
+          <span>Status</span>
+          <select v-model="quickAddForm.status">
+            <option v-for="s in STATUSES" :key="s.key" :value="s.key">
+              {{ s.label }}
+            </option>
+          </select>
+        </label>
+        <label v-if="kind !== 'movie'" class="qa-field">
+          <span
+            >Episodes watched<template v-if="result.episodeTotal">
+              of {{ result.episodeTotal }}</template
+            ></span
+          >
+          <input
+            v-model.number="quickAddForm.watched"
+            type="number"
+            min="0"
+            :max="result.episodeTotal ?? undefined"
+            @change="clampQuickAddWatched"
+          />
+        </label>
+        <label class="qa-field">
+          <span>Your rating (0–10)</span>
+          <input
+            v-model.number="quickAddForm.score"
+            type="number"
+            min="0"
+            max="10"
+            step="0.1"
+            placeholder="–"
+          />
+        </label>
+        <label class="qa-field">
+          <span>Start date</span>
+          <input v-model="quickAddForm.startDate" type="date" />
+        </label>
+        <label class="qa-field">
+          <span>End date</span>
+          <input v-model="quickAddForm.endDate" type="date" />
+        </label>
+      </template>
+    </QuickAddDialog>
   </div>
 </template>
 
@@ -2549,10 +2396,17 @@ defineExpose({ openQuickAdd });
    under the "Progress" header — matching how Score/Rank/Status center
    under their own headers. */
 .list-progress {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 12px;
+}
+/* the advance button sits at the cell's right edge so it never pushes the
+   count off the center of the "Progress" header */
+.list-progress > .plus-btn,
+.list-progress > .plus-btn-spacer {
+  position: absolute;
+  right: 0;
 }
 .list-progress-track {
   flex: 1;
@@ -2575,15 +2429,12 @@ defineExpose({ openQuickAdd });
   white-space: nowrap;
 }
 /* Bigger in the List row specifically — with the bar gone, the count is
-   the only content in that cell, so it carries more visual weight. A
-   fixed width, right-aligned, means "37/37" and "0/6" both end at the
-   same x position instead of drifting depending on digit count. */
+   the only content in that cell, so it carries more visual weight. */
 .list-progress > .list-progress-label {
   font-size: 0.95rem;
   font-weight: 700;
   color: var(--text);
-  width: 56px;
-  text-align: right;
+  text-align: center;
 }
 .list-row-header {
   display: grid;
@@ -3115,214 +2966,6 @@ defineExpose({ openQuickAdd });
   margin: 16px 0 4px;
 }
 
-.qa-card {
-  max-width: 540px;
-  padding: 0;
-  overflow: hidden;
-}
-.qa-header {
-  padding: 22px 24px 18px;
-  border-bottom: 1px solid var(--border-soft);
-  background: linear-gradient(160deg, var(--accent-soft), transparent 70%);
-}
-.qa-search-foot {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 14px;
-}
-.qa-header-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.qa-header-row svg {
-  width: 20px;
-  height: 20px;
-  color: var(--accent);
-  flex-shrink: 0;
-}
-.qa-header h3 {
-  margin: 0;
-  font-size: 1.15rem;
-  font-weight: 800;
-}
-.qa-header .sub {
-  margin: 4px 0 0;
-}
-.qa-body {
-  padding: 20px 24px 24px;
-}
-.qa-search-row {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 16px;
-}
-.qa-search-row input {
-  flex: 1;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  color: var(--text);
-  border-radius: 9px;
-  padding: 11px 14px;
-  font-family: inherit;
-  font-size: 0.9rem;
-}
-.qa-search-row input:focus {
-  outline: none;
-  border-color: var(--accent-line);
-}
-.qa-results {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  max-height: 360px;
-  overflow-y: auto;
-}
-.qa-result {
-  display: grid;
-  grid-template-columns: 58px 1fr auto;
-  gap: 14px;
-  align-items: center;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 12px;
-  transition: border-color 0.15s ease;
-}
-.qa-result:hover {
-  border-color: var(--accent-line);
-}
-.qa-result-art {
-  width: 58px;
-  aspect-ratio: 2 / 3;
-  border-radius: 6px;
-  background-size: cover;
-  background-repeat: no-repeat;
-  background-position: center;
-  background-color: var(--surface);
-  box-shadow: 0 8px 18px -6px rgba(0, 0, 0, 0.6);
-}
-.qa-result-titles {
-  min-width: 0;
-}
-.qa-result-english {
-  font-size: 0.94rem;
-  font-weight: 700;
-  margin: 1px 0 4px;
-}
-.qa-result-meta {
-  display: flex;
-  gap: 8px;
-  font-size: 0.74rem;
-  color: var(--text-faint);
-  margin: 0 0 4px;
-}
-.qa-result-desc {
-  font-size: 0.78rem;
-  color: var(--text-dim);
-  line-height: 1.45;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-.qa-add-btn {
-  background: var(--accent);
-  border: none;
-  color: #14100a;
-  border-radius: 8px;
-  padding: 0 18px;
-  height: 40px;
-  font-family: inherit;
-  font-size: 0.82rem;
-  font-weight: 700;
-  cursor: pointer;
-  white-space: nowrap;
-}
-.qa-add-btn:hover {
-  filter: brightness(1.08);
-}
-.qa-form-header {
-  display: flex;
-  gap: 14px;
-  align-items: center;
-  margin: -20px -24px 20px;
-  padding: 20px 24px;
-  background: var(--surface);
-  border-bottom: 1px solid var(--border-soft);
-}
-.qa-form-art {
-  width: 64px;
-  aspect-ratio: 2 / 3;
-  border-radius: 7px;
-  background-size: cover;
-  background-repeat: no-repeat;
-  background-position: center;
-  background-color: var(--surface);
-  flex-shrink: 0;
-  box-shadow: 0 10px 22px -8px rgba(0, 0, 0, 0.6);
-}
-.qa-form-titles .qa-result-english {
-  font-size: 1.05rem;
-}
-.qa-section-label {
-  font-size: 0.7rem;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-  font-weight: 700;
-  color: var(--text-faint);
-  margin: 0 0 10px;
-}
-.qa-field-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 14px;
-  margin-bottom: 18px;
-}
-.qa-field {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.qa-field.full {
-  grid-column: 1 / -1;
-}
-.qa-field span {
-  font-size: 0.74rem;
-  color: var(--text-dim);
-  font-weight: 600;
-}
-.qa-field select,
-.qa-field input {
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  color: var(--text);
-  border-radius: 8px;
-  padding: 9px 11px;
-  font-family: inherit;
-  font-size: 0.86rem;
-}
-.qa-field select:focus,
-.qa-field input:focus {
-  outline: none;
-  border-color: var(--accent-line);
-}
-.qa-back-link {
-  background: none;
-  border: none;
-  color: var(--text-faint);
-  font-family: inherit;
-  font-size: 0.78rem;
-  cursor: pointer;
-  margin-bottom: 14px;
-  padding: 0;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-.qa-back-link:hover {
-  color: var(--accent);
-}
 
 /* phones and narrow windows: the seven-column list row can't fit, so it
    collapses to poster + title with the status/progress/score tags stacked

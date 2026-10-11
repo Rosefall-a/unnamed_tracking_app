@@ -29,7 +29,9 @@ from src.database.models.movies import Movie, MovieStatus
 from src.database.models.user import User
 from src.database.session import get_db
 from src.features.metadata.locked_fields import apply_updates_with_locking
+from src.features.metadata.movies.fill_details import fill_empty_fields, same_movie
 from src.features.metadata.movies.search import search_movie_metadata
+from src.features.metadata.search_utils import cached_search
 from src.features.metadata.movies.tmdb import TMDBClient
 
 router = APIRouter(prefix="/api/movie", tags=["movie"], dependencies=[Depends(get_current_user)])
@@ -87,6 +89,7 @@ async def _get_movie_or_404(
 async def search_metadata(
     query: str = Query(..., min_length=2, max_length=100),
     limit: int = Query(default=8, ge=1, le=20),
+    light: bool = Query(default=False),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
@@ -97,11 +100,22 @@ async def search_metadata(
     app_integrations = resolve_integrations(await get_or_create_app_integration_settings(db))
     try:
         result = await asyncio.to_thread(
-            search_movie_metadata,
-            query.strip(),
-            limit,
-            app_integrations.tmdb_api_key,
-            app_integrations.omdb_api_key,
+            cached_search,
+            (
+                "movie",
+                query.strip().lower(),
+                limit,
+                light,
+                bool(app_integrations.tmdb_api_key),
+                bool(app_integrations.omdb_api_key),
+            ),
+            lambda: search_movie_metadata(
+                query.strip(),
+                limit,
+                app_integrations.tmdb_api_key,
+                app_integrations.omdb_api_key,
+                light,
+            ),
         )
     except Exception as exc:
         raise HTTPException(
@@ -334,3 +348,52 @@ async def get_movie_recommended(
             status_code=status.HTTP_502_BAD_GATEWAY, detail=f"TMDB could not be reached: {exc}"
         ) from exc
     return {"recommended": recommended, "configured": True}
+
+
+@router.post("/fill-details")
+async def fill_missing_details(
+    after: UUID | None = Query(default=None),
+    limit: int = Query(default=10, ge=1, le=25),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Look up the length (and any other empty detail) of up to `limit` of your
+    movies that have no runtime, a few at a time so a request stays short. Ask
+    again with `after=<next>` until `next` comes back empty. Only empty fields are
+    filled, and only from a result with the same title (and year)."""
+    app_integrations = resolve_integrations(await get_or_create_app_integration_settings(db))
+    if not (app_integrations.tmdb_api_key or app_integrations.omdb_api_key):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Movie details come from TMDB or OMDb: add an API key in Settings under "
+            "Metadata first.",
+        )
+    query = select(Movie).where(
+        Movie.user_id == current_user.id,
+        Movie.deleted_at.is_(None),
+        Movie.runtime_minutes.is_(None),
+    )
+    if after:
+        query = query.where(Movie.id > after)
+    movies = list((await db.scalars(query.order_by(Movie.id).limit(limit))).all())
+    filled = 0
+    for movie in movies:
+        try:
+            found = await asyncio.to_thread(
+                search_movie_metadata,
+                movie.title,
+                3,
+                app_integrations.tmdb_api_key,
+                app_integrations.omdb_api_key,
+            )
+        except Exception:  # noqa: BLE001 - one movie that cannot be looked up must not stop the rest
+            continue
+        match = next((r for r in found["results"] if same_movie(movie, r)), None)
+        if match and fill_empty_fields(movie, match):
+            filled += 1
+    await db.commit()
+    return {
+        "checked": len(movies),
+        "filled": filled,
+        "next": str(movies[-1].id) if len(movies) == limit else None,
+    }

@@ -12,7 +12,7 @@ differs.
 | Soundtrack | Audio. A track plays right on its card. |
 | Saves | Named save files, each with a history of versions. |
 | Docs | Manuals, guides and any other file. |
-| World Map | Minecraft worlds, shown on Minecraft games. Zip the world folder (the one with `level.dat`) and add it. |
+| Worlds | Minecraft worlds, shown on Minecraft games. Zip the world folder (the one with `level.dat`) and add it. |
 
 ## Adding files
 

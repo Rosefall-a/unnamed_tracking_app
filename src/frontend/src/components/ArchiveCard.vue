@@ -1,9 +1,7 @@
 <script setup lang="ts">
 // A save or a world, shown as a card like a screenshot or a clip: a 16:9 top
-// with a picture (a world's map, or an icon for a save), the name and a line
-// of facts underneath, and copy, download, add-version, edit and delete on
-// hover. Anything specific to the kind (a world's Render and View buttons) goes
-// in the default slot below the facts.
+// with an icon, the name and a line of facts underneath, and copy, download,
+// add-version, edit and delete on hover.
 import { computed, ref } from "vue";
 import { copyLink } from "../utils/copyMedia";
 import type { GameArchiveData } from "../services/gameArchives";
@@ -15,14 +13,10 @@ const props = defineProps<{
   selected?: boolean;
   // a new version is uploading
   uploading?: boolean;
-  // a world's rendered map
-  thumbnailUrl?: string | null;
-  rendering?: boolean;
 }>();
 
 const emit = defineEmits<{
   toggle: [archive: GameArchiveData];
-  open: [archive: GameArchiveData];
   edit: [archive: GameArchiveData];
   delete: [archive: GameArchiveData];
   "add-version": [archive: GameArchiveData, files: File[]];
@@ -60,8 +54,6 @@ function onPicked(e: Event) {
 }
 function onThumbClick() {
   if (props.selecting) emit("toggle", props.archive);
-  else if (props.kind === "world" && props.thumbnailUrl)
-    emit("open", props.archive);
   else emit("edit", props.archive);
 }
 const copied = ref(false);
@@ -96,8 +88,7 @@ async function copy() {
         </svg>
       </span>
 
-      <img v-if="thumbnailUrl" :src="thumbnailUrl" alt="" loading="lazy" />
-      <div v-else class="ac-art">
+      <div class="ac-art">
         <svg
           v-if="kind === 'world'"
           viewBox="0 0 24 24"
@@ -133,9 +124,6 @@ async function copy() {
         >{{ versionCount }} versions</span
       >
       <span v-if="uploading" class="ac-uploading">Uploading…</span>
-      <span v-if="rendering" class="ac-progress" aria-hidden="true"
-        ><span></span
-      ></span>
 
       <div v-if="!selecting" class="ac-actions" @click.stop>
         <button
@@ -274,16 +262,6 @@ async function copy() {
   cursor: pointer;
   overflow: hidden;
 }
-.ac-thumb img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-  transition: transform 0.25s ease;
-}
-.ac:hover .ac-thumb img {
-  transform: scale(1.03);
-}
 .ac-art {
   position: absolute;
   inset: 0;
@@ -318,36 +296,6 @@ async function copy() {
   left: 8px;
   right: auto;
   color: #d68a34;
-}
-.ac-progress {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 3px;
-  background: rgba(255, 255, 255, 0.12);
-  overflow: hidden;
-}
-.ac-progress span {
-  display: block;
-  width: 40%;
-  height: 100%;
-  background: #d68a34;
-  animation: ac-slide 1.2s ease-in-out infinite;
-}
-@keyframes ac-slide {
-  from {
-    transform: translateX(-100%);
-  }
-  to {
-    transform: translateX(260%);
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .ac-progress span {
-    animation: none;
-    width: 100%;
-  }
 }
 .ac-input {
   display: none;

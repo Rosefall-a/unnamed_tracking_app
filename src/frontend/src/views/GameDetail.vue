@@ -79,19 +79,15 @@ import {
   updateArchive,
   deleteArchive,
   deleteArchiveVersion,
-  fetchWorldMaps,
-  renderWorldMap,
-  worldMapViewUrl,
-  worldMapThumbnailUrl,
   fetchArchiveTrash,
   restoreArchive,
 } from "../services/gameArchives";
 import type {
   GameArchiveData,
   ArchiveVersion,
-  WorldMapEntry,
   TrashedArchive,
 } from "../services/gameArchives";
+import DuplicateNotice from "../components/DuplicateNotice.vue";
 import UploadDropzone from "../components/UploadDropzone.vue";
 import SkeletonBlock from "../components/SkeletonBlock.vue";
 import MediaTile from "../components/MediaTile.vue";
@@ -776,12 +772,10 @@ function resetForGame() {
   saveArchivesLoaded.value = false;
   saveTrash.value = [];
   showSaveTrash.value = false;
-  stopWorldMapPolling();
-  worldMaps.value = [];
-  worldMapsLoaded.value = false;
+  worlds.value = [];
+  worldsLoaded.value = false;
   worldTrash.value = [];
   showWorldTrash.value = false;
-  activeMapArchiveId.value = null;
   profiles.value = [];
   profilesLoadedFor.value = null;
   activeProfileId.value = null;
@@ -808,10 +802,10 @@ function resetForGame() {
     void loadGameFiles("doc");
     void refreshFileTrash("doc");
   }
-  if (activeTab.value === "World Map") {
+  if (activeTab.value === "Worlds") {
     void loadGameFiles("modpack");
     void refreshFileTrash("modpack");
-    void refreshWorldMaps();
+    void refreshWorlds();
     void refreshWorldTrash();
   }
 }
@@ -1221,14 +1215,14 @@ const tabs = [
   "Soundtrack",
   "Saves",
   "Docs",
-  "World Map",
+  "Worlds",
   "Notes",
   "Accounts",
   "Stats",
 ] as const;
 const activeTab = ref<(typeof tabs)[number]>("Overview");
 
-// World Map only makes sense for Minecraft (BlueMap is Minecraft-specific)
+// Worlds only make sense for Minecraft
 //, checks this game's own title, and its parent's if it's a mod/modpack
 // variant (e.g. "GregTech: New Horizons" has no "Minecraft" in its own
 // title, but its parent breadcrumb does).
@@ -1256,7 +1250,7 @@ const pageSettings = computed(() =>
 const baseTabs = computed(() =>
   tabs.filter(
     (tab) =>
-      (tab !== "World Map" || isMinecraftGame.value) &&
+      (tab !== "Worlds" || isMinecraftGame.value) &&
       (tab !== "Accounts" || game.value?.profilesEnabled),
   ),
 );
@@ -1321,7 +1315,7 @@ watch(
   { immediate: true },
 );
 
-// Screenshots/Clips/Soundtrack/Saves/Docs/World Map all share the same
+// Screenshots/Clips/Soundtrack/Saves/Docs/Worlds all share the same
 // RomM-style layout: a small View/Upload sidebar instead of the dropzone
 // always sitting at the top. One shared ref is enough since only one of
 // these panels is ever visible at a time, reset to 'view' on every tab
@@ -1344,7 +1338,7 @@ function onPreviewMedia(url: string) {
 }
 
 watch(isMinecraftGame, (isMinecraft) => {
-  if (!isMinecraft && activeTab.value === "World Map")
+  if (!isMinecraft && activeTab.value === "Worlds")
     activeTab.value = "Overview";
 });
 
@@ -1720,10 +1714,10 @@ watch(activeTab, (tab) => {
     void refreshSaveArchives();
     void refreshSaveTrash();
   }
-  if (tab === "World Map") {
+  if (tab === "Worlds") {
     void loadGameFiles("modpack");
     void refreshFileTrash("modpack");
-    void refreshWorldMaps();
+    void refreshWorlds();
     void refreshWorldTrash();
   }
   if (tab === "Stats") {
@@ -1973,9 +1967,7 @@ const editingArchive = ref<{ id: string; isWorld: boolean } | null>(null);
 const editingArchiveLive = computed(() => {
   const e = editingArchive.value;
   if (!e) return null;
-  const list: GameArchiveData[] = e.isWorld
-    ? worldMaps.value
-    : saveArchives.value;
+  const list: GameArchiveData[] = e.isWorld ? worlds.value : saveArchives.value;
   return list.find((a) => a.id === e.id) ?? null;
 });
 function openArchiveEdit(archive: GameArchiveData, isWorld: boolean) {
@@ -1990,7 +1982,7 @@ async function saveArchiveDetails(
   if (!game.value) return;
   try {
     await updateArchive(game.value.id, archive.id, patch);
-    if (isWorld) await refreshWorldMaps();
+    if (isWorld) await refreshWorlds();
     else await refreshSaveArchives();
   } catch (err) {
     filesError.value = err instanceof Error ? err.message : "Failed to save";
@@ -2009,7 +2001,7 @@ async function bulkDeleteArchives(items: GameArchiveData[], isWorld: boolean) {
   try {
     for (const archive of items) await deleteArchive(game.value.id, archive.id);
     if (isWorld) {
-      await refreshWorldMaps();
+      await refreshWorlds();
       await refreshWorldTrash();
     } else {
       await refreshSaveArchives();
@@ -2032,9 +2024,7 @@ async function onDeleteArchive(archive: GameArchiveData, isWorld: boolean) {
   try {
     await deleteArchive(game.value.id, archive.id);
     if (isWorld) {
-      worldMaps.value = worldMaps.value.filter((w) => w.id !== archive.id);
-      if (activeMapArchiveId.value === archive.id)
-        activeMapArchiveId.value = null;
+      worlds.value = worlds.value.filter((w) => w.id !== archive.id);
       await refreshWorldTrash();
     } else {
       saveArchives.value = saveArchives.value.filter(
@@ -2077,7 +2067,7 @@ async function onRestoreArchive(archive: TrashedArchive, isWorld: boolean) {
   try {
     await restoreArchive(game.value.id, archive.id);
     if (isWorld) {
-      await refreshWorldMaps();
+      await refreshWorlds();
       await refreshWorldTrash();
     } else {
       await refreshSaveArchives();
@@ -2108,7 +2098,7 @@ async function onDeleteVersion(
   if (!ok) return;
   try {
     await deleteArchiveVersion(game.value.id, archive.id, version.id);
-    if (isWorld) await refreshWorldMaps();
+    if (isWorld) await refreshWorlds();
     else await refreshSaveArchives();
   } catch (err) {
     filesError.value =
@@ -2116,38 +2106,19 @@ async function onDeleteVersion(
   }
 }
 
-// --- World Map (BlueMap render of a world_save archive) --------------------
+// --- Worlds (Minecraft world saves) ----------------------------------------
 // a game (e.g. a modpack) can have several worlds, one card, many worlds,
-// each named, versioned, rendered, and viewed independently
-const worldMaps = ref<WorldMapEntry[]>([]);
-const worldMapsLoaded = ref(false);
-const worldMapStarting = ref<Set<string>>(new Set());
-const activeMapArchiveId = ref<string | null>(null);
-let worldMapPollTimer: ReturnType<typeof setInterval> | null = null;
+// each named and versioned
+const worlds = ref<GameArchiveData[]>([]);
+const worldsLoaded = ref(false);
 
-function stopWorldMapPolling() {
-  if (worldMapPollTimer) {
-    clearInterval(worldMapPollTimer);
-    worldMapPollTimer = null;
-  }
-}
-
-async function refreshWorldMaps() {
+async function refreshWorlds() {
   if (!game.value) return;
   try {
-    worldMaps.value = await fetchWorldMaps(game.value.id);
-    worldMapsLoaded.value = true;
-    const anyRendering = worldMaps.value.some((w) => w.status === "rendering");
-    if (anyRendering && !worldMapPollTimer) {
-      // no push mechanism for a background render, poll every few
-      // seconds only while at least one world is actually in flight
-      worldMapPollTimer = setInterval(refreshWorldMaps, 4000);
-    } else if (!anyRendering) {
-      stopWorldMapPolling();
-    }
+    worlds.value = await fetchArchives(game.value.id, "world_save");
+    worldsLoaded.value = true;
   } catch {
-    // list just doesn't update this tick, not worth surfacing an error
-    // for a polling request
+    // the list just does not update this time
   }
 }
 
@@ -2177,7 +2148,7 @@ async function onNewWorldSelected(files: File[]) {
           updateTask(taskId, Math.round(f * 100), undefined, speedLabel),
       );
       completeTask(taskId, "Saved");
-      await refreshWorldMaps();
+      await refreshWorlds();
     } catch (err) {
       errorTask(taskId, err instanceof Error ? err.message : "Upload failed");
       setTaskRetry(taskId, () => void attempt());
@@ -2202,8 +2173,8 @@ async function onAddWorldVersion(archive: GameArchiveData, files: File[]) {
       await addArchiveVersion(gameId, archive.id, file, (f, speedLabel) =>
         updateTask(taskId, Math.round(f * 100), undefined, speedLabel),
       );
-      completeTask(taskId, "Saved: render again to update the map");
-      await refreshWorldMaps();
+      completeTask(taskId, "Saved");
+      await refreshWorlds();
     } catch (err) {
       errorTask(taskId, err instanceof Error ? err.message : "Upload failed");
       setTaskRetry(taskId, () => void attempt());
@@ -2215,29 +2186,6 @@ async function onAddWorldVersion(archive: GameArchiveData, files: File[]) {
   };
   await attempt();
 }
-
-async function startWorldMapRender(archiveId: string) {
-  if (!game.value) return;
-  worldMapStarting.value = new Set(worldMapStarting.value).add(archiveId);
-  filesError.value = null;
-  try {
-    await renderWorldMap(game.value.id, archiveId);
-    await refreshWorldMaps();
-  } catch (err) {
-    filesError.value =
-      err instanceof Error ? err.message : "Failed to start render";
-  } finally {
-    const next = new Set(worldMapStarting.value);
-    next.delete(archiveId);
-    worldMapStarting.value = next;
-  }
-}
-
-function viewWorldMap(archiveId: string) {
-  activeMapArchiveId.value = archiveId;
-}
-
-onUnmounted(stopWorldMapPolling);
 
 // ---- achievements tab ----
 // A hidden achievement's description isn't something the services publish
@@ -2620,6 +2568,7 @@ void loadGame(route.params.id as string);
     </div>
 
     <section class="hero">
+      <DuplicateNotice v-if="game" class="hero-notice" :game-id="game.id" />
       <div
         class="hero-backdrop"
         :style="{
@@ -4152,16 +4101,16 @@ void loadGame(route.params.id as string);
       />
     </section>
 
-    <section v-else-if="activeTab === 'World Map'" class="world-map-panel">
+    <section v-else-if="activeTab === 'Worlds'" class="worlds-panel">
       <GameArchivesPanel
         scoped
         title="Worlds"
         plural="worlds"
         singular="world"
         hint="Zip the world folder (the one containing level.dat), then drop it here. You'll be asked to name it."
-        :archives="worldMaps"
+        :archives="worlds"
         :trash="worldTrash"
-        :loaded="worldMapsLoaded"
+        :loaded="worldsLoaded"
         :uploading="saveUploading.has('')"
         :error="filesError"
         @files="onNewWorldSelected"
@@ -4176,56 +4125,11 @@ void loadGame(route.params.id as string);
             :selecting="selecting"
             :selected="selected"
             :uploading="saveUploading.has(world.id)"
-            :thumbnail-url="
-              world.has_thumbnail
-                ? worldMapThumbnailUrl(game.id, world.id)
-                : null
-            "
-            :rendering="world.status === 'rendering'"
             @toggle="toggle"
-            @open="viewWorldMap($event.id)"
             @edit="openArchiveEdit($event, true)"
             @delete="onDeleteArchive($event, true)"
             @add-version="onAddWorldVersion"
-          >
-            <span class="world-map-status" :class="world.status">{{
-              world.detail || world.status
-            }}</span>
-            <div class="world-map-card-actions">
-              <button
-                type="button"
-                class="secondary-button small"
-                :disabled="
-                  worldMapStarting.has(world.id) || world.status === 'rendering'
-                "
-                @click="startWorldMapRender(world.id)"
-              >
-                {{
-                  world.status === "rendering"
-                    ? "Rendering…"
-                    : world.has_thumbnail
-                      ? "Re-render"
-                      : "Render Map"
-                }}
-              </button>
-              <button
-                v-if="world.has_thumbnail"
-                type="button"
-                class="primary-button small"
-                @click="viewWorldMap(world.id)"
-              >
-                View Map
-              </button>
-            </div>
-          </ArchiveCard>
-        </template>
-        <template #after>
-          <iframe
-            v-if="activeMapArchiveId"
-            :src="worldMapViewUrl(game.id, activeMapArchiveId)"
-            class="world-map-frame"
-            title="World map"
-          ></iframe>
+          />
         </template>
       </GameArchivesPanel>
 
@@ -4313,6 +4217,21 @@ void loadGame(route.params.id as string);
   align-items: flex-end;
   overflow: hidden;
 }
+/* the possible-duplicate pill floats at the hero's top right, clear of the back
+   button on the left, and takes the full width less the gutters on a narrow screen */
+.hero-notice {
+  position: absolute;
+  top: 16px;
+  right: 24px;
+  z-index: 3;
+  max-width: calc(100% - 48px);
+}
+@media (max-width: 640px) {
+  .hero-notice {
+    right: 16px;
+    max-width: calc(100% - 32px);
+  }
+}
 .hero-backdrop {
   position: absolute;
   inset: 0;
@@ -4398,7 +4317,7 @@ void loadGame(route.params.id as string);
 .files-panel,
 .media-panel,
 .stats-panel,
-.world-map-panel {
+.worlds-panel {
   position: relative;
   z-index: 1;
 }
@@ -6075,7 +5994,7 @@ void loadGame(route.params.id as string);
 /* Screenshots / Clips / Saves / Docs / Stats / History */
 .media-panel,
 .files-panel,
-.world-map-panel,
+.worlds-panel,
 .stats-panel,
 .history-panel {
   width: 100%;
@@ -6188,20 +6107,9 @@ void loadGame(route.params.id as string);
 .file-name:hover {
   text-decoration: underline;
 }
-.world-map-panel h2 {
+.worlds-panel h2 {
   margin: 0 0 4px;
   color: #fff;
-}
-.world-map-uploads {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 20px;
-  margin: 16px 0;
-}
-.world-map-upload-col h3 {
-  margin: 0 0 8px;
-  font-size: 0.85rem;
-  color: #ccc;
 }
 /* Saves: named, versioned archives ---------------------------------------- */
 .archive-grid {
@@ -6282,7 +6190,7 @@ void loadGame(route.params.id as string);
   font-size: 0.76rem;
 }
 
-/* Trash: recoverable-for-7-days list, shared by Saves and World Map -------- */
+/* Trash: recoverable-for-7-days list, shared by Saves and Worlds -------- */
 .trash-section {
   margin-top: 20px;
   padding-top: 14px;
@@ -6326,102 +6234,11 @@ void loadGame(route.params.id as string);
   font-size: 0.76rem;
 }
 
-/* World Map: card grid with thumbnails ------------------------------------- */
+/* Worlds ---------------------------------------------------------------- */
 .modpack-block {
   margin-top: 36px;
   padding-top: 28px;
   border-top: 1px solid #262626;
-}
-.world-map-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 14px;
-}
-.world-map-card {
-  background: rgba(0, 0, 0, 0.2);
-  border: 1px solid #2a2a2a;
-  border-radius: 10px;
-  overflow: hidden;
-}
-.world-map-thumb {
-  position: relative;
-  aspect-ratio: 4 / 3;
-  background: #0c0f14;
-  cursor: default;
-}
-.world-map-card:has(.world-map-status.done) .world-map-thumb {
-  cursor: pointer;
-}
-.world-map-thumb img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-  image-rendering: pixelated;
-}
-.world-map-thumb-placeholder {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #3a3a3a;
-}
-.world-map-card-body {
-  padding: 12px 14px;
-}
-.world-map-status {
-  display: block;
-  font-size: 0.78rem;
-  color: #999;
-  margin: 4px 0 10px;
-}
-.world-map-status.error {
-  color: #fca5a5;
-}
-.world-map-status.done {
-  color: #86efac;
-}
-.world-map-status.rendering {
-  color: #d68a34;
-}
-.world-map-card-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-.world-map-progress {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 4px;
-  border-radius: 0;
-  background: rgba(0, 0, 0, 0.4);
-  overflow: hidden;
-}
-.world-map-progress-fill {
-  width: 30%;
-  height: 100%;
-  border-radius: 999px;
-  background: #d68a34;
-  animation: world-map-scan 1.2s ease-in-out infinite;
-}
-@keyframes world-map-scan {
-  0% {
-    transform: translateX(-100%);
-  }
-  100% {
-    transform: translateX(333%);
-  }
-}
-.world-map-frame {
-  width: 100%;
-  height: 70vh;
-  border: 1px solid #2a2a2a;
-  border-radius: 10px;
-  margin-top: 16px;
-  background: #000;
 }
 .file-size {
   color: #777;

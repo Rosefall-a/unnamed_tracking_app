@@ -59,6 +59,7 @@ from src.features.metadata.anime.search import (
 )
 from src.features.episode_progress import apply_counter, counter_from_flags, materialize_progress
 from src.features.metadata.locked_fields import apply_updates_with_locking
+from src.features.metadata.search_utils import cached_search
 from src.features.notifications import record_sequel_announcements
 from src.features.metadata.refresh import quick_check_anime_season, refresh_anime_season_now
 
@@ -273,7 +274,11 @@ async def search_metadata(
     unlike Movies/TV's TMDB and OMDb."""
     del current_user
     try:
-        result = await asyncio.to_thread(search_anime_metadata, query.strip(), limit)
+        result = await asyncio.to_thread(
+            cached_search,
+            ("anime", query.strip().lower(), limit),
+            lambda: search_anime_metadata(query.strip(), limit),
+        )
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,

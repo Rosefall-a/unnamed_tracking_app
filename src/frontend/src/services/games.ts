@@ -471,13 +471,13 @@ export interface MetadataSearchResponse {
 
 export async function searchGameMetadata(
   query: string,
-  options: { includeImages?: boolean } = {},
+  options: { includeImages?: boolean; light?: boolean; limit?: number } = {},
 ): Promise<MetadataSearchResponse> {
   if (import.meta.env.VITE_USE_MOCK_DATA === "true") {
     return { results: [], steamgriddb_configured: false, provider_errors: [] };
   }
   const response = await fetch(
-    `/api/game/metadata/search?query=${encodeURIComponent(query)}&include_images=${options.includeImages !== false}`,
+    `/api/game/metadata/search?query=${encodeURIComponent(query)}&include_images=${options.includeImages !== false}&light=${options.light === true}&limit=${options.limit ?? 8}`,
     {
       credentials: "include",
     },
@@ -1508,6 +1508,30 @@ export async function uploadGameAsset(
     );
   }
 
+  return await response.json();
+}
+
+export interface ArtOptions {
+  configured: boolean;
+  covers: string[];
+  banners: string[];
+}
+
+// The covers and banners SteamGridDB has for a game that is about to be added
+export async function fetchArtOptions(
+  title: string,
+  provider: string,
+  providerId: string,
+): Promise<ArtOptions> {
+  const params = new URLSearchParams({
+    title,
+    provider,
+    provider_id: providerId,
+  });
+  const response = await fetch(`/api/game/art-options?${params}`, {
+    credentials: "include",
+  });
+  if (!response.ok) throw new Error("Could not load artwork options.");
   return await response.json();
 }
 

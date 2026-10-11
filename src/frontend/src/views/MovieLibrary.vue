@@ -12,6 +12,7 @@ import {
 } from "../services/movies";
 import type { Movie, MovieStatus } from "../types/movie";
 import { localMediaImage } from "../utils/mediaImages";
+import { formatDuration, progressPercent } from "../utils/watchProgress";
 import MediaLibraryView from "../components/library/MediaLibraryView.vue";
 import type {
   LibraryCardVM,
@@ -27,10 +28,15 @@ const error = ref<string | null>(null);
 const COMPLETED_STATUSES: MovieStatus[] = ["watched", "favorite", "rewatch"];
 
 function formatRuntime(minutes: number | null): string {
-  if (!minutes) return "–";
-  const hrs = Math.floor(minutes / 60);
-  const mins = minutes % 60;
-  return hrs > 0 ? `${hrs}h ${mins}m` : `${mins}m`;
+  return minutes ? formatDuration(minutes) : "–";
+}
+
+// a watched movie shows its whole length, one left off part way shows where,
+// otherwise just its length
+// Finished: just the length. Not finished: minutes watched out of the length.
+function movieProgressLabel(m: Movie, seen: boolean): string {
+  if (seen) return formatRuntime(m.runtimeMinutes);
+  return `${m.progressMinutes ? formatDuration(m.progressMinutes) : 0}/${formatRuntime(m.runtimeMinutes)}`;
 }
 
 function toVM(m: Movie): LibraryCardVM {
@@ -48,7 +54,10 @@ function toVM(m: Movie): LibraryCardVM {
     isEpisodic: false,
     watched: seen ? 1 : 0,
     total: 1,
-    progressLabel: formatRuntime(m.runtimeMinutes),
+    progressPercent: seen
+      ? 100
+      : progressPercent(m.progressMinutes, m.runtimeMinutes),
+    progressLabel: movieProgressLabel(m, seen),
     canAdvance: false,
     releaseYear: m.releaseDate ? m.releaseDate.slice(0, 4) : null,
     addedAt: Date.parse(m.createdAt) || null,
@@ -166,7 +175,11 @@ async function onBulkDelete(ids: string[]) {
 async function search(
   query: string,
 ): Promise<{ results: SearchResultVM[]; providerErrors: string[] }> {
-  const { results, providerErrors } = await searchMovieMetadata(query);
+  const { results, providerErrors } = await searchMovieMetadata(
+    query,
+    8,
+    true,
+  );
   return {
     results: results.map((r) => ({
       title: r.title,
@@ -193,6 +206,7 @@ async function createFromResult(
     title: result.title,
     description: match?.description ?? null,
     releaseDate: match?.releaseDate ?? null,
+    runtimeMinutes: match?.runtimeMinutes ?? null,
     director: match?.director ?? null,
     writer: match?.writer ?? null,
     studios: match?.studios ?? [],

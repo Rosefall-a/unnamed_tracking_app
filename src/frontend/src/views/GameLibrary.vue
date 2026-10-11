@@ -7,6 +7,7 @@ import { useWindowVirtualizer } from "@tanstack/vue-virtual";
 import GameCard from "../components/GameCard.vue";
 import CheckIcon from "../components/CheckIcon.vue";
 import GameFormModal from "../components/GameFormModal.vue";
+import GameQuickAdd from "../components/GameQuickAdd.vue";
 import BulkEditModal from "../components/BulkEditModal.vue";
 import RandomGamePicker from "../components/RandomGamePicker.vue";
 import { activePriority, priorityLabel } from "../utils/priority";
@@ -19,7 +20,14 @@ import {
   setFavorite,
   fetchAchievementsSummary,
   addGameToCollection,
+  refreshGameMetadata,
 } from "../services/games";
+import {
+  addFeedItem,
+  completeTask,
+  errorTask,
+  updateTask,
+} from "../state/taskProgress";
 import { setLibraryNavOrder } from "../state/libraryNav";
 import { isCommandPaletteOpen } from "../state/commandPalette";
 import CollectionPickerModal from "../components/CollectionPickerModal.vue";
@@ -65,6 +73,7 @@ const loading = ref(true);
 const error = ref<string | null>(null);
 
 const showFormModal = ref(false);
+const showQuickAdd = ref(false);
 const editingGame = ref<Game | null>(null);
 
 const deletingGame = ref<Game | null>(null);
@@ -184,8 +193,9 @@ const selectedGameDescriptionHtml = computed(() => {
   return DOMPurify.sanitize(selectedGame.value.description);
 });
 
-// filters persist across visits (localStorage) so they don't silently reset
-// every time you navigate away and back
+// Only the sort order is remembered between visits. Filters start fresh every
+// time: refreshing, or going to another page and coming back, gives the plain
+// library again instead of whatever was left on.
 const FILTERS_KEY = "gameLibraryFilters";
 interface PersistedFilters {
   searchQuery: string;
@@ -217,88 +227,48 @@ function loadPersistedFilters(): Partial<PersistedFilters> {
 }
 const persisted = loadPersistedFilters();
 
-const searchQuery = ref(persisted.searchQuery ?? "");
-const statusFilter = ref<GameStatus | "all">(persisted.statusFilter ?? "all");
-const platformFilter = ref<string>(persisted.platformFilter ?? "all");
-const genreFilter = ref<string>(persisted.genreFilter ?? "all");
+const searchQuery = ref("");
+const statusFilter = ref<GameStatus | "all">("all");
+const platformFilter = ref<string>("all");
+const genreFilter = ref<string>("all");
 const sortBy = ref<SortBy>(
   persisted.sortBy ??
     (localStorage.getItem("gameLibraryDefaultSort") as SortBy) ??
     "name",
 );
 
-const showAdvancedFilters = ref(persisted.showAdvancedFilters ?? false);
-const franchiseFilter = ref<string>(persisted.franchiseFilter ?? "all");
-const collectionFilter = ref<string>(persisted.collectionFilter ?? "all");
-const companyFilter = ref<string>(persisted.companyFilter ?? "all");
-const ageRatingFilter = ref<string>(persisted.ageRatingFilter ?? "all");
-const regionFilter = ref<string>(persisted.regionFilter ?? "all");
-const languageFilter = ref<string>(persisted.languageFilter ?? "all");
-const metadataProviderFilter = ref<string>(
-  persisted.metadataProviderFilter ?? "all",
-);
-const favoritesOnly = ref(persisted.favoritesOnly ?? false);
-const achievementsFilter = ref<AchievementsFilter>(
-  persisted.achievementsFilter ?? "all",
-);
-const retroAchievementsOnly = ref(persisted.retroAchievementsOnly ?? false);
-const missingFilter = ref<MissingFilter>(persisted.missingFilter ?? "none");
+const showAdvancedFilters = ref(false);
+const franchiseFilter = ref<string>("all");
+const collectionFilter = ref<string>("all");
+const companyFilter = ref<string>("all");
+const ageRatingFilter = ref<string>("all");
+const regionFilter = ref<string>("all");
+const languageFilter = ref<string>("all");
+const metadataProviderFilter = ref<string>("all");
+const favoritesOnly = ref(false);
+const achievementsFilter = ref<AchievementsFilter>("all");
+const retroAchievementsOnly = ref(false);
+const missingFilter = ref<MissingFilter>("none");
 // multi-select, OR'd together, layered on top of the single-pick Genre
 // combobox above rather than replacing it, so the common "just one genre"
 // case stays a quick single click
-const tagsFilter = ref<string[]>(persisted.tagsFilter ?? []);
+const tagsFilter = ref<string[]>([]);
 function toggleTagFilter(tag: string) {
+  // a genre set from a link (or the Genre box) shows as selected here too, and
+  // clicking it takes it off
+  if (genreFilter.value === tag) {
+    genreFilter.value = "all";
+    tagsFilter.value = tagsFilter.value.filter((t) => t !== tag);
+    return;
+  }
   tagsFilter.value = tagsFilter.value.includes(tag)
     ? tagsFilter.value.filter((t) => t !== tag)
     : [...tagsFilter.value, tag];
 }
 
-watch(
-  [
-    searchQuery,
-    statusFilter,
-    platformFilter,
-    genreFilter,
-    sortBy,
-    showAdvancedFilters,
-    franchiseFilter,
-    collectionFilter,
-    companyFilter,
-    ageRatingFilter,
-    regionFilter,
-    languageFilter,
-    metadataProviderFilter,
-    favoritesOnly,
-    achievementsFilter,
-    retroAchievementsOnly,
-    missingFilter,
-    tagsFilter,
-  ],
-  () => {
-    const toSave: PersistedFilters = {
-      searchQuery: searchQuery.value,
-      statusFilter: statusFilter.value,
-      platformFilter: platformFilter.value,
-      genreFilter: genreFilter.value,
-      sortBy: sortBy.value,
-      showAdvancedFilters: showAdvancedFilters.value,
-      franchiseFilter: franchiseFilter.value,
-      collectionFilter: collectionFilter.value,
-      companyFilter: companyFilter.value,
-      ageRatingFilter: ageRatingFilter.value,
-      regionFilter: regionFilter.value,
-      languageFilter: languageFilter.value,
-      metadataProviderFilter: metadataProviderFilter.value,
-      favoritesOnly: favoritesOnly.value,
-      achievementsFilter: achievementsFilter.value,
-      retroAchievementsOnly: retroAchievementsOnly.value,
-      missingFilter: missingFilter.value,
-      tagsFilter: tagsFilter.value,
-    };
-    localStorage.setItem(FILTERS_KEY, JSON.stringify(toSave));
-  },
-  { deep: true },
-);
+watch(sortBy, (value) => {
+  localStorage.setItem(FILTERS_KEY, JSON.stringify({ sortBy: value }));
+});
 
 // recent searches, shown when the search box gets focus while empty, so
 // getting back to a search you ran a minute ago doesn't mean retyping it
@@ -487,7 +457,6 @@ function deletePreset(name: string) {
 const queryCollection = route.query.collection;
 if (typeof queryCollection === "string" && queryCollection) {
   collectionFilter.value = queryCollection;
-  showAdvancedFilters.value = true;
 }
 
 const statusOptions: (GameStatus | "all")[] = [
@@ -562,11 +531,35 @@ function applyLinkedFilter() {
   if (company) companyFilter.value = company;
   if (platform) platformFilter.value = platform;
   if (series) franchiseFilter.value = series;
-  showAdvancedFilters.value = true;
+}
+// the link's filter is applied once, then dropped from the address: otherwise a
+// refresh would put it back on after it had been taken off
+const LINK_KEYS = [
+  "tag",
+  "company",
+  "platform",
+  "series",
+  "status",
+  "sort",
+  "collection",
+];
+function dropLinkQuery() {
+  if (route.path !== "/games" || !LINK_KEYS.some((k) => k in route.query))
+    return;
+  const rest = { ...route.query };
+  for (const key of LINK_KEYS) delete rest[key];
+  void router.replace({ query: rest });
 }
 applyLinkedFilter();
+dropLinkQuery();
 // the library is kept alive, so a link can arrive while it already exists
-watch(() => route.fullPath, applyLinkedFilter);
+watch(
+  () => route.fullPath,
+  () => {
+    applyLinkedFilter();
+    dropLinkQuery();
+  },
+);
 
 const platformOptions = computed(() => {
   const set = new Set<string>(PLATFORM_OPTIONS);
@@ -708,6 +701,7 @@ function isTypingTarget(target: EventTarget | null): boolean {
 function anyModalOpen(): boolean {
   return (
     showFormModal.value ||
+    showQuickAdd.value ||
     !!deletingGame.value ||
     showBulkEditModal.value ||
     !!collectionPickerGame.value ||
@@ -805,6 +799,36 @@ onMounted(() => window.addEventListener("keydown", onGlobalKeydown));
 onUnmounted(() => window.removeEventListener("keydown", onGlobalKeydown));
 
 function openAddModal() {
+  showQuickAdd.value = true;
+}
+
+async function onQuickAdded(game: Game, taskId: string) {
+  showQuickAdd.value = false;
+  // Started first, so it goes out even if the person opens the game, or leaves,
+  // before the list has reloaded. It only has the search result's text so far;
+  // the artwork and the rest arrive a moment later.
+  const refreshing = refreshGameMetadata(game);
+  await loadGames();
+  const outcome = await refreshing;
+  await loadGames();
+  if (outcome.status === "error") {
+    errorTask(
+      taskId,
+      `${game.title} was added, but its details could not be read`,
+    );
+    return;
+  }
+  updateTask(taskId, 3);
+  addFeedItem(
+    taskId,
+    outcome.bannerAdded ? "Details and banner saved" : "Details saved",
+  );
+  completeTask(taskId, `${game.title} is ready`);
+}
+
+// a game no provider knows: the full form
+function openManualAdd() {
+  showQuickAdd.value = false;
   editingGame.value = null;
   showFormModal.value = true;
 }
@@ -1625,7 +1649,9 @@ function cardsInRow(rowIndex: number): Game[] {
               :key="tag"
               type="button"
               class="tag-chip"
-              :class="{ active: tagsFilter.includes(tag) }"
+              :class="{
+                active: tagsFilter.includes(tag) || genreFilter === tag,
+              }"
               @click="toggleTagFilter(tag)"
             >
               {{ tag }}
@@ -2193,6 +2219,12 @@ function cardsInRow(rowIndex: number): Game[] {
         </div>
       </template>
 
+      <GameQuickAdd
+        v-if="showQuickAdd"
+        @close="showQuickAdd = false"
+        @added="onQuickAdded"
+        @manual="openManualAdd"
+      />
       <GameFormModal
         v-if="showFormModal"
         :game="editingGame"

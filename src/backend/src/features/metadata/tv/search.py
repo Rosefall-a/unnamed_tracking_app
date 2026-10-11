@@ -4,14 +4,18 @@
 
 from __future__ import annotations
 
-from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from typing import Any, Callable, Literal
 
 from src.features.metadata.movies.omdb import OMDBClient
 from src.features.metadata.movies.tmdb import TMDBClient
 from src.features.metadata.tv.tvmaze import TVMazeClient
-from src.features.metadata.search_utils import format_provider_error, merge_search_result
+from src.features.metadata.search_utils import (
+    format_provider_error,
+    merge_search_result,
+    run_providers,
+    visible_errors,
+)
 
 # Reuses the TMDB/OMDb clients built for Movies (same API keys, same
 # deployment-wide AppIntegrationSettings) rather than duplicating a whole
@@ -49,6 +53,8 @@ def _blank_result(provider: str, provider_id: str, title: str) -> dict[str, Any]
 class ProviderContext:
     tmdb_api_key: str | None
     omdb_api_key: str | None
+    # a quick search for a results list: no detail page per result
+    light: bool = False
 
 
 ProviderRun = Callable[[str, int, ProviderContext], list[dict[str, Any]]]
@@ -66,7 +72,7 @@ def _run_tmdb(query: str, limit: int, ctx: ProviderContext) -> list[dict[str, An
     assert ctx.tmdb_api_key  # guarded by `available`
     client = TMDBClient(api_key=ctx.tmdb_api_key)
     found: list[dict[str, Any]] = []
-    for show in client.search_tv(query, limit=limit):
+    for show in client.search_tv(query, limit=limit, light=ctx.light):
         result = _blank_result("TMDB", str(show.get("id", "")), show.get("title", ""))
         result.update(
             {
@@ -93,7 +99,7 @@ def _run_omdb(query: str, limit: int, ctx: ProviderContext) -> list[dict[str, An
     assert ctx.omdb_api_key  # guarded by `available`
     client = OMDBClient(api_key=ctx.omdb_api_key)
     found: list[dict[str, Any]] = []
-    for show in client.search_tv(query, limit=limit):
+    for show in client.search_tv(query, limit=limit, light=ctx.light):
         result = _blank_result("OMDb", str(show.get("id", "")), show.get("title", ""))
         result.update(
             {
@@ -167,6 +173,7 @@ def search_tv_metadata(
     limit: int = 8,
     tmdb_api_key: str | None = None,
     omdb_api_key: str | None = None,
+    light: bool = False,
 ) -> dict[str, Any]:
     """Search TMDB and OMDb concurrently for TV shows and return
     normalized, creation-form-ready results, mirroring
@@ -174,7 +181,7 @@ def search_tv_metadata(
     isolation, title-match merging). TMDB results additionally carry a
     `seasons` list pulled straight from its `/tv/{id}` response, so a new
     show can bulk-create its seasons instead of the user typing them in."""
-    ctx = ProviderContext(tmdb_api_key=tmdb_api_key, omdb_api_key=omdb_api_key)
+    ctx = ProviderContext(tmdb_api_key=tmdb_api_key, omdb_api_key=omdb_api_key, light=light)
     specs = [PROVIDERS[name] for name in DEFAULT_PROVIDER_ORDER if PROVIDERS[name].available(ctx)]
 
     results: list[dict[str, Any]] = []
@@ -188,15 +195,14 @@ def search_tv_metadata(
             return spec, None, str(exc)
 
     if specs:
-        with ThreadPoolExecutor(max_workers=len(specs)) as executor:
-            for spec, outcome, error in executor.map(_call, specs):
-                if error is not None:
-                    provider_errors.append(format_provider_error(spec.name, error))
-                    continue
-                if outcome:
-                    for candidate in outcome:
-                        merge_search_result(results, candidate)
-                providers_used.append(spec.name)
+        for spec, outcome, error in run_providers(specs, _call):
+            if error is not None:
+                provider_errors.append(format_provider_error(spec.name, error))
+                continue
+            if outcome:
+                for candidate in outcome:
+                    merge_search_result(results, candidate)
+            providers_used.append(spec.name)
 
     # anime belongs in the Anime library (AniList, its own episode numbering
     # and airing data); TMDB and TVmaze also list it as TV, which put the
@@ -212,6 +218,6 @@ def search_tv_metadata(
     return {
         "query": query,
         "providers": providers_used,
-        "provider_errors": provider_errors,
+        "provider_errors": visible_errors(provider_errors, bool(kept)),
         "results": kept,
     }
