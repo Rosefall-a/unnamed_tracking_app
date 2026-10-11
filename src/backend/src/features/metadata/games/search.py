@@ -338,6 +338,13 @@ def _steam_art_exists(url: str) -> bool:
     )
 
 
+# the result's field, and which of Steam's images fills it
+_STEAM_FALLBACK_ART: tuple[tuple[str, Literal["key_art", "banner"]], ...] = (
+    ("key_art_url", "key_art"),
+    ("banner_url", "banner"),
+)
+
+
 def _add_steam_art_fallback(results: list[dict[str, Any]]) -> None:
     """Back a Steam game's cover and banner with Steam's own art when the image
     providers (SteamGridDB, ScreenScraper) had none, so it is not left bare. Only
@@ -348,7 +355,7 @@ def _add_steam_art_fallback(results: list[dict[str, Any]]) -> None:
         (result, field, steam_cdn_art_urls(int(result["steam_app_id"]))[kind])
         for result in results
         if result.get("steam_app_id")
-        for field, kind in (("key_art_url", "key_art"), ("banner_url", "banner"))
+        for field, kind in _STEAM_FALLBACK_ART
         if not result.get(field)
     ]
     if not wanted:
