@@ -20,6 +20,7 @@ from src.features.metadata.games.retroachievements import RetroAchievementsClien
 from src.features.metadata.games.screenscraper import ScreenScraperClient, ScreenScraperError
 from src.features.metadata.games.steam_grid_db import SteamGridDBClient, SteamGridDBError
 from src.features.metadata.search_utils import format_provider_error, visible_errors
+from src.helpers.game_art_download import steam_cdn_art_urls
 
 if TYPE_CHECKING:
     from src.database.models.user import User
@@ -323,6 +324,45 @@ def find_art_options(
         "covers": result["key_art_urls"],
         "banners": result["banner_urls"],
     }
+
+
+def _steam_art_exists(url: str) -> bool:
+    """Steam's own art exists only for some games (older and niche ones have none),
+    and a missing file is a 404, so ask before offering it."""
+    try:
+        response = steam.SESSION.head(url, timeout=5, allow_redirects=True)
+    except Exception:  # noqa: BLE001 - no answer just means no fallback art
+        return False
+    return response.status_code == 200 and response.headers.get("content-type", "").startswith(
+        "image/"
+    )
+
+
+def _add_steam_art_fallback(results: list[dict[str, Any]]) -> None:
+    """Back a Steam game's cover and banner with Steam's own art when the image
+    providers (SteamGridDB, ScreenScraper) had none, so it is not left bare. Only
+    the portrait cover and the wide hero are used: Steam's wide header would be
+    cropped into the portrait cover slot. Art an image provider found is never
+    replaced."""
+    wanted = [
+        (result, field, steam_cdn_art_urls(int(result["steam_app_id"]))[kind])
+        for result in results
+        if result.get("steam_app_id")
+        for field, kind in (("key_art_url", "key_art"), ("banner_url", "banner"))
+        if not result.get(field)
+    ]
+    if not wanted:
+        return
+    with ThreadPoolExecutor(max_workers=min(8, len(wanted))) as executor:
+        found = list(executor.map(lambda item: _steam_art_exists(item[2]), wanted))
+    for (result, field, url), exists in zip(wanted, found, strict=True):
+        if not exists:
+            continue
+        result[field] = url
+        if field == "key_art_url":
+            result["key_art_urls"] = [url]
+        else:
+            result["banner_urls"] = [url]
 
 
 def _run_igdb(
@@ -707,6 +747,9 @@ def search_game_metadata(
         executor.shutdown(wait=False)
     if only_matching:
         results.extend(targets[known:])  # a result an art provider found on its own
+
+    if include_image_providers and not light:
+        _add_steam_art_fallback(targets if only_matching else results)
 
     _apply_steam_user_tags(results, ctx.steam_user_tags and not light)
     _strip_unsaved_fields(results, preferences)
