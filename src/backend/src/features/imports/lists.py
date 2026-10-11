@@ -24,6 +24,8 @@ from datetime import date
 from decimal import Decimal
 from typing import Any
 
+from src.features.imports.ratings import clean_rating
+
 MAX_BYTES = 30 * 1024 * 1024
 _MOVIE_TYPES = {"movie", "tvmovie", "short", "tvshort", "video", "tvspecial"}
 _TV_TYPES = {"tvseries", "tvminiseries"}
@@ -116,7 +118,7 @@ def parse_letterboxd(raw: bytes, filename: str = "") -> list[ImportedTitle]:
 
     def score(value: str) -> Decimal | None:
         try:
-            return Decimal(value) * 2 if value else None
+            return clean_rating(Decimal(value) * 2) if value else None
         except ArithmeticError:
             return None
 
@@ -182,7 +184,7 @@ def parse_imdb(raw: bytes) -> tuple[list[ImportedTitle], int]:
         rating: Decimal | None = None
         if row.get("Your Rating"):
             try:
-                rating = Decimal(row["Your Rating"])
+                rating = clean_rating(Decimal(row["Your Rating"]))
             except ArithmeticError:
                 rating = None
         runtime = row.get("Runtime (mins)", "")

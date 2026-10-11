@@ -35,6 +35,23 @@ const BUCKET_TO_REAL: Record<StatusBucketKey, string> = {
   dropped: "dropped",
 };
 
+// What the server counts by real status (WATCHED, IN_PROGRESS...) folded into the
+// five buckets the tabs show, plus `all`: the sum of the tabs, so it stays the
+// whole library while one tab is open. A key that already is a bucket is kept.
+export function bucketCounts(
+  raw: Record<string, number>,
+): Record<string, number> {
+  const bucketKeys = new Set<string>(STATUS_BUCKETS.map((b) => b.key));
+  const counts: Record<string, number> = {};
+  for (const [status, count] of Object.entries(raw)) {
+    const lowered = status.toLowerCase().replace(/_/g, " ");
+    const key = bucketKeys.has(lowered) ? lowered : statusBucket(lowered);
+    counts[key] = (counts[key] ?? 0) + count;
+  }
+  counts.all = Object.values(counts).reduce((sum, n) => sum + n, 0);
+  return counts;
+}
+
 export function statusBucket(realStatus: string): StatusBucketKey {
   return REAL_TO_BUCKET[realStatus] ?? "plan";
 }

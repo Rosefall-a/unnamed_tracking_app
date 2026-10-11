@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.api.routes.library_sync import (
     _SYNC_CONCURRENCY,
     _add_source_tag_and_collection,
+    _advance_status,
     _apply_status,
     _enrich_steam_game_by_appid,
     _get_or_create_game,
@@ -128,6 +129,8 @@ async def import_achievements(
                     unlocked_achievements=unlocked_count,
                 ),
             )
+        else:
+            _advance_status(game, total, unlocked_count, game.playtime_seconds)
     await db.commit()
     return {"achievements_synced": synced, "achievements_unavailable": unavailable}
 

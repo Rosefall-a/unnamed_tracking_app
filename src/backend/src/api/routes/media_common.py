@@ -23,6 +23,29 @@ def title_search(columns: list[Any], search: str | None) -> ColumnElement[bool] 
     return or_(*(column.ilike(f"%{escaped}%", escape="\\") for column in columns))
 
 
+# the sorts a library page can be read in; "progress" is worked out from seasons
+# and episodes, so the browser does that one over what it has loaded
+LIBRARY_SORTS = {"rank", "score", "title", "title_desc", "added", "year_new", "year_old", "progress"}
+
+
+def library_order(model: Any, sort: str | None, year_column: Any | None) -> list[Any]:
+    """The order a page is read in. It is the order the library shows, so the first
+    page already holds the best of the whole library: a sort done only over the
+    titles loaded so far would show the best of the first page, then shuffle as more
+    arrived. Every order ends in the id, so a title with the same name as another
+    never repeats or goes missing between two pages."""
+    if sort in ("rank", "score"):
+        return [model.rating_overall.desc().nulls_last(), model.sort_title, model.id]
+    if sort == "title_desc":
+        return [model.sort_title.desc(), model.id.desc()]
+    if sort == "added":
+        return [model.created_at.desc(), model.id]
+    if sort in ("year_new", "year_old") and year_column is not None:
+        by_year = year_column.desc() if sort == "year_new" else year_column.asc()
+        return [by_year.nulls_last(), model.sort_title, model.id]
+    return [model.sort_title, model.id]
+
+
 async def library_page(  # pylint: disable=too-many-arguments,too-many-positional-arguments
     db: AsyncSession,
     model: Any,
@@ -43,11 +66,14 @@ async def library_page(  # pylint: disable=too-many-arguments,too-many-positiona
     year_column: Any | None = None,
     year_from: int | None = None,
     year_to: int | None = None,
+    sort: str | None = None,
 ) -> PaginatedResponse[Any]:
     """One page of a user's library, applying all active filters before pagination.\n\n    The total matching it, how many titles
     sit in each status, and every rated title's rank. The status counts
     follow the favorite flag and the search but not the status filter, so the
     tabs always show what each one would hold."""
+    if sort is not None and sort not in LIBRARY_SORTS:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid sort.")
     stmt = select(model).where(model.user_id == user_id, model.deleted_at.is_(None))
     if status_filter is not None:
         stmt = stmt.where(model.status == status_filter)
@@ -101,7 +127,7 @@ async def library_page(  # pylint: disable=too-many-arguments,too-many-positiona
     status_counts = {row_status.value: count for row_status, count in counts_result.all()}
 
     total = await db.scalar(select(func.count()).select_from(stmt.subquery()))
-    stmt = stmt.order_by(model.sort_title).offset(skip).limit(limit)
+    stmt = stmt.order_by(*library_order(model, sort, year_column)).offset(skip).limit(limit)
     result = await db.execute(stmt)
     return PaginatedResponse(
         items=list(result.scalars().unique().all()),
@@ -109,7 +135,9 @@ async def library_page(  # pylint: disable=too-many-arguments,too-many-positiona
         offset=skip,
         limit=limit,
         status_counts=status_counts,
-        score_ranks=await score_ranks(db, model, user_id),
+        # the ranks cover the whole library and only change when a rating does, so
+        # they come with the first page; the pages after it do not ask again
+        score_ranks=await score_ranks(db, model, user_id) if skip == 0 else {},
     )
 
 

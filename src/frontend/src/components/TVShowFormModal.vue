@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { numberOrNull } from "../utils/numberInput";
+import { PRIORITY_OPTIONS, priorityRank } from "../utils/priority";
 import { ref, computed, watch } from "vue";
 import {
   createTVShow,
@@ -42,6 +44,9 @@ function blankFields() {
     favorite: false,
     ratingOverall: null as number | null,
     personalRank: null as number | null,
+    startDate: "",
+    endDate: "",
+    priority: "",
     posterUrl: null as string | null,
     backdropUrl: null as string | null,
     tmdbScore: null as number | null,
@@ -88,6 +93,10 @@ function loadFromShow(show: TVShow | null | undefined) {
     favorite: show.favorite,
     ratingOverall: show.ratingOverall,
     personalRank: show.personalRank,
+    startDate: show.startDate ?? "",
+    endDate: show.endDate ?? "",
+    // an older HIGH, MEDIUM or LOW shows as its 1 to 5 number
+    priority: String(priorityRank(show.priority) ?? ""),
     posterUrl: show.posterUrl,
     backdropUrl: show.backdropUrl,
     tmdbScore: show.tmdbScore,
@@ -100,10 +109,12 @@ watch(() => props.show, loadFromShow, { immediate: true });
 function applyMetadata(result: TVShowMetadataResult) {
   const locked = new Set(props.show?.lockedFields ?? []);
   if (!locked.has("title")) fields.value.title = result.title;
-  if (!locked.has("description"))
-    fields.value.description = result.description ?? "";
-  if (!locked.has("first_air_date"))
-    fields.value.firstAirDate = result.firstAirDate ?? "";
+  // A result that has nothing for a field leaves what is already there alone,
+  // instead of blanking it.
+  if (!locked.has("description") && result.description)
+    fields.value.description = result.description;
+  if (!locked.has("first_air_date") && result.firstAirDate)
+    fields.value.firstAirDate = result.firstAirDate;
   if (
     !locked.has("episode_runtime_minutes") &&
     result.episodeRuntimeMinutes !== null
@@ -113,8 +124,9 @@ function applyMetadata(result: TVShowMetadataResult) {
     fields.value.creatorsInput = result.creators.join(", ");
   if (!locked.has("genres") && result.genres.length)
     fields.value.genresInput = result.genres.join(", ");
-  if (!locked.has("poster_url")) fields.value.posterUrl = result.posterUrl;
-  if (!locked.has("backdrop_url"))
+  if (!locked.has("poster_url") && result.posterUrl)
+    fields.value.posterUrl = result.posterUrl;
+  if (!locked.has("backdrop_url") && result.backdropUrl)
     fields.value.backdropUrl = result.backdropUrl;
   if (!locked.has("tmdb_score") && result.tmdbScore !== null)
     fields.value.tmdbScore = result.tmdbScore;
@@ -123,7 +135,7 @@ function applyMetadata(result: TVShowMetadataResult) {
   // search result is exactly how a show with a missing/wrong link (e.g.
   // added by hand, or one that lost it to the merge-ownership bug) gets
   // fixed, so always take the freshly-picked match's TVmaze id.
-  fields.value.externalId = result.tvmazeId;
+  if (result.tvmazeId) fields.value.externalId = result.tvmazeId;
   stagedSeasons.value = result.seasons.map((s) => ({
     seasonNumber: s.seasonNumber,
     name: s.name,
@@ -166,17 +178,20 @@ async function submit() {
       title: fields.value.title.trim(),
       description: fields.value.description.trim() || null,
       firstAirDate: fields.value.firstAirDate || null,
-      episodeRuntimeMinutes: fields.value.episodeRuntimeMinutes,
+      episodeRuntimeMinutes: numberOrNull(fields.value.episodeRuntimeMinutes),
       creators: splitList(fields.value.creatorsInput),
       genres: splitList(fields.value.genresInput),
       tags: splitList(fields.value.tagsInput),
       status: fields.value.status,
       favorite: fields.value.favorite,
-      ratingOverall: fields.value.ratingOverall,
-      personalRank: fields.value.personalRank,
+      ratingOverall: numberOrNull(fields.value.ratingOverall),
+      personalRank: numberOrNull(fields.value.personalRank),
+      startDate: fields.value.startDate || null,
+      endDate: fields.value.endDate || null,
+      priority: fields.value.priority || null,
       posterUrl: fields.value.posterUrl,
       backdropUrl: fields.value.backdropUrl,
-      tmdbScore: fields.value.tmdbScore,
+      tmdbScore: numberOrNull(fields.value.tmdbScore),
       externalId: fields.value.externalId,
       seasons: props.show ? undefined : stagedSeasons.value,
     };
@@ -325,6 +340,33 @@ async function remove() {
           min="1"
           class="text-input"
         />
+      </label>
+    </div>
+
+    <div class="field-row">
+      <label class="field">
+        <span>Started</span>
+        <input v-model="fields.startDate" type="date" class="text-input" />
+      </label>
+      <label class="field">
+        <span>Finished</span>
+        <input v-model="fields.endDate" type="date" class="text-input" />
+      </label>
+    </div>
+
+    <div class="field-row">
+      <label class="field">
+        <span>Priority</span>
+        <select v-model="fields.priority" class="text-input">
+          <option value="">None</option>
+          <option
+            v-for="option in PRIORITY_OPTIONS"
+            :key="option.value"
+            :value="option.value"
+          >
+            {{ option.label }}
+          </option>
+        </select>
       </label>
     </div>
 

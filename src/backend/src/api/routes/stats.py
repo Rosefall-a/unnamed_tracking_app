@@ -58,7 +58,8 @@ async def get_stats_overview(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
-    user_filter = Game.user_id == current_user.id
+    # a game in the trash is not part of the library, so it is not counted
+    user_filter = (Game.user_id == current_user.id) & Game.deleted_at.is_(None)
 
     totals_stmt = select(
         func.count(Game.id),
@@ -184,7 +185,8 @@ async def get_weekly_digest(
     can't reach client-side (achievements and metadata changes both need a
     per-game fetch there, an aggregate query here is much cheaper)."""
     week_ago = int(time.time()) - 7 * 86_400
-    user_filter = Game.user_id == current_user.id
+    # a game in the trash is not part of the library, so it is not counted
+    user_filter = (Game.user_id == current_user.id) & Game.deleted_at.is_(None)
 
     games_played_stmt = select(func.count(Game.id)).where(
         user_filter, Game.last_played_at.is_not(None), Game.last_played_at >= week_ago

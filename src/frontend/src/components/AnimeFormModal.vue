@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { numberOrNull } from "../utils/numberInput";
+import { PRIORITY_OPTIONS, priorityRank } from "../utils/priority";
 import { ref, computed, watch } from "vue";
 import {
   createAnime,
@@ -42,6 +44,9 @@ function blankFields() {
     favorite: false,
     ratingOverall: null as number | null,
     personalRank: null as number | null,
+    startDate: "",
+    endDate: "",
+    priority: "",
     posterUrl: null as string | null,
     backdropUrl: null as string | null,
     anilistScore: null as number | null,
@@ -84,6 +89,10 @@ function loadFromShow(show: Anime | null | undefined) {
     favorite: show.favorite,
     ratingOverall: show.ratingOverall,
     personalRank: show.personalRank,
+    startDate: show.startDate ?? "",
+    endDate: show.endDate ?? "",
+    // an older HIGH, MEDIUM or LOW shows as its 1 to 5 number
+    priority: String(priorityRank(show.priority) ?? ""),
     posterUrl: show.posterUrl,
     backdropUrl: show.backdropUrl,
     anilistScore: show.anilistScore,
@@ -98,10 +107,12 @@ watch(() => props.show, loadFromShow, { immediate: true });
 function applyMetadata(result: AnimeMetadataResult) {
   const locked = new Set(props.show?.lockedFields ?? []);
   if (!locked.has("title")) fields.value.title = result.title;
-  if (!locked.has("description"))
-    fields.value.description = result.description ?? "";
-  if (!locked.has("first_air_date"))
-    fields.value.firstAirDate = result.firstAirDate ?? "";
+  // A result that has nothing for a field leaves what is already there alone,
+  // instead of blanking it.
+  if (!locked.has("description") && result.description)
+    fields.value.description = result.description;
+  if (!locked.has("first_air_date") && result.firstAirDate)
+    fields.value.firstAirDate = result.firstAirDate;
   if (
     !locked.has("episode_runtime_minutes") &&
     result.episodeRuntimeMinutes !== null
@@ -111,8 +122,9 @@ function applyMetadata(result: AnimeMetadataResult) {
     fields.value.studiosInput = result.studios.join(", ");
   if (!locked.has("genres") && result.genres.length)
     fields.value.genresInput = result.genres.join(", ");
-  if (!locked.has("poster_url")) fields.value.posterUrl = result.posterUrl;
-  if (!locked.has("backdrop_url"))
+  if (!locked.has("poster_url") && result.posterUrl)
+    fields.value.posterUrl = result.posterUrl;
+  if (!locked.has("backdrop_url") && result.backdropUrl)
     fields.value.backdropUrl = result.backdropUrl;
   if (!locked.has("anilist_score") && result.anilistScore !== null)
     fields.value.anilistScore = result.anilistScore;
@@ -123,9 +135,8 @@ function applyMetadata(result: AnimeMetadataResult) {
   // search result is exactly how a show with a missing/wrong link (e.g.
   // added by hand, or from before this app tracked these ids) gets
   // fixed, so always take the freshly-picked match's ids.
-  fields.value.externalId = result.malId;
-  fields.value.anilistId =
-    result.provider === "AniList" ? result.providerId : null;
+  if (result.malId) fields.value.externalId = result.malId;
+  if (result.provider === "AniList") fields.value.anilistId = result.providerId;
   search.applied(result, [...locked]);
 }
 
@@ -163,18 +174,21 @@ async function submit() {
       title: fields.value.title.trim(),
       description: fields.value.description.trim() || null,
       firstAirDate: fields.value.firstAirDate || null,
-      episodeRuntimeMinutes: fields.value.episodeRuntimeMinutes,
+      episodeRuntimeMinutes: numberOrNull(fields.value.episodeRuntimeMinutes),
       studios: splitList(fields.value.studiosInput),
       genres: splitList(fields.value.genresInput),
       tags: splitList(fields.value.tagsInput),
       status: fields.value.status,
       favorite: fields.value.favorite,
-      ratingOverall: fields.value.ratingOverall,
-      personalRank: fields.value.personalRank,
+      ratingOverall: numberOrNull(fields.value.ratingOverall),
+      personalRank: numberOrNull(fields.value.personalRank),
+      startDate: fields.value.startDate || null,
+      endDate: fields.value.endDate || null,
+      priority: fields.value.priority || null,
       posterUrl: fields.value.posterUrl,
       backdropUrl: fields.value.backdropUrl,
-      anilistScore: fields.value.anilistScore,
-      malScore: fields.value.malScore,
+      anilistScore: numberOrNull(fields.value.anilistScore),
+      malScore: numberOrNull(fields.value.malScore),
       externalId: fields.value.externalId,
       anilistId: fields.value.anilistId,
     };
@@ -323,6 +337,33 @@ async function remove() {
           min="1"
           class="text-input"
         />
+      </label>
+    </div>
+
+    <div class="field-row">
+      <label class="field">
+        <span>Started</span>
+        <input v-model="fields.startDate" type="date" class="text-input" />
+      </label>
+      <label class="field">
+        <span>Finished</span>
+        <input v-model="fields.endDate" type="date" class="text-input" />
+      </label>
+    </div>
+
+    <div class="field-row">
+      <label class="field">
+        <span>Priority</span>
+        <select v-model="fields.priority" class="text-input">
+          <option value="">None</option>
+          <option
+            v-for="option in PRIORITY_OPTIONS"
+            :key="option.value"
+            :value="option.value"
+          >
+            {{ option.label }}
+          </option>
+        </select>
       </label>
     </div>
 

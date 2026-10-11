@@ -12,24 +12,20 @@ from typing import Literal
 MediaKind = Literal["screenshot", "clip", "soundtrack"]
 
 _SAFE_NAME = re.compile(r"[^A-Za-z0-9_.-]+")
-_IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"}
-_VIDEO_EXTENSIONS = {".mp4", ".webm", ".mov", ".mkv", ".avi"}
-_AUDIO_EXTENSIONS = {".mp3", ".ogg", ".wav", ".flac", ".m4a", ".aac"}
+_IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".jfif", ".gif", ".webp", ".avif", ".bmp"}
+_VIDEO_EXTENSIONS = {".mp4", ".m4v", ".webm", ".mov", ".mkv", ".avi", ".ogv"}
+_AUDIO_EXTENSIONS = {".mp3", ".ogg", ".oga", ".opus", ".wav", ".flac", ".m4a", ".aac"}
 
 
 def classify_media(content_type: str | None, filename: str) -> MediaKind | None:
     """Images become screenshots, videos become clips, audio becomes
-    soundtrack — everything else is rejected. Content-type is checked
-    first; falls back to the file extension since browsers/clients don't
-    always set it reliably."""
-    normalized = (content_type or "").split(";", 1)[0].strip().lower()
-    if normalized.startswith("image/"):
-        return "screenshot"
-    if normalized.startswith("video/"):
-        return "clip"
-    if normalized.startswith("audio/"):
-        return "soundtrack"
+    soundtrack — everything else is rejected.
 
+    The extension decides. The content type is whatever the sender says, and the
+    original extension is kept on the saved file and used to pick the type it is
+    served as, so a page named x.html sent as image/png must not pass. A file
+    that has no allowed extension is rejected whatever it claims to be."""
+    del content_type
     ext = Path(filename).suffix.lower()
     if ext in _IMAGE_EXTENSIONS:
         return "screenshot"

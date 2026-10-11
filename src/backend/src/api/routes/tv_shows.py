@@ -43,7 +43,7 @@ from src.database.models.tv_show import TVEpisode, TVSeason, TVShow, TVShowStatu
 from src.database.models.user import User
 from src.database.session import get_db
 from src.features.episode_progress import apply_counter, counter_from_flags, materialize_progress
-from src.features.metadata.locked_fields import apply_updates_with_locking
+from src.features.metadata.locked_fields import apply_updates_with_locking, drop_nulls_for_required
 from src.features.tv_seasons import check_in_background, is_due
 from src.features.metadata.movies.tmdb import TMDBClient
 from src.features.metadata.refresh import quick_check_tv_season
@@ -223,6 +223,7 @@ async def list_shows(
     min_score: float | None = Query(default=None, ge=0, le=10),
     year_from: int | None = Query(default=None, ge=1, le=9999),
     year_to: int | None = Query(default=None, ge=1, le=9999),
+    sort: str | None = Query(default=None),
 ) -> PaginatedResponse[TVShowLibraryRead]:
     """Return one page of the current user's shows and the total matching it."""
     status_values = None
@@ -245,6 +246,7 @@ async def list_shows(
         status_values=status_values, genres=genre, genre_match_all=genre_match_all,
         formats=format, only_unrated=only_unrated, only_with_note=only_with_note,
         min_score=min_score, year_column=TVShow.first_air_date, year_from=year_from, year_to=year_to,
+        sort=sort,
     )
 
 
@@ -370,7 +372,7 @@ async def update_season(
     show = await _get_show_or_404(show_id, db, current_user.id)
     season = await _get_season_or_404(season_id, show_id, db)
 
-    updates = payload.model_dump(exclude_unset=True)
+    updates = drop_nulls_for_required(season, payload.model_dump(exclude_unset=True))
     old_counter = season.episodes_watched or 0
     for field, value in updates.items():
         setattr(season, field, value)
@@ -517,7 +519,7 @@ async def update_episode(
     season = await _get_season_or_404(season_id, show_id, db)
     episode = await _get_episode_or_404(episode_id, season_id, db)
 
-    updates = payload.model_dump(exclude_unset=True)
+    updates = drop_nulls_for_required(episode, payload.model_dump(exclude_unset=True))
     without_row = 0
     if "watched" in updates:
         # progress the counter already held is flagged first, so it is

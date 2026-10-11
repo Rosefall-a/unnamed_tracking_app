@@ -292,7 +292,6 @@ const searchingMedia = ref(false);
 let metadataSearchTimer: ReturnType<typeof setTimeout> | null = null;
 let metadataSearchRequest = 0;
 
-
 const metadataFormDirty = computed(() => {
   if (!isEditing.value || !props.game) return false;
   return (
@@ -351,7 +350,8 @@ async function refreshMetadataFromEditor() {
       return;
     }
     if (preview.status === "error") {
-      refreshMetadataError.value = "The metadata providers could not be reached. No changes were applied.";
+      refreshMetadataError.value =
+        "The metadata providers could not be reached. No changes were applied.";
       return;
     }
     const locked = preview.skippedLockedFields.length
@@ -411,7 +411,9 @@ async function searchMetadata() {
   const query = metadataQuery.value.trim();
   if (query.length < 2) {
     metadataResults.value = [];
-    metadataMessage.value = query ? "Enter at least two characters to search." : null;
+    metadataMessage.value = query
+      ? "Enter at least two characters to search."
+      : null;
     searchingMetadata.value = false;
     return;
   }
@@ -428,7 +430,8 @@ async function searchMetadata() {
     );
     steamgriddbConfigured.value = response.steamgriddb_configured;
     providerWarnings.value = response.provider_errors ?? [];
-    if (!metadataResults.value.length) metadataMessage.value = "No games found.";
+    if (!metadataResults.value.length)
+      metadataMessage.value = "No games found.";
   } catch (err) {
     if (requestId !== metadataSearchRequest) return;
     metadataMessage.value =
@@ -471,7 +474,8 @@ async function searchMedia() {
       pickedBannerUrl.value = bannerCandidates.value[0];
     }
     if (!mediaSearchResults.value.length) {
-      metadataMessage.value = "No artwork was found from the configured media sources.";
+      metadataMessage.value =
+        "No artwork was found from the configured media sources.";
     } else {
       metadataMessage.value = `Found artwork from ${mediaSearchResults.value.map((result) => result.provider).join(", ")}.`;
     }
@@ -495,12 +499,16 @@ watch(metadataQuery, () => {
 
 function applyMetadata(result: MetadataSearchResult) {
   title.value = result.title;
-  sortTitle.value = "";
-  folderLocation.value = result.title
-    .trim()
-    .replace(/[^A-Za-z0-9_-]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-  folderTouched.value = false;
+  // An existing game's folder holds its art, notes and files: picking a result
+  // while editing must not rename it (a new game gets its folder from the title).
+  if (!props.game) {
+    sortTitle.value = "";
+    folderLocation.value = result.title
+      .trim()
+      .replace(/[^A-Za-z0-9_-]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+    folderTouched.value = false;
+  }
   description.value = result.description ?? "";
   developer.value = result.developer ?? "";
   publisher.value = result.publisher ?? "";
@@ -558,6 +566,9 @@ async function submit() {
   saving.value = true;
   error.value = null;
 
+  // a cleared number box reads "" rather than null, which the server rejects
+  const num = (v: number | null | ""): number | null =>
+    v === "" || v === null || Number.isNaN(v) ? null : v;
   const input = {
     title: title.value.trim(),
     sortTitle: sortTitle.value.trim() || null,
@@ -588,10 +599,10 @@ async function submit() {
     region: region.value.trim() || null,
     language: language.value.trim() || null,
     achievementsProvider: achievementsProvider.value,
-    ratingOverall: ratingOverall.value,
-    ratingStory: ratingStory.value,
-    ratingGameplay: ratingGameplay.value,
-    ratingSound: ratingSound.value,
+    ratingOverall: num(ratingOverall.value),
+    ratingStory: num(ratingStory.value),
+    ratingGameplay: num(ratingGameplay.value),
+    ratingSound: num(ratingSound.value),
     tags: tagsInput.value
       .split(",")
       .map((t) => t.trim())
@@ -604,9 +615,9 @@ async function submit() {
     ownership: {
       format: ownershipFormat.value,
       purchaseDate: purchaseDate.value || null,
-      price: price.value,
+      price: num(price.value),
       priceCurrency:
-        price.value !== null
+        num(price.value) !== null
           ? priceCurrency.value.trim().toUpperCase() || "USD"
           : null,
       condition: condition.value.trim() || null,
@@ -1044,7 +1055,9 @@ async function submit() {
               <div>
                 <strong>Repull metadata</strong>
                 <p class="hint">
-                  Re-fetch the current game title from your configured providers. Locked/manual fields are preserved; existing artwork is never replaced.
+                  Re-fetch the current game title from your configured
+                  providers. Locked/manual fields are preserved; existing
+                  artwork is never replaced.
                 </p>
               </div>
               <label class="checkbox-field">
@@ -1057,17 +1070,41 @@ async function submit() {
                 :disabled="refreshingMetadata || saving"
                 @click="refreshMetadataFromEditor"
               >
-                {{ refreshingMetadata ? "Checking provider…" : "Repull Metadata" }}
+                {{
+                  refreshingMetadata ? "Checking provider…" : "Repull Metadata"
+                }}
               </button>
-              <p v-if="refreshMetadataError" class="form-error">{{ refreshMetadataError }}</p>
-              <p v-if="metadataRefreshPreview && metadataRefreshPreview.status === 'preview'" class="hint">
-                Preview: {{ metadataRefreshPreview.changedFields.length ? metadataRefreshPreview.changedFields.join(", ") : "no text changes" }}<span v-if="metadataRefreshPreview.skippedLockedFields.length"> · preserved {{ metadataRefreshPreview.skippedLockedFields.length }} locked field(s)</span>.
+              <p v-if="refreshMetadataError" class="form-error">
+                {{ refreshMetadataError }}
+              </p>
+              <p
+                v-if="
+                  metadataRefreshPreview &&
+                  metadataRefreshPreview.status === 'preview'
+                "
+                class="hint"
+              >
+                Preview:
+                {{
+                  metadataRefreshPreview.changedFields.length
+                    ? metadataRefreshPreview.changedFields.join(", ")
+                    : "no text changes"
+                }}<span
+                  v-if="metadataRefreshPreview.skippedLockedFields.length"
+                >
+                  · preserved
+                  {{ metadataRefreshPreview.skippedLockedFields.length }} locked
+                  field(s)</span
+                >.
               </p>
             </div>
             <div class="media-search-panel">
               <div>
                 <strong>Find artwork</strong>
-                <p class="hint">Search SteamGridDB and other configured media sources for cover and banner choices.</p>
+                <p class="hint">
+                  Search SteamGridDB and other configured media sources for
+                  cover and banner choices.
+                </p>
               </div>
               <button
                 type="button"
@@ -1077,7 +1114,13 @@ async function submit() {
               >
                 {{ searchingMedia ? "Searching artwork…" : "Search artwork" }}
               </button>
-              <p v-if="mediaSearchResults.length" class="hint">{{ mediaSearchResults.map((result) => result.provider).join(" · ") }}</p>
+              <p v-if="mediaSearchResults.length" class="hint">
+                {{
+                  mediaSearchResults
+                    .map((result) => result.provider)
+                    .join(" · ")
+                }}
+              </p>
             </div>
 
             <label class="field">
@@ -1417,7 +1460,9 @@ async function submit() {
   flex-direction: column;
   gap: 10px;
 }
-.metadata-refresh-panel strong { color: #fff; }
+.metadata-refresh-panel strong {
+  color: #fff;
+}
 .media-search-panel {
   border: 1px solid #3a3a3a;
   border-radius: 8px;
@@ -1428,10 +1473,18 @@ async function submit() {
   justify-content: space-between;
   gap: 12px;
 }
-.media-search-panel > div { min-width: 0; }
-.media-search-panel strong { color: #fff; }
-.media-search-panel .hint { margin: 2px 0 0; }
-.metadata-refresh-panel .hint { margin: 0; }
+.media-search-panel > div {
+  min-width: 0;
+}
+.media-search-panel strong {
+  color: #fff;
+}
+.media-search-panel .hint {
+  margin: 2px 0 0;
+}
+.metadata-refresh-panel .hint {
+  margin: 0;
+}
 
 .metadata-search {
   border: 1px solid #3a3a3a;

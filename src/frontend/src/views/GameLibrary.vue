@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import "../styles/shared/sortHead.css";
 import { sizedAssetUrl } from "../utils/gameImages";
 import HeartIcon from "../components/HeartIcon.vue";
 import { ref, computed, onMounted, onUnmounted, watch } from "vue";
@@ -116,6 +117,16 @@ function toggleSelectMode() {
 // shift-click extends from whichever card was last clicked, so selecting a
 // long run doesn't mean toggling every card individually
 let lastToggledId: string | null = null;
+// a status or favorite changed from a card: the library's own copy follows, so the
+// filters, counts and preview agree with what the card shows
+function onCardChanged(
+  id: string,
+  fields: { status?: GameStatus; favorite?: boolean },
+) {
+  const game = games.value.find((g) => g.id === id);
+  if (game) Object.assign(game, fields);
+}
+
 function toggleSelect(game: Game, shiftKey = false) {
   const next = new Set(selectedIds.value);
   if (shiftKey && lastToggledId) {
@@ -1788,6 +1799,7 @@ function cardsInRow(rowIndex: number): Game[] {
               @edit="openEditModal"
               @add-to-collection="handleAddToCollection"
               @toggle-select="toggleSelect"
+              @changed="onCardChanged"
             />
           </div>
         </div>
@@ -1797,7 +1809,7 @@ function cardsInRow(rowIndex: number): Game[] {
             <span></span>
             <button
               type="button"
-              class="sortable left"
+              class="sort-head left"
               :class="{ active: sortBy === 'name' }"
               @click="sortBy = 'name'"
             >
@@ -1806,7 +1818,7 @@ function cardsInRow(rowIndex: number): Game[] {
             <span></span>
             <button
               type="button"
-              class="sortable"
+              class="sort-head"
               :class="{ active: sortBy === 'playtime' }"
               @click="sortBy = 'playtime'"
             >
@@ -1814,7 +1826,7 @@ function cardsInRow(rowIndex: number): Game[] {
             </button>
             <button
               type="button"
-              class="sortable"
+              class="sort-head"
               :class="{ active: sortBy === 'rating' }"
               @click="sortBy = 'rating'"
             >
@@ -1823,7 +1835,7 @@ function cardsInRow(rowIndex: number): Game[] {
             <span>Rank</span>
             <button
               type="button"
-              class="sortable"
+              class="sort-head"
               :class="{ active: sortBy === 'neglected' }"
               @click="sortBy = 'neglected'"
             >
@@ -3027,27 +3039,13 @@ function cardsInRow(rowIndex: number): Game[] {
   padding: 0 16px 8px;
 }
 .list-header span,
-.list-header .sortable {
+.list-header .sort-head {
   color: var(--text-faint);
   font-size: 0.66rem;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   font-weight: 700;
   text-align: center;
-}
-.list-header .sortable {
-  background: none;
-  border: none;
-  padding: 0;
-  font-family: inherit;
-  cursor: pointer;
-}
-.list-header .sortable.left {
-  text-align: left;
-}
-.list-header .sortable:hover,
-.list-header .sortable.active {
-  color: var(--accent);
 }
 .list-row {
   /* a row below the fold is not drawn until it is near, which keeps a long

@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { formatDisplayDate } from "../utils/dates";
+import { mediaPriority, priorityLabel } from "../utils/priority";
 import { localMediaImage } from "../utils/mediaImages";
 import { usePageTitle } from "../state/pageTitle";
 import MyNote from "../components/MyNote.vue";
@@ -509,6 +511,35 @@ async function onRatingChange(value: number | null) {
     <div class="body">
       <div v-if="activeTab === 'overview'" class="tab-panel">
         <div class="meta-grid">
+          <div
+            v-if="mediaPriority(movie.status, movie.priority) !== null"
+            class="meta-item"
+          >
+            <span class="meta-label">Priority</span>
+            <span class="meta-value">{{
+              priorityLabel(mediaPriority(movie.status, movie.priority)!)
+            }}</span>
+          </div>
+          <div v-if="movie.startDate" class="meta-item">
+            <span class="meta-label">Started</span>
+            <span class="meta-value">{{
+              formatDisplayDate(movie.startDate, {
+                year: "numeric",
+                month: "short",
+                day: "numeric",
+              })
+            }}</span>
+          </div>
+          <div v-if="movie.endDate" class="meta-item">
+            <span class="meta-label">Finished</span>
+            <span class="meta-value">{{
+              formatDisplayDate(movie.endDate, {
+                year: "numeric",
+                month: "short",
+                day: "numeric",
+              })
+            }}</span>
+          </div>
           <div v-if="movie.director" class="meta-item">
             <span class="meta-label">Director</span>
             <span class="meta-value">{{ movie.director }}</span>

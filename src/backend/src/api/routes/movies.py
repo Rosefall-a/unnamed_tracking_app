@@ -151,6 +151,7 @@ async def list_movies(
     min_score: float | None = Query(default=None, ge=0, le=10),
     year_from: int | None = Query(default=None, ge=1, le=9999),
     year_to: int | None = Query(default=None, ge=1, le=9999),
+    sort: str | None = Query(default=None),
 ) -> PaginatedResponse[MovieRead]:
     """Return one page of the current user's movies and the total matching it."""
     status_values = None
@@ -173,6 +174,7 @@ async def list_movies(
         status_values=status_values, genres=genre, genre_match_all=genre_match_all,
         formats=format, only_unrated=only_unrated, only_with_note=only_with_note,
         min_score=min_score, year_column=Movie.release_date, year_from=year_from, year_to=year_to,
+        sort=sort,
     )
 
 

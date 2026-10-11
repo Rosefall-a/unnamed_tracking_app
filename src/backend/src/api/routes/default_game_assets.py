@@ -6,7 +6,7 @@ from html import escape
 from pathlib import Path
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import FileResponse, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -77,8 +77,22 @@ def _default_cover_svg(game_id: UUID, title: str) -> str:
 </svg>"""
 
 
+def revalidated_file(request: Request, path: Path, media_type: str) -> Response:
+    """A file the browser may keep but must ask about each time. Artwork is replaced
+    in place (a new cover, a refreshed banner) under the same address, so a copy kept
+    for an hour shows the old picture for that hour. The tag changes whenever the
+    file does, and an unchanged file answers "not modified" without sending it."""
+    stat = path.stat()
+    tag = f'"{stat.st_mtime_ns:x}-{stat.st_size:x}"'
+    headers = {"Cache-Control": "private, no-cache", "ETag": tag}
+    if request.headers.get("if-none-match") == tag:
+        return Response(status_code=304, headers=headers)
+    return FileResponse(path, media_type=media_type, headers=headers)
+
+
 @router.get("/{game_id}/assets/{asset_kind}")
 async def get_game_asset_with_fallback(
+    request: Request,
     game_id: UUID,
     asset_kind: AssetKind,
     # a smaller copy for showing on screen: the stored banner is a 3840 px PNG
@@ -113,11 +127,7 @@ async def get_game_asset_with_fallback(
                 preview_path(_DATA_ROOT / str(game.user_id) / ".cache", str(game_id), asset_kind, w),
                 w,
             )
-        return FileResponse(
-            asset_path,
-            media_type=media_type,
-            headers={"Cache-Control": "private, max-age=3600, must-revalidate"},
-        )
+        return revalidated_file(request, asset_path, media_type)
 
     if asset_kind != "key_art":
         raise HTTPException(

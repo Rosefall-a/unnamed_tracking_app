@@ -166,6 +166,9 @@ const {
   persist: persistOrder,
   onEnter: () => {
     sortMode.value = "manual";
+    // the tiles move by their place in the whole list, so a type filter on would
+    // make a nudge move a different title than the one shown
+    typeFilter.value = "all";
   },
 });
 

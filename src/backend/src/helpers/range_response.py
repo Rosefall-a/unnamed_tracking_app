@@ -53,18 +53,26 @@ def _read(path: Path, start: int, end: int) -> Iterator[bytes]:
             yield chunk
 
 
+# Whatever is in a user's folder is served from the app's own address, so it must
+# never be run as a page: no sniffing a type from the contents, and a sandbox that
+# stops scripts and keeps it from the app's session if one is opened directly.
+_SAFE_HEADERS = {"X-Content-Type-Options": "nosniff", "Content-Security-Policy": "sandbox"}
+
+
 def ranged_file_response(request: Request, path: Path) -> Response:
     size = path.stat().st_size
     media_type = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
     header = request.headers.get("range")
     if not header:
-        return FileResponse(path, media_type=media_type, headers={"Accept-Ranges": "bytes"})
+        return FileResponse(
+            path, media_type=media_type, headers={"Accept-Ranges": "bytes", **_SAFE_HEADERS}
+        )
 
     span = _parse_range(header, size)
     if span is None:
         return Response(
             status_code=416,
-            headers={"Content-Range": f"bytes */{size}", "Accept-Ranges": "bytes"},
+            headers={"Content-Range": f"bytes */{size}", "Accept-Ranges": "bytes", **_SAFE_HEADERS},
         )
     start, end = span
     return StreamingResponse(
@@ -75,5 +83,6 @@ def ranged_file_response(request: Request, path: Path) -> Response:
             "Content-Range": f"bytes {start}-{end}/{size}",
             "Content-Length": str(end - start + 1),
             "Accept-Ranges": "bytes",
+            **_SAFE_HEADERS,
         },
     )

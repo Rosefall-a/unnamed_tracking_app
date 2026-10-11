@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import "../../styles/shared/sortHead.css";
+import { readSavedSort } from "../../utils/librarySort";
+import type { LibrarySort } from "../../utils/librarySort";
 import HeartIcon from "../HeartIcon.vue";
 import {
   ref,
@@ -19,6 +22,7 @@ import type { LibraryFilters } from "../../utils/libraryFilters";
 import { blurOnLeave } from "../../utils/blurOnLeave";
 import {
   STATUS_BUCKETS,
+  bucketCounts,
   statusBucket,
   statusBucketLabel,
   bucketToReal,
@@ -58,6 +62,11 @@ export interface LibraryCardVM {
   releaseYear: string | null;
   // when it was added to the library (ms), for sorting by recently added
   addedAt?: number | null;
+  // when it was started and finished, as YYYY-MM-DD
+  startDate?: string | null;
+  endDate?: string | null;
+  // 1 (highest) to 5, or null when unset or already finished
+  priority?: number | null;
   // other spellings of the title, so search finds any of them
   altTitles?: string[];
 }
@@ -85,6 +94,9 @@ export interface EditForm {
   watched: number;
   totalEpisodes: number | null;
   seen: boolean;
+  // left out by a flow that does not touch the dates, so they stay as they are
+  startDate?: string | null;
+  endDate?: string | null;
 }
 
 // The pill/tab labels shown everywhere in this view come from the shared
@@ -121,7 +133,10 @@ const emit = defineEmits<{
   (e: "bulk-favorite", ids: string[]): void;
   (e: "bulk-delete", ids: string[]): void;
   (e: "search", query: string): void;
-  (e: "filters-change", filters: LibraryFilters & { statusBucket: string }): void;
+  (
+    e: "filters-change",
+    filters: LibraryFilters & { statusBucket: string },
+  ): void;
   (e: "load-more"): void;
 }>();
 
@@ -250,37 +265,16 @@ let filterTimer: ReturnType<typeof setTimeout> | null = null;
 function emitFilters() {
   if (filterTimer !== null) clearTimeout(filterTimer);
   filterTimer = setTimeout(() => {
-    emit("filters-change", { ...filters.value, statusBucket: activeStatus.value });
+    backgroundLoadedFrom = -1; // a new query starts its own first page
+    emit("filters-change", {
+      ...filters.value,
+      statusBucket: activeStatus.value,
+      sort: sortKey.value,
+    });
   }, 250);
 }
-type SortKey =
-  | "rank"
-  | "score"
-  | "title"
-  | "title_desc"
-  | "added"
-  | "year_new"
-  | "year_old"
-  | "progress";
-const SORT_KEYS: SortKey[] = [
-  "rank",
-  "score",
-  "title",
-  "title_desc",
-  "added",
-  "year_new",
-  "year_old",
-  "progress",
-];
-function savedSort(): SortKey {
-  try {
-    const v = localStorage.getItem(`librarySort:${props.kind}`) as SortKey;
-    return SORT_KEYS.includes(v) ? v : "rank";
-  } catch {
-    return "rank";
-  }
-}
-const sortKey = ref<SortKey>(savedSort());
+type SortKey = LibrarySort;
+const sortKey = ref<SortKey>(readSavedSort(props.kind));
 watch(sortKey, (v) => {
   try {
     localStorage.setItem(`librarySort:${props.kind}`, v);
@@ -288,6 +282,23 @@ watch(sortKey, (v) => {
     /* remembering the sort is optional */
   }
 });
+// The server reads every page in the sort's own order, so the first page already
+// holds the right titles. Only "progress" is worked out from seasons and episodes
+// here, so only that sort needs the rest of the library fetched, in the
+// background, a page at a time. It stops if a request adds nothing instead of
+// asking forever.
+let backgroundLoadedFrom = -1;
+watch(
+  () =>
+    [props.items.length, props.total, props.loading, sortKey.value] as const,
+  ([loaded, total, loading, sort]) => {
+    if (sort !== "progress") return;
+    if (loading || loaded >= total || loaded === backgroundLoadedFrom) return;
+    backgroundLoadedFrom = loaded;
+    emit("load-more");
+  },
+  { immediate: true },
+);
 const selectedGenres = ref<Set<string>>(new Set());
 const genreMatchAll = ref(false);
 const selectedFormats = ref<Set<string>>(new Set());
@@ -424,10 +435,10 @@ function computedRank(it: LibraryCardVM): number | null {
   return rankByItemId.value.get(it.id) ?? null;
 }
 
-const statusCounts = computed<Record<string, number>>(() => ({
-  all: props.total,
-  ...props.statusCounts,
-}));
+// the server counts by real status; the tabs are the five buckets
+const statusCounts = computed<Record<string, number>>(() =>
+  bucketCounts(props.statusCounts),
+);
 
 function progressPct(it: LibraryCardVM): number {
   if (!it.isEpisodic) return it.watched > 0 ? 100 : 0;
@@ -513,7 +524,10 @@ function moveBoard(status: string, direction: -1 | 1, available: number) {
   }
   boardPageStarts[status] = current + available;
 }
-watch([activeStatus, filters], () => { resetBoardPages(); emitFilters(); });
+watch([activeStatus, filters, sortKey], () => {
+  resetBoardPages();
+  emitFilters();
+});
 // a tab restored after a refresh has to reach the server query too
 if (activeStatus.value !== "all") emitFilters();
 watch(boardViewportWidth, resetBoardPages);
@@ -701,6 +715,8 @@ const editForm = reactive<EditForm>({
   watched: 0,
   totalEpisodes: null,
   seen: false,
+  startDate: null,
+  endDate: null,
 });
 function openEdit(it: LibraryCardVM) {
   editTargetId.value = it.id;
@@ -709,6 +725,8 @@ function openEdit(it: LibraryCardVM) {
   editForm.watched = it.watched;
   editForm.totalEpisodes = it.total;
   editForm.seen = it.watched > 0;
+  editForm.startDate = it.startDate ?? null;
+  editForm.endDate = it.endDate ?? null;
   editOpen.value = true;
 }
 function closeEdit() {
@@ -731,11 +749,24 @@ function saveEdit() {
     editForm.status === "completed" && totalEpisodes !== null
       ? totalEpisodes
       : editForm.watched;
-  const scoreAlreadySet = editForm.score !== null;
+  // a cleared number box reads "" rather than null
+  const blank = (v: number | null | "") =>
+    v === "" || v === null || Number.isNaN(v) ? null : v;
+  const score = blank(editForm.score);
+  const scoreAlreadySet = score !== null;
+  // Favorite, Rewatch and the like all show as "Completed" here; saving without
+  // touching the status must not turn them into plain Watched.
+  const statusUnchanged =
+    !!target && editForm.status === statusBucket(target.status);
   emit("save-edit", id, {
     ...editForm,
+    score,
+    totalEpisodes: blank(totalEpisodes),
     watched,
-    status: bucketToReal(editForm.status),
+    status:
+      statusUnchanged && target ? target.status : bucketToReal(editForm.status),
+    startDate: editForm.startDate || null,
+    endDate: editForm.endDate || null,
   });
   closeEdit();
   if (target && justCompleted && !scoreAlreadySet) {
@@ -1090,7 +1121,7 @@ defineExpose({ openQuickAdd });
           :class="{ active: activeStatus === s.key }"
           @click="activeStatus = s.key"
         >
-          {{ s.label }} <span class="n">{{ statusCounts[s.key] }}</span>
+          {{ s.label }} <span class="n">{{ statusCounts[s.key] ?? 0 }}</span>
         </button>
       </div>
 
@@ -1108,8 +1139,34 @@ defineExpose({ openQuickAdd });
           </p>
           <div v-else class="list-scroll">
             <div class="list-row-header">
-              <span></span><span>Title</span><span></span><span>Progress</span
-              ><span>Score</span><span>Rank</span><span>Status</span>
+              <span></span>
+              <button
+                type="button"
+                class="sort-head left"
+                :class="{ active: sortKey === 'title' }"
+                @click="sortKey = 'title'"
+              >
+                Title
+              </button>
+              <span></span>
+              <button
+                type="button"
+                class="sort-head"
+                :class="{ active: sortKey === 'progress' }"
+                @click="sortKey = 'progress'"
+              >
+                Progress
+              </button>
+              <button
+                type="button"
+                class="sort-head"
+                :class="{ active: sortKey === 'score' }"
+                @click="sortKey = 'score'"
+              >
+                Score
+              </button>
+              <span>Rank</span>
+              <span>Status</span>
             </div>
             <div class="list-rows">
               <div
@@ -1143,6 +1200,8 @@ defineExpose({ openQuickAdd });
                     {{ it.format ?? typeLabel
                     }}<template v-if="it.releaseYear">
                       · {{ it.releaseYear }}</template
+                    ><template v-if="it.priority">
+                      · Priority {{ it.priority }}</template
                     >
                   </div>
                   <div class="airing-tag" :class="{ invisible: !it.airing }">
@@ -1630,7 +1689,7 @@ defineExpose({ openQuickAdd });
     <div v-if="editOpen" class="modal-overlay" @click.self="closeEdit">
       <div class="modal-card">
         <h3>Edit</h3>
-        <div class="sub">Quick edit: status, rating, progress.</div>
+        <div class="sub">Quick edit: status, rating, progress and dates.</div>
         <div class="qa-field-grid">
           <label class="qa-field">
             <span>Status</span>
@@ -1669,6 +1728,14 @@ defineExpose({ openQuickAdd });
               step="0.1"
               placeholder="–"
             />
+          </label>
+          <label class="qa-field">
+            <span>Started</span>
+            <input v-model="editForm.startDate" type="date" />
+          </label>
+          <label class="qa-field">
+            <span>Finished</span>
+            <input v-model="editForm.endDate" type="date" />
           </label>
         </div>
         <div class="modal-actions">
@@ -2549,10 +2616,17 @@ defineExpose({ openQuickAdd });
    under the "Progress" header — matching how Score/Rank/Status center
    under their own headers. */
 .list-progress {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 12px;
+}
+/* the advance button sits at the cell's right edge so it never pushes the
+   count off the center of the "Progress" header */
+.list-progress > .plus-btn,
+.list-progress > .plus-btn-spacer {
+  position: absolute;
+  right: 0;
 }
 .list-progress-track {
   flex: 1;
@@ -2575,15 +2649,12 @@ defineExpose({ openQuickAdd });
   white-space: nowrap;
 }
 /* Bigger in the List row specifically — with the bar gone, the count is
-   the only content in that cell, so it carries more visual weight. A
-   fixed width, right-aligned, means "37/37" and "0/6" both end at the
-   same x position instead of drifting depending on digit count. */
+   the only content in that cell, so it carries more visual weight. */
 .list-progress > .list-progress-label {
   font-size: 0.95rem;
   font-weight: 700;
   color: var(--text);
-  width: 56px;
-  text-align: right;
+  text-align: center;
 }
 .list-row-header {
   display: grid;

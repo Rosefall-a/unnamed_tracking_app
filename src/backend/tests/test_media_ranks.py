@@ -1,4 +1,5 @@
-"""Library ranks cover the whole library, not just the page or search shown."""
+"""Library ranks cover the whole library, not just the page or search shown. They come
+with the first page; the pages after it do not send them again."""
 
 from decimal import Decimal
 
@@ -20,7 +21,7 @@ async def _add(user_id, title: str, rating: str | None) -> str:
         return str(movie.id)
 
 
-async def test_ranks_span_the_library_even_when_searching_or_paging(flow) -> None:
+async def test_ranks_span_the_library_even_when_searching(flow) -> None:
     ten_a = await _add(flow.user_id, "Alpha", "10")
     ten_b = await _add(flow.user_id, "Bravo", "10")
     nine = await _add(flow.user_id, "Charlie", "9")
@@ -36,6 +37,6 @@ async def test_ranks_span_the_library_even_when_searching_or_paging(flow) -> Non
     assert [m["title"] for m in searched["items"]] == ["Charlie"]
     assert searched["score_ranks"][nine] == 3
 
-    # and a later page carries the same ranking
+    # a later page does not repeat them: the first page already gave the whole ranking
     paged = (await flow.client.get("/api/movie/list", params={"skip": 3, "limit": 1})).json()
-    assert paged["score_ranks"] == ranks
+    assert paged["score_ranks"] == {}

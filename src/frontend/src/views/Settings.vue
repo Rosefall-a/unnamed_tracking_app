@@ -32,6 +32,7 @@ import AniListImportSection from "../components/settings/AniListImportSection.vu
 import ApiKeysSection from "../components/settings/ApiKeysSection.vue";
 import PasswordPolicySection from "../components/settings/PasswordPolicySection.vue";
 import AccountChip from "../components/AccountChip.vue";
+import SettingsSearch from "../components/settings/SettingsSearch.vue";
 import BackButton from "../components/BackButton.vue";
 
 const router = useRouter();
@@ -127,7 +128,7 @@ watch(
   () => route.query.section,
   (section) => {
     const next = typeof section === "string" && section ? section : "profile";
-    if (activeSection.value !== next) activeSection.value = next;
+    if (activeSection.value !== next) openSection(next);
   },
 );
 
@@ -153,6 +154,10 @@ watch(activeSection, async () => {
     <div class="settings-layout">
       <div class="settings-head">
         <h1>Settings</h1>
+        <SettingsSearch
+          :is-admin="!!currentUser?.is_admin"
+          @select="openSection"
+        />
         <SaveStatus />
       </div>
       <div class="settings-body">
@@ -237,10 +242,14 @@ watch(activeSection, async () => {
 }
 .settings-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: 12px 16px;
   margin: 0 0 24px;
+}
+.settings-head h1 {
+  margin-right: auto;
 }
 .settings-layout h1 {
   margin: 0;

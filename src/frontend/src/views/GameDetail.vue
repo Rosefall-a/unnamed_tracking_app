@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { usePageTitle } from "../state/pageTitle";
 import { formatDisplayDate } from "../utils/dates";
-import { activePriority, priorityLabel } from "../utils/priority";
+import { activePriority, isFinished, priorityLabel } from "../utils/priority";
 import { computed, ref, watch, onMounted, onUnmounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import {
@@ -827,8 +827,35 @@ async function loadGame(id: string) {
   // everything the page fills in on its own is asked for at once, so none of
   // it waits for the game or for each other
   let achievements: Achievement[] | null = null;
+  let statusChecked = false;
+  // Reading the achievements puts a finished game's status right on the server,
+  // and the game itself may have been read just before that, so it is read once
+  // more when the achievements say its status is behind.
+  const pickUpAdvancedStatus = () => {
+    const current = game.value;
+    if (statusChecked || !current || !achievements?.length) return;
+    const unlocked = achievements.filter(isUnlocked).length;
+    const behind =
+      (unlocked === achievements.length &&
+        ["backlog", "wishlist", "playing", "played"].includes(
+          current.status,
+        )) ||
+      (unlocked > 0 && current.status === "backlog");
+    if (!behind) return;
+    statusChecked = true;
+    void fetchGame(id)
+      .then((latest) => {
+        if (route.params.id !== id || !latest || !game.value) return;
+        game.value.status = latest.status;
+        game.value.completionDate = latest.completionDate;
+      })
+      .catch(() => {
+        // the status shows right on the next visit
+      });
+  };
   const applyAchievements = () => {
     if (route.params.id !== id || !game.value || !achievements) return;
+    pickUpAdvancedStatus();
     game.value.achievements = achievements;
     game.value.achievementTotal = achievements.length;
     game.value.achievementPercent = achievements.length
@@ -2860,6 +2887,7 @@ void loadGame(route.params.id as string);
       </div>
 
       <section
+        v-if="game.resumeNote || resumeNoteEditing || !isFinished(game.status)"
         class="my-note"
         :class="{ empty: !game.resumeNote && !resumeNoteEditing }"
       >

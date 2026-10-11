@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { numberOrNull } from "../utils/numberInput";
+import { PRIORITY_OPTIONS, priorityRank } from "../utils/priority";
 import { ref, computed, watch } from "vue";
 import {
   createMovie,
@@ -49,6 +51,9 @@ function blankFields() {
     favorite: false,
     ratingOverall: null as number | null,
     personalRank: null as number | null,
+    startDate: "",
+    endDate: "",
+    priority: "",
     posterUrl: null as string | null,
     backdropUrl: null as string | null,
     tmdbScore: null as number | null,
@@ -95,6 +100,10 @@ function loadFromMovie(movie: Movie | null | undefined) {
     favorite: movie.favorite,
     ratingOverall: movie.ratingOverall,
     personalRank: movie.personalRank,
+    startDate: movie.startDate ?? "",
+    endDate: movie.endDate ?? "",
+    // an older HIGH, MEDIUM or LOW shows as its 1 to 5 number
+    priority: String(priorityRank(movie.priority) ?? ""),
     posterUrl: movie.posterUrl,
     backdropUrl: movie.backdropUrl,
     tmdbScore: movie.tmdbScore,
@@ -106,20 +115,25 @@ watch(() => props.movie, loadFromMovie, { immediate: true });
 function applyMetadata(result: MovieMetadataResult) {
   const locked = new Set(props.movie?.lockedFields ?? []);
   if (!locked.has("title")) fields.value.title = result.title;
-  if (!locked.has("description"))
-    fields.value.description = result.description ?? "";
-  if (!locked.has("release_date"))
-    fields.value.releaseDate = result.releaseDate ?? "";
+  // A result that has nothing for a field leaves what is already there alone,
+  // instead of blanking it.
+  if (!locked.has("description") && result.description)
+    fields.value.description = result.description;
+  if (!locked.has("release_date") && result.releaseDate)
+    fields.value.releaseDate = result.releaseDate;
   if (!locked.has("runtime_minutes") && result.runtimeMinutes !== null)
     fields.value.runtimeMinutes = result.runtimeMinutes;
-  if (!locked.has("director")) fields.value.director = result.director ?? "";
-  if (!locked.has("writer")) fields.value.writer = result.writer ?? "";
+  if (!locked.has("director") && result.director)
+    fields.value.director = result.director;
+  if (!locked.has("writer") && result.writer)
+    fields.value.writer = result.writer;
   if (!locked.has("studios") && result.studios.length)
     fields.value.studiosInput = result.studios.join(", ");
   if (!locked.has("genres") && result.genres.length)
     fields.value.genresInput = result.genres.join(", ");
-  if (!locked.has("poster_url")) fields.value.posterUrl = result.posterUrl;
-  if (!locked.has("backdrop_url"))
+  if (!locked.has("poster_url") && result.posterUrl)
+    fields.value.posterUrl = result.posterUrl;
+  if (!locked.has("backdrop_url") && result.backdropUrl)
     fields.value.backdropUrl = result.backdropUrl;
   if (!locked.has("tmdb_score") && result.tmdbScore !== null)
     fields.value.tmdbScore = result.tmdbScore;
@@ -165,7 +179,7 @@ async function submit() {
       title: fields.value.title.trim(),
       description: fields.value.description.trim() || null,
       releaseDate: fields.value.releaseDate || null,
-      runtimeMinutes: fields.value.runtimeMinutes,
+      runtimeMinutes: numberOrNull(fields.value.runtimeMinutes),
       director: fields.value.director.trim() || null,
       writer: fields.value.writer.trim() || null,
       studios: splitList(fields.value.studiosInput),
@@ -173,11 +187,14 @@ async function submit() {
       tags: splitList(fields.value.tagsInput),
       status: fields.value.status,
       favorite: fields.value.favorite,
-      ratingOverall: fields.value.ratingOverall,
-      personalRank: fields.value.personalRank,
+      ratingOverall: numberOrNull(fields.value.ratingOverall),
+      personalRank: numberOrNull(fields.value.personalRank),
+      startDate: fields.value.startDate || null,
+      endDate: fields.value.endDate || null,
+      priority: fields.value.priority || null,
       posterUrl: fields.value.posterUrl,
       backdropUrl: fields.value.backdropUrl,
-      tmdbScore: fields.value.tmdbScore,
+      tmdbScore: numberOrNull(fields.value.tmdbScore),
     };
     const saved = props.movie
       ? await updateMovie(props.movie.id, {
@@ -345,6 +362,33 @@ async function remove() {
           min="1"
           class="text-input"
         />
+      </label>
+    </div>
+
+    <div class="field-row">
+      <label class="field">
+        <span>Started</span>
+        <input v-model="fields.startDate" type="date" class="text-input" />
+      </label>
+      <label class="field">
+        <span>Finished</span>
+        <input v-model="fields.endDate" type="date" class="text-input" />
+      </label>
+    </div>
+
+    <div class="field-row">
+      <label class="field">
+        <span>Priority</span>
+        <select v-model="fields.priority" class="text-input">
+          <option value="">None</option>
+          <option
+            v-for="option in PRIORITY_OPTIONS"
+            :key="option.value"
+            :value="option.value"
+          >
+            {{ option.label }}
+          </option>
+        </select>
       </label>
     </div>
 

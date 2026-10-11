@@ -13,7 +13,7 @@ from sqlalchemy import delete
 
 from src.api.routes import games, library_sync
 from src.api.schemas.game import GameCreate
-from src.database.models.game import Game
+from src.database.models.game import Game, GameStatus
 from src.database.models.user import User
 from src.database.session import SessionLocal
 
@@ -525,3 +525,150 @@ async def test_an_empty_answer_does_not_wipe_stored_achievements(scratch_user, m
     result = await _refresh(user, game_id)
     assert result["achievements"] == 0
     assert "Kept" in await _listed(user, game_id)
+
+
+async def test_a_failed_lookup_during_a_library_sync_keeps_stored_achievements(scratch_user, monkeypatch):
+    user = _creds(scratch_user, retroachievements_username="me", retroachievements_api_key="k")
+    game_id = await _provider_game(user, source="RetroAchievements", external_id="777")
+    async with SessionLocal() as db:
+        await library_sync._replace_achievements(
+            db,
+            game_id,
+            "RetroAchievements",
+            [
+                {
+                    "external_id": "K",
+                    "name": "Kept",
+                    "description": None,
+                    "icon_url": None,
+                    "unlocked": True,
+                    "unlocked_at": 1,
+                }
+            ],
+        )
+        await db.commit()
+
+    def owned(_self, _username):
+        return [{"GameID": "777", "Title": "Provider Test"}]
+
+    def rate_limited(_self, _username, _game):
+        raise library_sync.RetroAchievementsError("rate limited")
+
+    monkeypatch.setattr(library_sync.RetroAchievementsClient, "get_user_games", owned)
+    monkeypatch.setattr(library_sync.RetroAchievementsClient, "get_game_progress", rate_limited)
+    async with SessionLocal() as db:
+        await library_sync.sync_retroachievements_library(db, user)
+
+    # the lookup failed, so what was stored before is still there
+    assert "Kept" in await _listed(user, game_id)
+
+
+async def _status_after_refresh(scratch_user, monkeypatch, *, start, achieved):
+    user = _creds(scratch_user, steam_id="76561190000000000", steam_api_key="key")
+    game_id = await _provider_game(user, source="Steam", external_id="12345")
+    async with SessionLocal() as db:
+        row = await db.get(Game, game_id)
+        row.status = start
+        await db.commit()
+    monkeypatch.setattr(library_sync.steam, "resolve_steam_id", lambda sid, _key: sid)
+    monkeypatch.setattr(library_sync.steam, "get_schema_for_game", lambda _key, _app: _SCHEMA)
+    monkeypatch.setattr(
+        library_sync.steam,
+        "get_player_achievements",
+        lambda *_args: [
+            {"apiname": name, "achieved": 1, "unlocktime": 1_700_000_000} for name in achieved
+        ],
+    )
+    monkeypatch.setattr(library_sync.steam, "get_global_percentages", lambda _app: {})
+    await _refresh(user, game_id)
+    async with SessionLocal() as db:
+        row = await db.get(Game, game_id)
+        return row.status, row.completion_date
+
+
+async def test_every_achievement_unlocked_moves_a_backlog_game_to_mastered(scratch_user, monkeypatch):
+    status, completed = await _status_after_refresh(
+        scratch_user, monkeypatch, start=GameStatus.BACKLOG, achieved=["ACH_PLAIN", "ACH_SECRET"]
+    )
+    assert status == GameStatus.MASTERED
+    assert completed is not None  # and the day it was finished is recorded
+
+
+async def test_some_achievements_move_a_backlog_game_to_played(scratch_user, monkeypatch):
+    status, _ = await _status_after_refresh(
+        scratch_user, monkeypatch, start=GameStatus.BACKLOG, achieved=["ACH_PLAIN"]
+    )
+    assert status == GameStatus.PLAYED
+
+
+@pytest.mark.parametrize("chosen", [GameStatus.BEATEN, GameStatus.DROPPED, GameStatus.ON_HOLD])
+async def test_a_status_the_person_chose_is_left_alone(scratch_user, monkeypatch, chosen):
+    status, _ = await _status_after_refresh(
+        scratch_user, monkeypatch, start=chosen, achieved=["ACH_PLAIN", "ACH_SECRET"]
+    )
+    assert status == chosen
+
+
+async def test_a_game_being_played_is_mastered_once_everything_is_unlocked(scratch_user, monkeypatch):
+    status, _ = await _status_after_refresh(
+        scratch_user, monkeypatch, start=GameStatus.PLAYING, achieved=["ACH_PLAIN", "ACH_SECRET"]
+    )
+    assert status == GameStatus.MASTERED
+
+
+async def test_opening_a_finished_game_in_the_backlog_makes_it_mastered(scratch_user):
+    rows = [
+        {
+            "external_id": f"ACH_{n}",
+            "name": f"Done {n}",
+            "description": None,
+            "icon_url": None,
+            "unlocked": True,
+            "unlocked_at": 1_700_000_000,
+            "hidden": False,
+        }
+        for n in range(2)
+    ]
+    game_id = await _game_with(scratch_user, "Steam", rows)
+    async with SessionLocal() as db:
+        row = await db.get(Game, game_id)
+        row.status = GameStatus.BACKLOG
+        await db.commit()
+
+    await _listed(scratch_user, game_id)
+
+    async with SessionLocal() as db:
+        row = await db.get(Game, game_id)
+        assert row.status == GameStatus.MASTERED
+        assert row.completion_date is not None
+
+
+def _game(status, playtime=0):
+    return SimpleNamespace(status=status, playtime_seconds=playtime, completion_date=None)
+
+
+def test_a_wishlisted_game_found_in_a_library_becomes_backlog():
+    game = _game(GameStatus.WISHLIST)
+    assert library_sync._advance_status(game, 0, 0, 0)
+    assert game.status == GameStatus.BACKLOG
+
+
+def test_a_wishlisted_game_with_playtime_or_a_full_set_skips_the_backlog():
+    played = _game(GameStatus.WISHLIST, playtime=600)
+    library_sync._advance_status(played, 0, 0, 600)
+    assert played.status == GameStatus.PLAYED
+    done = _game(GameStatus.WISHLIST)
+    library_sync._advance_status(done, 3, 3, 0)
+    assert done.status == GameStatus.MASTERED
+
+
+def test_playtime_moves_a_backlog_game_to_played():
+    game = _game(GameStatus.BACKLOG, playtime=60)
+    assert library_sync._advance_status(game, 0, 0, 60)
+    assert game.status == GameStatus.PLAYED
+
+
+def test_no_playtime_leaves_a_backlog_game_alone():
+    game = _game(GameStatus.BACKLOG)
+    assert not library_sync._advance_status(game, 5, 0, 0)
+    assert game.status == GameStatus.BACKLOG

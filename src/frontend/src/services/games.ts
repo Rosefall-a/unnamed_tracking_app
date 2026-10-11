@@ -3,6 +3,7 @@ import { failedRequest } from "./apiError";
 import { normalizeKind } from "../utils/achievements";
 import { createEntityCache } from "../utils/entityCache";
 import { POSTER_WIDTH, sizedAssetUrl } from "../utils/gameImages";
+import { bumpArt, withArtVersion } from "../utils/artVersion";
 import type { ContentCounts, PageOverrides } from "../utils/gamePage";
 import type {
   Achievement,
@@ -114,10 +115,10 @@ export function mapBackendGame(raw: BackendGame): Game {
     // every place a cover is shown is a card or a poster well under 400 px
     // wide, and the stored cover is a PNG of up to a megabyte
     coverImageUrl: sizedAssetUrl(
-      `/api/game/${raw.id}/assets/key_art`,
+      withArtVersion(`/api/game/${raw.id}/assets/key_art`, raw.id),
       POSTER_WIDTH,
     ),
-    bannerImageUrl: `/api/game/${raw.id}/assets/banner`,
+    bannerImageUrl: withArtVersion(`/api/game/${raw.id}/assets/banner`, raw.id),
     status: normalizeStatus(raw.status),
     ratingOverall: toNumberOrNull(raw.rating_overall),
     ratingStory: toNumberOrNull(raw.rating_story),
@@ -513,7 +514,8 @@ export function rankMetadataResults<T extends { title: string }>(
     .map(({ result }) => result);
 }
 
-export type RefreshMetadataResult = "updated" | "preview" | "no-match" | "error";
+export type RefreshMetadataResult =
+  "updated" | "preview" | "no-match" | "error";
 
 export interface RefreshMetadataOutcome {
   status: RefreshMetadataResult;
@@ -593,6 +595,8 @@ export async function applyGameMetadataRefresh(
   options: RefreshMetadataOptions = DEFAULT_REFRESH_OPTIONS,
 ): Promise<RefreshMetadataOutcome> {
   const raw = await requestGameMetadataRefresh(game, options, false);
+  // a refresh that saved new art replaced the files under the same addresses
+  if (raw.would_add_key_art || raw.would_add_banner) bumpArt(game.id);
   return {
     status: raw.status,
     provider: raw.provider,
@@ -1508,6 +1512,7 @@ export async function uploadGameAsset(
     );
   }
 
+  bumpArt(gameId);
   return await response.json();
 }
 
@@ -1533,6 +1538,7 @@ export async function attachGameAssetFromUrl(
     );
   }
 
+  bumpArt(gameId);
   return await response.json();
 }
 

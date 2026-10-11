@@ -1,6 +1,9 @@
 <script setup lang="ts">
+import { mediaPriority } from "../utils/priority";
 import { ref, computed, onMounted } from "vue";
 import { useKeptAlive } from "../utils/useKeptAlive";
+import { readSavedSort } from "../utils/librarySort";
+import { fetchLoadedExtent, STALE_AFTER_MS } from "../utils/libraryPaging";
 import type { LibraryFilters } from "../utils/libraryFilters";
 import {
   fetchMoviesPage,
@@ -52,6 +55,9 @@ function toVM(m: Movie): LibraryCardVM {
     canAdvance: false,
     releaseYear: m.releaseDate ? m.releaseDate.slice(0, 4) : null,
     addedAt: Date.parse(m.createdAt) || null,
+    startDate: m.startDate,
+    endDate: m.endDate,
+    priority: mediaPriority(m.status, m.priority),
   };
 }
 
@@ -60,16 +66,29 @@ const items = computed(() => movies.value.map(toVM));
 // Only the very first load shows the loading state; a refresh when the
 // page comes back swaps data in quietly, so titles never blink away.
 let loadRequest = 0;
+let loadedAt = 0;
 const total = ref(0);
 const statusCounts = ref<Record<string, number>>({});
 const scoreRanks = ref<Record<string, number>>({});
 const pageSize = 100;
 const currentSearch = ref("");
 const currentFilters = ref<LibraryFilters & { statusBucket: string }>({
-  search: "", genres: [], genreMatchAll: false, formats: [], onlyFavorites: false,
-  onlyUnrated: false, onlyWithNote: false, minScore: null, yearFrom: "", yearTo: "", statusBucket: "all",
+  search: "",
+  genres: [],
+  genreMatchAll: false,
+  formats: [],
+  onlyFavorites: false,
+  onlyUnrated: false,
+  onlyWithNote: false,
+  minScore: null,
+  yearFrom: "",
+  yearTo: "",
+  statusBucket: "all",
+  sort: readSavedSort("movie"),
 });
-async function load(filters: LibraryFilters & { statusBucket: string } = currentFilters.value) {
+async function load(
+  filters: LibraryFilters & { statusBucket: string } = currentFilters.value,
+) {
   currentFilters.value = filters;
   currentSearch.value = filters.search;
   const request = ++loadRequest;
@@ -81,22 +100,77 @@ async function load(filters: LibraryFilters & { statusBucket: string } = current
     total.value = page.total;
     statusCounts.value = page.statusCounts;
     scoreRanks.value = page.scoreRanks;
+    loadedAt = Date.now();
   } catch (e) {
     error.value = e instanceof Error ? e.message : "Failed to load movies.";
-  } finally { loading.value = false; }
+  } finally {
+    loading.value = false;
+  }
 }
 async function loadMore() {
   if (loading.value || movies.value.length >= total.value) return;
   loading.value = true;
+  // a page asked for under an older search or filter must not land in the new list
+  const request = loadRequest;
   try {
-    const page = await fetchMoviesPage(movies.value.length, pageSize, currentFilters.value);
+    const page = await fetchMoviesPage(
+      movies.value.length,
+      pageSize,
+      currentFilters.value,
+    );
+    if (request !== loadRequest) return;
     movies.value.push(...page.items);
   } catch (e) {
-    error.value = e instanceof Error ? e.message : "Failed to load more movies.";
-  } finally { loading.value = false; }
+    error.value =
+      e instanceof Error ? e.message : "Failed to load more movies.";
+  } finally {
+    loading.value = false;
+  }
 }
+// Counts and ranks only (one small request): they change when a rating, a status
+// or the number of titles does, and they are all that changed.
+let metaTimer: ReturnType<typeof setTimeout> | null = null;
+function refreshMeta() {
+  if (metaTimer !== null) clearTimeout(metaTimer);
+  metaTimer = setTimeout(async () => {
+    metaTimer = null;
+    try {
+      const page = await fetchMoviesPage(0, 1, currentFilters.value);
+      total.value = page.total;
+      statusCounts.value = page.statusCounts;
+      scoreRanks.value = page.scoreRanks;
+    } catch {
+      // the next full read corrects them
+    }
+  }, 400);
+}
+
+// Read again in place: every title already loaded stays, so coming back never
+// shrinks the library to its first page and then refills it.
+async function reload() {
+  const request = ++loadRequest;
+  try {
+    const page = await fetchLoadedExtent(
+      fetchMoviesPage,
+      currentFilters.value,
+      movies.value.length,
+    );
+    if (request !== loadRequest) return;
+    movies.value = page.items;
+    total.value = page.total;
+    statusCounts.value = page.statusCounts;
+    scoreRanks.value = page.scoreRanks;
+    loadedAt = Date.now();
+  } catch {
+    // keep what is shown; the next visit tries again
+  }
+}
+
 onMounted(load);
-useKeptAlive(load);
+// a library read a moment ago is left alone; an older one is checked again
+useKeptAlive(() => {
+  if (Date.now() - loadedAt >= STALE_AFTER_MS) void reload();
+});
 
 function findMovie(id: string): Movie {
   const movie = movies.value.find((m) => m.id === id);
@@ -104,6 +178,7 @@ function findMovie(id: string): Movie {
   return movie;
 }
 function replaceMovie(updated: Movie) {
+  refreshMeta();
   const idx = movies.value.findIndex((m) => m.id === updated.id);
   if (idx !== -1) movies.value[idx] = updated;
 }
@@ -133,6 +208,8 @@ async function onSaveEdit(id: string, form: EditForm) {
       ...movieToInput(movie),
       status: form.status as MovieStatus,
       ratingOverall: form.score,
+      ...(form.startDate !== undefined && { startDate: form.startDate }),
+      ...(form.endDate !== undefined && { endDate: form.endDate }),
     }),
   );
 }
@@ -161,6 +238,7 @@ async function onBulkDelete(ids: string[]) {
     await deleteMovie(id);
   }
   movies.value = movies.value.filter((m) => !ids.includes(m.id));
+  refreshMeta();
 }
 
 async function search(
@@ -207,6 +285,7 @@ async function createFromResult(
     endDate: form.endDate,
   });
   movies.value.push(created);
+  refreshMeta();
 }
 
 function detailRoute(id: string): string {

@@ -3,9 +3,7 @@
 import asyncio
 from uuid import UUID
 
-import requests
-
-from src.core.config import settings as app_settings
+from src.helpers.remote_images import RemoteImageError, download_image
 from src.helpers.save_game_asset import AssetKind, save_game_asset
 
 
@@ -29,17 +27,12 @@ async def download_asset(url: str, game_id: UUID, asset_kind: AssetKind) -> bool
     Returns whether it actually saved something, so callers can fall back
     to a different URL."""
     try:
-        response = await asyncio.to_thread(requests.get, url, timeout=20)
-        response.raise_for_status()
-    except requests.RequestException:
-        return False
-    content_type = response.headers.get("content-type", "").split(";", 1)[0].lower()
-    if not content_type.startswith("image/"):
-        return False
-    if len(response.content) > app_settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024:
+        # checked like any address that is not ours: public hosts only, a size cap
+        image = await asyncio.to_thread(download_image, url)
+    except RemoteImageError:
         return False
     try:
-        await save_game_asset(response.content, game_id, asset_kind)
+        await save_game_asset(image, game_id, asset_kind)
         return True
     except (OSError, ValueError):
         return False

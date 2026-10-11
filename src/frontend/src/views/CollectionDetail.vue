@@ -42,9 +42,8 @@ const games = ref<Game[]>([]);
 const loading = ref(true);
 const error = ref<string | null>(null);
 
-const collectionName = computed(() =>
-  decodeURIComponent(route.params.name as string),
-);
+// the router has already decoded it; decoding again throws on a name like "50% Off"
+const collectionName = computed(() => route.params.name as string);
 // same "Parent/Child" naming convention as CollectionTile.vue
 const nestedParent = computed(() => {
   const idx = collectionName.value.indexOf("/");
@@ -312,7 +311,9 @@ async function onEdit(payload: CollectionFormPayload) {
       members: collectionGames.value,
     });
     if (payload.name !== oldName) {
-      await router.replace(`/games/collections/${encodeURIComponent(payload.name)}`);
+      await router.replace(
+        `/games/collections/${encodeURIComponent(payload.name)}`,
+      );
     }
   } catch (err) {
     error.value =

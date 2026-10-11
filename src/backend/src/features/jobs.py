@@ -74,6 +74,13 @@ async def _run_airing(force: bool) -> None:
         await record_run("airing_check", await check_airing_episodes(force=force))
     except Exception:
         logger.exception("The airing check failed")
+        # a failed pass still counts as a run: without a time recorded the job is due
+        # again on the very next minute's tick, and asks AniList again every minute
+        # for as long as it is down
+        try:
+            await record_run("airing_check", {"failed": True})
+        except Exception:
+            logger.exception("The airing check's failed run could not be recorded")
     finally:
         _airing_running = False
 
@@ -128,16 +135,22 @@ async def _run_due_anilist_imports(now: int) -> None:
                 select(UserPreferences, User)
                 .join(User, User.id == UserPreferences.user_id)
                 .where(UserPreferences.data["anilist_import_enabled"].as_boolean().is_(True))
-                .limit(ANILIST_IMPORT_MAX_USERS_PER_TICK)
             )
         ).all()
+    # the batch is the people who are due, longest-waiting first: choosing four
+    # before looking at the time let the same four block everyone after them
+    due_rows = []
     for pref_row, user in rows:
         data = pref_row.data
-        username = str(data.get("anilist_import_username") or "").strip()
         interval = int(data.get("anilist_import_interval_minutes") or 24 * 60)
-        last_run = data.get("anilist_import_last_run_at")
-        if not username or not is_due(True, last_run, interval, now):
-            continue
+        if str(data.get("anilist_import_username") or "").strip() and is_due(
+            True, data.get("anilist_import_last_run_at"), interval, now
+        ):
+            due_rows.append((pref_row, user))
+    due_rows.sort(key=lambda pair: pair[0].data.get("anilist_import_last_run_at") or 0)
+    for pref_row, user in due_rows[:ANILIST_IMPORT_MAX_USERS_PER_TICK]:
+        data = pref_row.data
+        username = str(data.get("anilist_import_username") or "").strip()
         try:
             async with SessionLocal() as db:
                 result = await import_anilist_library(db, user.id, username, bool(data.get("anilist_import_update_existing")))
@@ -148,6 +161,16 @@ async def _run_due_anilist_imports(now: int) -> None:
             logger.info("Scheduled AniList import for user %s: %s", user.id, result)
         except Exception:
             logger.exception("Scheduled AniList import failed for user %s", user.id)
+            # a wrong or private username fails every time, so the failed try counts
+            # as a run: it is tried again after the interval, not every minute
+            try:
+                async with SessionLocal() as db:
+                    pref = await db.get(UserPreferences, pref_row.id)
+                    if pref is not None:
+                        pref.data = {**pref.data, "anilist_import_last_run_at": now}
+                        await db.commit()
+            except Exception:
+                logger.exception("Could not record the failed AniList import for user %s", user.id)
 
 
 async def run_jobs_loop() -> None:

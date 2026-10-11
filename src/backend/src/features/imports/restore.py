@@ -51,7 +51,9 @@ def _convert(column: Any, value: Any) -> Any:
         return value if isinstance(value, dt.date) else dt.date.fromisoformat(str(value)[:10])
     if isinstance(kind, Numeric):
         try:
-            return Decimal(str(value))
+            number = Decimal(str(value))
+            # NaN and Infinity are valid to the database and then break every read
+            return number if number.is_finite() else None
         except InvalidOperation as exc:
             raise ValueError(f"{column.key}: not a number") from exc
     if isinstance(kind, SAEnum) and kind.enum_class is not None:
