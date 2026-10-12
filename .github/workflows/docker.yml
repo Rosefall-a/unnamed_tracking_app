@@ -1,5 +1,9 @@
 name: Build and push Docker images
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
 on:
   push:
   pull_request:
@@ -50,8 +54,8 @@ jobs:
         with:
           images: ghcr.io/${{ env.REPO_LC }}-${{ matrix.name }}
           tags: |
-            type=raw,value=${{ github.ref_name }}   # tag = branch name
-            type=sha,format=long                    # tag = sha
+            type=raw,value=${{ github.ref_name }}
+            type=sha,format=long
 
       - name: Build and push ${{ matrix.name }}
         uses: docker/build-push-action@v6

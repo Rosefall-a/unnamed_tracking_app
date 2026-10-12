@@ -1,12 +1,18 @@
 name: Task / maintenance
-description: Track internal development, maintenance, or cleanup work.
+description: Track internal development, maintenance, or cleanup work for Rosefall-a/unnamed_tracking_app.
 title: "[TASK] "
 body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this for engineering work such as CI, dependencies, documentation, refactoring, or maintenance.
+        Use Bug report for a reproducible application failure and Feature request for a new user capability.
+
   - type: textarea
     id: task
     attributes:
       label: Task
-      description: What needs to be done?
+      description: Describe the concrete change and the affected subsystem or files.
     validations:
       required: true
 
@@ -15,9 +21,34 @@ body:
     attributes:
       label: Why is this needed?
       description: Explain the purpose, problem, or expected benefit.
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: List the observable conditions that make this task complete.
+      placeholder: |
+        - [ ] ...
+        - [ ] ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: verification
+    attributes:
+      label: Verification
+      description: Relevant commands, tests, failed CI job links, or manual checks. Describe how to reproduce an existing failure when applicable.
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope and dependencies
+      description: Link related issues/PRs, identify what is outside this task, and note migrations or public API compatibility constraints.
 
   - type: textarea
     id: context
     attributes:
       label: Additional context
-      description: Add relevant links, implementation notes, constraints, or other context.
+      description: Add useful evidence or implementation notes that do not fit above.

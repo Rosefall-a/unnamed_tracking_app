@@ -1,15 +1,58 @@
 name: Backend checks
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
 on:
   push:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
 
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  PYTHONPATH: ${{ github.workspace }}/src/backend
+  DATABASE_URL: postgresql+psycopg://test:test@localhost:5432/unnamed_tracking_test
+  PRIMARY_USER_USERNAME: test
+  PRIMARY_USER_EMAIL: test@example.com
+  PRIMARY_USER_PASSWORD: test-password
+  SECRET_KEY: XJVqc8r7Uj801VzGUYhlQV8A2tZTBepjOYEiP2pTzFk=
+
 jobs:
-  backend-checks:
+  changes:
+    name: Detect backend changes
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.changes.outputs.backend }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Detect changed backend files
+        id: changes
+        run: |
+          if [[ "${{ github.event_name }}" != "pull_request" ]]; then
+            echo "backend=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if git diff --name-only "${{ github.event.pull_request.base.sha }}" "${{ github.sha }}" | grep -q '^src/backend/'; then
+            echo "backend=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "backend=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  backend-tests:
+    name: Backend tests
     if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     runs-on: ubuntu-latest
-
     services:
       postgres:
         image: postgres:16
@@ -24,39 +67,50 @@ jobs:
           --health-interval=10s
           --health-timeout=5s
           --health-retries=5
-
     defaults:
       run:
         working-directory: src/backend
-
-    env:
-      PYTHONPATH: ${{ github.workspace }}/src/backend
-      DATABASE_URL: postgresql+psycopg://test:test@localhost:5432/unnamed_tracking_test
-      PRIMARY_USER_USERNAME: test
-      PRIMARY_USER_EMAIL: test@example.com
-      PRIMARY_USER_PASSWORD: test-password
-      SECRET_KEY: XJVqc8r7Uj801VzGUYhlQV8A2tZTBepjOYEiP2pTzFk=
-
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: pip
           cache-dependency-path: src/backend/requirements.txt
-
       - name: Install backend dependencies
         run: python -m pip install -r requirements.txt
-
       - name: Prepare test database
-        run: alembic upgrade head
-
+        run: alembic upgrade head 2>&1 | tee migrations-output.txt
       - name: Run tests
-        run: pytest
+        run: |
+          set -o pipefail
+          pytest 2>&1 | tee pytest-output.txt
+      - name: Upload test diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-test-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            src/backend/pytest-output.txt
+            src/backend/migrations-output.txt
+          if-no-files-found: ignore
 
+  migration-graph:
+    name: Alembic migration graph
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/backend
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
       - name: Validate Alembic migration graph
         run: |
           python - <<'PY'
@@ -90,34 +144,24 @@ jobs:
                   parents = [] if down_revision is None else list(down_revision) if isinstance(down_revision, tuple) else [down_revision]
                   revisions[revision] = (path.name, parents)
 
-          print("Loaded", len(revisions), "Alembic revisions")
           missing = sorted({parent for _, parents in revisions.values() for parent in parents if parent not in revisions})
           if missing:
               raise SystemExit(f"Missing Alembic parent revisions: {missing}")
-
           state = {}
           stack = []
-
           def visit(revision):
               state[revision] = 1
               stack.append(revision)
               for parent in revisions[revision][1]:
                   if state.get(parent) == 1:
-                      cycle_start = stack.index(parent)
-                      cycle = stack[cycle_start:] + [parent]
-                      print("Alembic cycle detected:")
-                      for item in cycle:
-                          print("  ", item, "<-", revisions[item][1])
-                      raise SystemExit("Alembic migration graph contains a cycle")
+                      raise SystemExit(f"Alembic migration graph contains a cycle: {stack + [parent]}")
                   if state.get(parent, 0) == 0:
                       visit(parent)
               stack.pop()
               state[revision] = 2
-
           for revision in revisions:
               if state.get(revision, 0) == 0:
                   visit(revision)
-
           children = {revision: 0 for revision in revisions}
           for _, parents in revisions.values():
               for parent in parents:
@@ -128,11 +172,21 @@ jobs:
               raise SystemExit(f"Expected exactly one Alembic head, found {len(heads)}: {heads}")
           PY
 
-      - name: Enforce 1,000-line maximum
+  backend-file-size:
+    name: Backend file size
+    needs: changes
+    if: needs.changes.result == 'success' && needs.changes.outputs.backend == 'true' && (github.event_name != 'pull_request' || !github.event.pull_request.draft)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/backend
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Check Python file sizes
         run: |
           python - <<'PY'
           from pathlib import Path
-
           maximum = 1000
           excluded = Path("src/database/migrations")
           violations = []
@@ -146,22 +200,90 @@ jobs:
               line_count = text.count("\n") + (1 if text else 0)
               if line_count > maximum:
                   violations.append((path, line_count))
-
           if violations:
-              print("Python files exceeding the 1,000-line maximum:")
               for path, line_count in sorted(violations):
                   print(f"  {path}: {line_count} lines")
               raise SystemExit(1)
-
           print("All non-migration Python files are at or below 1,000 lines.")
           PY
 
+  backend-mypy:
+    name: Backend mypy
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/backend
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: src/backend/requirements.txt
+      - name: Install backend dependencies
+        run: python -m pip install -r requirements.txt
       - name: Run mypy
-        run: mypy --config-file pyproject.toml src
-
-      - name: Run pylint
         run: |
-          pylint src | tee pylint-output.txt
-          score=$(grep -oP 'Your code has been rated at \K[0-9.]+(?=/10)' pylint-output.txt)
-          echo "Pylint score: $score"
-          python -c "import sys; sys.exit(0 if float('$score') >= 9.0 else 1)"
+          set -o pipefail
+          mypy --config-file pyproject.toml src 2>&1 | tee mypy-output.txt
+      - name: Upload mypy diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-mypy-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}
+          path: src/backend/mypy-output.txt
+          if-no-files-found: ignore
+
+  backend-pylint:
+    name: Backend pylint
+    needs: changes
+    if: needs.changes.result == 'success' && needs.changes.outputs.backend == 'true' && (github.event_name != 'pull_request' || !github.event.pull_request.draft)
+    uses: ./.github/workflows/pylint.yml
+    with:
+      strict: true
+
+  backend-checks:
+    # Keep this exact job name aligned with the repository's required status check.
+    name: backend-checks
+    if: always() && (github.event_name != 'pull_request' || !github.event.pull_request.draft)
+    needs:
+      - changes
+      - backend-tests
+      - migration-graph
+      - backend-file-size
+      - backend-mypy
+      - backend-pylint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every backend check to pass
+        id: backend-result
+        env:
+          CHECK_RESULTS: ${{ toJSON(needs) }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          results = json.loads(os.environ["CHECK_RESULTS"])
+          failures = {
+              name: job["result"]
+              for name, job in results.items()
+              if job["result"] not in {"success", "skipped"}
+          }
+          for name, job in results.items():
+              print(f"{name}: {job['result']}")
+          if failures:
+              raise SystemExit(f"Backend checks did not all pass: {failures}")
+          PY
+      - name: Report to Actions Dashboard
+        if: always() && vars.PUSH_TO_DISPLAY_ENABLED == 'true'
+        uses: pushtodisplay/actions-dashboard@ce26532a36af079259315587543935064f22e6b4
+        env:
+          PUSH_TO_DISPLAY_API_KEY: ${{ secrets.PUSH_TO_DISPLAY_API_KEY }}
+          PUSH_TO_DISPLAY_BOARD: ${{ vars.PUSH_TO_DISPLAY_BOARD }}
+        with:
+          steps-json: ${{ toJSON(steps) }}
+          panel-id: 2
+          label: Backend CI
