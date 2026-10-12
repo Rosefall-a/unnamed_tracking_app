@@ -5,13 +5,16 @@ import { ref } from "vue";
 import { lockedFieldLabels } from "./lockedFields";
 
 export function useMetadataSearch<
-  R extends { title: string; provider: string },
+  R extends { title: string; provider: string; providerId?: string },
 >(options: {
   search: (query: string) => Promise<{
     results: R[];
     providerErrors: string[];
     providers?: string[];
   }>;
+  // the full results for one title, read when a result is picked (the list
+  // itself is a quick search with little more than names)
+  details?: (title: string) => Promise<{ results: R[] }>;
   // "movie", "show" or "anime", for the messages
   noun: string;
   // when the search finds no provider at all, where to add a key
@@ -49,6 +52,26 @@ export function useMetadataSearch<
     }
   }
 
+  // the picked result with its details filled in, or as it was if they could
+  // not be read
+  async function resolve(result: R): Promise<R> {
+    if (!options.details) return result;
+    message.value = "Reading the details…";
+    try {
+      const { results: full } = await options.details(result.title);
+      return (
+        full.find(
+          (r) =>
+            r.provider === result.provider && r.providerId === result.providerId,
+        ) ??
+        full.find((r) => r.title.toLowerCase() === result.title.toLowerCase()) ??
+        result
+      );
+    } catch {
+      return result;
+    }
+  }
+
   // after a result has been applied to the form
   function applied(result: R, lockedFields: string[], note = "") {
     results.value = [];
@@ -58,5 +81,14 @@ export function useMetadataSearch<
       : `Prefilled from ${result.provider}${note}. Review the fields before saving.`;
   }
 
-  return { query, results, searching, message, warnings, run, applied };
+  return {
+    query,
+    results,
+    searching,
+    message,
+    warnings,
+    run,
+    resolve,
+    applied,
+  };
 }

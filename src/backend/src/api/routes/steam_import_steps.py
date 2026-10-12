@@ -33,6 +33,7 @@ from src.core.preferences import load_preferences
 from src.database.models.game import Game, GameStatus
 from src.database.models.user import User
 from src.database.session import get_db
+from src.features.game_matches import find_matches
 from src.features.metadata.games import steam, steam_wishlist
 from src.features.metadata.games.steam_achievements import (
     SteamAchievementData,
@@ -202,5 +203,9 @@ async def enrich_games(
         except Exception:  # noqa: BLE001 - one game must not fail the others
             failed += 1
         await db.commit()
+    # a wishlist game only gets its real name here, so this is when it can be
+    # recognised as one the person already added by hand
+    await find_matches(db, current_user.id)
+    await db.commit()
     return {"enriched": enriched, "failed": failed}
 

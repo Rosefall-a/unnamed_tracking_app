@@ -48,6 +48,7 @@ from src.features.tv_seasons import check_in_background, is_due
 from src.features.metadata.movies.tmdb import TMDBClient
 from src.features.metadata.refresh import quick_check_tv_season
 from src.features.metadata.tv.episode_sync import fetch_season_episodes
+from src.features.metadata.search_utils import cached_search
 from src.features.metadata.tv.search import search_tv_metadata
 from src.features.metadata.tv.tvdb import TVDBClient
 
@@ -123,6 +124,7 @@ async def _get_season_or_404(season_id: UUID, show_id: UUID, db: AsyncSession) -
 async def search_metadata(
     query: str = Query(..., min_length=2, max_length=100),
     limit: int = Query(default=8, ge=1, le=20),
+    light: bool = Query(default=False),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
@@ -132,11 +134,22 @@ async def search_metadata(
     app_integrations = resolve_integrations(await get_or_create_app_integration_settings(db))
     try:
         result = await asyncio.to_thread(
-            search_tv_metadata,
-            query.strip(),
-            limit,
-            app_integrations.tmdb_api_key,
-            app_integrations.omdb_api_key,
+            cached_search,
+            (
+                "tv",
+                query.strip().lower(),
+                limit,
+                light,
+                bool(app_integrations.tmdb_api_key),
+                bool(app_integrations.omdb_api_key),
+            ),
+            lambda: search_tv_metadata(
+                query.strip(),
+                limit,
+                app_integrations.tmdb_api_key,
+                app_integrations.omdb_api_key,
+                light,
+            ),
         )
     except Exception as exc:
         raise HTTPException(

@@ -52,7 +52,7 @@ class JikanClient:
         for attempt in range(_MAX_RETRIES + 1):
             throttle("jikan", _PACING_SECONDS)
             try:
-                response = self.session.get(f"{_BASE_URL}{path}", params=params, timeout=15)
+                response = self.session.get(f"{_BASE_URL}{path}", params=params, timeout=(4, 15))
             except requests.RequestException as exc:
                 raise JikanError(f"Could not reach Jikan: {exc}") from exc
             if response.status_code == 429:

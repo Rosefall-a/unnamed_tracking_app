@@ -151,7 +151,7 @@ async function loadLists() {
     membership.value = mine;
     listsLoaded.value = true;
   } catch (e) {
-    listError.value = e instanceof Error ? e.message : "Failed to load lists.";
+    listError.value = e instanceof Error ? e.message : "Failed to load collections.";
   }
 }
 
@@ -169,7 +169,7 @@ async function toggleListMembership(listId: string) {
       membership.value = fresh;
     }
   } catch (e) {
-    listError.value = e instanceof Error ? e.message : "Failed to update list.";
+    listError.value = e instanceof Error ? e.message : "Failed to update collection.";
   } finally {
     addingToList.value = null;
   }
@@ -199,7 +199,7 @@ async function commitRename(l: MediaListSummary) {
     const updated = await updateMediaList(l.id, { name });
     lists.value = lists.value.map((o) => (o.id === l.id ? updated : o));
   } catch (e) {
-    listError.value = e instanceof Error ? e.message : "Failed to rename list.";
+    listError.value = e instanceof Error ? e.message : "Failed to rename collection.";
   }
 }
 async function useAsCover(l: MediaListSummary) {
@@ -216,8 +216,8 @@ async function useAsCover(l: MediaListSummary) {
 const confirm = useConfirm();
 async function removeList(l: MediaListSummary) {
   const ok = await confirm({
-    message: `Delete "${l.name}"? This doesn't delete the titles in it, just the list.`,
-    confirmLabel: "Delete list",
+    message: `Delete "${l.name}"? This doesn't delete the titles in it, just the collection.`,
+    confirmLabel: "Delete collection",
     danger: true,
   });
   if (!ok) return;
@@ -226,7 +226,7 @@ async function removeList(l: MediaListSummary) {
     lists.value = lists.value.filter((o) => o.id !== l.id);
     membership.value = membership.value.filter((m) => m.listId !== l.id);
   } catch (e) {
-    listError.value = e instanceof Error ? e.message : "Failed to delete list.";
+    listError.value = e instanceof Error ? e.message : "Failed to delete collection.";
   }
 }
 
@@ -239,7 +239,7 @@ async function submitNewList() {
     newListName.value = "";
     await toggleListMembership(created.id);
   } catch (e) {
-    listError.value = e instanceof Error ? e.message : "Failed to create list.";
+    listError.value = e instanceof Error ? e.message : "Failed to create collection.";
   }
 }
 
@@ -312,7 +312,7 @@ onBeforeUnmount(() => document.removeEventListener("click", onDocumentClick));
         type="button"
         class="icon-btn"
         :class="{ active: membership.length > 0 }"
-        title="Add to list"
+        title="Add to collection"
         @click.stop="toggleListPopover"
       >
         <svg
@@ -427,12 +427,12 @@ onBeforeUnmount(() => document.removeEventListener("click", onDocumentClick));
           >
             <path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01" />
           </svg>
-          <p class="popover-title">Add to list</p>
+          <p class="popover-title">Add to collection</p>
         </div>
 
         <p v-if="listError" class="extras-error">{{ listError }}</p>
         <p v-if="listsLoaded && !lists.length" class="empty-hint">
-          No lists yet. Create one below.
+          No collections yet. Create one below.
         </p>
         <ul v-else class="list-options">
           <li
@@ -483,21 +483,21 @@ onBeforeUnmount(() => document.removeEventListener("click", onDocumentClick));
                     membershipByList.has(l.id) && l.coverMediaId !== mediaId
                   "
                   type="button"
-                  title="Use this title as the list cover"
+                  title="Use this title as the collection cover"
                   @click="useAsCover(l)"
                 >
                   ★
                 </button>
                 <button
                   type="button"
-                  title="Rename list"
+                  title="Rename collection"
                   @click="startRename(l)"
                 >
                   ✎
                 </button>
                 <button
                   type="button"
-                  title="Delete list"
+                  title="Delete collection"
                   @click="removeList(l)"
                 >
                   ✕
@@ -512,7 +512,7 @@ onBeforeUnmount(() => document.removeEventListener("click", onDocumentClick));
           <input
             v-model="newListName"
             type="text"
-            placeholder="New list name…"
+            placeholder="New collection name…"
             class="new-list-input"
             @keyup.enter="submitNewList"
           />
@@ -525,7 +525,7 @@ onBeforeUnmount(() => document.removeEventListener("click", onDocumentClick));
           </button>
         </div>
         <button type="button" class="manage-lists-btn" @click="goToLists">
-          Manage all lists →
+          Manage all collections →
         </button>
       </div>
     </Transition>

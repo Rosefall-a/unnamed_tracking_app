@@ -4,13 +4,17 @@
 
 from __future__ import annotations
 
-from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from typing import Any, Callable, Literal
 
 from src.features.metadata.anime.anilist import AniListClient
 from src.features.metadata.anime.jikan import JikanClient
-from src.features.metadata.search_utils import format_provider_error, merge_search_result
+from src.features.metadata.search_utils import (
+    format_provider_error,
+    merge_search_result,
+    run_providers,
+    visible_errors,
+)
 
 # Unlike Movies/TV (TMDB+OMDb, both need an app-wide API key), both
 # AniList and Jikan are public/keyless for read-only search — so there's
@@ -143,19 +147,18 @@ def search_anime_metadata(query: str, limit: int = 8) -> dict[str, Any]:
         except Exception as exc:  # noqa: BLE001 — one provider's failure shouldn't sink the search
             return spec, None, str(exc)
 
-    with ThreadPoolExecutor(max_workers=len(PROVIDERS)) as executor:
-        for spec, outcome, error in executor.map(_call, PROVIDERS):
-            if error is not None:
-                provider_errors.append(format_provider_error(spec.name, error))
-                continue
-            if outcome:
-                for candidate in outcome:
-                    merge_search_result(results, candidate)
-            providers_used.append(spec.name)
+    for spec, outcome, error in run_providers(PROVIDERS, _call):
+        if error is not None:
+            provider_errors.append(format_provider_error(spec.name, error))
+            continue
+        if outcome:
+            for candidate in outcome:
+                merge_search_result(results, candidate)
+        providers_used.append(spec.name)
 
     return {
         "query": query,
         "providers": providers_used,
-        "provider_errors": provider_errors,
+        "provider_errors": visible_errors(provider_errors, bool(results)),
         "results": results,
     }

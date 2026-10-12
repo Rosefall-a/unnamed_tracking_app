@@ -3,7 +3,7 @@ import { ref, computed, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import CollectionTile from "../components/CollectionTile.vue";
 import GameTopBar from "../components/GameTopBar.vue";
-import SegmentedTabs from "../components/SegmentedTabs.vue";
+import CollectionIndexHead from "../components/CollectionIndexHead.vue";
 import type { SegmentOption } from "../components/SegmentedTabs.vue";
 import { fetchGames } from "../services/games";
 import type { Game } from "../types/game";
@@ -39,6 +39,11 @@ const loading = ref(true);
 const error = ref<string | null>(null);
 const searchQuery = ref("");
 const sortBy = ref<SortBy>("custom");
+const SORT_OPTIONS: { value: SortBy; label: string }[] = [
+  { value: "custom", label: "My order" },
+  { value: "name", label: "Name" },
+  { value: "count", label: "Most games" },
+];
 const kindFilter = ref<KindFilter>("all");
 
 // Empty collections (no games assigned yet) have nowhere to live on the
@@ -330,39 +335,16 @@ const tagOptions = computed(() => {
     <GameTopBar active="collections" />
 
     <div class="ui-content">
-      <div class="ui-head">
-        <h1>Collections</h1>
-        <div class="header-actions">
-          <input
-            v-model="searchQuery"
-            type="text"
-            class="ui-field search-input"
-            placeholder="Search collections…"
-            aria-label="Search collections"
-          />
-          <select v-model="sortBy" class="ui-field" aria-label="Sort by">
-            <option value="custom">My order</option>
-            <option value="name">Name</option>
-            <option value="count">Most games</option>
-          </select>
-          <button
-            type="button"
-            class="ui-btn ui-btn-primary"
-            @click="showCreate = true"
-          >
-            + Create Collection
-          </button>
-        </div>
-      </div>
-
-      <div class="filter-row">
-        <SegmentedTabs
-          :options="kindOptions"
-          :model-value="kindFilter"
-          aria-label="Filter by kind of collection"
-          @update:model-value="kindFilter = $event as KindFilter"
-        />
-      </div>
+      <CollectionIndexHead
+        v-model:search="searchQuery"
+        v-model:sort="sortBy"
+        v-model:kind="kindFilter"
+        title="Collections"
+        search-label="collections"
+        :sort-options="SORT_OPTIONS"
+        :kind-options="kindOptions"
+        @create="showCreate = true"
+      />
 
       <p v-if="createError" class="ui-error-box">{{ createError }}</p>
 
