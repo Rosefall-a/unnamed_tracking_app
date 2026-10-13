@@ -102,7 +102,7 @@ export async function fetchArchives(
   });
   if (!response.ok)
     throw new Error(
-      `Failed to fetch archives: ${response.status} ${response.statusText}`,
+      `Could not fetch archives: ${response.status} ${response.statusText}`,
     );
   return await response.json();
 }
@@ -185,7 +185,7 @@ export async function updateArchive(
   });
   if (!response.ok)
     throw new Error(
-      `Failed to save: ${response.status} ${response.statusText}`,
+      `Could not save: ${response.status} ${response.statusText}`,
     );
   return await response.json();
 }
@@ -205,7 +205,7 @@ export async function deleteArchive(
   });
   if (!response.ok)
     throw new Error(
-      `Failed to delete: ${response.status} ${response.statusText}`,
+      `Could not delete: ${response.status} ${response.statusText}`,
     );
 }
 
@@ -225,7 +225,7 @@ export async function fetchArchiveTrash(
   });
   if (!response.ok)
     throw new Error(
-      `Failed to fetch trash: ${response.status} ${response.statusText}`,
+      `Could not fetch trash: ${response.status} ${response.statusText}`,
     );
   return await response.json();
 }
@@ -243,7 +243,7 @@ export async function restoreArchive(
   );
   if (!response.ok)
     throw new Error(
-      `Failed to restore: ${response.status} ${response.statusText}`,
+      `Could not restore: ${response.status} ${response.statusText}`,
     );
   return await response.json();
 }
@@ -262,7 +262,7 @@ export async function restoreArchiveVersion(
   );
   if (!response.ok)
     throw new Error(
-      `Failed to restore version: ${response.status} ${response.statusText}`,
+      `Could not restore version: ${response.status} ${response.statusText}`,
     );
   return await response.json();
 }
@@ -281,7 +281,7 @@ export async function deleteArchiveVersion(
   );
   if (!response.ok)
     throw new Error(
-      `Failed to delete version: ${response.status} ${response.statusText}`,
+      `Could not delete version: ${response.status} ${response.statusText}`,
     );
   return await response.json();
 }
@@ -314,7 +314,7 @@ export async function fetchWorldMaps(gameId: string): Promise<WorldMapEntry[]> {
   });
   if (!response.ok)
     throw new Error(
-      `Failed to fetch worlds: ${response.status} ${response.statusText}`,
+      `Could not fetch worlds: ${response.status} ${response.statusText}`,
     );
   return await response.json();
 }
@@ -334,7 +334,7 @@ export async function renderWorldMap(
   if (!response.ok) {
     const message = await response.text();
     throw new Error(
-      `Failed to start map render: ${response.status} ${response.statusText} ${message}`,
+      `Could not start map render: ${response.status} ${response.statusText} ${message}`,
     );
   }
 }

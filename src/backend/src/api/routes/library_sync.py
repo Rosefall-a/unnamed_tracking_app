@@ -369,6 +369,9 @@ async def _enrich_new_game(
         "tags",
         "features",
         "time_to_beat_hours",
+        "time_to_beat_extras_hours",
+        "time_to_beat_completionist_hours",
+        "time_to_beat_all_hours",
     ):
         value = match.get(field)
         if value:

@@ -53,7 +53,7 @@ async function load() {
   try {
     list.value = await fetchMediaListDetail(listId.value);
   } catch (e) {
-    error.value = e instanceof Error ? e.message : "Failed to load list.";
+    error.value = e instanceof Error ? e.message : "Could not load list.";
   } finally {
     loading.value = false;
   }
@@ -73,7 +73,7 @@ const presentTypes = computed(() =>
 );
 const TYPE_LABEL: Record<MediaType, string> = {
   movie: "Movies",
-  tv: "TV Shows",
+  tv: "TV shows",
   anime: "Anime",
 };
 
@@ -114,7 +114,7 @@ async function removeItem(itemId: string) {
     list.value.itemCount -= 1;
   } catch (e) {
     error.value =
-      e instanceof Error ? e.message : "Failed to remove from list.";
+      e instanceof Error ? e.message : "Could not remove from list.";
   }
 }
 
@@ -146,7 +146,7 @@ async function persistOrder() {
       list.value.items.map((i) => i.id),
     );
   } catch (e) {
-    error.value = e instanceof Error ? e.message : "Failed to save the order.";
+    error.value = e instanceof Error ? e.message : "Could not save the order.";
     await load();
   }
 }
@@ -182,7 +182,7 @@ async function setCover(item: MediaListItemVM) {
     list.value.coverMediaId = updated.coverMediaId;
     list.value.previewPosters = updated.previewPosters;
   } catch (e) {
-    error.value = e instanceof Error ? e.message : "Failed to set the cover.";
+    error.value = e instanceof Error ? e.message : "Could not set the cover.";
   }
 }
 
@@ -204,7 +204,7 @@ async function onEdit(payload: {
     await load();
   } catch (e) {
     showEdit.value = false;
-    error.value = e instanceof Error ? e.message : "Failed to save the list.";
+    error.value = e instanceof Error ? e.message : "Could not save the list.";
   }
 }
 
@@ -223,7 +223,7 @@ async function deleteList() {
     await deleteMediaList(list.value.id);
     router.push("/media/collections");
   } catch (e) {
-    error.value = e instanceof Error ? e.message : "Failed to delete list.";
+    error.value = e instanceof Error ? e.message : "Could not delete list.";
     deletingList.value = false;
   }
 }
@@ -301,7 +301,7 @@ async function openAdd() {
     libraryLoaded.value = true;
   } catch (e) {
     addError.value =
-      e instanceof Error ? e.message : "Failed to load your library.";
+      e instanceof Error ? e.message : "Could not load your library.";
   }
 }
 const inList = computed(
@@ -327,7 +327,7 @@ async function addTitle(m: PickItem) {
     list.value.items = [...list.value.items, item];
     list.value.itemCount += 1;
   } catch (e) {
-    addError.value = e instanceof Error ? e.message : "Failed to add title.";
+    addError.value = e instanceof Error ? e.message : "Could not add title.";
   }
 }
 </script>

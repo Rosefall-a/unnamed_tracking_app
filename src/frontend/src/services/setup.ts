@@ -109,7 +109,7 @@ export async function fetchSetupStatus(): Promise<SetupStatus> {
   if (!response.ok)
     throw await parseError(
       response,
-      `Failed to check setup status: ${response.status}`,
+      `Could not check setup status: ${response.status}`,
     );
   return (await response.json()) as SetupStatus;
 }
@@ -121,7 +121,7 @@ export async function fetchSetupConfiguration(): Promise<SetupConfiguration> {
   if (!response.ok)
     throw await parseError(
       response,
-      `Failed to load setup configuration: ${response.status}`,
+      `Could not load setup configuration: ${response.status}`,
     );
   return (await response.json()) as SetupConfiguration;
 }
@@ -138,7 +138,7 @@ export async function saveSetupConfiguration(
   if (!response.ok)
     throw await parseError(
       response,
-      `Failed to save configuration: ${response.status}`,
+      `Could not save configuration: ${response.status}`,
     );
   return (await response.json()) as SetupConfiguration;
 }

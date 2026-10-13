@@ -18,3 +18,23 @@ describe("artVersion", () => {
     );
   });
 });
+
+describe("artVersion across a reload", () => {
+  it("remembers a replaced game's version in this browser", async () => {
+    const { vi } = await import("vitest");
+    const store = new Map<string, string>();
+    vi.stubGlobal("localStorage", {
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => void store.set(k, v),
+    });
+    vi.resetModules();
+    const first = await import("../utils/artVersion");
+    first.bumpArt("g9");
+    vi.resetModules();
+    const reloaded = await import("../utils/artVersion");
+    expect(reloaded.withArtVersion("/api/game/g9/assets/banner", "g9")).toMatch(
+      /\?v=\d+$/,
+    );
+    vi.unstubAllGlobals();
+  });
+});

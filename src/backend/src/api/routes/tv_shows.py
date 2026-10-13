@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.routes.media_common import (
     library_page,
+    empty_trash,
     purge_row,
     restore_row,
     soft_delete,
@@ -322,6 +323,15 @@ async def list_show_trash(
     (plus its seasons/episodes), so there's nothing to clean up and it
     stays here until an admin either restores it or purges it for good."""
     return await trash_listing(db, TVShow, current_user.id)
+
+
+@router.post("/trash/empty")
+async def empty_show_trash(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict[str, int]:
+    """Permanently removes everything in the trash."""
+    return {"deleted": await empty_trash(db, TVShow, current_user.id)}
 
 
 @router.post("/{show_id}/restore", response_model=TVShowRead)

@@ -217,6 +217,10 @@ interface PersistedFilters {
   retroAchievementsOnly: boolean;
   missingFilter: MissingFilter;
   tagsFilter: string[];
+  // games to leave out, the opposite of the filters above
+  hideStatuses: GameStatus[];
+  hideTags: string[];
+  hidePlatforms: string[];
 }
 function loadPersistedFilters(): Partial<PersistedFilters> {
   try {
@@ -258,6 +262,15 @@ const missingFilter = ref<MissingFilter>(persisted.missingFilter ?? "none");
 // combobox above rather than replacing it, so the common "just one genre"
 // case stays a quick single click
 const tagsFilter = ref<string[]>(persisted.tagsFilter ?? []);
+// "not these": a game with any of them is left out
+const hideStatuses = ref<GameStatus[]>(persisted.hideStatuses ?? []);
+const hideTags = ref<string[]>(persisted.hideTags ?? []);
+const hidePlatforms = ref<string[]>(persisted.hidePlatforms ?? []);
+function toggleIn<T>(list: { value: T[] }, item: T) {
+  list.value = list.value.includes(item)
+    ? list.value.filter((x) => x !== item)
+    : [...list.value, item];
+}
 function toggleTagFilter(tag: string) {
   tagsFilter.value = tagsFilter.value.includes(tag)
     ? tagsFilter.value.filter((t) => t !== tag)
@@ -284,6 +297,9 @@ watch(
     retroAchievementsOnly,
     missingFilter,
     tagsFilter,
+    hideStatuses,
+    hideTags,
+    hidePlatforms,
   ],
   () => {
     const toSave: PersistedFilters = {
@@ -305,6 +321,9 @@ watch(
       retroAchievementsOnly: retroAchievementsOnly.value,
       missingFilter: missingFilter.value,
       tagsFilter: tagsFilter.value,
+      hideStatuses: hideStatuses.value,
+      hideTags: hideTags.value,
+      hidePlatforms: hidePlatforms.value,
     };
     localStorage.setItem(FILTERS_KEY, JSON.stringify(toSave));
   },
@@ -369,6 +388,9 @@ const advancedFilterCount = computed(() => {
   if (retroAchievementsOnly.value) count++;
   if (missingFilter.value !== "none") count++;
   if (tagsFilter.value.length) count++;
+  if (hideStatuses.value.length) count++;
+  if (hideTags.value.length) count++;
+  if (hidePlatforms.value.length) count++;
   return count;
 });
 
@@ -394,6 +416,9 @@ function clearAdvancedFilters() {
   retroAchievementsOnly.value = false;
   missingFilter.value = "none";
   tagsFilter.value = [];
+  hideStatuses.value = [];
+  hideTags.value = [];
+  hidePlatforms.value = [];
 }
 
 function clearAllFilters() {
@@ -441,6 +466,9 @@ function currentFilterValues(): FilterPreset["filters"] {
     retroAchievementsOnly: retroAchievementsOnly.value,
     missingFilter: missingFilter.value,
     tagsFilter: [...tagsFilter.value],
+    hideStatuses: [...hideStatuses.value],
+    hideTags: [...hideTags.value],
+    hidePlatforms: [...hidePlatforms.value],
   };
 }
 async function saveCurrentAsPreset() {
@@ -480,6 +508,9 @@ function applyPreset(preset: FilterPreset) {
   retroAchievementsOnly.value = preset.filters.retroAchievementsOnly;
   missingFilter.value = preset.filters.missingFilter;
   tagsFilter.value = [...(preset.filters.tagsFilter ?? [])];
+  hideStatuses.value = [...(preset.filters.hideStatuses ?? [])];
+  hideTags.value = [...(preset.filters.hideTags ?? [])];
+  hidePlatforms.value = [...(preset.filters.hidePlatforms ?? [])];
   showAdvancedFilters.value = true;
   showPresetsMenu.value = false;
 }
@@ -601,6 +632,14 @@ const platformExtraOptions = computed(() => {
   return Array.from(set).sort();
 });
 
+const platformsInLibrary = computed(() => {
+  const set = new Set<string>();
+  games.value.forEach((g) =>
+    g.platforms.forEach((p) => set.add(normalizePlatformFamily(p.platform))),
+  );
+  return Array.from(set).sort();
+});
+
 const genreOptions = computed(() =>
   genreOptionsFor(games.value.map((g) => g.tags)),
 );
@@ -686,7 +725,7 @@ async function loadGames() {
     selectFirstForDetailView();
   } catch (err) {
     if (token !== loadGamesToken) return;
-    error.value = err instanceof Error ? err.message : "Failed to load games";
+    error.value = err instanceof Error ? err.message : "Could not load games";
   } finally {
     if (token === loadGamesToken) loading.value = false;
   }
@@ -875,7 +914,7 @@ async function confirmDelete() {
     await loadGames();
   } catch (err) {
     deleteError.value =
-      err instanceof Error ? err.message : "Failed to delete game";
+      err instanceof Error ? err.message : "Could not delete game";
   } finally {
     deleting.value = false;
   }
@@ -973,6 +1012,22 @@ const filteredGames = computed(() => {
   if (tagsFilter.value.length) {
     result = result.filter((g) =>
       tagsFilter.value.some((tag) => hasGenre(g.tags, tag)),
+    );
+  }
+  if (hideStatuses.value.length) {
+    result = result.filter((g) => !hideStatuses.value.includes(g.status));
+  }
+  if (hideTags.value.length) {
+    result = result.filter(
+      (g) => !hideTags.value.some((tag) => hasGenre(g.tags, tag)),
+    );
+  }
+  if (hidePlatforms.value.length) {
+    result = result.filter(
+      (g) =>
+        !g.platforms.some((p) =>
+          hidePlatforms.value.includes(normalizePlatformFamily(p.platform)),
+        ),
     );
   }
 
@@ -1203,6 +1258,24 @@ const activeFilterPills = computed(() => {
       clear: () => toggleTagFilter(tag),
     });
   }
+  for (const status of hideStatuses.value)
+    pills.push({
+      key: "hide-status:" + status,
+      label: "Not " + status,
+      clear: () => toggleIn(hideStatuses, status),
+    });
+  for (const tag of hideTags.value)
+    pills.push({
+      key: "hide-tag:" + tag,
+      label: "Not " + tag,
+      clear: () => toggleIn(hideTags, tag),
+    });
+  for (const platform of hidePlatforms.value)
+    pills.push({
+      key: "hide-platform:" + platform,
+      label: "Not " + platform,
+      clear: () => toggleIn(hidePlatforms, platform),
+    });
   return pills;
 });
 
@@ -1640,6 +1713,54 @@ function cardsInRow(rowIndex: number): Game[] {
               @click="toggleTagFilter(tag)"
             >
               {{ tag }}
+            </button>
+          </div>
+        </div>
+        <div class="advanced-field advanced-field-wide">
+          <label>Hide statuses</label>
+          <div class="tags-multiselect">
+            <button
+              v-for="s in statusOptions.filter((o) => o !== 'all')"
+              :key="s"
+              type="button"
+              class="tag-chip hide-chip"
+              :class="{ active: hideStatuses.includes(s as GameStatus) }"
+              @click="toggleIn(hideStatuses, s as GameStatus)"
+            >
+              {{ s }}
+            </button>
+          </div>
+        </div>
+        <div class="advanced-field advanced-field-wide">
+          <label>Hide tags (any of)</label>
+          <div class="tags-multiselect">
+            <button
+              v-for="tag in genreOptions"
+              :key="tag"
+              type="button"
+              class="tag-chip hide-chip"
+              :class="{ active: hideTags.includes(tag) }"
+              @click="toggleIn(hideTags, tag)"
+            >
+              {{ tag }}
+            </button>
+          </div>
+        </div>
+        <div
+          v-if="platformsInLibrary.length"
+          class="advanced-field advanced-field-wide"
+        >
+          <label>Hide platforms</label>
+          <div class="tags-multiselect">
+            <button
+              v-for="platform in platformsInLibrary"
+              :key="platform"
+              type="button"
+              class="tag-chip hide-chip"
+              :class="{ active: hidePlatforms.includes(platform) }"
+              @click="toggleIn(hidePlatforms, platform)"
+            >
+              {{ platform }}
             </button>
           </div>
         </div>
@@ -2928,6 +3049,13 @@ function cardsInRow(rowIndex: number): Game[] {
   border-color: var(--accent-line);
   color: var(--accent);
 }
+/* a chip that leaves games out reads differently from one that picks them */
+.tag-chip.hide-chip.active {
+  background: color-mix(in srgb, var(--ui-error) 14%, transparent);
+  border-color: color-mix(in srgb, var(--ui-error) 55%, transparent);
+  color: var(--ui-error);
+  text-decoration: line-through;
+}
 .advanced-field label {
   color: var(--text-dim);
   font-size: 0.7rem;
@@ -3046,6 +3174,12 @@ function cardsInRow(rowIndex: number): Game[] {
   letter-spacing: 0.06em;
   font-weight: 700;
   text-align: center;
+}
+/* the header's own colour above is as specific as the shared active rule, so the
+   active column needs its own to show */
+.list-header .sort-head:hover,
+.list-header .sort-head.active {
+  color: var(--accent);
 }
 .list-row {
   /* a row below the fold is not drawn until it is near, which keeps a long

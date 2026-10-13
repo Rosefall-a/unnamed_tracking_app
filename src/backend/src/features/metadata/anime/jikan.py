@@ -74,7 +74,7 @@ class JikanClient:
                 return response.json()
             except ValueError as exc:
                 raise JikanError("Jikan returned invalid JSON.") from exc
-        raise JikanError("Jikan is rate-limiting requests right now — wait a bit and try again.")
+        raise JikanError("Jikan is rate limiting requests. Try again in a few minutes.")
 
     def search(self, query: str, limit: int = 8) -> list[dict[str, Any]]:
         if not query.strip():

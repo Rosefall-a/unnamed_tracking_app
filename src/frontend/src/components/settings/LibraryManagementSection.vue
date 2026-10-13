@@ -181,7 +181,7 @@ async function previewRefresh() {
     showPreviewDialog.value = true;
   } catch (err) {
     previewError.value =
-      err instanceof Error ? err.message : "Failed to check for changes";
+      err instanceof Error ? err.message : "Could not check for changes";
     if (taskId) errorTask(taskId, previewError.value);
   } finally {
     previewing.value = false;
@@ -237,7 +237,7 @@ async function applyPreviewedRefresh() {
       );
   } catch (err) {
     refreshError.value =
-      err instanceof Error ? err.message : "Failed to refresh metadata";
+      err instanceof Error ? err.message : "Could not refresh metadata";
     if (taskId) errorTask(taskId, refreshError.value);
   } finally {
     refreshing.value = false;
@@ -303,7 +303,7 @@ async function refreshAllAchievements() {
       );
   } catch (err) {
     achievementError.value =
-      err instanceof Error ? err.message : "Failed to refresh achievements";
+      err instanceof Error ? err.message : "Could not refresh achievements";
     if (taskId) errorTask(taskId, achievementError.value);
   } finally {
     refreshingAchievements.value = false;
@@ -336,7 +336,7 @@ async function scanForDuplicateFolders() {
     duplicateScanRan.value = true;
   } catch (err) {
     duplicateScanError.value =
-      err instanceof Error ? err.message : "Failed to scan for duplicates";
+      err instanceof Error ? err.message : "Could not scan for duplicates";
   } finally {
     scanningDuplicates.value = false;
   }
@@ -356,7 +356,7 @@ async function refreshGameTrash() {
     gameTrash.value = await fetchGameTrash();
   } catch (err) {
     gameTrashError.value =
-      err instanceof Error ? err.message : "Failed to load deleted games";
+      err instanceof Error ? err.message : "Could not load deleted games";
   } finally {
     loadingGameTrash.value = false;
   }
@@ -375,7 +375,7 @@ async function restoreGameById(game: TrashedGame) {
     await refreshGameTrash();
   } catch (err) {
     gameTrashError.value =
-      err instanceof Error ? err.message : "Failed to restore game";
+      err instanceof Error ? err.message : "Could not restore game";
   } finally {
     restoringGameId.value = null;
   }
@@ -384,32 +384,27 @@ async function restoreGameById(game: TrashedGame) {
 
 <template>
   <section class="settings-section">
-    <h2>Refresh Metadata</h2>
+    <h2>Refresh metadata</h2>
     <p class="section-hint">
-      Re-fetches from Steam / SteamGridDB for every game: only applied when a
-      search result's title matches exactly, so nothing gets guessed. Notes and
-      achievements are never touched by this, no matter which options below are
-      on.
+      Fetches metadata from Steam and SteamGridDB for every game. Applied only
+      when the title matches exactly. Notes and achievements are never changed.
     </p>
 
     <div class="refresh-options">
       <ToggleButton v-model="refreshUpdateText" label="Update text fields">
-        Update text fields (description, developer, publisher, release date, age
-        rating, tags/features): always a full refresh, replacing whatever's
-        already there
+        Update text fields: description, developer, publisher, release date, age
+        rating, tags and features. Replaces existing values.
       </ToggleButton>
       <ToggleButton
         v-model="refreshFillMissingArt"
         label="Fill missing art"
         :disabled="refreshOverwriteArt"
+        reason="Not needed while existing art is being replaced."
       >
-        Fill in cover/banner art for games that currently have none
+        Add cover and banner art to games that have none
       </ToggleButton>
       <ToggleButton v-model="refreshOverwriteArt" label="Overwrite art">
-        <span class="warning-text"
-          >Also replace art on games that already have it (overwrites anything
-          you've set)</span
-        >
+        <span class="warning-text">Replace existing cover and banner art</span>
       </ToggleButton>
     </div>
 
@@ -421,15 +416,14 @@ async function restoreGameById(game: TrashedGame) {
     >
       {{
         previewing
-          ? "Checking what would change…"
+          ? "Checking…"
           : refreshing
             ? `Refreshing… (${refreshProgress.done}/${refreshProgress.total})`
-            : "Preview Refresh"
+            : "Refresh"
       }}
     </button>
     <p class="section-hint" style="margin: 8px 0 0">
-      Shows exactly which games would actually change before anything is
-      written: nothing is applied until you confirm.
+      Lists the games that would change. Nothing is saved until you confirm.
     </p>
 
     <div v-if="previewError" class="form-error">{{ previewError }}</div>
@@ -458,13 +452,12 @@ async function restoreGameById(game: TrashedGame) {
   </section>
 
   <section class="settings-section">
-    <h2>Refresh Achievements</h2>
+    <h2>Refresh achievements</h2>
     <p class="section-hint">
-      Re-reads the achievements of every game that has some, from the service
-      each one came from (Steam, PlayStation or RetroAchievements): names,
-      descriptions, icons, which are hidden, what you've unlocked and when, and
-      how many players have each. It doesn't sync your library or change
-      anything else about your games, and your notes and pins are kept.
+      Re-reads achievements for every game that has them, from Steam,
+      PlayStation or RetroAchievements. Updates names, descriptions, icons,
+      hidden status, unlock dates and player percentages. Library data, notes
+      and pins are not changed.
     </p>
     <button
       type="button"
@@ -509,14 +502,14 @@ async function restoreGameById(game: TrashedGame) {
     @click.self="showPreviewDialog = false"
   >
     <div class="confirm-dialog preview-dialog">
-      <h3>Refresh preview</h3>
+      <h3>Changes to apply</h3>
       <p>
         <strong>{{ previewWithChanges.length }}</strong> game{{
           previewWithChanges.length === 1 ? "" : "s"
         }}
-        would actually change, {{ previewUnchanged }} matched but are already up
-        to date, {{ previewNoMatch }} have no exact title match,
-        {{ previewErrors }} failed to check.
+        would change. {{ previewUnchanged }} are up to date.
+        {{ previewNoMatch }} have no exact title match.
+        {{ previewErrors }} could not be checked.
       </p>
       <ul v-if="previewWithChanges.length" class="preview-change-list">
         <li v-for="entry in previewWithChanges" :key="entry.game.id">
@@ -527,7 +520,7 @@ async function restoreGameById(game: TrashedGame) {
         </li>
       </ul>
       <p v-else class="section-hint" style="margin-top: 10px">
-        Nothing would actually change: every matched game already has this data.
+        No changes. Every matched game is up to date.
       </p>
       <div class="confirm-actions">
         <button
@@ -554,7 +547,7 @@ async function restoreGameById(game: TrashedGame) {
   <div class="settings-divider"></div>
 
   <section class="settings-section">
-    <h2>Duplicate Folders</h2>
+    <h2>Duplicate folders</h2>
     <p class="section-hint">
       Checks whether more than one game is pointing at the same storage folder:
       a sign something got mis-imported or renamed incorrectly.
@@ -566,7 +559,7 @@ async function restoreGameById(game: TrashedGame) {
       :disabled="scanningDuplicates"
       @click="scanForDuplicateFolders"
     >
-      {{ scanningDuplicates ? "Scanning…" : "Scan for Duplicates" }}
+      {{ scanningDuplicates ? "Scanning…" : "Scan for duplicates" }}
     </button>
 
     <div v-if="duplicateScanError" class="form-error">
@@ -586,23 +579,22 @@ async function restoreGameById(game: TrashedGame) {
   <div class="settings-divider"></div>
 
   <section class="settings-section">
-    <h2>Deleted Games</h2>
+    <h2>Deleted games</h2>
     <p class="section-hint">
-      A deleted game moves here first: recoverable for 7 days before it's purged
-      for good, along with its screenshots, clips, saves, notes, and everything
-      else.
+      Deleted games stay here for 7 days, then are permanently deleted along
+      with their screenshots, clips, saves and notes.
     </p>
 
     <p v-if="loadingGameTrash">Loading…</p>
     <div v-if="gameTrashError" class="form-error">{{ gameTrashError }}</div>
     <p v-if="!loadingGameTrash && !gameTrash.length" class="empty-hint">
-      Nothing in trash.
+      Trash is empty.
     </p>
-    <ul v-else class="trash-list">
+    <ul v-else-if="!loadingGameTrash" class="trash-list">
       <li v-for="game in gameTrash" :key="game.id" class="trash-row">
         <span class="trash-name">{{ game.title }}</span>
         <span class="trash-meta"
-          >purges in {{ daysUntil(game.purge_at) }}d</span
+          >Deleted in {{ daysUntil(game.purge_at) }} days</span
         >
         <button
           type="button"

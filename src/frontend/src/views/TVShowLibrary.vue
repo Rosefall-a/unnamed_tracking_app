@@ -114,7 +114,7 @@ async function load(
     scoreRanks.value = page.scoreRanks;
     loadedAt = Date.now();
   } catch (e) {
-    error.value = e instanceof Error ? e.message : "Failed to load TV shows.";
+    error.value = e instanceof Error ? e.message : "Could not load TV shows.";
   } finally {
     loading.value = false;
   }
@@ -134,7 +134,7 @@ async function loadMore() {
     shows.value.push(...page.items);
   } catch (e) {
     error.value =
-      e instanceof Error ? e.message : "Failed to load more TV shows.";
+      e instanceof Error ? e.message : "Could not load more TV shows.";
   } finally {
     loading.value = false;
   }

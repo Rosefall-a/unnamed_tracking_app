@@ -22,7 +22,7 @@ onMounted(async () => {
   try {
     prefs.value = await fetchPreferences();
   } catch (e) {
-    error.value = e instanceof Error ? e.message : "Failed to load settings.";
+    error.value = e instanceof Error ? e.message : "Could not load settings.";
   } finally {
     loaded.value = true;
   }
@@ -41,7 +41,7 @@ async function change(changes: Partial<Preferences>) {
     savedNote.value = "Saved";
     setTimeout(() => (savedNote.value = ""), 1500);
   } catch (e) {
-    error.value = e instanceof Error ? e.message : "Failed to save.";
+    error.value = e instanceof Error ? e.message : "Could not save.";
     try {
       prefs.value = await fetchPreferences();
     } catch {
@@ -73,7 +73,7 @@ async function lookUpTitles() {
       : "Every anime already has its titles.";
   } catch (e) {
     titlesNote.value =
-      e instanceof Error ? e.message : "Failed to look up titles.";
+      e instanceof Error ? e.message : "Could not look up titles.";
   } finally {
     fillingTitles.value = false;
   }
@@ -94,9 +94,9 @@ const listSortOptions = [
 
 <template>
   <section class="settings-section">
-    <h2>Media Preferences</h2>
+    <h2>Media preferences</h2>
     <p class="section-hint">
-      Defaults for Movies, TV Shows, Anime, Lists and Statistics.
+      Defaults for movies, TV shows, anime, lists and statistics.
       <span v-if="savedNote" class="saved">{{ savedNote }}</span>
     </p>
     <p v-if="error" class="error">{{ error }}</p>
@@ -113,7 +113,7 @@ const listSortOptions = [
           })
         "
       />
-      <small>Used until you pick a layout on a library page yourself.</small>
+      <small>Applies until a layout is chosen on a library page.</small>
     </div>
     <div class="field">
       <span>Anime names</span>
@@ -127,10 +127,10 @@ const listSortOptions = [
         "
       />
       <small
-        >Which spelling is the main name, for example ERASED or Boku dake ga
-        Inai Machi. The other spellings are shown under the name on the anime
-        page. If a spelling is not known for a title, the next best is used.
-        Anime added before this existed need their titles looked up once.</small
+        >Chooses which title spelling is the main name, for example ERASED or
+        Boku dake ga Inai Machi. Other spellings appear under the name. If a
+        spelling is missing, the next available one is used. Anime added earlier
+        need Look up titles once.</small
       >
       <button
         type="button"
@@ -138,12 +138,12 @@ const listSortOptions = [
         :disabled="fillingTitles"
         @click="lookUpTitles"
       >
-        {{ fillingTitles ? "Looking up…" : "Look up titles for my anime" }}
+        {{ fillingTitles ? "Looking up…" : "Look up titles" }}
       </button>
       <small v-if="titlesNote">{{ titlesNote }}</small>
     </div>
     <div class="field">
-      <span>Lists sort</span>
+      <span>Default list sort</span>
       <SegmentedControl
         :model-value="prefs.lists_default_sort"
         :options="listSortOptions"
@@ -160,9 +160,9 @@ const listSortOptions = [
       :disabled="!loaded"
       @update:model-value="change({ stats_include_plan: $event })"
     >
-      <strong>Count Plan to Watch in Statistics</strong>: include titles you
-      have not started in title totals, genre and score charts. Watch time only
-      ever counts episodes you marked watched, whatever this is set to.
+      <strong>Count Plan to Watch in Statistics</strong>: includes Plan to Watch
+      titles in totals, genre charts and score charts. Watch time counts only
+      watched episodes.
     </ToggleButton>
   </section>
 </template>

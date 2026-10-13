@@ -1,5 +1,5 @@
-"""Replacing a game's art under the same address shows up at once: the browser asks
-every time, and an unchanged picture answers "not modified" instead of being sent."""
+"""Art is kept by the browser (an hour, or for good at an address with `?v=`), and a
+picture replaced under the same address is sent again once the keeping runs out."""
 
 import io
 
@@ -23,7 +23,7 @@ async def test_replaced_art_is_sent_again_and_unchanged_art_is_not_modified(flow
 
     first = await flow.client.get(url)
     assert first.status_code == 200
-    assert first.headers["cache-control"] == "private, no-cache"
+    assert first.headers["cache-control"] == "private, max-age=3600, must-revalidate"
     tag = first.headers["etag"]
 
     again = await flow.client.get(url, headers={"If-None-Match": tag})
@@ -34,3 +34,18 @@ async def test_replaced_art_is_sent_again_and_unchanged_art_is_not_modified(flow
     assert changed.status_code == 200
     assert changed.headers["etag"] != tag
     assert changed.content == art.read_bytes()
+
+
+async def test_an_address_with_a_version_is_kept_for_good(flow) -> None:
+    folder = flow.tmp / str(flow.user_id) / "games" / "Flow"
+    folder.mkdir(parents=True)
+    (folder / "key_art.png").write_bytes(_png("red"))
+    versioned = await flow.client.get(f"{flow.game}/assets/key_art?v=1791755433000")
+    assert versioned.headers["cache-control"] == "private, max-age=31536000, immutable"
+
+
+async def test_a_placeholder_is_never_kept(flow) -> None:
+    placeholder = await flow.client.get(f"{flow.game}/assets/key_art")
+    assert placeholder.status_code == 200
+    assert placeholder.headers["content-type"].startswith("image/svg")
+    assert placeholder.headers["cache-control"] == "private, no-cache"

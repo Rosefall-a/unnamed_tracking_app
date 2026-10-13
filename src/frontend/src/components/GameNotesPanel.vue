@@ -108,7 +108,7 @@ async function load() {
   try {
     notes.value = await listGameNoteSummaries(props.gameId);
   } catch (e) {
-    error.value = e instanceof Error ? e.message : "Failed to load notes";
+    error.value = e instanceof Error ? e.message : "Could not load notes";
   } finally {
     loaded.value = true;
   }
@@ -211,7 +211,7 @@ async function open(note: GameNoteSummary) {
     reading.value = note;
     mode.value = "read";
   } catch (e) {
-    error.value = e instanceof Error ? e.message : "Failed to load note";
+    error.value = e instanceof Error ? e.message : "Could not load note";
   } finally {
     busy.value = false;
   }
@@ -245,7 +245,7 @@ async function onReaderClick(e: MouseEvent) {
     reading.value = notes.value.find((n) => n.name === name) ?? reading.value;
   } catch (err) {
     readingText.value = before;
-    error.value = err instanceof Error ? err.message : "Failed to save note";
+    error.value = err instanceof Error ? err.message : "Could not save note";
   }
 }
 
@@ -257,7 +257,7 @@ async function togglePin(note: GameNoteSummary) {
     });
     replace(updated);
   } catch (e) {
-    error.value = e instanceof Error ? e.message : "Failed to pin the note";
+    error.value = e instanceof Error ? e.message : "Could not pin the note";
   }
 }
 function replace(updated: GameNoteSummary) {
@@ -380,7 +380,7 @@ async function startEdit(note: GameNoteSummary, text?: string) {
     try {
       text = await fetchGameNote(props.gameId, note.name);
     } catch (e) {
-      error.value = e instanceof Error ? e.message : "Failed to load note";
+      error.value = e instanceof Error ? e.message : "Could not load note";
       return;
     }
   }
@@ -422,9 +422,9 @@ async function leaveEditor() {
       title: "Discard changes?",
       message:
         editingName.value === null
-          ? "This note has not been saved. Your text is kept as a draft you can come back to."
+          ? "This note is not saved. The text is kept as a draft."
           : "The changes to this note have not been saved.",
-      confirmLabel: editingName.value === null ? "Leave" : "Discard",
+      confirmLabel: "Discard",
       danger: editingName.value !== null,
     });
     if (!ok) return;
@@ -480,7 +480,7 @@ async function save() {
     editingName.value = name;
     mode.value = fresh ? "read" : "list";
   } catch (e) {
-    error.value = e instanceof Error ? e.message : "Failed to save note";
+    error.value = e instanceof Error ? e.message : "Could not save note";
   } finally {
     busy.value = false;
   }
@@ -503,7 +503,7 @@ async function remove(note: GameNoteSummary) {
     if (reading.value?.name === note.name) backToList();
     await load();
   } catch (e) {
-    error.value = e instanceof Error ? e.message : "Failed to delete note";
+    error.value = e instanceof Error ? e.message : "Could not delete note";
   } finally {
     busy.value = false;
   }
@@ -516,7 +516,7 @@ async function duplicate(note: GameNoteSummary) {
     await load();
     flash(`Duplicated as "${copy.name}"`);
   } catch (e) {
-    error.value = e instanceof Error ? e.message : "Failed to duplicate";
+    error.value = e instanceof Error ? e.message : "Could not duplicate";
   }
 }
 
@@ -555,7 +555,7 @@ async function moveTo(target: Game) {
     await load();
     flash(`Moved to ${result.game_title || target.title}`);
   } catch (e) {
-    moveError.value = e instanceof Error ? e.message : "Failed to move";
+    moveError.value = e instanceof Error ? e.message : "Could not move";
   }
 }
 

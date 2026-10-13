@@ -14,7 +14,7 @@ export async function handle<T>(
   action: string,
 ): Promise<T> {
   if (!response.ok) {
-    console.warn(`Failed to ${action}: ${response.status}`);
+    console.warn(`Could not ${action}: ${response.status}`);
     throw await failedRequest(response);
   }
   return response.json();
@@ -152,14 +152,14 @@ export function createMediaApi<
       credentials: "include",
     });
     if (!response.ok && response.status !== 204) {
-      throw new Error(`Failed to delete ${noun} ${id}: ${response.status}`);
+      throw new Error(`Could not delete ${noun} ${id}: ${response.status}`);
     }
   }
 
   async function fetchTrash(): Promise<TrashedMedia[]> {
     const response = await fetch(`${base}/trash`, { credentials: "include" });
     if (!response.ok) {
-      throw new Error(`Failed to fetch deleted ${plural}: ${response.status}`);
+      throw new Error(`Could not fetch deleted ${plural}: ${response.status}`);
     }
     return await response.json();
   }
@@ -170,7 +170,7 @@ export function createMediaApi<
       credentials: "include",
     });
     if (!response.ok) {
-      throw new Error(`Failed to restore ${noun} ${id}: ${response.status}`);
+      throw new Error(`Could not restore ${noun} ${id}: ${response.status}`);
     }
     return map(await response.json());
   }
@@ -181,8 +181,19 @@ export function createMediaApi<
       credentials: "include",
     });
     if (!response.ok && response.status !== 204) {
-      throw new Error(`Failed to purge ${noun} ${id}: ${response.status}`);
+      throw new Error(`Could not purge ${noun} ${id}: ${response.status}`);
     }
+  }
+
+  async function emptyTrash(): Promise<number> {
+    const response = await fetch(`${base}/trash/empty`, {
+      method: "POST",
+      credentials: "include",
+    });
+    if (!response.ok) {
+      throw new Error(`Could not empty the ${noun} trash: ${response.status}`);
+    }
+    return ((await response.json()) as { deleted: number }).deleted;
   }
 
   return {
@@ -195,5 +206,6 @@ export function createMediaApi<
     fetchTrash,
     restore,
     purge,
+    emptyTrash,
   };
 }

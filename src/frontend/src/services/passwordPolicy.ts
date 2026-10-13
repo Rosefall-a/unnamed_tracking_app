@@ -18,7 +18,7 @@ export async function updatePasswordPolicy(
   if (!response.ok) {
     const message = await response.text();
     throw new Error(
-      `Failed to save password policy: ${response.status} ${message}`,
+      `Could not save password policy: ${response.status} ${message}`,
     );
   }
   return await response.json();
@@ -29,7 +29,7 @@ export async function fetchPasswordPolicy(): Promise<PasswordPolicy> {
     credentials: "include",
   });
   if (!response.ok)
-    throw new Error(`Failed to load password policy: ${response.status}`);
+    throw new Error(`Could not load password policy: ${response.status}`);
   return await response.json();
 }
 

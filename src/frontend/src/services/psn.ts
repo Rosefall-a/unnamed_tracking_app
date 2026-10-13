@@ -17,7 +17,7 @@ export async function fetchPsnStatus(): Promise<PsnStatus> {
   });
   if (!response.ok) {
     throw new Error(
-      `Failed to fetch PlayStation status: ${response.status} ${response.statusText}`,
+      `Could not fetch PlayStation status: ${response.status} ${response.statusText}`,
     );
   }
   return await response.json();
@@ -42,7 +42,7 @@ export async function connectPsn(npssoToken: string): Promise<PsnStatus> {
     const body = await response.json().catch(() => null);
     throw new Error(
       body?.detail ??
-        `Failed to connect PlayStation account: ${response.status} ${response.statusText}`,
+        `Could not connect PlayStation account: ${response.status} ${response.statusText}`,
     );
   }
   const result = await response.json();
@@ -67,7 +67,7 @@ export async function disconnectPsn(): Promise<void> {
   if (!response.ok) {
     const message = await response.text();
     throw new Error(
-      `Failed to disconnect PlayStation account: ${response.status} ${response.statusText} ${message}`,
+      `Could not disconnect PlayStation account: ${response.status} ${response.statusText} ${message}`,
     );
   }
 }

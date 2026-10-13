@@ -4,10 +4,10 @@ import { SHORTCUT_GROUPS } from "../../utils/shortcuts";
 
 <template>
   <section class="settings-section">
-    <h2>Keyboard Shortcuts</h2>
+    <h2>Keyboard shortcuts</h2>
     <p class="hint">
-      Press <kbd>?</kbd> anywhere in the app to open this list as an overlay.
-      Every shortcut below only works on the page it's grouped under.
+      Press <kbd>?</kbd> to open this list. Each shortcut works only on the page
+      it is listed under.
     </p>
     <div v-for="group in SHORTCUT_GROUPS" :key="group.title" class="group">
       <h3>{{ group.title }}</h3>

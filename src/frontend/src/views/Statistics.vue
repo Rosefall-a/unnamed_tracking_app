@@ -32,7 +32,7 @@ const TABS: { value: Tab; label: string }[] = [
   { value: "overview", label: "Overview" },
   { value: "games", label: "Games" },
   { value: "movie", label: "Movies" },
-  { value: "tv", label: "TV Shows" },
+  { value: "tv", label: "TV shows" },
   { value: "anime", label: "Anime" },
 ];
 
@@ -47,7 +47,7 @@ async function load() {
   try {
     stats.value = await fetchMediaStats();
   } catch (e) {
-    error.value = e instanceof Error ? e.message : "Failed to load statistics.";
+    error.value = e instanceof Error ? e.message : "Could not load statistics.";
   } finally {
     loading.value = false;
   }
@@ -142,7 +142,7 @@ function months(rows: { month: string; count: number }[]) {
 
 const KIND_LABEL: Record<string, string> = {
   movie: "Movies",
-  tv: "TV Shows",
+  tv: "TV shows",
   anime: "Anime",
   game: "Games",
 };

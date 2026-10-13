@@ -1,5 +1,10 @@
 import { createRouter, createWebHistory } from "vue-router";
-import { currentUser, authChecked, authCheckFailed, checkAuth } from "../state/auth";
+import {
+  currentUser,
+  authChecked,
+  authCheckFailed,
+  checkAuth,
+} from "../state/auth";
 import { appearanceLoaded, loadAppearanceSettings } from "../state/appearance";
 import { fetchSetupStatus } from "../services/setup";
 import {
@@ -60,7 +65,11 @@ const router = createRouter({
       component: () => import("../views/CollectionDetail.vue"),
     },
     { path: "/collections", redirect: "/games/collections" },
-    { path: "/collections/:name", redirect: (to) => `/games/collections/${encodeURIComponent(String(to.params.name))}` },
+    {
+      path: "/collections/:name",
+      redirect: (to) =>
+        `/games/collections/${encodeURIComponent(String(to.params.name))}`,
+    },
     { path: "/upload", redirect: "/settings?section=upload" },
     { path: "/inbox", redirect: "/settings?section=upload" },
     {
@@ -84,7 +93,7 @@ const router = createRouter({
     {
       path: "/tv",
       name: "tv-show-library",
-      meta: { title: "TV Shows" },
+      meta: { title: "TV shows" },
       component: () => import("../views/TVShowLibrary.vue"),
     },
     {
@@ -136,7 +145,11 @@ const router = createRouter({
       component: () => import("../views/MediaListDetail.vue"),
     },
     { path: "/lists", redirect: "/media/collections" },
-    { path: "/lists/:id", redirect: (to) => `/media/collections/${encodeURIComponent(String(to.params.id))}` },
+    {
+      path: "/lists/:id",
+      redirect: (to) =>
+        `/media/collections/${encodeURIComponent(String(to.params.id))}`,
+    },
     // History merged into the Calendar page as a second tab
     { path: "/history", redirect: "/calendar" },
     {
@@ -206,7 +219,11 @@ router.beforeEach(async (to) => {
       setupState = state === "setup-required" ? "required" : "complete";
       if (state === "setup-required") {
         setStartupState("setup-required");
-      } else if (!status.startup_ui_enabled && to.path !== "/setup" && !startupUiShown) {
+      } else if (
+        !status.startup_ui_enabled &&
+        to.path !== "/setup" &&
+        !startupUiShown
+      ) {
         startupUiShown = true;
         return setupRedirect(to.fullPath);
       } else {
@@ -275,7 +292,10 @@ router.beforeEach(async (to) => {
 
   if (!authChecked.value) await checkAuth();
   if (authCheckFailed.value) {
-    setStartupState("unavailable", "Unable to reach the backend while checking authentication.");
+    setStartupState(
+      "unavailable",
+      "Unable to reach the backend while checking authentication.",
+    );
     return false;
   }
 

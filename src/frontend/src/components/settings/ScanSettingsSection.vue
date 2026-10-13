@@ -53,7 +53,7 @@ function lastUsedLabel(provider: string): string {
   const at = providerLastUsed.value[provider];
   if (!at) return "never used";
   const seconds = Date.now() / 1000 - at;
-  if (seconds < 60) return "used just now";
+  if (seconds < 60) return "used now";
   if (seconds < 3600) return `used ${Math.round(seconds / 60)}m ago`;
   if (seconds < 86400) return `used ${Math.round(seconds / 3600)}h ago`;
   return `used ${Math.round(seconds / 86400)}d ago`;
@@ -80,13 +80,13 @@ onMounted(async () => {
     providerLastUsed.value = settings.provider_last_used;
   } catch (err) {
     error.value =
-      err instanceof Error ? err.message : "Failed to load scan settings";
+      err instanceof Error ? err.message : "Could not load scan settings";
   } finally {
     loading.value = false;
   }
 });
 
-// same as Profile/Appearance: without this, "Scan settings saved." keeps
+// same as Profile/Appearance: without this, "Saved" keeps
 // showing after a save even once the user starts changing something else,
 // reading as if the new change was already saved
 watch(
@@ -156,7 +156,7 @@ async function save() {
     saveSuccess.value = true;
   } catch (err) {
     error.value =
-      err instanceof Error ? err.message : "Failed to save scan settings";
+      err instanceof Error ? err.message : "Could not save scan settings";
   } finally {
     saving.value = false;
   }
@@ -165,10 +165,10 @@ async function save() {
 
 <template>
   <section class="settings-section">
-    <h2>Scan Settings</h2>
+    <h2>Scan settings</h2>
     <p class="section-hint">
-      Controls how future metadata searches behave: which provider is checked
-      first, and which fields a search result is allowed to save onto a game.
+      Sets the provider order and which fields a search result can save to a
+      game.
     </p>
 
     <p v-if="loading">Loading…</p>
@@ -177,8 +177,7 @@ async function save() {
         <div class="field-block">
           <span class="field-label">Data provider order</span>
           <p class="field-sublabel">
-            Which provider's text/data fields win when more than one has a
-            match.
+            The first provider with a match supplies the text fields.
           </p>
           <ol class="provider-list">
             <li
@@ -253,12 +252,11 @@ async function save() {
       <div class="field-block">
         <span class="field-label">Images to save from a search result</span>
         <p class="field-sublabel">
-          Turn an image type off to leave it untouched by search/refresh: useful
-          if you keep your own art for something and don't want it overwritten.
+          Turn off a type to stop search and refresh from changing it.
         </p>
         <div class="refresh-options">
           <ToggleButton v-model="saveKeyArt" label="Key art">
-            <strong>Key art</strong>: cover/box art, used as the game's poster
+            <strong>Key art</strong>: cover art, used as the game poster
           </ToggleButton>
           <ToggleButton v-model="saveBanner" label="Banner">
             <strong>Banner</strong>: wide hero image for detail pages
@@ -275,9 +273,7 @@ async function save() {
       <div class="field-block">
         <span class="field-label">Data to save from a search result</span>
         <p class="field-sublabel">
-          Turn a field off to leave it untouched by search/refresh: useful if
-          you keep your own values for something and don't want them
-          overwritten.
+          Turn off a field to stop search and refresh from changing it.
         </p>
         <div class="refresh-options">
           <ToggleButton v-model="saveDeveloper" label="Developer">
@@ -313,7 +309,7 @@ async function save() {
       </div>
 
       <div v-if="error" class="form-error">{{ error }}</div>
-      <div v-if="saveSuccess" class="form-success">Scan settings saved.</div>
+      <div v-if="saveSuccess" class="form-success">Saved</div>
 
       <button
         type="button"

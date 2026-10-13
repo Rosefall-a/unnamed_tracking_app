@@ -206,6 +206,7 @@ export type TrashedTVShow = TrashedMedia;
 export const fetchTVShowTrash = api.fetchTrash;
 export const restoreTVShow = api.restore;
 export const purgeTVShow = api.purge;
+export const emptyTVShowTrash = api.emptyTrash;
 export interface SeasonInput {
   seasonNumber: number;
   name?: string | null;

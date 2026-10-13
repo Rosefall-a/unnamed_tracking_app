@@ -12,6 +12,8 @@ export interface Preferences {
   notify_episode_aired: boolean;
   notify_season_started: boolean;
   notify_sequel_announced: boolean;
+  notify_extras_announced: boolean;
+  media_trash_retention_days: number;
   notify_movie_released: boolean;
   notify_statuses: ("watching" | "plan" | "hold")[];
   calendar_airing_statuses: ("watching" | "plan" | "hold")[];
@@ -45,6 +47,8 @@ export const DEFAULT_PREFERENCES: Preferences = {
   notify_episode_aired: true,
   notify_season_started: true,
   notify_sequel_announced: true,
+  notify_extras_announced: false,
+  media_trash_retention_days: 0,
   notify_movie_released: true,
   notify_statuses: ["watching", "plan", "hold"],
   notify_media_types: ["anime", "tv", "movie"],
@@ -66,7 +70,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
 export async function fetchPreferences(): Promise<Preferences> {
   const response = await fetch("/api/preferences", { credentials: "include" });
   if (!response.ok)
-    throw new Error(`Failed to load preferences: ${response.status}`);
+    throw new Error(`Could not load preferences: ${response.status}`);
   return { ...DEFAULT_PREFERENCES, ...(await response.json()) };
 }
 
@@ -80,7 +84,7 @@ export async function updatePreferences(
     body: JSON.stringify(changes),
   });
   if (!response.ok)
-    throw new Error(`Failed to save preferences: ${response.status}`);
+    throw new Error(`Could not save preferences: ${response.status}`);
   return { ...DEFAULT_PREFERENCES, ...(await response.json()) };
 }
 

@@ -161,7 +161,7 @@ async function load(
     scoreRanks.value = page.scoreRanks;
     loadedAt = Date.now();
   } catch (e) {
-    error.value = e instanceof Error ? e.message : "Failed to load anime.";
+    error.value = e instanceof Error ? e.message : "Could not load anime.";
   } finally {
     loading.value = false;
   }
@@ -180,7 +180,7 @@ async function loadMore() {
     if (request !== loadRequest) return;
     shows.value.push(...page.items);
   } catch (e) {
-    error.value = e instanceof Error ? e.message : "Failed to load more anime.";
+    error.value = e instanceof Error ? e.message : "Could not load more anime.";
   } finally {
     loading.value = false;
   }

@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.api.routes.media_extras import log_activity, status_change_detail
 from src.api.routes.media_common import (
     library_page,
+    empty_trash,
     purge_row,
     restore_row,
     soft_delete,
@@ -265,6 +266,15 @@ async def list_movie_trash(
     row, so there's nothing to clean up and it stays here until an
     admin either restores it or deletes it again to purge it for good."""
     return await trash_listing(db, Movie, current_user.id)
+
+
+@router.post("/trash/empty")
+async def empty_movie_trash(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict[str, int]:
+    """Permanently removes everything in the trash."""
+    return {"deleted": await empty_trash(db, Movie, current_user.id)}
 
 
 @router.post("/{movie_id}/restore", response_model=MovieRead)

@@ -204,7 +204,7 @@ async function submit() {
       : await createTVShow(input);
     emit("saved", saved);
   } catch (e) {
-    error.value = e instanceof Error ? e.message : "Failed to save show.";
+    error.value = e instanceof Error ? e.message : "Could not save show.";
   } finally {
     saving.value = false;
   }
@@ -218,7 +218,7 @@ async function remove() {
     await deleteTVShow(props.show.id);
     emit("deleted", props.show.id);
   } catch (e) {
-    error.value = e instanceof Error ? e.message : "Failed to delete show.";
+    error.value = e instanceof Error ? e.message : "Could not delete show.";
   } finally {
     deleting.value = false;
   }

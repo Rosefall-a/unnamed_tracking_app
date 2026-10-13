@@ -3,7 +3,11 @@ import { ref, computed, watch, onMounted } from "vue";
 import PasswordInput from "../PasswordInput.vue";
 import { currentUser, checkAuth } from "../../state/auth";
 import PasswordRequirements from "./PasswordRequirements.vue";
-import { fetchPasswordPolicy, passwordValidationErrors, type PasswordPolicy } from "../../services/passwordPolicy";
+import {
+  fetchPasswordPolicy,
+  passwordValidationErrors,
+  type PasswordPolicy,
+} from "../../services/passwordPolicy";
 import {
   updateProfile,
   uploadProfilePicture,
@@ -38,7 +42,7 @@ const saveError = ref<string | null>(null);
 const saveSuccess = ref(false);
 const passwordPolicy = ref<PasswordPolicy | null>(null);
 
-// otherwise "Profile updated." keeps showing after a successful save even
+// otherwise "Saved" keeps showing after a successful save even
 // once the user starts typing something new, reading as if the in-progress
 // edit was already saved. Only username/email, not the password fields,
 // saveProfile() itself clears those right after a successful save, and
@@ -48,8 +52,12 @@ watch([username, email], () => {
 });
 
 onMounted(async () => {
-  try { passwordPolicy.value = await fetchPasswordPolicy(); }
-  catch (err) { saveError.value = err instanceof Error ? err.message : "Failed to load password policy"; }
+  try {
+    passwordPolicy.value = await fetchPasswordPolicy();
+  } catch (err) {
+    saveError.value =
+      err instanceof Error ? err.message : "Could not load password policy";
+  }
 });
 
 const uploading = ref(false);
@@ -92,7 +100,7 @@ async function saveProfile() {
     saveSuccess.value = true;
   } catch (err) {
     saveError.value =
-      err instanceof Error ? err.message : "Failed to update profile";
+      err instanceof Error ? err.message : "Could not update profile";
   } finally {
     saving.value = false;
   }
@@ -113,7 +121,7 @@ async function onAvatarFileChange(e: Event) {
     currentUser.value.profile_picture_version = version;
   } catch (err) {
     uploadError.value =
-      err instanceof Error ? err.message : "Failed to upload picture";
+      err instanceof Error ? err.message : "Could not upload picture";
   } finally {
     uploading.value = false;
     // without this, re-picking the same file after a failed upload fires
@@ -174,7 +182,11 @@ async function onAvatarFileChange(e: Event) {
 
       <label class="field">
         <span>New password (optional)</span>
-        <PasswordInput v-model="newPassword" mode="new" autocomplete="new-password" />
+        <PasswordInput
+          v-model="newPassword"
+          mode="new"
+          autocomplete="new-password"
+        />
       </label>
 
       <PasswordRequirements
@@ -185,7 +197,12 @@ async function onAvatarFileChange(e: Event) {
 
       <label v-if="newPassword" class="field">
         <span>Confirm new password</span>
-        <PasswordInput v-model="confirmPassword" mode="new" autocomplete="new-password" :required="true" />
+        <PasswordInput
+          v-model="confirmPassword"
+          mode="new"
+          autocomplete="new-password"
+          :required="true"
+        />
       </label>
 
       <label v-if="newPassword" class="field">
@@ -199,7 +216,7 @@ async function onAvatarFileChange(e: Event) {
       </label>
 
       <div v-if="saveError" class="form-error">{{ saveError }}</div>
-      <div v-if="saveSuccess" class="form-success">Profile updated.</div>
+      <div v-if="saveSuccess" class="form-success">Saved</div>
 
       <button type="submit" class="primary-button" :disabled="saving">
         {{ saving ? "Saving…" : "Save changes" }}

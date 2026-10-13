@@ -77,14 +77,24 @@ def _default_cover_svg(game_id: UUID, title: str) -> str:
 </svg>"""
 
 
+_KEEP_AN_HOUR = "private, max-age=3600, must-revalidate"
+_KEEP_FOR_GOOD = "private, max-age=31536000, immutable"
+
+
 def revalidated_file(request: Request, path: Path, media_type: str) -> Response:
-    """A file the browser may keep but must ask about each time. Artwork is replaced
-    in place (a new cover, a refreshed banner) under the same address, so a copy kept
-    for an hour shows the old picture for that hour. The tag changes whenever the
-    file does, and an unchanged file answers "not modified" without sending it."""
+    """Artwork the browser keeps, so a page full of covers costs no requests. It is
+    replaced in place (a new cover, a refreshed banner) under the same address, which
+    is why the page asks for a new address (`?v=`) whenever it changes a picture: that
+    address has never been cached, so the new file is fetched at once, and it can then
+    be kept for good. An address without `v` is kept for an hour and then checked (the
+    tag changes whenever the file does, so an unchanged file answers "not modified"
+    without being sent again)."""
     stat = path.stat()
     tag = f'"{stat.st_mtime_ns:x}-{stat.st_size:x}"'
-    headers = {"Cache-Control": "private, no-cache", "ETag": tag}
+    headers = {
+        "Cache-Control": _KEEP_FOR_GOOD if "v" in request.query_params else _KEEP_AN_HOUR,
+        "ETag": tag,
+    }
     if request.headers.get("if-none-match") == tag:
         return Response(status_code=304, headers=headers)
     return FileResponse(path, media_type=media_type, headers=headers)
@@ -138,5 +148,7 @@ async def get_game_asset_with_fallback(
     return Response(
         content=_default_cover_svg(game.id, game.title),
         media_type="image/svg+xml",
-        headers={"Cache-Control": "private, max-age=3600, must-revalidate"},
+        # never kept: this stands in for a picture that is not there yet, and one kept
+        # by the browser would go on showing in its place after the real one arrives
+        headers={"Cache-Control": "private, no-cache"},
     )

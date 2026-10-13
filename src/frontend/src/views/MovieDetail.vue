@@ -73,7 +73,7 @@ async function load() {
     movie.value = await getMovie(movieId.value);
   } catch (e) {
     if (!cached)
-      error.value = e instanceof Error ? e.message : "Failed to load movie.";
+      error.value = e instanceof Error ? e.message : "Could not load movie.";
   } finally {
     loading.value = false;
   }
@@ -235,7 +235,7 @@ async function loadRelated() {
     relatedLoaded.value = true;
   } catch (e) {
     relatedError.value =
-      e instanceof Error ? e.message : "Failed to load related movies.";
+      e instanceof Error ? e.message : "Could not load related movies.";
   } finally {
     relatedLoading.value = false;
   }
@@ -287,7 +287,7 @@ async function loadRecommended() {
     recommendedLoaded.value = true;
   } catch (e) {
     recommendedError.value =
-      e instanceof Error ? e.message : "Failed to load recommendations.";
+      e instanceof Error ? e.message : "Could not load recommendations.";
   } finally {
     recommendedLoading.value = false;
   }
@@ -345,7 +345,7 @@ async function onRelatedTitleClick(r: {
     ].filter((v): v is string => !!v);
   } catch (e) {
     previewError.value =
-      e instanceof Error ? e.message : "Failed to load a preview.";
+      e instanceof Error ? e.message : "Could not load a preview.";
   } finally {
     previewLoading.value = false;
   }
@@ -377,7 +377,7 @@ async function addPreviewToLibrary() {
     router.push(`/movies/${created.id}`);
   } catch (e) {
     previewError.value =
-      e instanceof Error ? e.message : "Failed to add to library.";
+      e instanceof Error ? e.message : "Could not add to library.";
   } finally {
     previewAdding.value = false;
   }

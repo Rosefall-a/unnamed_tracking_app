@@ -887,7 +887,7 @@ defineExpose({ openQuickAdd });
         <div>
           <h1>
             {{
-              kind === "movie" ? "Movies" : kind === "tv" ? "TV Shows" : "Anime"
+              kind === "movie" ? "Movies" : kind === "tv" ? "TV shows" : "Anime"
             }}
           </h1>
           <div class="sub">

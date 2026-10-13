@@ -205,7 +205,7 @@ async function submit() {
       : await createMovie(input);
     emit("saved", saved);
   } catch (e) {
-    error.value = e instanceof Error ? e.message : "Failed to save movie.";
+    error.value = e instanceof Error ? e.message : "Could not save movie.";
   } finally {
     saving.value = false;
   }
@@ -219,7 +219,7 @@ async function remove() {
     await deleteMovie(props.movie.id);
     emit("deleted", props.movie.id);
   } catch (e) {
-    error.value = e instanceof Error ? e.message : "Failed to delete movie.";
+    error.value = e instanceof Error ? e.message : "Could not delete movie.";
   } finally {
     deleting.value = false;
   }

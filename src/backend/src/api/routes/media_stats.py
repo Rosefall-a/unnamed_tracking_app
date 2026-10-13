@@ -547,6 +547,65 @@ async def _activity_section(db: AsyncSession, user_id: Any) -> dict[str, Any]:
     }
 
 
+@router.get("/activity/{day}")
+async def activity_for_day(
+    day: date,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict[str, Any]:
+    """What the activity grid's square for `day` is made of: the episodes checked
+    off (by title) and the achievements unlocked (by game), each with what it
+    links to."""
+    logged = (
+        await db.execute(
+            select(ActivityLog)
+            .where(
+                ActivityLog.user_id == current_user.id,
+                ActivityLog.event_type == ActivityEventType.EPISODES_WATCHED,
+                ActivityLog.event_date == day,
+            )
+            .order_by(ActivityLog.media_title)
+        )
+    ).scalars()
+    episodes = [
+        {
+            "kind": row.media_type.value,
+            "id": str(row.media_id),
+            "title": row.media_title,
+            "count": int(row.count),
+            "detail": row.detail,
+        }
+        for row in logged
+    ]
+    # the grid dates an unlock by the server's own calendar day, so the same here
+    start = int(datetime.combine(day, datetime.min.time()).timestamp())
+    unlocked = (
+        await db.execute(
+            select(Game.id, Game.title, Achievement.name)
+            .join(Achievement, Achievement.game_id == Game.id)
+            .where(
+                Game.user_id == current_user.id,
+                Game.deleted_at.is_(None),
+                Achievement.unlocked.is_(True),
+                Achievement.unlocked_at >= start,
+                Achievement.unlocked_at < start + 86_400,
+            )
+            .order_by(Game.title, Achievement.name)
+        )
+    ).all()
+    games: dict[str, dict[str, Any]] = {}
+    for game_id, title, name in unlocked:
+        entry = games.setdefault(
+            str(game_id), {"kind": "game", "id": str(game_id), "title": title, "achievements": []}
+        )
+        entry["achievements"].append(name)
+    return {
+        "date": day.isoformat(),
+        "episodes": episodes,
+        "games": list(games.values()),
+    }
+
+
 @router.get("")
 async def get_media_stats(
     db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)

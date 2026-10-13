@@ -129,6 +129,7 @@ export type TrashedMovie = TrashedMedia;
 export const fetchMovieTrash = api.fetchTrash;
 export const restoreMovie = api.restore;
 export const purgeMovie = api.purge;
+export const emptyMovieTrash = api.emptyTrash;
 // Round-trips a loaded Movie back into MovieInput shape — used when a
 // caller needs to change one field (e.g. toggling favorite from the
 // detail page) without reopening the full edit form, since updateMovie

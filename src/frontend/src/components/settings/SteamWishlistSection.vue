@@ -14,7 +14,7 @@ onMounted(async () => {
   try {
     enabled.value = (await fetchPreferences()).steam_import_wishlist;
   } catch (e) {
-    error.value = e instanceof Error ? e.message : "Failed to load settings.";
+    error.value = e instanceof Error ? e.message : "Could not load settings.";
   }
 });
 
@@ -33,7 +33,7 @@ async function change(next: boolean) {
     savedNote.value = "Saved";
     setTimeout(() => (savedNote.value = ""), 1500);
   } catch (e) {
-    error.value = e instanceof Error ? e.message : "Failed to save.";
+    error.value = e instanceof Error ? e.message : "Could not save.";
     enabled.value = previous;
   }
 }
@@ -43,10 +43,10 @@ async function change(next: boolean) {
   <section class="settings-section steam-wishlist">
     <h2>Steam wishlist</h2>
     <p class="section-hint">
-      With this on, importing from Steam also adds the games on your Steam
-      wishlist, marked as Wishlist. Your Steam game details must be public for
-      Steam to share the wishlist. A game you later buy becomes a normal game on
-      the next import. Turning this off never removes games already added.
+      Adds games on your Steam wishlist during Steam imports, with status
+      Wishlist. Game details must be public on Steam. A purchased game becomes a
+      normal game on the next import. Turning this off does not remove games
+      already added.
       <span v-if="savedNote" class="saved">{{ savedNote }}</span>
     </p>
     <ToggleButton

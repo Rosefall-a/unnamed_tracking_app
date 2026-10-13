@@ -102,7 +102,7 @@ async function load(
     scoreRanks.value = page.scoreRanks;
     loadedAt = Date.now();
   } catch (e) {
-    error.value = e instanceof Error ? e.message : "Failed to load movies.";
+    error.value = e instanceof Error ? e.message : "Could not load movies.";
   } finally {
     loading.value = false;
   }
@@ -122,7 +122,7 @@ async function loadMore() {
     movies.value.push(...page.items);
   } catch (e) {
     error.value =
-      e instanceof Error ? e.message : "Failed to load more movies.";
+      e instanceof Error ? e.message : "Could not load more movies.";
   } finally {
     loading.value = false;
   }

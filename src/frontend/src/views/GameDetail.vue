@@ -108,6 +108,7 @@ import { OPTIONAL_TABS, resolvePage, planTabs } from "../utils/gamePage";
 import type { OptionalTab } from "../utils/gamePage";
 import type { ContentCounts } from "../utils/gamePage";
 import GameStatsPanel from "../components/GameStatsPanel.vue";
+import { withArtVersion } from "../utils/artVersion";
 import {
   startTask,
   updateTask,
@@ -213,7 +214,7 @@ async function loadProfiles() {
     profilesLoadedFor.value = game.value.id;
   } catch (err) {
     profileError.value =
-      err instanceof Error ? err.message : "Failed to load profiles";
+      err instanceof Error ? err.message : "Could not load profiles";
   }
 }
 
@@ -229,7 +230,7 @@ async function addProfile() {
     activeProfileId.value = created.id;
   } catch (err) {
     profileError.value =
-      err instanceof Error ? err.message : "Failed to create profile";
+      err instanceof Error ? err.message : "Could not create profile";
   }
 }
 
@@ -253,7 +254,7 @@ async function renameProfile(profile: GameProfile, name: string) {
     if (idx !== -1) profiles.value[idx] = updated;
   } catch (err) {
     profileError.value =
-      err instanceof Error ? err.message : "Failed to rename profile";
+      err instanceof Error ? err.message : "Could not rename profile";
   }
 }
 
@@ -265,7 +266,7 @@ async function removeProfile(profile: GameProfile) {
     if (activeProfileId.value === profile.id) activeProfileId.value = null;
   } catch (err) {
     profileError.value =
-      err instanceof Error ? err.message : "Failed to delete profile";
+      err instanceof Error ? err.message : "Could not delete profile";
   }
 }
 
@@ -297,7 +298,7 @@ async function saveProfileNote() {
     if (idx !== -1) profiles.value[idx] = updated;
   } catch (err) {
     profileError.value =
-      err instanceof Error ? err.message : "Failed to save note";
+      err instanceof Error ? err.message : "Could not save note";
   } finally {
     profileNoteSaving.value = false;
   }
@@ -363,7 +364,7 @@ async function saveProfileStats() {
     if (showStatHistory.value) await loadStatHistory();
   } catch (err) {
     profileError.value =
-      err instanceof Error ? err.message : "Failed to save stats";
+      err instanceof Error ? err.message : "Could not save stats";
   }
 }
 
@@ -397,7 +398,7 @@ async function syncWiseOldMan() {
     await loadStatHistory();
   } catch (err) {
     womError.value =
-      err instanceof Error ? err.message : "Failed to sync WiseOldMan";
+      err instanceof Error ? err.message : "Could not sync WiseOldMan";
   } finally {
     womSyncing.value = false;
   }
@@ -633,7 +634,7 @@ async function loadChecklist() {
     );
   } catch (err) {
     checklistError.value =
-      err instanceof Error ? err.message : "Failed to load checklist";
+      err instanceof Error ? err.message : "Could not load checklist";
   } finally {
     checklistLoading.value = false;
   }
@@ -653,7 +654,7 @@ async function addChecklistItem() {
     newChecklistText.value = "";
   } catch (err) {
     checklistError.value =
-      err instanceof Error ? err.message : "Failed to add item";
+      err instanceof Error ? err.message : "Could not add item";
   }
 }
 
@@ -672,7 +673,7 @@ async function addChecklistSection() {
     })
     .catch((err) => {
       checklistError.value =
-        err instanceof Error ? err.message : "Failed to add section";
+        err instanceof Error ? err.message : "Could not add section";
     });
 }
 
@@ -685,7 +686,7 @@ async function toggleChecklistItem(item: ChecklistItem) {
   } catch (err) {
     item.done = !next;
     checklistError.value =
-      err instanceof Error ? err.message : "Failed to update item";
+      err instanceof Error ? err.message : "Could not update item";
   }
 }
 
@@ -704,7 +705,7 @@ async function commitEditItem(item: ChecklistItem) {
     await updateChecklistItem(game.value.id, item.id, { text });
   } catch (err) {
     checklistError.value =
-      err instanceof Error ? err.message : "Failed to rename item";
+      err instanceof Error ? err.message : "Could not rename item";
   }
 }
 
@@ -732,7 +733,7 @@ async function moveChecklistItem(item: ChecklistItem, direction: -1 | 1) {
     );
   } catch (err) {
     checklistError.value =
-      err instanceof Error ? err.message : "Failed to reorder checklist";
+      err instanceof Error ? err.message : "Could not reorder checklist";
     await loadChecklist();
   }
 }
@@ -744,7 +745,7 @@ async function removeChecklistItem(item: ChecklistItem) {
     checklistItems.value = checklistItems.value.filter((i) => i.id !== item.id);
   } catch (err) {
     checklistError.value =
-      err instanceof Error ? err.message : "Failed to delete item";
+      err instanceof Error ? err.message : "Could not delete item";
   }
 }
 
@@ -820,8 +821,18 @@ async function loadGame(id: string) {
   error.value = null;
   // the hero picture is big, so it starts downloading now rather than once the
   // game's details have come back
-  preloadImage(sizedAssetUrl(`/api/game/${id}/assets/banner`, HERO_WIDTH));
-  preloadImage(sizedAssetUrl(`/api/game/${id}/assets/key_art`, POSTER_WIDTH));
+  preloadImage(
+    sizedAssetUrl(
+      withArtVersion(`/api/game/${id}/assets/banner`, id),
+      HERO_WIDTH,
+    ),
+  );
+  preloadImage(
+    sizedAssetUrl(
+      withArtVersion(`/api/game/${id}/assets/key_art`, id),
+      POSTER_WIDTH,
+    ),
+  );
   // true when this only refreshes the game already on screen (after an edit)
   const refresh = game.value?.id === id;
   // everything the page fills in on its own is asked for at once, so none of
@@ -919,7 +930,7 @@ async function loadGame(id: string) {
   } catch (err) {
     // with the game already showing, a failed refresh is not worth an error page
     if (!seen && !refresh)
-      error.value = err instanceof Error ? err.message : "Failed to load game";
+      error.value = err instanceof Error ? err.message : "Could not load game";
   } finally {
     loading.value = false;
   }
@@ -958,7 +969,7 @@ async function saveResumeNote() {
     resumeNoteEditing.value = false;
   } catch (err) {
     resumeNoteError.value =
-      err instanceof Error ? err.message : "Failed to save note";
+      err instanceof Error ? err.message : "Could not save note";
   } finally {
     resumeNoteSaving.value = false;
   }
@@ -1109,7 +1120,7 @@ async function confirmDelete() {
     router.push("/games");
   } catch (err) {
     deleteError.value =
-      err instanceof Error ? err.message : "Failed to delete game";
+      err instanceof Error ? err.message : "Could not delete game";
   } finally {
     deleting.value = false;
   }
@@ -1210,6 +1221,9 @@ const overviewFacts = computed(() => {
       ? { label: "Playtime", value: formatPlaytime(minutes) }
       : { label: "Playtime", value: "–", muted: true },
   );
+  // how long the story takes, next to how long you have spent
+  if (g.timeToBeatHours)
+    facts.push({ label: "Main story", value: `${g.timeToBeatHours}h` });
   if (g.achievementTotal > 0 && achievementsOn.value)
     facts.push({
       label: "Achievements",
@@ -1231,6 +1245,18 @@ const overviewFacts = computed(() => {
       value: g.platforms.map((p) => p.platform).join(", "),
     });
   return facts.slice(0, 5);
+});
+
+// every HowLongToBeat figure the game has, under "More details"
+const timeToBeatRows = computed(() => {
+  const g = game.value;
+  if (!g) return [];
+  return [
+    { label: "Main story", hours: g.timeToBeatHours },
+    { label: "Main story and extras", hours: g.timeToBeatExtrasHours },
+    { label: "Completionist", hours: g.timeToBeatCompletionistHours },
+    { label: "All play styles", hours: g.timeToBeatAllHours },
+  ].filter((row) => row.hours != null && row.hours > 0);
 });
 
 // only the main genres up top; the rest of the tags are under "More details"
@@ -1415,7 +1441,7 @@ async function loadMedia(profileId?: string | null, unscopedOnly = false) {
     mediaLoadedFor.value = game.value.id;
   } catch (err) {
     mediaError.value =
-      err instanceof Error ? err.message : "Failed to load media";
+      err instanceof Error ? err.message : "Could not load media";
   } finally {
     mediaLoading.value = false;
   }
@@ -1564,7 +1590,7 @@ async function removeMedia(item: MediaItem) {
     mediaItems.value = mediaItems.value.filter((m) => m !== item);
     await refreshMediaTrash();
   } catch (err) {
-    mediaError.value = err instanceof Error ? err.message : "Failed to delete";
+    mediaError.value = err instanceof Error ? err.message : "Could not delete";
   }
 }
 
@@ -1605,7 +1631,7 @@ async function restoreMediaItem(item: TrashedMediaItem) {
     await loadMedia();
     await refreshMediaTrash();
   } catch (err) {
-    mediaError.value = err instanceof Error ? err.message : "Failed to restore";
+    mediaError.value = err instanceof Error ? err.message : "Could not restore";
   }
 }
 
@@ -1625,7 +1651,7 @@ async function saveMediaItem(item: MediaItem, patch: MediaItemUpdate) {
       await reloadMediaForCurrentTab();
     }
   } catch (err) {
-    mediaError.value = err instanceof Error ? err.message : "Failed to save";
+    mediaError.value = err instanceof Error ? err.message : "Could not save";
   }
 }
 
@@ -1643,7 +1669,7 @@ async function bulkSaveMedia(
       if (index !== -1) mediaItems.value[index] = u;
     }
   } catch (err) {
-    mediaError.value = err instanceof Error ? err.message : "Failed to save";
+    mediaError.value = err instanceof Error ? err.message : "Could not save";
   }
 }
 
@@ -1686,7 +1712,7 @@ async function detectDates(
     }
   } catch (err) {
     mediaError.value =
-      err instanceof Error ? err.message : "Failed to detect dates";
+      err instanceof Error ? err.message : "Could not detect dates";
   }
   return outcome;
 }
@@ -1733,7 +1759,7 @@ async function loadGameFiles(kind: FlatFileKind) {
     filesLoaded.value[kind] = game.value.id;
   } catch (err) {
     filesError.value =
-      err instanceof Error ? err.message : "Failed to load files";
+      err instanceof Error ? err.message : "Could not load files";
   }
 }
 
@@ -1770,7 +1796,7 @@ async function loadFieldChanges() {
     fieldChanges.value = await fetchGameFieldChanges(game.value.id);
   } catch (err) {
     fieldChangesError.value =
-      err instanceof Error ? err.message : "Failed to load history";
+      err instanceof Error ? err.message : "Could not load history";
   } finally {
     fieldChangesLoading.value = false;
   }
@@ -1841,7 +1867,7 @@ async function saveGameFile(
     const index = list.value.findIndex((f) => f.id === updated.id);
     if (index !== -1) list.value[index] = updated;
   } catch (err) {
-    filesError.value = err instanceof Error ? err.message : "Failed to save";
+    filesError.value = err instanceof Error ? err.message : "Could not save";
   }
 }
 
@@ -1864,7 +1890,7 @@ async function removeGameFile(kind: FlatFileKind, file: FileDetails) {
     );
     await refreshFileTrash(kind);
   } catch (err) {
-    filesError.value = err instanceof Error ? err.message : "Failed to delete";
+    filesError.value = err instanceof Error ? err.message : "Could not delete";
   }
 }
 
@@ -1899,7 +1925,7 @@ async function restoreFileItem(kind: FlatFileKind, item: TrashedGameFile) {
     await loadGameFiles(kind);
     await refreshFileTrash(kind);
   } catch (err) {
-    filesError.value = err instanceof Error ? err.message : "Failed to restore";
+    filesError.value = err instanceof Error ? err.message : "Could not restore";
   }
 }
 
@@ -1930,7 +1956,7 @@ async function refreshSaveArchives() {
     saveArchivesLoaded.value = true;
   } catch (err) {
     filesError.value =
-      err instanceof Error ? err.message : "Failed to load saves";
+      err instanceof Error ? err.message : "Could not load saves";
   }
 }
 
@@ -2020,7 +2046,7 @@ async function saveArchiveDetails(
     if (isWorld) await refreshWorldMaps();
     else await refreshSaveArchives();
   } catch (err) {
-    filesError.value = err instanceof Error ? err.message : "Failed to save";
+    filesError.value = err instanceof Error ? err.message : "Could not save";
   }
 }
 
@@ -2043,7 +2069,7 @@ async function bulkDeleteArchives(items: GameArchiveData[], isWorld: boolean) {
       await refreshSaveTrash();
     }
   } catch (err) {
-    filesError.value = err instanceof Error ? err.message : "Failed to delete";
+    filesError.value = err instanceof Error ? err.message : "Could not delete";
   }
 }
 
@@ -2070,7 +2096,7 @@ async function onDeleteArchive(archive: GameArchiveData, isWorld: boolean) {
       await refreshSaveTrash();
     }
   } catch (err) {
-    filesError.value = err instanceof Error ? err.message : "Failed to delete";
+    filesError.value = err instanceof Error ? err.message : "Could not delete";
   }
 }
 
@@ -2111,7 +2137,7 @@ async function onRestoreArchive(archive: TrashedArchive, isWorld: boolean) {
       await refreshSaveTrash();
     }
   } catch (err) {
-    filesError.value = err instanceof Error ? err.message : "Failed to restore";
+    filesError.value = err instanceof Error ? err.message : "Could not restore";
   }
 }
 
@@ -2139,7 +2165,7 @@ async function onDeleteVersion(
     else await refreshSaveArchives();
   } catch (err) {
     filesError.value =
-      err instanceof Error ? err.message : "Failed to delete version";
+      err instanceof Error ? err.message : "Could not delete version";
   }
 }
 
@@ -2252,7 +2278,7 @@ async function startWorldMapRender(archiveId: string) {
     await refreshWorldMaps();
   } catch (err) {
     filesError.value =
-      err instanceof Error ? err.message : "Failed to start render";
+      err instanceof Error ? err.message : "Could not start render";
   } finally {
     const next = new Set(worldMapStarting.value);
     next.delete(archiveId);
@@ -3001,6 +3027,22 @@ void loadGame(route.params.id as string);
 
       <details class="more-details">
         <summary>More details</summary>
+
+        <div v-if="timeToBeatRows.length" class="more-block">
+          <h3 class="more-title">Time to beat</h3>
+          <ul class="platform-list">
+            <li
+              v-for="row in timeToBeatRows"
+              :key="row.label"
+              class="platform-item"
+            >
+              <div class="platform-top">
+                <span class="platform-name">{{ row.label }}</span>
+                <span class="platform-hours">{{ row.hours }}h</span>
+              </div>
+            </li>
+          </ul>
+        </div>
 
         <div v-if="game.platforms.length" class="more-block">
           <h3 class="more-title">Platforms</h3>

@@ -24,7 +24,7 @@ onMounted(async () => {
   try {
     enabled.value = (await fetchPreferences()).steam_user_tags;
   } catch (e) {
-    error.value = e instanceof Error ? e.message : "Failed to load settings.";
+    error.value = e instanceof Error ? e.message : "Could not load settings.";
   }
 });
 
@@ -41,7 +41,7 @@ async function change(next: boolean) {
     savedNote.value = "Saved";
     setTimeout(() => (savedNote.value = ""), 1500);
   } catch (e) {
-    error.value = e instanceof Error ? e.message : "Failed to save.";
+    error.value = e instanceof Error ? e.message : "Could not save.";
     enabled.value = previous;
   }
 }
@@ -73,7 +73,7 @@ async function updateNow() {
       }
     }
   } catch (e) {
-    const message = e instanceof Error ? e.message : "Failed to update.";
+    const message = e instanceof Error ? e.message : "Could not update.";
     errorTask(task, message);
     error.value = message;
   } finally {
@@ -86,13 +86,9 @@ async function updateNow() {
   <section class="settings-section steam-tags">
     <h2>Steam tags as genres</h2>
     <p class="section-hint">
-      Steam's own genres are broad: Elden Ring is only Action and RPG. Its
-      players also vote on tags like Souls-like, Open World, Dark Fantasy and
-      Difficult, which say much more. With this on, a Steam game's genres are
-      its most voted tags, without the ones that are not genres (Singleplayer,
-      Co-op, Controller support, Great Soundtrack and similar), plus its
-      official genres. It applies when a Steam game is added or its metadata is
-      refreshed.
+      Uses the most voted Steam tags as genres, excluding non-genre tags such as
+      Singleplayer, Co-op and Controller support, plus the official genres.
+      Applies when a Steam game is added or its metadata is refreshed.
       <span v-if="savedNote" class="saved">{{ savedNote }}</span>
     </p>
     <ToggleButton
@@ -110,12 +106,11 @@ async function updateNow() {
         :disabled="running"
         @click="updateNow"
       >
-        {{ running ? "Updating…" : "Update my Steam games now" }}
+        {{ running ? "Updating…" : "Update tags" }}
       </button>
       <span class="update-hint"
-        >Re-reads the tags of the Steam games already in your library. It reads
-        one store page a second, so a large library takes a few minutes. Tags
-        you added yourself are kept.</span
+        >Re-reads tags for Steam games in the library at one store page per
+        second. Tags you added are kept.</span
       >
     </div>
   </section>

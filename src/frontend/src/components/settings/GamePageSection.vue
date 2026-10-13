@@ -24,7 +24,7 @@ onMounted(async () => {
   try {
     settings.value = resolvePage((await fetchPreferences()).game_page, null);
   } catch (e) {
-    error.value = e instanceof Error ? e.message : "Failed to load settings.";
+    error.value = e instanceof Error ? e.message : "Could not load settings.";
   } finally {
     loaded.value = true;
   }
@@ -43,7 +43,7 @@ async function change(next: PageSettings) {
     savedNote.value = "Saved";
     setTimeout(() => (savedNote.value = ""), 1500);
   } catch (e) {
-    error.value = e instanceof Error ? e.message : "Failed to save.";
+    error.value = e instanceof Error ? e.message : "Could not save.";
     settings.value = previous;
   }
 }
@@ -51,11 +51,10 @@ async function change(next: PageSettings) {
 
 <template>
   <section class="settings-section">
-    <h2>Game Page</h2>
+    <h2>Game page</h2>
     <p class="section-hint">
-      Choose what a game's page shows, for every game. Hide the tabs you never
-      use, or set them to Auto so they appear once a game has something in them.
-      A single game can override any of this from its Edit dialog, on the Page
+      Sets which tabs appear on every game page. Auto shows a tab only when it
+      has content. Each game can override these in its Edit dialog, on the Page
       tab.
       <span v-if="savedNote" class="saved">{{ savedNote }}</span>
     </p>

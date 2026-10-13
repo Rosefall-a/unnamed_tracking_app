@@ -365,9 +365,9 @@ async function refreshMetadataFromEditor() {
       preview.wouldAddBanner ? "banner art" : "",
     ].filter(Boolean);
     const confirmed = await confirm({
-      title: `Repull from ${preview.provider ?? "metadata provider"}?`,
+      title: `Refresh from ${preview.provider ?? "metadata provider"}?`,
       message: `This will update ${changes}${art.length ? ` and add ${art.join(" and ")}` : ""}. Nothing already stored as artwork will be replaced.${locked}`,
-      confirmLabel: "Apply refresh",
+      confirmLabel: "Apply",
     });
     if (!confirmed) return;
 
@@ -658,7 +658,7 @@ async function submit() {
 
     emit("saved", savedGame.id);
   } catch (err) {
-    error.value = err instanceof Error ? err.message : "Failed to save game";
+    error.value = err instanceof Error ? err.message : "Could not save game";
   } finally {
     saving.value = false;
   }
@@ -1053,16 +1053,16 @@ async function submit() {
           <div v-else-if="activeTab === 'Media'" class="tab-panel">
             <div class="metadata-refresh-panel">
               <div>
-                <strong>Repull metadata</strong>
+                <strong>Refresh metadata</strong>
                 <p class="hint">
-                  Re-fetch the current game title from your configured
-                  providers. Locked/manual fields are preserved; existing
-                  artwork is never replaced.
+                  Refreshes this game's metadata from your configured providers.
+                  Locked and manually edited fields are kept. Existing artwork
+                  is not replaced.
                 </p>
               </div>
               <label class="checkbox-field">
                 <input v-model="refreshMetadataIncludeArt" type="checkbox" />
-                <span>Add missing cover/banner art</span>
+                <span>Add missing cover and banner art</span>
               </label>
               <button
                 type="button"
@@ -1070,9 +1070,7 @@ async function submit() {
                 :disabled="refreshingMetadata || saving"
                 @click="refreshMetadataFromEditor"
               >
-                {{
-                  refreshingMetadata ? "Checking provider…" : "Repull Metadata"
-                }}
+                {{ refreshingMetadata ? "Checking…" : "Refresh metadata" }}
               </button>
               <p v-if="refreshMetadataError" class="form-error">
                 {{ refreshMetadataError }}

@@ -268,7 +268,7 @@ async function loadCalendar() {
     entries.value = await fetchCalendar(CAL_MAX_DAYS);
   } catch (e) {
     calError.value =
-      e instanceof Error ? e.message : "Failed to load the calendar.";
+      e instanceof Error ? e.message : "Could not load the calendar.";
   } finally {
     calLoading.value = false;
   }
@@ -287,7 +287,7 @@ async function loadHistory() {
     historyEntries.value = await fetchActivity(36500);
   } catch (e) {
     historyError.value =
-      e instanceof Error ? e.message : "Failed to load history.";
+      e instanceof Error ? e.message : "Could not load history.";
   } finally {
     historyLoading.value = false;
   }
@@ -784,7 +784,7 @@ async function saveEvent() {
     await loadEvents();
     closeEventForm();
   } catch (e) {
-    eventError.value = e instanceof Error ? e.message : "Failed to save.";
+    eventError.value = e instanceof Error ? e.message : "Could not save.";
   } finally {
     eventSaving.value = false;
   }
@@ -803,7 +803,7 @@ async function removeEvent() {
     await loadEvents();
     closeEventForm();
   } catch (e) {
-    eventError.value = e instanceof Error ? e.message : "Failed to delete.";
+    eventError.value = e instanceof Error ? e.message : "Could not delete.";
   }
 }
 function openLinkedTitle() {
@@ -883,8 +883,8 @@ const confirm = useConfirm();
 async function regenerateFeed() {
   const ok = await confirm({
     message:
-      "Make a new link? Anything subscribed to the old one stops updating.",
-    confirmLabel: "Make new link",
+      "Create a new calendar link? Subscriptions to the old link stop updating.",
+    confirmLabel: "Create link",
   });
   if (!ok) return;
   feedBusy.value = true;
@@ -1032,7 +1032,7 @@ async function saveEdit(e: ActivityEntry) {
     }
     editingId.value = null;
   } catch (err) {
-    editError.value = err instanceof Error ? err.message : "Failed to save.";
+    editError.value = err instanceof Error ? err.message : "Could not save.";
   }
 }
 async function removeHistoryEntry(e: ActivityEntry) {
@@ -1047,7 +1047,7 @@ async function removeHistoryEntry(e: ActivityEntry) {
     historyEntries.value = historyEntries.value.filter((h) => h.id !== e.id);
   } catch (err) {
     historyError.value =
-      err instanceof Error ? err.message : "Failed to delete entry.";
+      err instanceof Error ? err.message : "Could not delete entry.";
   }
 }
 
@@ -1127,7 +1127,7 @@ async function submitManualEntry() {
     showManualForm.value = false;
   } catch (err) {
     manualError.value =
-      err instanceof Error ? err.message : "Failed to log entry.";
+      err instanceof Error ? err.message : "Could not log entry.";
   } finally {
     manualSaving.value = false;
   }

@@ -50,7 +50,7 @@ async function load() {
   try {
     lists.value = await fetchMediaLists();
   } catch (e) {
-    error.value = e instanceof Error ? e.message : "Failed to load lists.";
+    error.value = e instanceof Error ? e.message : "Could not load lists.";
   } finally {
     loading.value = false;
   }
@@ -76,7 +76,7 @@ async function onCreate(payload: {
   } catch (e) {
     showCreate.value = false;
     createError.value =
-      e instanceof Error ? e.message : "Failed to create list.";
+      e instanceof Error ? e.message : "Could not create list.";
   }
 }
 
@@ -126,7 +126,7 @@ async function togglePin(id: string) {
     const updated = await updateMediaList(id, { pinned: !list.pinned });
     lists.value = lists.value.map((l) => (l.id === updated.id ? updated : l));
   } catch (e) {
-    error.value = e instanceof Error ? e.message : "Failed to pin the list.";
+    error.value = e instanceof Error ? e.message : "Could not pin the list.";
   }
 }
 
@@ -141,7 +141,7 @@ async function applyOrder(ordered: MediaListSummary[]) {
   try {
     await saveListOrder(ordered.map((l) => l.id));
   } catch (e) {
-    error.value = e instanceof Error ? e.message : "Failed to save the order.";
+    error.value = e instanceof Error ? e.message : "Could not save the order.";
     await load();
   }
 }
@@ -159,7 +159,7 @@ const kindOptions = computed<SegmentOption[]>(() =>
 const TYPE_OPTIONS: SegmentOption[] = [
   { value: "all", label: "Any Type" },
   { value: "movie", label: "Movies" },
-  { value: "tv", label: "TV Shows" },
+  { value: "tv", label: "TV shows" },
   { value: "anime", label: "Anime" },
 ];
 function editList(id: string) {
@@ -180,7 +180,7 @@ async function onEditSave(payload: {
     });
     lists.value = lists.value.map((l) => (l.id === updated.id ? updated : l));
   } catch (e) {
-    error.value = e instanceof Error ? e.message : "Failed to save the list.";
+    error.value = e instanceof Error ? e.message : "Could not save the list.";
   } finally {
     editingList.value = null;
   }
@@ -204,7 +204,7 @@ async function deleteList(id: string) {
     await deleteMediaList(id);
     lists.value = lists.value.filter((l) => l.id !== id);
   } catch (e) {
-    error.value = e instanceof Error ? e.message : "Failed to delete list.";
+    error.value = e instanceof Error ? e.message : "Could not delete list.";
   }
 }
 </script>

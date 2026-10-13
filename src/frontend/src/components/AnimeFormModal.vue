@@ -201,7 +201,7 @@ async function submit() {
       : await createAnime(input);
     emit("saved", saved);
   } catch (e) {
-    error.value = e instanceof Error ? e.message : "Failed to save anime.";
+    error.value = e instanceof Error ? e.message : "Could not save anime.";
   } finally {
     saving.value = false;
   }
@@ -215,7 +215,7 @@ async function remove() {
     await deleteAnime(props.show.id);
     emit("deleted", props.show.id);
   } catch (e) {
-    error.value = e instanceof Error ? e.message : "Failed to delete anime.";
+    error.value = e instanceof Error ? e.message : "Could not delete anime.";
   } finally {
     deleting.value = false;
   }

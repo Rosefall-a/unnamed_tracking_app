@@ -26,7 +26,9 @@ const error = ref<string | null>(null);
 const saved = ref(false);
 const providers = reactive<Record<string, string>>({});
 const configured = reactive<Record<string, boolean>>({});
-const deploymentSettings = ref<Awaited<ReturnType<typeof fetchDeploymentSettings>> | null>(null);
+const deploymentSettings = ref<Awaited<
+  ReturnType<typeof fetchDeploymentSettings>
+> | null>(null);
 const realIpHeader = ref("");
 const realIpTrustedProxies = ref("");
 
@@ -48,7 +50,7 @@ onMounted(async () => {
     error.value =
       err instanceof Error
         ? err.message
-        : "Failed to load server integrations.";
+        : "Could not load server integrations.";
   } finally {
     loading.value = false;
   }
@@ -74,7 +76,7 @@ async function save() {
     error.value =
       err instanceof Error
         ? err.message
-        : "Failed to save server integrations.";
+        : "Could not save server integrations.";
   } finally {
     saving.value = false;
   }
@@ -85,16 +87,13 @@ async function save() {
   <section class="section">
     <h2>Server integrations</h2>
     <p class="hint">
-      Admin-only deployment credentials for metadata and external services.
-      Secrets are encrypted in the database and are never returned to the
-      browser after saving. Values supplied by the deployment environment are
-      managed there and cannot be replaced from this page.
+      Server-wide credentials for metadata and external services. Saved secrets
+      are encrypted and are not shown again. Values set by the deployment
+      environment cannot be changed here.
     </p>
     <p class="hint">
-      These are the server-wide defaults, used for everyone who hasn't saved
-      their own key under Settings &rsaquo; Metadata/API. A user's own key
-      always takes precedence for that user, which is why the same provider
-      appears in both places.
+      Server-wide keys are used for anyone without their own key under Settings,
+      Library, Metadata. A user's own key takes precedence.
     </p>
     <div v-if="loading">Loading…</div>
     <template v-else>
@@ -114,7 +113,7 @@ async function save() {
               (deploymentSettings?.provider_locks[key] ?? false)
                 ? 'Managed by deployment environment'
                 : configured[key]
-                  ? 'Already saved — enter a new value to replace it'
+                  ? 'Saved. Enter a new value to replace it.'
                   : ''
             "
             :disabled="deploymentSettings?.provider_locks[key] ?? false"
@@ -122,18 +121,29 @@ async function save() {
       </div>
       <section class="proxy-section">
         <h3>Client IP / reverse proxy</h3>
-        <p class="hint">Nginx trusts only loopback by default. Add Cloudflare, local/private, CGNAT/VPS, or custom ranges when they are actually proxy networks for this deployment. Environment values take precedence and are locked.</p>
-        <label><span>Real client IP header</span><input v-model="realIpHeader" :disabled="deploymentSettings?.real_ip.locked.header ?? false" /></label>
-        <TrustedProxyControls v-model="realIpTrustedProxies" :disabled="deploymentSettings?.real_ip.locked.trusted_proxies ?? false" />
+        <p class="hint">
+          Nginx trusts only loopback addresses by default. Add the ranges of any
+          reverse proxies in front of this server. Values set by the environment
+          take precedence and are locked.
+        </p>
+        <label
+          ><span>Real client IP header</span
+          ><input
+            v-model="realIpHeader"
+            :disabled="deploymentSettings?.real_ip.locked.header ?? false"
+        /></label>
+        <TrustedProxyControls
+          v-model="realIpTrustedProxies"
+          :disabled="
+            deploymentSettings?.real_ip.locked.trusted_proxies ?? false
+          "
+        />
       </section>
-      <p class="hint">
-        OpenID Connect / SSO has its own tab so authentication settings can be
-        managed separately.
-      </p>
+      <p class="hint">Single sign-on is configured on its own tab.</p>
       <p v-if="error" class="error">{{ error }}</p>
       <p v-if="saved" class="success">Saved.</p>
       <button :disabled="saving" @click="save">
-        {{ saving ? "Saving…" : "Save server integrations" }}
+        {{ saving ? "Saving…" : "Save" }}
       </button>
     </template>
   </section>
@@ -178,10 +188,32 @@ h2 {
   margin: 0;
   color: #fff;
 }
-.proxy-section{display:flex;flex-direction:column;gap:12px;border-top:1px solid #333;padding-top:18px}
-.proxy-section h3{margin:0;color:#fff}
-.proxy-section label{display:flex;flex-direction:column;gap:6px;color:#ccc;font-size:13px}
-.proxy-section label input{background:#111;border:1px solid #3a3a3a;border-radius:8px;color:#fff;padding:10px;font:inherit}
+.proxy-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border-top: 1px solid #333;
+  padding-top: 18px;
+}
+.proxy-section h3 {
+  margin: 0;
+  color: #fff;
+}
+.proxy-section label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: #ccc;
+  font-size: 13px;
+}
+.proxy-section label input {
+  background: #111;
+  border: 1px solid #3a3a3a;
+  border-radius: 8px;
+  color: #fff;
+  padding: 10px;
+  font: inherit;
+}
 button {
   align-self: flex-start;
   background: #d68a34;

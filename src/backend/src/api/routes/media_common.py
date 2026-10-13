@@ -162,6 +162,23 @@ async def trash_listing(db: AsyncSession, model: Any, user_id: Any) -> list[dict
     ]
 
 
+async def empty_trash(db: AsyncSession, model: Any, user_id: Any) -> int:
+    """Permanently remove everything in a user's trash. Returns how many rows went."""
+    rows = (
+        (
+            await db.execute(
+                select(model).where(model.user_id == user_id, model.deleted_at.is_not(None))
+            )
+        )
+        .scalars()
+        .all()
+    )
+    for row in rows:
+        await db.delete(row)
+    await db.commit()
+    return len(rows)
+
+
 def require_deleted(row: Any, label: str) -> None:
     """Restoring and purging only make sense for something in the trash."""
     if row.deleted_at is None:

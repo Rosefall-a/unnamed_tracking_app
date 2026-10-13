@@ -33,7 +33,7 @@ async function loadJobs() {
     jobs.value = await fetchJobs();
     resetDrafts();
   } catch (err) {
-    jobError.value = err instanceof Error ? err.message : "Failed to load jobs";
+    jobError.value = err instanceof Error ? err.message : "Could not load jobs";
   }
 }
 async function changeJob(
@@ -45,7 +45,7 @@ async function changeJob(
     const saved = await updateJob(job.id, changes);
     jobs.value = jobs.value.map((j) => (j.id === saved.id ? saved : j));
   } catch (err) {
-    jobError.value = err instanceof Error ? err.message : "Failed to save";
+    jobError.value = err instanceof Error ? err.message : "Could not save";
   }
   resetDrafts();
 }
@@ -57,7 +57,7 @@ function saveInterval(job: CleanupJob) {
     minutes < job.minIntervalMinutes ||
     minutes > job.maxIntervalMinutes
   ) {
-    jobError.value = `Choose between ${describe(job.minIntervalMinutes)} and ${describe(job.maxIntervalMinutes)}.`;
+    jobError.value = `Interval must be between ${describe(job.minIntervalMinutes)} and ${describe(job.maxIntervalMinutes)}.`;
     resetDrafts();
     return;
   }
@@ -74,13 +74,13 @@ async function runNow(job: CleanupJob) {
     await runJobNow(job.id);
     await loadJobs();
   } catch (err) {
-    jobError.value = err instanceof Error ? err.message : "Failed to start";
+    jobError.value = err instanceof Error ? err.message : "Could not start";
   }
 }
 onMounted(loadJobs);
 
 function formatTime(epochSeconds: number | null): string {
-  if (!epochSeconds) return "Never run yet";
+  if (!epochSeconds) return "Never run";
   return new Date(epochSeconds * 1000).toLocaleString(undefined, {
     month: "short",
     day: "numeric",
@@ -94,8 +94,8 @@ function formatTime(epochSeconds: number | null): string {
   <section class="settings-section">
     <h2>Tasks</h2>
     <p class="section-hint">
-      Recurring jobs run by the app's own scheduler, with no separate worker or
-      server needed. Each one can be switched off and given its own schedule.
+      Recurring jobs run by the app's scheduler. Each job can be turned off and
+      given its own schedule.
     </p>
 
     <div v-if="jobError" class="form-error">{{ jobError }}</div>
@@ -118,7 +118,7 @@ function formatTime(epochSeconds: number | null): string {
               })
             "
           />
-          Run by itself
+          Run on a schedule
         </label>
         <label v-if="drafts[job.id]" class="job-every">
           Every
@@ -157,9 +157,9 @@ function formatTime(epochSeconds: number | null): string {
         <template v-if="job.lastSummary"> · {{ job.lastSummary }}</template>
       </p>
       <p class="tile-desc job-note">
-        Allowed: every {{ describe(job.minIntervalMinutes) }} to
-        {{ describe(job.maxIntervalMinutes) }}. "Run now" works whether or not
-        it runs by itself.
+        Interval: {{ describe(job.minIntervalMinutes) }} to
+        {{ describe(job.maxIntervalMinutes) }}. Run now works whether or not the
+        schedule is on.
       </p>
     </div>
   </section>

@@ -23,7 +23,7 @@ async function loadKeys() {
     keys.value = await fetchApiKeys();
   } catch (err) {
     error.value =
-      err instanceof Error ? err.message : "Failed to load API keys.";
+      err instanceof Error ? err.message : "Could not load API keys.";
   } finally {
     isLoading.value = false;
   }
@@ -44,7 +44,7 @@ async function handleCreate() {
     await loadKeys();
   } catch (err) {
     error.value =
-      err instanceof Error ? err.message : "Failed to create API key.";
+      err instanceof Error ? err.message : "Could not create API key.";
   } finally {
     isCreating.value = false;
   }
@@ -71,7 +71,7 @@ async function handleRevoke(key: ApiKeySummary) {
   } catch (err) {
     keys.value = previousKeys;
     error.value =
-      err instanceof Error ? err.message : "Failed to revoke API key.";
+      err instanceof Error ? err.message : "Could not revoke API key.";
   }
 }
 
@@ -105,8 +105,8 @@ onMounted(loadKeys);
     </div>
 
     <div class="notice">
-      API keys grant access to your account. Keep them private and revoke any
-      key you no longer use.
+      API keys give full access to your account. Revoke keys that are no longer
+      used.
     </div>
 
     <form class="create-form" @submit.prevent="handleCreate">
@@ -137,9 +137,22 @@ onMounted(loadKeys);
         input-aria-label="Generated API key"
       />
       <button type="button" class="primary-copy" @click="copyCreatedKey">
-        {{ copyStatus === "copied" ? "Copied" : copyStatus === "failed" ? "Failed" : "Copy key" }}
+        {{
+          copyStatus === "copied"
+            ? "Copied"
+            : copyStatus === "failed"
+              ? "Copy failed"
+              : "Copy key"
+        }}
       </button>
-      <button type="button" class="secondary" @click="createdKey = ''; copyStatus = 'idle'">
+      <button
+        type="button"
+        class="secondary"
+        @click="
+          createdKey = '';
+          copyStatus = 'idle';
+        "
+      >
         Done
       </button>
     </div>
@@ -149,9 +162,7 @@ onMounted(loadKeys);
     <div class="keys">
       <h3>Your keys</h3>
       <p v-if="isLoading" class="muted">Loading…</p>
-      <p v-else-if="keys.length === 0" class="muted">
-        No API keys have been created.
-      </p>
+      <p v-else-if="keys.length === 0" class="muted">No API keys.</p>
       <div v-else class="key-list">
         <div v-for="key in keys" :key="key.id" class="key-row">
           <div>

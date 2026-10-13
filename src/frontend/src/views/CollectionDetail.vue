@@ -225,7 +225,7 @@ async function loadGames() {
   try {
     games.value = await fetchGames();
   } catch (err) {
-    error.value = err instanceof Error ? err.message : "Failed to load games";
+    error.value = err instanceof Error ? err.message : "Could not load games";
   } finally {
     loading.value = false;
   }
@@ -244,7 +244,7 @@ async function removeItem(game: Game) {
     replaceGame(await removeGameFromCollection(game.id, collectionName.value));
   } catch (err) {
     error.value =
-      err instanceof Error ? err.message : "Failed to remove from collection.";
+      err instanceof Error ? err.message : "Could not remove from collection.";
   }
 }
 
@@ -271,7 +271,7 @@ async function addGame(game: Game) {
   try {
     replaceGame(await addGameToCollection(game.id, collectionName.value));
   } catch (err) {
-    addError.value = err instanceof Error ? err.message : "Failed to add game.";
+    addError.value = err instanceof Error ? err.message : "Could not add game.";
   }
 }
 
@@ -317,7 +317,7 @@ async function onEdit(payload: CollectionFormPayload) {
     }
   } catch (err) {
     error.value =
-      err instanceof Error ? err.message : "Failed to save the collection.";
+      err instanceof Error ? err.message : "Could not save the collection.";
   }
   await loadGames();
 }
@@ -334,7 +334,7 @@ async function deleteSmartRule() {
   if (!smartRule.value) return;
   const ok = await confirm({
     title: "Delete smart collection",
-    message: `Delete the smart collection "${collectionName.value}"? This only removes the rule, no games are affected.`,
+    message: `Delete the smart collection "${collectionName.value}"? This removes the rule. Games are not affected.`,
     confirmLabel: "Delete",
     danger: true,
   });
@@ -364,7 +364,7 @@ async function deleteCollection() {
     router.push("/games/collections");
   } catch (err) {
     error.value =
-      err instanceof Error ? err.message : "Failed to delete collection";
+      err instanceof Error ? err.message : "Could not delete collection";
     // some games may have already been removed from the collection before
     // the failure, refresh so the list reflects what actually happened
     // server-side instead of showing the stale pre-delete membership

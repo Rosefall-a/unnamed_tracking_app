@@ -14,7 +14,7 @@ onMounted(async () => {
   try {
     stats.value = await fetchStatsOverview();
   } catch (err) {
-    error.value = err instanceof Error ? err.message : "Failed to load stats";
+    error.value = err instanceof Error ? err.message : "Could not load stats";
   } finally {
     loading.value = false;
   }
@@ -136,10 +136,8 @@ const formatBreakdown = computed(() => stats.value?.format_breakdown ?? []);
 
 <template>
   <section class="settings-section">
-    <h2>Server Stats</h2>
-    <p class="section-hint">
-      A live snapshot of your library: computed on every visit, nothing cached.
-    </p>
+    <h2>Server stats</h2>
+    <p class="section-hint">Library totals, calculated on each visit.</p>
 
     <p v-if="loading">Loading…</p>
     <p v-else-if="error" class="form-error">{{ error }}</p>
@@ -181,13 +179,13 @@ const formatBreakdown = computed(() => stats.value?.format_breakdown ?? []);
           <span class="tile-value">{{
             costPerHour != null ? formatSpent(costPerHour) : "N/A"
           }}</span>
-          <span class="tile-label">Cost per hour played</span>
+          <span class="tile-label">Cost per hour</span>
         </div>
         <div class="tile">
           <span class="tile-value">{{
             completionRate != null ? `${completionRate}%` : "N/A"
           }}</span>
-          <span class="tile-label">Completed (beaten/mastered)</span>
+          <span class="tile-label">Completed (beaten or mastered)</span>
         </div>
       </div>
 
@@ -200,15 +198,15 @@ const formatBreakdown = computed(() => stats.value?.format_breakdown ?? []);
           >
           <span class="burn-down-estimate">
             <template v-if="burnDown.monthsEstimate">
-              At your last 6 months' pace, roughly
+              At the pace of the last 6 months: about
               {{ burnDown.monthsEstimate }} month{{
                 burnDown.monthsEstimate === 1 ? "" : "s"
               }}
-              to clear it
+              to clear the backlog
             </template>
             <template v-else
-              >No games marked Mastered in the last 6 months, not enough data
-              for a pace estimate</template
+              >No pace estimate: no games were mastered in the last 6
+              months.</template
             >
           </span>
         </div>
@@ -219,9 +217,7 @@ const formatBreakdown = computed(() => stats.value?.format_breakdown ?? []);
           <h3>Status</h3>
           <SegmentedControl v-model="statusView" :options="viewOptions" />
         </div>
-        <div v-if="!statusBreakdown.length" class="empty-hint">
-          No games yet.
-        </div>
+        <div v-if="!statusBreakdown.length" class="empty-hint">No games.</div>
         <div v-else-if="statusView === 'chart'" class="bar-chart">
           <div
             v-for="entry in statusBreakdown"
@@ -253,9 +249,7 @@ const formatBreakdown = computed(() => stats.value?.format_breakdown ?? []);
           <h3>Source</h3>
           <SegmentedControl v-model="sourceView" :options="viewOptions" />
         </div>
-        <div v-if="!sourceBreakdown.length" class="empty-hint">
-          No games yet.
-        </div>
+        <div v-if="!sourceBreakdown.length" class="empty-hint">No games.</div>
         <div v-else-if="sourceView === 'chart'" class="bar-chart">
           <div
             v-for="entry in sourceBreakdown"
@@ -287,7 +281,7 @@ const formatBreakdown = computed(() => stats.value?.format_breakdown ?? []);
           <h3>Recently added</h3>
           <SegmentedControl v-model="timelineView" :options="viewOptions" />
         </div>
-        <div v-if="!timeline.length" class="empty-hint">No games yet.</div>
+        <div v-if="!timeline.length" class="empty-hint">No games.</div>
         <div v-else-if="timelineView === 'chart'" class="bar-chart">
           <div v-for="entry in timeline" :key="entry.month" class="bar-row">
             <span class="bar-label">{{ entry.month }}</span>
@@ -313,7 +307,7 @@ const formatBreakdown = computed(() => stats.value?.format_breakdown ?? []);
       <div class="breakdown-block">
         <h3>Most played</h3>
         <div v-if="!stats.most_played.length" class="empty-hint">
-          No playtime tracked yet.
+          No playtime recorded.
         </div>
         <ol v-else class="ranked-list">
           <li v-for="entry in stats.most_played" :key="entry.id">
@@ -438,9 +432,7 @@ const formatBreakdown = computed(() => stats.value?.format_breakdown ?? []);
           <h3>Physical / digital</h3>
           <SegmentedControl v-model="formatView" :options="viewOptions" />
         </div>
-        <div v-if="!formatBreakdown.length" class="empty-hint">
-          No games yet.
-        </div>
+        <div v-if="!formatBreakdown.length" class="empty-hint">No games.</div>
         <div v-else-if="formatView === 'chart'" class="bar-chart">
           <div
             v-for="entry in formatBreakdown"
