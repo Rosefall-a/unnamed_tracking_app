@@ -17,6 +17,7 @@ import type { Movie, MovieStatus } from "../types/movie";
 import { localMediaImage } from "../utils/mediaImages";
 import { formatDuration, progressPercent } from "../utils/watchProgress";
 import MediaLibraryView from "../components/library/MediaLibraryView.vue";
+import MovieFormModal from "../components/MovieFormModal.vue";
 import type {
   LibraryCardVM,
   SearchResultVM,
@@ -253,11 +254,7 @@ async function onBulkDelete(ids: string[]) {
 async function search(
   query: string,
 ): Promise<{ results: SearchResultVM[]; providerErrors: string[] }> {
-  const { results, providerErrors } = await searchMovieMetadata(
-    query,
-    8,
-    true,
-  );
+  const { results, providerErrors } = await searchMovieMetadata(query, 8, true);
   return {
     results: results.map((r) => ({
       title: r.title,
@@ -328,5 +325,24 @@ function detailRoute(id: string): string {
     @bulk-set-status="onBulkSetStatus"
     @bulk-favorite="onBulkFavorite"
     @bulk-delete="onBulkDelete"
-  />
+  >
+    <template #full-edit="{ id, close }">
+      <MovieFormModal
+        :movie="findMovie(id)"
+        @saved="
+          (saved) => {
+            replaceMovie(saved);
+            close();
+          }
+        "
+        @deleted="
+          () => {
+            close();
+            void reload();
+          }
+        "
+        @closed="close"
+      />
+    </template>
+  </MediaLibraryView>
 </template>

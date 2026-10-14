@@ -459,6 +459,9 @@ export interface MetadataSearchResult {
   series: string | null;
   age_rating: string | null;
   time_to_beat_hours: number | string | null;
+  time_to_beat_extras_hours?: number | string | null;
+  time_to_beat_completionist_hours?: number | string | null;
+  time_to_beat_all_hours?: number | string | null;
   tags: string[];
   features: string[];
   links: GameLink[];
@@ -690,6 +693,11 @@ export interface NewGameInput {
   source: string | null;
   ageRating: string | null;
   timeToBeatHours: number | null;
+  timeToBeatExtrasHours?: number | null;
+  timeToBeatCompletionistHours?: number | null;
+  timeToBeatAllHours?: number | null;
+  // "where I left off"; undefined leaves the saved note alone
+  resumeNote?: string | null;
   region: string | null;
   language: string | null;
   achievementsProvider: AchievementsProvider;
@@ -784,6 +792,13 @@ export async function createGame(input: NewGameInput): Promise<Game> {
       language: input.language,
       age_rating: input.ageRating,
       time_to_beat_hours: input.timeToBeatHours,
+      time_to_beat_extras_hours: input.timeToBeatExtrasHours ?? null,
+      time_to_beat_completionist_hours:
+        input.timeToBeatCompletionistHours ?? null,
+      time_to_beat_all_hours: input.timeToBeatAllHours ?? null,
+      ...(input.resumeNote !== undefined
+        ? { resume_note: input.resumeNote }
+        : {}),
       rating_overall: input.ratingOverall,
       rating_story: input.ratingStory,
       rating_gameplay: input.ratingGameplay,
@@ -791,6 +806,7 @@ export async function createGame(input: NewGameInput): Promise<Game> {
       tags: input.tags,
       features: input.features,
       links: input.links,
+      collections: input.collections,
       purchase_date: dateInputToUnixSeconds(input.ownership.purchaseDate),
       completion_date: dateInputToUnixSeconds(input.completionDate),
       purchase_price: input.ownership.price,
@@ -880,6 +896,13 @@ export async function updateGame(
     language: input.language,
     age_rating: input.ageRating,
     time_to_beat_hours: input.timeToBeatHours,
+    time_to_beat_extras_hours: input.timeToBeatExtrasHours ?? null,
+    time_to_beat_completionist_hours:
+      input.timeToBeatCompletionistHours ?? null,
+    time_to_beat_all_hours: input.timeToBeatAllHours ?? null,
+    ...(input.resumeNote !== undefined
+      ? { resume_note: input.resumeNote }
+      : {}),
     rating_overall: input.ratingOverall,
     rating_story: input.ratingStory,
     rating_gameplay: input.ratingGameplay,
@@ -1546,6 +1569,45 @@ export async function fetchArtOptions(
   });
   if (!response.ok) throw new Error("Could not load artwork options.");
   return await response.json();
+}
+
+// Changes only the fields given, for the light edit: the server leaves everything
+// else on the game as it is.
+export async function patchGame(
+  id: string,
+  fields: {
+    status?: GameStatus;
+    platform?: string | null;
+    ratingOverall?: number | null;
+  },
+): Promise<Game> {
+  if (import.meta.env.VITE_USE_MOCK_DATA === "true") {
+    const index = mockGames.findIndex((g) => g.id === id);
+    if (index === -1) throw new Error(`Game ${id} not found`);
+    mockGames[index] = {
+      ...mockGames[index],
+      ...(fields.status !== undefined && { status: fields.status }),
+      ...(fields.platform !== undefined && { platform: fields.platform }),
+      ...(fields.ratingOverall !== undefined && {
+        ratingOverall: fields.ratingOverall,
+      }),
+    };
+    return mockGames[index];
+  }
+  const body: Record<string, unknown> = {};
+  if (fields.status !== undefined)
+    body.status = denormalizeStatus(fields.status);
+  if (fields.platform !== undefined) body.platform = fields.platform;
+  if (fields.ratingOverall !== undefined)
+    body.rating_overall = fields.ratingOverall;
+  const response = await fetch(`/api/game/update/${id}`, {
+    method: "PATCH",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) throw await failedRequest(response);
+  return mapBackendGame((await response.json()) as BackendGame);
 }
 
 export async function attachGameAssetFromUrl(

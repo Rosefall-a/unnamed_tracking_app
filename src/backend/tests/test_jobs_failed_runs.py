@@ -22,4 +22,4 @@ async def test_a_failed_airing_check_is_recorded_as_a_run(monkeypatch) -> None:
 
 
 def test_a_failed_run_does_not_break_the_summary() -> None:
-    assert jobs._summarize_airing({"failed": True}) == "0 checked, 0 not due yet"
+    assert jobs._summarize_airing({"failed": True}) == "0 checked, 0 not due"

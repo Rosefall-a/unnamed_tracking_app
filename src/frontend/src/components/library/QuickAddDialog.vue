@@ -24,21 +24,26 @@ const props = defineProps<{
   error?: string | null;
   submitLabel?: string;
   sectionLabel?: string;
+  // editing something already in the library: the dialog opens on its form, with no
+  // search step, and `moreLabel` adds a button for the full edit form
+  initial?: T | null;
+  moreLabel?: string;
 }>();
 
 const emit = defineEmits<{
   close: [];
   pick: [result: T];
   add: [result: T];
+  more: [];
 }>();
 
-const step = ref<"search" | "form">("search");
+const step = ref<"search" | "form">(props.initial ? "form" : "search");
 const query = ref("");
 // shallow: unwrapping a generic result type is what the type checker cannot follow
 const results = shallowRef<T[]>([]);
 const providerErrors = ref<string[]>([]);
 const searching = ref(false);
-const picked = shallowRef<T | null>(null);
+const picked = shallowRef<T | null>(props.initial ?? null);
 
 async function runSearch() {
   if (!query.value.trim()) {
@@ -82,7 +87,7 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onEscape));
 <template>
   <div class="modal-overlay" @click.self="emit('close')">
     <div class="modal-card qa-card">
-      <div v-if="step === 'search'">
+      <div v-if="step === 'search'" class="qa-step">
         <div class="qa-header">
           <div class="qa-header-row">
             <svg
@@ -154,9 +159,14 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onEscape));
         </div>
       </div>
 
-      <div v-else-if="picked">
+      <div v-else-if="picked" class="qa-step">
         <div class="qa-body">
-          <button type="button" class="qa-back-link" @click="step = 'search'">
+          <button
+            v-if="!initial"
+            type="button"
+            class="qa-back-link"
+            @click="step = 'search'"
+          >
             &larr; Back to results
           </button>
           <div class="qa-form-header">
@@ -180,21 +190,39 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onEscape));
           <div class="qa-field-grid">
             <slot name="fields" :result="picked" />
           </div>
+        </div>
+        <div class="qa-foot">
           <p v-if="error" class="empty-state error" style="padding: 0 0 8px">
             {{ error }}
           </p>
-          <div class="modal-actions">
-            <button type="button" class="btn-outline" @click="emit('close')">
-              Cancel
-            </button>
+          <div class="qa-foot-row">
             <button
+              v-if="moreLabel"
               type="button"
-              class="btn-solid"
-              :disabled="saving"
-              @click="emit('add', picked)"
+              class="qa-more"
+              @click="emit('more')"
             >
-              {{ saving ? "Adding…" : (submitLabel ?? "Add to Library") }}
+              {{ moreLabel }}
             </button>
+            <div class="modal-actions">
+              <button type="button" class="btn-outline" @click="emit('close')">
+                Cancel
+              </button>
+              <button
+                type="button"
+                class="btn-solid"
+                :disabled="saving"
+                @click="emit('add', picked)"
+              >
+                {{
+                  saving
+                    ? initial
+                      ? "Saving…"
+                      : "Adding…"
+                    : (submitLabel ?? "Add to Library")
+                }}
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -311,6 +339,46 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onEscape));
   max-width: 540px;
   padding: 0;
   overflow: hidden;
+  /* never taller than the screen: a long form scrolls inside instead of being
+     cut off at the top and bottom */
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 48px);
+  max-height: calc(100dvh - 48px);
+}
+.qa-step {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+.qa-foot {
+  flex: none;
+  padding: 12px 24px 18px;
+  border-top: 1px solid var(--border-soft);
+  background: var(--ui-popover);
+}
+.qa-foot .modal-actions {
+  margin-top: 0;
+  margin-left: auto;
+}
+.qa-foot-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.qa-more {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--accent);
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.qa-more:hover {
+  text-decoration: underline;
 }
 .qa-header {
   padding: 22px 24px 18px;
@@ -356,6 +424,9 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onEscape));
 }
 .qa-body {
   padding: 20px 24px 24px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
 }
 .qa-search-row {
   display: flex;

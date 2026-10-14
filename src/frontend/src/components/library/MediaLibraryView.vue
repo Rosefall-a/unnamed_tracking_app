@@ -737,6 +737,25 @@ function closeEdit() {
   editOpen.value = false;
   editTargetId.value = null;
 }
+const editTarget = computed(
+  () => props.items.find((i) => i.id === editTargetId.value) ?? null,
+);
+const editInitial = computed(() =>
+  editTarget.value
+    ? {
+        title: editTarget.value.title,
+        poster: editTarget.value.poster,
+        description: null,
+        releaseYear: editTarget.value.releaseYear,
+      }
+    : null,
+);
+// "Edit more": the full edit form for the same title, which the page supplies
+const fullEditId = ref<string | null>(null);
+function editMore() {
+  fullEditId.value = editTargetId.value;
+  closeEdit();
+}
 function saveEdit() {
   if (!editTargetId.value) return;
   const target = props.items.find((i) => i.id === editTargetId.value);
@@ -1655,69 +1674,73 @@ defineExpose({ openQuickAdd });
       </div>
     </div>
 
-    <!-- ===== Small edit modal ===== -->
-    <div v-if="editOpen" class="modal-overlay" @click.self="closeEdit">
-      <div class="modal-card">
-        <h3>Edit</h3>
-        <div class="sub">Quick edit: status, rating, progress and dates.</div>
-        <div class="qa-field-grid">
-          <label class="qa-field">
-            <span>Status</span>
-            <select v-model="editForm.status">
-              <option v-for="s in STATUSES" :key="s.key" :value="s.key">
-                {{ s.label }}
-              </option>
-            </select>
-          </label>
-          <label
-            v-if="items.find((i) => i.id === editTargetId)?.isEpisodic"
-            class="qa-field"
-          >
-            <span>Episodes watched</span>
-            <input v-model.number="editForm.watched" type="number" min="0" />
-          </label>
-          <label
-            v-if="items.find((i) => i.id === editTargetId)?.isEpisodic"
-            class="qa-field"
-          >
-            <span>Total episodes</span>
-            <input
-              v-model.number="editForm.totalEpisodes"
-              type="number"
-              min="0"
-              placeholder="Unknown"
-            />
-          </label>
-          <label class="qa-field">
-            <span>Your rating (0–10)</span>
-            <input
-              v-model.number="editForm.score"
-              type="number"
-              min="0"
-              max="10"
-              step="0.1"
-              placeholder="–"
-            />
-          </label>
-          <label class="qa-field">
-            <span>Started</span>
-            <input v-model="editForm.startDate" type="date" />
-          </label>
-          <label class="qa-field">
-            <span>Finished</span>
-            <input v-model="editForm.endDate" type="date" />
-          </label>
-        </div>
-        <div class="modal-actions">
-          <button type="button" class="btn-outline" @click="closeEdit">
-            Cancel
-          </button>
-          <button type="button" class="btn-solid" @click="saveEdit">
-            Save
-          </button>
-        </div>
-      </div>
-    </div>
+    <!-- ===== Light edit: the same dialog as quick add, opened on the title ===== -->
+    <QuickAddDialog
+      v-if="editOpen && editInitial"
+      title="Edit"
+      :section-label="`Your ${addLabel.replace('+ Add ', '').toLowerCase()}`"
+      submit-label="Save"
+      more-label="Edit more"
+      :initial="editInitial"
+      :search="async () => ({ results: [], providerErrors: [] })"
+      :saving="false"
+      @close="closeEdit"
+      @add="saveEdit"
+      @more="editMore"
+    >
+      <template #meta="{ result }">
+        <span v-if="result.releaseYear">{{ result.releaseYear }}</span>
+      </template>
+      <template #fields>
+        <label class="qa-field qa-wide">
+          <span>Status</span>
+          <select v-model="editForm.status">
+            <option v-for="s in STATUSES" :key="s.key" :value="s.key">
+              {{ s.label }}
+            </option>
+          </select>
+        </label>
+        <label v-if="editTarget?.isEpisodic" class="qa-field">
+          <span>Episodes watched</span>
+          <input v-model.number="editForm.watched" type="number" min="0" />
+        </label>
+        <label v-if="editTarget?.isEpisodic" class="qa-field">
+          <span>Total episodes</span>
+          <input
+            v-model.number="editForm.totalEpisodes"
+            type="number"
+            min="0"
+            placeholder="Unknown"
+          />
+        </label>
+        <label class="qa-field">
+          <span>Your rating (0–10)</span>
+          <input
+            v-model.number="editForm.score"
+            type="number"
+            min="0"
+            max="10"
+            step="0.1"
+            placeholder="–"
+          />
+        </label>
+        <label class="qa-field">
+          <span>Started</span>
+          <input v-model="editForm.startDate" type="date" />
+        </label>
+        <label class="qa-field">
+          <span>Finished</span>
+          <input v-model="editForm.endDate" type="date" />
+        </label>
+      </template>
+    </QuickAddDialog>
+
+    <slot
+      v-if="fullEditId"
+      name="full-edit"
+      :id="fullEditId"
+      :close="() => (fullEditId = null)"
+    />
 
     <!-- ===== Quick Add ===== -->
     <QuickAddDialog
@@ -2920,6 +2943,9 @@ defineExpose({ openQuickAdd });
   gap: 8px;
   margin-top: 14px;
 }
+.qa-wide {
+  grid-column: 1 / -1;
+}
 .btn-outline {
   background: transparent;
   border: 1px solid var(--border);
@@ -3032,7 +3058,6 @@ defineExpose({ openQuickAdd });
   justify-content: flex-start;
   margin: 16px 0 4px;
 }
-
 
 /* phones and narrow windows: the seven-column list row can't fit, so it
    collapses to poster + title with the status/progress/score tags stacked

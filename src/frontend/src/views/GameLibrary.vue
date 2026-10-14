@@ -9,6 +9,7 @@ import GameCard from "../components/GameCard.vue";
 import CheckIcon from "../components/CheckIcon.vue";
 import GameFormModal from "../components/GameFormModal.vue";
 import GameQuickAdd from "../components/GameQuickAdd.vue";
+import GameQuickEdit from "../components/GameQuickEdit.vue";
 import BulkEditModal from "../components/BulkEditModal.vue";
 import RandomGamePicker from "../components/RandomGamePicker.vue";
 import { activePriority, priorityLabel } from "../utils/priority";
@@ -75,6 +76,8 @@ const error = ref<string | null>(null);
 
 const showFormModal = ref(false);
 const showQuickAdd = ref(false);
+// the light edit: status, platform, rating and artwork, with a way on to the full form
+const quickEditGame = ref<Game | null>(null);
 const editingGame = ref<Game | null>(null);
 
 const deletingGame = ref<Game | null>(null);
@@ -746,6 +749,7 @@ function anyModalOpen(): boolean {
   return (
     showFormModal.value ||
     showQuickAdd.value ||
+    !!quickEditGame.value ||
     !!deletingGame.value ||
     showBulkEditModal.value ||
     !!collectionPickerGame.value ||
@@ -878,8 +882,19 @@ function openManualAdd() {
 }
 
 function openEditModal(game: Game) {
-  editingGame.value = game;
+  quickEditGame.value = game;
+}
+
+// "Edit more" in the light edit: the full form for the same game
+function openFullEdit() {
+  editingGame.value = quickEditGame.value;
+  quickEditGame.value = null;
   showFormModal.value = true;
+}
+
+async function onQuickEdited() {
+  quickEditGame.value = null;
+  await loadGames();
 }
 
 async function onGameSaved() {
@@ -2351,6 +2366,13 @@ function cardsInRow(rowIndex: number): Game[] {
         @close="showQuickAdd = false"
         @added="onQuickAdded"
         @manual="openManualAdd"
+      />
+      <GameQuickEdit
+        v-if="quickEditGame"
+        :game="quickEditGame"
+        @close="quickEditGame = null"
+        @saved="onQuickEdited"
+        @more="openFullEdit"
       />
       <GameFormModal
         v-if="showFormModal"

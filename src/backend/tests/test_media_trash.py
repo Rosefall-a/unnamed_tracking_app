@@ -13,7 +13,7 @@ from tests.test_game_files_flow import flow  # noqa: F401  (the fixture)
 
 async def _movie(user_id, title, deleted_at):
     async with SessionLocal() as db:
-        movie = Movie(user_id=user_id, title=title, deleted_at=deleted_at)
+        movie = Movie(user_id=user_id, title=title, sort_title=title.lower(), deleted_at=deleted_at)
         db.add(movie)
         await db.commit()
         return movie.id
@@ -31,7 +31,7 @@ async def test_emptying_the_trash_removes_only_what_is_in_it(flow) -> None:  # n
     await _movie(flow.user_id, "Deleted one", now)
     await _movie(flow.user_id, "Deleted two", now)
 
-    response = await flow.client.post("/api/movies/trash/empty")
+    response = await flow.client.post("/api/movie/trash/empty")
     assert response.status_code == 200
     assert response.json() == {"deleted": 2}
     assert await _titles(flow.user_id) == ["Kept"]

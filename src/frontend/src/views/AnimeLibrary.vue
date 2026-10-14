@@ -18,6 +18,7 @@ import type { SeasonUpdateInput } from "../services/anime";
 import type { Anime, AnimeStatus } from "../types/anime";
 import { localMediaImage } from "../utils/mediaImages";
 import MediaLibraryView from "../components/library/MediaLibraryView.vue";
+import AnimeFormModal from "../components/AnimeFormModal.vue";
 import { displayTitle } from "../utils/displayTitle";
 import { statusBucket, bucketToReal } from "../utils/mediaStatus";
 import { useCompletionPrompt } from "../utils/completion";
@@ -426,5 +427,23 @@ function detailRoute(id: string): string {
     @bulk-favorite="onBulkFavorite"
     @bulk-delete="onBulkDelete"
   >
+    <template #full-edit="{ id, close }">
+      <AnimeFormModal
+        :show="findShow(id)"
+        @saved="
+          (saved) => {
+            replaceShow(saved);
+            close();
+          }
+        "
+        @deleted="
+          () => {
+            close();
+            void reload();
+          }
+        "
+        @closed="close"
+      />
+    </template>
   </MediaLibraryView>
 </template>

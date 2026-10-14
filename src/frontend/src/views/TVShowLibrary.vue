@@ -18,6 +18,7 @@ import type { SeasonUpdateInput } from "../services/tvShows";
 import type { TVShow, TVShowStatus } from "../types/tv_show";
 import { localMediaImage } from "../utils/mediaImages";
 import MediaLibraryView from "../components/library/MediaLibraryView.vue";
+import TVShowFormModal from "../components/TVShowFormModal.vue";
 import { statusBucket, bucketToReal } from "../utils/mediaStatus";
 import { useCompletionPrompt } from "../utils/completion";
 import type {
@@ -427,5 +428,24 @@ function detailRoute(id: string): string {
     @bulk-set-status="onBulkSetStatus"
     @bulk-favorite="onBulkFavorite"
     @bulk-delete="onBulkDelete"
-  />
+  >
+    <template #full-edit="{ id, close }">
+      <TVShowFormModal
+        :show="findShow(id)"
+        @saved="
+          (saved) => {
+            replaceShow(saved);
+            close();
+          }
+        "
+        @deleted="
+          () => {
+            close();
+            void reload();
+          }
+        "
+        @closed="close"
+      />
+    </template>
+  </MediaLibraryView>
 </template>

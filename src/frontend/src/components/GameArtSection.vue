@@ -5,11 +5,13 @@
 import { computed, ref } from "vue";
 import GameArtPicker from "./GameArtPicker.vue";
 
-defineProps<{
+const props = defineProps<{
   title: string;
   provider: string;
   providerId: string;
   currentCover: string | null;
+  // what the picture already in place is called; the search list's, when adding
+  currentLabel?: string;
 }>();
 const cover = defineModel<string | null>("cover", { required: true });
 const banner = defineModel<string | null>("banner", { required: true });
@@ -17,7 +19,11 @@ const banner = defineModel<string | null>("banner", { required: true });
 const opened = ref(false);
 
 const summary = computed(() => {
-  const parts = [cover.value ? "Cover picked" : "Cover from search"];
+  const parts = [
+    cover.value
+      ? "Cover picked"
+      : `Cover ${props.currentLabel ? props.currentLabel.toLowerCase() : "from search"}`,
+  ];
   if (banner.value) parts.push("banner picked");
   return parts.join(", ");
 });
@@ -37,6 +43,7 @@ const summary = computed(() => {
       :provider="provider"
       :provider-id="providerId"
       :current-cover="currentCover"
+      :current-label="currentLabel"
     />
   </details>
 </template>
