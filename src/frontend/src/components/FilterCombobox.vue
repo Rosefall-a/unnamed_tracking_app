@@ -123,7 +123,7 @@ function onBlur() {
   box-sizing: border-box;
   width: 160px;
   background: #111;
-  border: 1px solid #3a3a3a;
+  border: 1px solid var(--ui-border-strong);
   border-radius: 8px;
   color: #fff;
   padding: 0 14px;
@@ -135,7 +135,7 @@ function onBlur() {
 }
 .combobox-input:focus {
   outline: none;
-  border-color: #d68a34;
+  border-color: var(--ui-accent);
 }
 .combobox-menu {
   position: absolute;
@@ -144,10 +144,11 @@ function onBlur() {
   width: 200px;
   max-height: 240px;
   overflow-y: auto;
-  background: #1a1a1a;
+  background: var(--ui-surface);
   border: 1px solid #333;
   border-radius: 8px;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 12px 32px
+    color-mix(in srgb, var(--ui-scrim-base) 50%, transparent);
   z-index: 50;
   display: flex;
   flex-direction: column;
@@ -165,12 +166,12 @@ function onBlur() {
   text-transform: capitalize;
 }
 .combobox-option:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: color-mix(in srgb, var(--ui-wash-base) 8%, transparent);
   color: #fff;
 }
 .combobox-option.active {
-  background: rgba(214, 138, 52, 0.18);
-  color: #d68a34;
+  background: color-mix(in srgb, var(--ui-accent) 18%, transparent);
+  color: var(--ui-accent);
 }
 .combobox-empty {
   color: #666;

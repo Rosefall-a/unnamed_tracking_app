@@ -57,7 +57,7 @@ defineEmits<{ open: [item: TopTitle] }>();
   left: 6px;
   z-index: 2;
   background: rgba(10, 10, 10, 0.75);
-  color: #d68a34;
+  color: var(--ui-accent);
   font-size: 0.7rem;
   font-weight: 800;
   padding: 2px 6px;
@@ -75,7 +75,7 @@ defineEmits<{ open: [item: TopTitle] }>();
   background-origin: border-box;
   background-clip: border-box;
   background-position: center;
-  background-color: #222222;
+  background-color: var(--ui-surface-2);
   border: 1px solid transparent;
   transition: transform 0.2s ease;
 }
@@ -102,7 +102,7 @@ defineEmits<{ open: [item: TopTitle] }>();
   margin-top: 2px;
   font-size: 0.74rem;
   font-weight: 700;
-  color: #d68a34;
+  color: var(--ui-accent);
   font-variant-numeric: tabular-nums;
 }
 </style>

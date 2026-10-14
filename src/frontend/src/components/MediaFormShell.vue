@@ -139,16 +139,16 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKey));
 
 <style scoped>
 .mf-overlay {
-  --surface: #1a1a1a;
-  --surface-2: #222222;
-  --border: #2b2b2b;
-  --border-soft: #202020;
-  --accent: #d68a34;
-  --accent-soft: rgba(214, 138, 52, 0.16);
-  --accent-line: rgba(214, 138, 52, 0.4);
-  --danger: #d96f6f;
-  --text: #f2f2f2;
-  --text-dim: #9c9c9c;
+  --surface: var(--ui-surface);
+  --surface-2: var(--ui-surface-2);
+  --border: var(--ui-border);
+  --border-soft: var(--ui-border-soft);
+  --accent: var(--ui-accent);
+  --accent-soft: var(--ui-accent-soft);
+  --accent-line: var(--ui-accent-line);
+  --danger: var(--ui-danger-muted);
+  --text: var(--ui-text);
+  --text-dim: var(--ui-dim);
   --text-faint: #666;
   position: fixed;
   inset: 0;
@@ -157,7 +157,7 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKey));
   align-items: center;
   justify-content: center;
   padding: 16px;
-  background: rgba(0, 0, 0, 0.7);
+  background: color-mix(in srgb, var(--ui-scrim-base) 70%, transparent);
   color: var(--text);
 }
 .mf-overlay * {
@@ -171,7 +171,7 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKey));
   /* one height for every tab, so the dialog does not jump when the tab changes */
   height: min(720px, 92vh);
   overflow: hidden;
-  background: var(--ui-popover, #161616);
+  background: var(--ui-popover, var(--ui-popover));
   border: 1px solid var(--border);
   border-radius: var(--ui-radius-dialog, 14px);
 }
@@ -274,7 +274,7 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKey));
 }
 .mf-tab.active {
   background: var(--accent);
-  color: #14100a;
+  color: var(--ui-on-accent);
 }
 .mf-tab:focus-visible,
 .mf-btn:focus-visible,
@@ -291,9 +291,9 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKey));
 .mf-error {
   margin: 14px 0 0;
   padding: 8px 12px;
-  border: 1px solid rgba(217, 111, 111, 0.4);
+  border: 1px solid color-mix(in srgb, var(--ui-danger-muted) 40%, transparent);
   border-radius: 8px;
-  background: rgba(217, 111, 111, 0.12);
+  background: color-mix(in srgb, var(--ui-danger-muted) 12%, transparent);
   color: var(--danger);
   font-size: 0.82rem;
 }
@@ -332,7 +332,7 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKey));
 .mf-btn.solid {
   background: var(--accent);
   border-color: var(--accent);
-  color: #1a1206;
+  color: var(--ui-on-accent);
 }
 .mf-btn.solid:hover {
   filter: brightness(1.08);

@@ -397,8 +397,8 @@ function onThumbClick() {
 
 <style scoped>
 .tile {
-  background: #141414;
-  border: 1px solid #262626;
+  background: var(--ui-bg-2);
+  border: 1px solid var(--ui-surface-3);
   border-radius: 12px;
   overflow: hidden;
   display: flex;
@@ -408,7 +408,7 @@ function onThumbClick() {
     transform 0.15s ease;
 }
 .tile:hover {
-  border-color: #3a3a3a;
+  border-color: var(--ui-border-strong);
 }
 .thumb {
   position: relative;
@@ -435,10 +435,10 @@ function onThumbClick() {
   inset: 0;
   background: linear-gradient(
     to bottom,
-    rgba(0, 0, 0, 0.45),
+    color-mix(in srgb, var(--ui-scrim-base) 45%, transparent),
     transparent 40%,
     transparent 60%,
-    rgba(0, 0, 0, 0.55)
+    color-mix(in srgb, var(--ui-scrim-base) 55%, transparent)
   );
   opacity: 0;
   transition: opacity 0.15s ease;
@@ -456,8 +456,8 @@ function onThumbClick() {
   width: 42px;
   height: 42px;
   border-radius: 50%;
-  background: rgba(0, 0, 0, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: color-mix(in srgb, var(--ui-scrim-base) 60%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ui-wash-base) 25%, transparent);
   color: #fff;
   display: flex;
   align-items: center;
@@ -474,21 +474,21 @@ function onThumbClick() {
   width: 22px;
   height: 22px;
   border-radius: 6px;
-  border: 2px solid rgba(255, 255, 255, 0.85);
+  border: 2px solid color-mix(in srgb, var(--ui-wash-base) 85%, transparent);
   background: rgba(15, 15, 15, 0.6);
-  color: #14100a;
+  color: var(--ui-on-accent);
   display: flex;
   align-items: center;
   justify-content: center;
   pointer-events: none;
 }
 .tile.selected {
-  border-color: #d68a34;
-  box-shadow: 0 0 0 1px #d68a34;
+  border-color: var(--ui-accent);
+  box-shadow: 0 0 0 1px var(--ui-accent);
 }
 .tile.selected .check {
-  background: #d68a34;
-  border-color: #d68a34;
+  background: var(--ui-accent);
+  border-color: var(--ui-accent);
 }
 .tile.selecting .thumb::after {
   opacity: 0;
@@ -549,11 +549,11 @@ function onThumbClick() {
   backdrop-filter: blur(4px);
 }
 .actions button:hover {
-  background: #d68a34;
-  color: #14100a;
+  background: var(--ui-accent);
+  color: var(--ui-on-accent);
 }
 .actions button:last-child:hover {
-  background: #d96f6f;
+  background: var(--ui-danger-muted);
   color: #fff;
 }
 .ach {
@@ -569,14 +569,14 @@ function onThumbClick() {
   border: none;
   border-radius: 50%;
   background: rgba(15, 15, 15, 0.82);
-  color: #d68a34;
+  color: var(--ui-accent);
   padding: 0;
   cursor: pointer;
   backdrop-filter: blur(4px);
 }
 .ach:hover {
-  background: #d68a34;
-  color: #14100a;
+  background: var(--ui-accent);
+  color: var(--ui-on-accent);
 }
 .body {
   min-height: 74px;
@@ -591,7 +591,7 @@ function onThumbClick() {
   margin: 0;
   font-size: 0.7rem;
   font-weight: 700;
-  color: #d68a34;
+  color: var(--ui-accent);
 }
 .title {
   margin: 0;
@@ -612,7 +612,7 @@ function onThumbClick() {
   min-width: 0;
 }
 .chip {
-  background: rgba(255, 255, 255, 0.07);
+  background: color-mix(in srgb, var(--ui-wash-base) 7%, transparent);
   color: #aaa;
   border-radius: 999px;
   padding: 1px 8px;
@@ -621,13 +621,13 @@ function onThumbClick() {
   font-family: inherit;
 }
 .chip.strong {
-  background: rgba(255, 255, 255, 0.14);
+  background: color-mix(in srgb, var(--ui-wash-base) 14%, transparent);
   color: #fff;
   font-weight: 700;
 }
 .chip.link {
-  background: rgba(214, 138, 52, 0.16);
-  color: #d68a34;
+  background: var(--ui-accent-soft);
+  color: var(--ui-accent);
   cursor: pointer;
 }
 
@@ -647,8 +647,8 @@ function onThumbClick() {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #d68a34;
-  background: rgba(214, 138, 52, 0.1);
+  color: var(--ui-accent);
+  background: color-mix(in srgb, var(--ui-accent) 10%, transparent);
   cursor: default;
 }
 .audio-art {
@@ -657,11 +657,11 @@ function onThumbClick() {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #d68a34;
+  color: var(--ui-accent);
   background: radial-gradient(
     circle at 50% 40%,
-    rgba(214, 138, 52, 0.18),
-    rgba(214, 138, 52, 0.05) 70%
+    color-mix(in srgb, var(--ui-accent) 18%, transparent),
+    color-mix(in srgb, var(--ui-accent) 5%, transparent) 70%
   );
 }
 .audio-art .note-icon {
@@ -674,24 +674,24 @@ function onThumbClick() {
   right: 0;
   bottom: 0;
   height: 3px;
-  background: rgba(255, 255, 255, 0.12);
+  background: color-mix(in srgb, var(--ui-wash-base) 12%, transparent);
 }
 .track-progress span {
   display: block;
   height: 100%;
-  background: #d68a34;
+  background: var(--ui-accent);
 }
 .play.on {
-  background: #d68a34;
-  color: #14100a;
-  border-color: #d68a34;
+  background: var(--ui-accent);
+  color: var(--ui-on-accent);
+  border-color: var(--ui-accent);
 }
 .doc-icon {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 4px;
-  color: #d68a34;
+  color: var(--ui-accent);
 }
 .doc-icon strong {
   font-size: 0.7rem;
@@ -701,7 +701,7 @@ function onThumbClick() {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(214, 138, 52, 0.08);
+  background: color-mix(in srgb, var(--ui-accent) 8%, transparent);
 }
 .row .thumb::after {
   display: none;
@@ -722,7 +722,7 @@ function onThumbClick() {
 .row-actions button {
   height: 28px;
   padding: 0 10px;
-  border: 1px solid #2b2b2b;
+  border: 1px solid var(--ui-border);
   border-radius: 8px;
   background: none;
   color: #aaa;
@@ -736,7 +736,7 @@ function onThumbClick() {
   border-color: #444;
 }
 .row-actions .danger:hover {
-  color: #d96f6f;
-  border-color: rgba(217, 111, 111, 0.5);
+  color: var(--ui-danger-muted);
+  border-color: color-mix(in srgb, var(--ui-danger-muted) 50%, transparent);
 }
 </style>

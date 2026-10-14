@@ -103,17 +103,18 @@ function percent(done: number, total: number): number {
   width: 280px;
 }
 .task-toast {
-  background: #1a1a1a;
-  border: 1px solid #2a2a2a;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
   border-radius: 10px;
   padding: 12px 14px;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 12px 32px
+    color-mix(in srgb, var(--ui-scrim-base) 50%, transparent);
 }
 .task-toast.done {
-  border-color: rgba(34, 197, 94, 0.35);
+  border-color: color-mix(in srgb, var(--ui-success) 35%, transparent);
 }
 .task-toast.error {
-  border-color: rgba(220, 38, 38, 0.35);
+  border-color: color-mix(in srgb, var(--ui-danger) 35%, transparent);
 }
 .task-toast-header {
   display: flex;
@@ -145,15 +146,15 @@ function percent(done: number, total: number): number {
   margin-bottom: 6px;
 }
 .task-toast-fill {
-  background: #d68a34;
+  background: var(--ui-accent);
   height: 100%;
   transition: width 0.2s ease;
 }
 .task-toast.done .task-toast-fill {
-  background: #4ade80;
+  background: var(--ui-success-bright);
 }
 .task-toast.error .task-toast-fill {
-  background: #f87171;
+  background: var(--ui-danger-bright);
 }
 .task-toast-fill.indeterminate {
   width: 40% !important;
@@ -172,28 +173,28 @@ function percent(done: number, total: number): number {
   color: #999;
 }
 .task-toast-error {
-  color: #fca5a5;
+  color: var(--ui-error-text);
 }
 .task-toast-speed {
   color: #777;
 }
 .task-toast-retry {
   margin-top: 8px;
-  background: rgba(220, 38, 38, 0.12);
-  border: 1px solid rgba(220, 38, 38, 0.35);
-  color: #fca5a5;
+  background: color-mix(in srgb, var(--ui-danger) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ui-danger) 35%, transparent);
+  color: var(--ui-error-text);
   border-radius: 6px;
   padding: 5px 10px;
   font-size: 0.76rem;
   cursor: pointer;
 }
 .task-toast-retry:hover {
-  background: rgba(220, 38, 38, 0.2);
+  background: color-mix(in srgb, var(--ui-danger) 20%, transparent);
 }
 .task-toast-feed {
   margin-top: 8px;
   padding-top: 8px;
-  border-top: 1px solid #232323;
+  border-top: 1px solid var(--ui-surface-2);
   /* bounded by task.feed.slice(-6) in the template, not by clipping height
      here: a fixed max-height + overflow:hidden was cutting lines off
      mid-character whenever the real rendered height came out a few pixels

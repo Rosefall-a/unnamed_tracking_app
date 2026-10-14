@@ -140,9 +140,9 @@ const KEPT_ALIVE = [
   max-width: 520px;
   padding: 32px;
   text-align: center;
-  border: 1px solid #2a2a2a;
+  border: 1px solid var(--ui-border);
   border-radius: 14px;
-  background: #1a1a1a;
+  background: var(--ui-surface);
 }
 
 .startup-error h1 {
@@ -155,7 +155,7 @@ const KEPT_ALIVE = [
 }
 
 .startup-detail {
-  color: #fca5a5;
+  color: var(--ui-error-text);
   font-size: 12px;
   word-break: break-word;
 }
@@ -165,7 +165,7 @@ const KEPT_ALIVE = [
   border: 0;
   border-radius: 8px;
   padding: 10px 16px;
-  background: #d68a34;
+  background: var(--ui-accent);
   color: #111;
   font-weight: 700;
   cursor: pointer;
@@ -176,7 +176,7 @@ const KEPT_ALIVE = [
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #0d0d0d;
+  background: var(--ui-bg);
   color: #999;
   font-family: system-ui, sans-serif;
 }

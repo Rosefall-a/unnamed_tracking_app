@@ -119,7 +119,7 @@ onMounted(async () => {
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: #8a8a8a;
+  color: var(--ui-dim-2);
 }
 .art-status {
   margin-left: 6px;
@@ -127,7 +127,7 @@ onMounted(async () => {
   font-weight: 400;
   letter-spacing: 0;
   text-transform: none;
-  color: #8a8a8a;
+  color: var(--ui-dim-2);
 }
 .art-tile {
   position: relative;
@@ -136,7 +136,7 @@ onMounted(async () => {
   padding: 0;
   border: 2px solid transparent;
   border-radius: 8px;
-  background: #222222;
+  background: var(--ui-surface-2);
   overflow: hidden;
   cursor: pointer;
   transition:
@@ -159,13 +159,13 @@ onMounted(async () => {
 }
 .art-tile:hover {
   transform: translateY(-2px);
-  border-color: #4a4a4a;
+  border-color: var(--ui-border-hover);
 }
 .art-tile.chosen {
-  border-color: #d68a34;
+  border-color: var(--ui-accent);
 }
 .art-tile:focus-visible {
-  outline: 2px solid #d68a34;
+  outline: 2px solid var(--ui-accent);
   outline-offset: 2px;
 }
 .art-check {
@@ -178,8 +178,8 @@ onMounted(async () => {
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  background: #d68a34;
-  color: #0d0d0d;
+  background: var(--ui-accent);
+  color: var(--ui-bg);
   font-size: 0.8rem;
   font-weight: 800;
 }
@@ -189,7 +189,7 @@ onMounted(async () => {
   bottom: 6px;
   padding: 1px 6px;
   border-radius: 4px;
-  background: rgba(13, 13, 13, 0.8);
+  background: color-mix(in srgb, var(--ui-bg) 80%, transparent);
   color: #cfcfcf;
   font-size: 0.65rem;
   letter-spacing: 0.04em;

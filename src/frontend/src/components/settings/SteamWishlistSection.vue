@@ -67,7 +67,7 @@ async function change(next: boolean) {
 .settings-section h2 {
   margin: 0 0 8px;
   padding-left: 12px;
-  border-left: 3px solid #d68a34;
+  border-left: 3px solid var(--ui-accent);
   font-size: 1rem;
   color: #fff;
 }
@@ -79,11 +79,11 @@ async function change(next: boolean) {
 }
 .saved {
   margin-left: 8px;
-  color: #d68a34;
+  color: var(--ui-accent);
   font-weight: 700;
 }
 .error {
-  color: #fca5a5;
+  color: var(--ui-error-text);
   font-size: 0.85rem;
 }
 </style>

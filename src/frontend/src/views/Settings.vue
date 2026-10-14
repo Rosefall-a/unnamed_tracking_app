@@ -265,8 +265,8 @@ watch(activeSection, async () => {
   flex: 1;
   min-width: 0;
   scroll-margin-top: 64px;
-  background: #1a1a1a;
-  border: 1px solid #2a2a2a;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
   border-radius: 14px;
   padding: 32px;
 }

@@ -611,7 +611,7 @@ async function handleLogout() {
   width: 38px;
   height: 38px;
   border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px solid color-mix(in srgb, var(--ui-wash-base) 14%, transparent);
   background: rgba(20, 20, 20, 0.55);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
@@ -633,13 +633,13 @@ async function handleLogout() {
   width: 9px;
   height: 9px;
   border-radius: 50%;
-  background: #d68a34;
-  border: 2px solid #121212;
+  background: var(--ui-accent);
+  border: 2px solid var(--ui-bg-2);
 }
 .sidebar-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.55);
+  background: color-mix(in srgb, var(--ui-scrim-base) 55%, transparent);
   z-index: 105;
 }
 .sidebar {
@@ -648,21 +648,22 @@ async function handleLogout() {
   left: 0;
   bottom: 0;
   width: var(--sidebar-w, 270px);
-  background: #161616;
-  border-right: 1px solid #2a2a2a;
+  background: var(--ui-popover);
+  border-right: 1px solid var(--ui-border);
   z-index: 110;
   display: flex;
   flex-direction: column;
   padding: 20px 14px;
   font-family: system-ui, sans-serif;
-  box-shadow: 12px 0 40px rgba(0, 0, 0, 0.4);
+  box-shadow: 12px 0 40px
+    color-mix(in srgb, var(--ui-scrim-base) 40%, transparent);
   /* On a short window the nav list can be taller than the screen — without
      this it just ran off the bottom edge with no way to reach Settings/Log
      Out. auto only shows a scrollbar when content actually overflows. */
   overflow-y: auto;
   overflow-x: hidden;
   scrollbar-width: thin;
-  scrollbar-color: #3a3a3a transparent;
+  scrollbar-color: var(--ui-border-strong) transparent;
 }
 .sidebar::-webkit-scrollbar {
   width: 8px;
@@ -671,11 +672,11 @@ async function handleLogout() {
   background: transparent;
 }
 .sidebar::-webkit-scrollbar-thumb {
-  background: #3a3a3a;
+  background: var(--ui-border-strong);
   border-radius: 999px;
 }
 .sidebar::-webkit-scrollbar-thumb:hover {
-  background: #4a4a4a;
+  background: var(--ui-border-hover);
 }
 .sidebar.pinned-mode {
   box-shadow: none;
@@ -695,7 +696,7 @@ async function handleLogout() {
 }
 .sidebar-resize-handle:hover,
 .sidebar.resizing .sidebar-resize-handle {
-  background: rgba(214, 138, 52, 0.4);
+  background: var(--ui-accent-line);
 }
 .sidebar.rail-mode {
   width: 56px;
@@ -766,7 +767,7 @@ async function handleLogout() {
   flex: 1;
   min-width: 0;
   height: 1px;
-  background: #2a2a2a;
+  background: var(--ui-border);
   opacity: 0;
   transition: opacity 0.08s ease;
 }
@@ -842,7 +843,7 @@ async function handleLogout() {
   gap: 10px;
   padding: 0 10px 18px;
   margin-bottom: 6px;
-  border-bottom: 1px solid #232323;
+  border-bottom: 1px solid var(--ui-surface-2);
   transition: padding 0.18s ease;
 }
 .brand-icon {
@@ -857,9 +858,9 @@ async function handleLogout() {
   margin-left: auto;
   font-size: 10px;
   font-weight: 700;
-  color: #d68a34;
-  background: rgba(214, 138, 52, 0.14);
-  border: 1px solid rgba(214, 138, 52, 0.35);
+  color: var(--ui-accent);
+  background: color-mix(in srgb, var(--ui-accent) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ui-accent) 35%, transparent);
   padding: 3px 8px;
   border-radius: 999px;
   text-transform: uppercase;
@@ -872,12 +873,12 @@ async function handleLogout() {
   padding: 9px 11px;
   border-radius: 10px;
   cursor: pointer;
-  background: rgba(255, 255, 255, 0.035);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--ui-wash-base) 3.5%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ui-wash-base) 6%, transparent);
   transition: padding 0.18s ease;
 }
 .sidebar-profile:hover {
-  background: rgba(255, 255, 255, 0.07);
+  background: color-mix(in srgb, var(--ui-wash-base) 7%, transparent);
 }
 .sidebar-profile-name {
   flex-grow: 1;
@@ -891,7 +892,7 @@ async function handleLogout() {
 }
 .sidebar-divider {
   height: 1px;
-  background: #2a2a2a;
+  background: var(--ui-border);
   margin: 8px 10px 12px;
 }
 .sidebar-group-label {
@@ -922,14 +923,14 @@ async function handleLogout() {
     gap 0.18s ease;
 }
 .sidebar-item:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--ui-wash-base) 6%, transparent);
   color: #fff;
 }
 .sidebar-item.active {
-  background: rgba(214, 138, 52, 0.12);
-  color: #e9a94f;
+  background: color-mix(in srgb, var(--ui-accent) 12%, transparent);
+  color: var(--ui-accent-bright);
   font-weight: 600;
-  box-shadow: inset 3px 0 0 #d68a34;
+  box-shadow: inset 3px 0 0 var(--ui-accent);
 }
 /* The global focus-visible ring is the same orange as the active-page
    highlight, so a button that simply held keyboard/click focus (Log
@@ -938,7 +939,7 @@ async function handleLogout() {
    users without reading as a selected/current item. */
 .sidebar-item:focus-visible,
 .sidebar-parent-link:focus-visible {
-  outline: 2px solid rgba(255, 255, 255, 0.4);
+  outline: 2px solid color-mix(in srgb, var(--ui-wash-base) 40%, transparent);
   outline-offset: -2px;
 }
 .sidebar-parent-row {
@@ -951,16 +952,16 @@ async function handleLogout() {
     color 0.15s ease;
 }
 .sidebar-parent-row.active {
-  background: rgba(214, 138, 52, 0.12);
-  color: #e9a94f;
-  box-shadow: inset 3px 0 0 #d68a34;
+  background: color-mix(in srgb, var(--ui-accent) 12%, transparent);
+  color: var(--ui-accent-bright);
+  box-shadow: inset 3px 0 0 var(--ui-accent);
 }
 .sidebar-parent-row.active .sidebar-parent-link {
-  color: #e9a94f;
+  color: var(--ui-accent-bright);
   font-weight: 600;
 }
 .sidebar-parent-row.active .sidebar-expand-toggle {
-  color: #e9a94f;
+  color: var(--ui-accent-bright);
 }
 .sidebar-parent-link {
   flex: 1;
@@ -989,7 +990,7 @@ async function handleLogout() {
     color 0.15s ease;
 }
 .sidebar-expand-toggle:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: color-mix(in srgb, var(--ui-wash-base) 8%, transparent);
   color: #fff;
 }
 .sidebar-expand-toggle.expanded {
@@ -1001,7 +1002,7 @@ async function handleLogout() {
   gap: 2px;
   margin-left: 18px;
   padding-left: 12px;
-  border-left: 1px solid #2a2a2a;
+  border-left: 1px solid var(--ui-border);
 }
 .sidebar-subitem {
   font-size: 13px;
@@ -1011,7 +1012,7 @@ async function handleLogout() {
   font-size: 11px;
   font-weight: 700;
   color: #111;
-  background: #d68a34;
+  background: var(--ui-accent);
   min-width: 18px;
   height: 18px;
   padding: 0 5px;
@@ -1045,7 +1046,7 @@ async function handleLogout() {
   gap: 2px;
   margin-top: 8px;
   padding-top: 10px;
-  border-top: 1px solid #232323;
+  border-top: 1px solid var(--ui-surface-2);
 }
 .sidebar-slide-enter-active,
 .sidebar-slide-leave-active {

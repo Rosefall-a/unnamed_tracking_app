@@ -121,7 +121,7 @@ onMounted(async () => {
 
 .proxy-controls input {
   background: #111;
-  border: 1px solid #3a3a3a;
+  border: 1px solid var(--ui-border-strong);
   border-radius: 8px;
   color: #fff;
   padding: 10px;
@@ -138,9 +138,9 @@ onMounted(async () => {
 }
 
 .proxy-controls button {
-  background: #252525;
+  background: var(--ui-surface-3);
   color: #ddd;
-  border: 1px solid #3a3a3a;
+  border: 1px solid var(--ui-border-strong);
   border-radius: 8px;
   padding: 8px 10px;
   cursor: pointer;
@@ -152,6 +152,6 @@ onMounted(async () => {
 }
 
 .proxy-controls .error {
-  color: #fca5a5;
+  color: var(--ui-error-text);
 }
 </style>

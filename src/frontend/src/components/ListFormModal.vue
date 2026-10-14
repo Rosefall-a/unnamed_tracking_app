@@ -243,11 +243,11 @@ function submit() {
 }
 .kind-pick button span {
   font-size: 0.72rem;
-  color: #9c9c9c;
+  color: var(--ui-dim);
 }
 .kind-pick button.active {
-  border-color: #d68a34;
-  background: rgba(214, 138, 52, 0.1);
+  border-color: var(--ui-accent);
+  background: color-mix(in srgb, var(--ui-accent) 10%, transparent);
 }
 .field {
   display: flex;

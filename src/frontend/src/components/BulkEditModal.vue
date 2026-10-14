@@ -298,15 +298,15 @@ async function submit() {
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.65);
+  background: color-mix(in srgb, var(--ui-scrim-base) 65%, transparent);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 70;
 }
 .modal {
-  background: #1a1a1a;
-  border: 1px solid #2a2a2a;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
   border-radius: 14px;
   width: 100%;
   max-width: 520px;
@@ -315,14 +315,15 @@ async function submit() {
   flex-direction: column;
   color: #fff;
   font-family: system-ui, sans-serif;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 24px 64px
+    color-mix(in srgb, var(--ui-scrim-base) 60%, transparent);
 }
 .modal-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding: 18px 22px;
-  border-bottom: 1px solid #2a2a2a;
+  border-bottom: 1px solid var(--ui-border);
   flex-shrink: 0;
 }
 .modal-header h2 {
@@ -343,7 +344,7 @@ async function submit() {
     color 0.15s ease;
 }
 .close-button:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: color-mix(in srgb, var(--ui-wash-base) 10%, transparent);
   color: #fff;
 }
 .modal-form {
@@ -382,7 +383,7 @@ async function submit() {
   cursor: pointer;
 }
 .field-check input {
-  accent-color: #d68a34;
+  accent-color: var(--ui-accent);
   width: 15px;
   height: 15px;
   cursor: pointer;
@@ -391,7 +392,7 @@ async function submit() {
   height: 36px;
   box-sizing: border-box;
   background: #111;
-  border: 1px solid #3a3a3a;
+  border: 1px solid var(--ui-border-strong);
   border-radius: 8px;
   color: #fff;
   padding: 0 12px;
@@ -404,13 +405,13 @@ async function submit() {
 }
 .field-input:focus:not(:disabled) {
   outline: none;
-  border-color: #d68a34;
+  border-color: var(--ui-accent);
 }
 .form-error {
-  color: #fca5a5;
+  color: var(--ui-error-text);
   font-size: 13px;
-  background: rgba(220, 38, 38, 0.1);
-  border: 1px solid rgba(220, 38, 38, 0.3);
+  background: color-mix(in srgb, var(--ui-danger) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ui-danger) 30%, transparent);
   border-radius: 8px;
   padding: 8px 10px;
 }
@@ -419,7 +420,7 @@ async function submit() {
   justify-content: flex-end;
   gap: 10px;
   padding: 16px 22px;
-  border-top: 1px solid #2a2a2a;
+  border-top: 1px solid var(--ui-border);
   flex-shrink: 0;
 }
 .primary-button,
@@ -432,7 +433,7 @@ async function submit() {
   font-size: 13px;
 }
 .primary-button {
-  background: #d68a34;
+  background: var(--ui-accent);
   color: #111;
 }
 .primary-button:disabled {
@@ -440,7 +441,7 @@ async function submit() {
   cursor: not-allowed;
 }
 .secondary-button {
-  background: rgba(255, 255, 255, 0.08);
+  background: color-mix(in srgb, var(--ui-wash-base) 8%, transparent);
   color: #fff;
 }
 </style>

@@ -287,7 +287,7 @@ const KIND_ICON: Record<Result["kind"], string> = {
 .palette-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.55);
+  background: color-mix(in srgb, var(--ui-scrim-base) 55%, transparent);
   display: flex;
   align-items: flex-start;
   justify-content: center;
@@ -297,10 +297,11 @@ const KIND_ICON: Record<Result["kind"], string> = {
 .palette {
   width: 560px;
   max-width: calc(100vw - 40px);
-  background: #1a1a1a;
-  border: 1px solid #2a2a2a;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
   border-radius: 12px;
-  box-shadow: 0 32px 80px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 32px 80px
+    color-mix(in srgb, var(--ui-scrim-base) 60%, transparent);
   overflow: hidden;
 }
 .palette-input {
@@ -308,7 +309,7 @@ const KIND_ICON: Record<Result["kind"], string> = {
   box-sizing: border-box;
   background: none;
   border: none;
-  border-bottom: 1px solid #2a2a2a;
+  border-bottom: 1px solid var(--ui-border);
   color: #fff;
   padding: 16px 18px;
   font: inherit;
@@ -343,7 +344,7 @@ const KIND_ICON: Record<Result["kind"], string> = {
   font-size: 13.5px;
 }
 .palette-item.active {
-  background: rgba(214, 138, 52, 0.16);
+  background: var(--ui-accent-soft);
   color: #fff;
 }
 .palette-item-icon {
@@ -365,19 +366,19 @@ const KIND_ICON: Record<Result["kind"], string> = {
   flex-shrink: 0;
 }
 .palette-item.active .palette-item-sub {
-  color: #d68a34;
+  color: var(--ui-accent);
 }
 .palette-footer {
   display: flex;
   gap: 16px;
   padding: 10px 16px;
-  border-top: 1px solid #2a2a2a;
+  border-top: 1px solid var(--ui-border);
   color: #666;
   font-size: 11px;
 }
 .palette-footer kbd {
   background: #111;
-  border: 1px solid #3a3a3a;
+  border: 1px solid var(--ui-border-strong);
   border-radius: 4px;
   padding: 1px 5px;
   font-family: ui-monospace, monospace;

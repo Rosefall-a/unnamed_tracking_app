@@ -93,7 +93,7 @@ function save() {
 .my-note {
   margin-top: 26px;
   padding-top: 22px;
-  border-top: 1px solid #1f1f1f;
+  border-top: 1px solid var(--ui-border-soft);
 }
 .my-note.empty {
   display: flex;
@@ -110,7 +110,7 @@ function save() {
   margin: 0;
   font-size: 0.9rem;
   font-weight: 800;
-  color: #f2f2f2;
+  color: var(--ui-text);
 }
 .note-private {
   flex: 1;
@@ -134,9 +134,9 @@ function save() {
   overflow: hidden;
   padding: 12px 14px;
   border-radius: 10px;
-  border: 1px solid #2a2a2a;
-  background: #1a1a1a;
-  color: #f2f2f2;
+  border: 1px solid var(--ui-border);
+  background: var(--ui-surface);
+  color: var(--ui-text);
   font: inherit;
   font-size: 0.96rem;
   line-height: 1.7;
@@ -146,7 +146,7 @@ function save() {
 }
 .note-input:focus {
   outline: none;
-  border-color: rgba(214, 138, 52, 0.7);
+  border-color: color-mix(in srgb, var(--ui-accent) 70%, transparent);
 }
 .note-actions {
   display: flex;
@@ -165,38 +165,38 @@ function save() {
   /* larger tap target without moving the text */
   padding: 6px 4px;
   margin: -6px -4px;
-  color: #d68a34;
+  color: var(--ui-accent);
   font-family: inherit;
   font-size: 0.82rem;
   font-weight: 700;
   cursor: pointer;
 }
 .btn-text:hover {
-  color: #e8a552;
+  color: var(--ui-accent-bright);
 }
 .btn-text.muted {
-  color: #9c9c9c;
+  color: var(--ui-dim);
 }
 .btn-text.muted:hover {
-  color: #f2f2f2;
+  color: var(--ui-text);
 }
 .btn-solid {
-  background: #d68a34;
+  background: var(--ui-accent);
   border: none;
   border-radius: 8px;
   padding: 8px 18px;
-  color: #14100a;
+  color: var(--ui-on-accent);
   font-family: inherit;
   font-size: 0.82rem;
   font-weight: 800;
   cursor: pointer;
 }
 .btn-solid:hover {
-  background: #e29a48;
+  background: var(--ui-accent-bright);
 }
 .btn-text:focus-visible,
 .btn-solid:focus-visible {
-  outline: 2px solid #d68a34;
+  outline: 2px solid var(--ui-accent);
   outline-offset: 3px;
   border-radius: 4px;
 }

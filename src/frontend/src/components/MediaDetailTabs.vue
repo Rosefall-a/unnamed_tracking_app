@@ -37,7 +37,7 @@ const emit = defineEmits<{
 .tabbar {
   display: flex;
   gap: 4px;
-  background: #1a1a1a;
+  background: var(--ui-surface);
   border-radius: 10px;
   width: fit-content;
   max-width: 100%;
@@ -50,7 +50,7 @@ const emit = defineEmits<{
   white-space: nowrap;
   background: transparent;
   border: none;
-  color: #9c9c9c;
+  color: var(--ui-dim);
   font-family: inherit;
   font-size: 0.84rem;
   font-weight: 600;
@@ -60,7 +60,7 @@ const emit = defineEmits<{
 }
 
 .tab-btn.active {
-  background: #d68a34;
-  color: #14100a;
+  background: var(--ui-accent);
+  color: var(--ui-on-accent);
 }
 </style>

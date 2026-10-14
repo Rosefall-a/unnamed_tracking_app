@@ -77,11 +77,11 @@ defineEmits<{ "update:modelValue": ["view" | "upload"] }>();
     color 0.15s ease;
 }
 .vu-item:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--ui-wash-base) 6%, transparent);
   color: #fff;
 }
 .vu-item.active {
-  background: rgba(214, 138, 52, 0.16);
-  color: #d68a34;
+  background: var(--ui-accent-soft);
+  color: var(--ui-accent);
 }
 </style>

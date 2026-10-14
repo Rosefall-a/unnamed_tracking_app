@@ -240,7 +240,7 @@ onBeforeUnmount(() => {
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: #d68a34;
+  background: var(--ui-accent);
   color: #111;
   display: flex;
   align-items: center;
@@ -261,8 +261,8 @@ onBeforeUnmount(() => {
   width: 15px;
   height: 15px;
   border-radius: 50%;
-  background: #2a2a2a;
-  border: 2px solid #171717;
+  background: var(--ui-border);
+  border: 2px solid var(--ui-popover);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -270,7 +270,7 @@ onBeforeUnmount(() => {
 }
 .profile-menu-trigger:hover .profile-menu-chevron-badge,
 .profile-menu-trigger.active .profile-menu-chevron-badge {
-  background: #3a3a3a;
+  background: var(--ui-border-strong);
 }
 .profile-menu-chevron {
   transition: transform 0.15s ease;
@@ -289,11 +289,12 @@ onBeforeUnmount(() => {
   width: 172px;
   max-width: calc(100vw - 32px);
   box-sizing: border-box;
-  background: #171717;
-  border: 1px solid #2b2b2b;
+  background: var(--ui-popover);
+  border: 1px solid var(--ui-border);
   border-radius: 12px;
   padding: 6px;
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 16px 40px
+    color-mix(in srgb, var(--ui-scrim-base) 50%, transparent);
 }
 .profile-menu-panel::before {
   content: "";
@@ -302,20 +303,20 @@ onBeforeUnmount(() => {
   left: var(--caret-offset, 20px);
   width: 11px;
   height: 11px;
-  background: #171717;
-  border-left: 1px solid #2b2b2b;
-  border-top: 1px solid #2b2b2b;
+  background: var(--ui-popover);
+  border-left: 1px solid var(--ui-border);
+  border-top: 1px solid var(--ui-border);
   border-radius: 2px;
   transform: rotate(45deg);
 }
 .profile-menu-panel .profile-menu-divider {
   height: 1px;
-  background: #232323;
+  background: var(--ui-surface-2);
   margin: 4px 4px;
 }
 .profile-menu-panel .profile-menu-head {
   padding: 7px 8px 8px;
-  border-bottom: 1px solid #232323;
+  border-bottom: 1px solid var(--ui-surface-2);
   margin-bottom: 4px;
 }
 .profile-menu-panel .profile-menu-name {
@@ -350,7 +351,7 @@ onBeforeUnmount(() => {
   cursor: pointer;
 }
 .profile-menu-panel .profile-menu-item:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--ui-wash-base) 6%, transparent);
 }
 .profile-menu-panel .profile-menu-item.danger {
   color: #e08585;

@@ -255,7 +255,7 @@ async function removeImage() {
 .settings-section h2 {
   margin: 0 0 8px;
   padding-left: 12px;
-  border-left: 3px solid #d68a34;
+  border-left: 3px solid var(--ui-accent);
   font-size: 1rem;
   color: #fff;
 }
@@ -288,7 +288,7 @@ async function removeImage() {
 .color-input {
   width: 40px;
   height: 36px;
-  border: 1px solid #3a3a3a;
+  border: 1px solid var(--ui-border-strong);
   border-radius: 8px;
   background: #111;
   padding: 2px;
@@ -297,7 +297,7 @@ async function removeImage() {
 .color-text {
   width: 100px;
   background: #111;
-  border: 1px solid #3a3a3a;
+  border: 1px solid var(--ui-border-strong);
   border-radius: 8px;
   color: #fff;
   padding: 8px 10px;
@@ -314,7 +314,7 @@ async function removeImage() {
   height: 44px;
   border-radius: 8px;
   background: #111;
-  border: 1px solid #3a3a3a;
+  border: 1px solid var(--ui-border-strong);
   background-size: cover;
   background-position: center;
   display: flex;
@@ -342,7 +342,7 @@ async function removeImage() {
   position: relative;
   aspect-ratio: 2 / 3;
   border-radius: 6px;
-  background: linear-gradient(135deg, #2a2a2a, #1a1a1a);
+  background: linear-gradient(135deg, var(--ui-border), var(--ui-surface));
   margin-bottom: 6px;
 }
 .preview-title {
@@ -394,25 +394,25 @@ async function removeImage() {
   object-fit: contain;
 }
 .form-error {
-  color: #fca5a5;
+  color: var(--ui-error-text);
   font-size: 13px;
-  background: rgba(220, 38, 38, 0.1);
-  border: 1px solid rgba(220, 38, 38, 0.3);
+  background: color-mix(in srgb, var(--ui-danger) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ui-danger) 30%, transparent);
   border-radius: 8px;
   padding: 8px 10px;
   margin-bottom: 14px;
 }
 .form-success {
-  color: #86efac;
+  color: var(--ui-good-text);
   font-size: 13px;
-  background: rgba(34, 197, 94, 0.1);
-  border: 1px solid rgba(34, 197, 94, 0.3);
+  background: color-mix(in srgb, var(--ui-success) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ui-success) 30%, transparent);
   border-radius: 8px;
   padding: 8px 10px;
   margin-bottom: 14px;
 }
 .primary-button {
-  background: #d68a34;
+  background: var(--ui-accent);
   color: #111;
   border: none;
   border-radius: 8px;
@@ -425,7 +425,7 @@ async function removeImage() {
   cursor: not-allowed;
 }
 .secondary-button {
-  background: rgba(255, 255, 255, 0.08);
+  background: color-mix(in srgb, var(--ui-wash-base) 8%, transparent);
   color: #fff;
   border: none;
   border-radius: 8px;
@@ -435,6 +435,6 @@ async function removeImage() {
   cursor: pointer;
 }
 .secondary-button:hover {
-  background: rgba(255, 255, 255, 0.14);
+  background: color-mix(in srgb, var(--ui-wash-base) 14%, transparent);
 }
 </style>

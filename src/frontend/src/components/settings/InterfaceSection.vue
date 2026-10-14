@@ -120,7 +120,7 @@ watch(highContrastMode, (enabled) => {
 .settings-section h2 {
   margin: 0 0 8px;
   padding-left: 12px;
-  border-left: 3px solid #d68a34;
+  border-left: 3px solid var(--ui-accent);
   font-size: 1rem;
   color: #fff;
 }

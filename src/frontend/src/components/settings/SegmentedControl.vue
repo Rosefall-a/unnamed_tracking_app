@@ -32,7 +32,7 @@ const emit = defineEmits<{
   max-width: 100%;
   box-sizing: border-box;
   background: #111;
-  border: 1px solid #3a3a3a;
+  border: 1px solid var(--ui-border-strong);
   border-radius: 8px;
   padding: 3px;
   gap: 2px;
@@ -54,7 +54,7 @@ const emit = defineEmits<{
   color: #fff;
 }
 .segment.active {
-  background: #d68a34;
+  background: var(--ui-accent);
   color: #111;
 }
 </style>

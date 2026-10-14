@@ -72,17 +72,18 @@ function otherTitle(match: GameMatch): string {
   max-width: 100%;
   box-sizing: border-box;
   padding: 6px 6px 6px 12px;
-  border: 1px solid rgba(214, 138, 52, 0.45);
+  border: 1px solid color-mix(in srgb, var(--ui-accent) 45%, transparent);
   border-radius: 999px;
   background: rgba(20, 14, 8, 0.82);
   backdrop-filter: blur(8px);
-  color: #e5e5e5;
+  color: var(--ui-text-strong);
   font-size: 0.8rem;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 6px 20px
+    color-mix(in srgb, var(--ui-scrim-base) 35%, transparent);
 }
 .dup-icon {
   flex: none;
-  color: #d68a34;
+  color: var(--ui-accent);
 }
 .dup-notice-text {
   display: flex;
@@ -108,14 +109,14 @@ function otherTitle(match: GameMatch): string {
   padding: 5px 14px;
   border: 0;
   border-radius: 999px;
-  background: #d68a34;
-  color: #0d0d0d;
+  background: var(--ui-accent);
+  color: var(--ui-bg);
   font-size: 0.78rem;
   font-weight: 700;
   cursor: pointer;
 }
 .dup-notice button:hover {
-  background: #e29a48;
+  background: var(--ui-accent-bright);
 }
 .dup-notice button:focus-visible {
   outline: 2px solid #fff;

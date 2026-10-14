@@ -476,7 +476,7 @@ function copyFolderPath() {
   z-index: 10;
 }
 .game-card.keyboard-focused .cover {
-  outline: 3px solid #d68a34;
+  outline: 3px solid var(--ui-accent);
   outline-offset: 3px;
 }
 
@@ -493,7 +493,7 @@ function copyFolderPath() {
   box-shadow:
     0 0 0 1px var(--badge-color),
     0 0 32px 6px color-mix(in srgb, var(--badge-color) 65%, transparent),
-    0 24px 56px rgba(0, 0, 0, 0.5);
+    0 24px 56px color-mix(in srgb, var(--ui-scrim-base) 50%, transparent);
 }
 .game-card.badge-border {
   box-shadow: 0 0 0 2px var(--badge-color);
@@ -502,7 +502,7 @@ function copyFolderPath() {
 .game-card.badge-border.menu-open {
   box-shadow:
     0 0 0 2px var(--badge-color),
-    0 24px 56px rgba(0, 0, 0, 0.5);
+    0 24px 56px color-mix(in srgb, var(--ui-scrim-base) 50%, transparent);
 }
 .completion-badge {
   position: absolute;
@@ -541,7 +541,9 @@ function copyFolderPath() {
 .completion-badge.ribbon {
   width: 46px;
   height: 46px;
-  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.5));
+  filter: drop-shadow(
+    0 2px 6px color-mix(in srgb, var(--ui-scrim-base) 50%, transparent)
+  );
 }
 .completion-badge-image {
   width: 100%;
@@ -557,7 +559,7 @@ function copyFolderPath() {
   border-radius: 10px;
   overflow: hidden;
   cursor: pointer;
-  background: var(--surface-2, #222222);
+  background: var(--surface-2, var(--ui-surface-2));
   border: 1px solid transparent;
   box-sizing: border-box;
   transition:
@@ -578,9 +580,9 @@ function copyFolderPath() {
   height: 20px;
   padding: 0 5px;
   border-radius: 5px;
-  background: var(--accent-soft, rgba(214, 138, 52, 0.16));
-  color: var(--accent, #d68a34);
-  border: 1px solid var(--accent-line, rgba(214, 138, 52, 0.4));
+  background: var(--accent-soft, var(--ui-accent-soft));
+  color: var(--accent, var(--ui-accent));
+  border: 1px solid var(--accent-line, var(--ui-accent-line));
   font-size: 0.68rem;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
@@ -594,8 +596,9 @@ function copyFolderPath() {
 }
 .game-card:hover .cover,
 .game-card.menu-open .cover {
-  border-color: var(--border, #2b2b2b);
-  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.45);
+  border-color: var(--border, var(--ui-border));
+  box-shadow: 0 14px 30px
+    color-mix(in srgb, var(--ui-scrim-base) 45%, transparent);
 }
 .game-card:hover .cover-image {
   transform: scale(1.04);
@@ -605,12 +608,12 @@ function copyFolderPath() {
   height: 26px;
   border-radius: 7px;
   background: rgba(10, 10, 10, 0.8);
-  border: 1.5px solid rgba(255, 255, 255, 0.45);
+  border: 1.5px solid color-mix(in srgb, var(--ui-wash-base) 45%, transparent);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  color: var(--accent, #d68a34);
+  color: var(--accent, var(--ui-accent));
   font-size: 0.85rem;
   font-weight: 800;
   position: absolute;
@@ -619,9 +622,9 @@ function copyFolderPath() {
   z-index: 4;
 }
 .select-checkbox.checked {
-  background: var(--accent, #d68a34);
-  border-color: var(--accent, #d68a34);
-  color: #14100a;
+  background: var(--accent, var(--ui-accent));
+  border-color: var(--accent, var(--ui-accent));
+  color: var(--ui-on-accent);
 }
 .priority-badge {
   position: absolute;
@@ -630,11 +633,11 @@ function copyFolderPath() {
   z-index: 3;
   padding: 2px 7px;
   border-radius: 999px;
-  background: rgba(13, 13, 13, 0.82);
+  background: color-mix(in srgb, var(--ui-bg) 82%, transparent);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
-  border: 1px solid rgba(214, 138, 52, 0.5);
-  color: #e8a552;
+  border: 1px solid color-mix(in srgb, var(--ui-accent) 50%, transparent);
+  color: var(--ui-accent-bright);
   font-size: 0.68rem;
   font-weight: 800;
   letter-spacing: 0.03em;
@@ -647,7 +650,7 @@ function copyFolderPath() {
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  background: rgba(220, 38, 38, 0.85);
+  background: color-mix(in srgb, var(--ui-danger) 85%, transparent);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
   display: flex;
@@ -667,7 +670,11 @@ function copyFolderPath() {
   align-items: center;
   gap: 6px;
   padding: 26px 8px 8px;
-  background: linear-gradient(to top, rgba(0, 0, 0, 0.65), transparent);
+  background: linear-gradient(
+    to top,
+    color-mix(in srgb, var(--ui-scrim-base) 65%, transparent),
+    transparent
+  );
   opacity: 0;
   transform: translateY(6px);
   transition:
@@ -689,7 +696,7 @@ function copyFolderPath() {
   height: 28px;
   padding: 0;
   border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.16);
+  border: 1px solid color-mix(in srgb, var(--ui-wash-base) 16%, transparent);
   background: rgba(20, 20, 20, 0.6);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
@@ -728,7 +735,8 @@ function copyFolderPath() {
   border: 1px solid #333;
   border-radius: 10px;
   padding: 6px;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 12px 32px
+    color-mix(in srgb, var(--ui-scrim-base) 50%, transparent);
   z-index: 30;
   display: flex;
   flex-direction: column;
@@ -758,7 +766,7 @@ function copyFolderPath() {
   text-transform: capitalize;
 }
 .menu-item:hover:not(.disabled) {
-  background: rgba(255, 255, 255, 0.08);
+  background: color-mix(in srgb, var(--ui-wash-base) 8%, transparent);
   color: #fff;
 }
 .menu-item.disabled {
@@ -766,13 +774,13 @@ function copyFolderPath() {
   cursor: not-allowed;
 }
 .menu-item.destructive {
-  color: #f87171;
+  color: var(--ui-danger-bright);
 }
 .menu-item.destructive:hover {
-  background: rgba(220, 38, 38, 0.15);
+  background: color-mix(in srgb, var(--ui-danger) 15%, transparent);
 }
 .menu-item.active {
-  color: #d68a34;
+  color: var(--ui-accent);
   font-weight: 600;
 }
 .menu-item.back {
@@ -780,7 +788,7 @@ function copyFolderPath() {
 }
 .menu-divider {
   height: 1px;
-  background: #2a2a2a;
+  background: var(--ui-border);
   margin: 4px 2px;
 }
 .card-info {
@@ -801,7 +809,7 @@ function copyFolderPath() {
   font-size: 0.85rem;
   font-weight: 700;
   line-height: 1.3;
-  color: var(--text, #f2f2f2);
+  color: var(--text, var(--ui-text));
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -813,7 +821,7 @@ function copyFolderPath() {
 .score-tag {
   font-size: 0.82rem;
   font-weight: 700;
-  color: var(--accent, #d68a34);
+  color: var(--accent, var(--ui-accent));
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   text-align: right;
@@ -826,8 +834,8 @@ function copyFolderPath() {
   height: 20px;
   padding: 0 5px;
   border-radius: 5px;
-  background: var(--surface-2, #222222);
-  border: 1px solid var(--border, #2b2b2b);
+  background: var(--surface-2, var(--ui-surface-2));
+  border: 1px solid var(--border, var(--ui-border));
   color: var(--text-faint, #666);
   font-weight: 600;
 }

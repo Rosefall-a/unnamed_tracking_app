@@ -4248,9 +4248,9 @@ void loadGame(route.params.id as string);
 .detail {
   position: relative;
   font-family: system-ui, sans-serif;
-  color: #f2f2f2;
+  color: var(--ui-text);
   min-height: 100vh;
-  background: #0d0d0d;
+  background: var(--ui-bg);
   /* clip, not hidden: hidden would turn this into a scroll container and stop
      the top bar sticking */
   overflow-x: clip;
@@ -4281,7 +4281,7 @@ void loadGame(route.params.id as string);
 }
 .hero {
   position: relative;
-  background-color: #1a1a1a;
+  background-color: var(--ui-surface);
   min-height: 440px;
   display: flex;
   align-items: flex-end;
@@ -4318,14 +4318,14 @@ void loadGame(route.params.id as string);
   background:
     linear-gradient(
       180deg,
-      rgba(13, 13, 13, 0.25) 0%,
-      rgba(13, 13, 13, 0.55) 45%,
-      #0d0d0d 96%
+      color-mix(in srgb, var(--ui-bg) 25%, transparent) 0%,
+      color-mix(in srgb, var(--ui-bg) 55%, transparent) 45%,
+      var(--ui-bg) 96%
     ),
     linear-gradient(
       90deg,
-      rgba(13, 13, 13, 0.75) 0%,
-      rgba(13, 13, 13, 0.15) 40%
+      color-mix(in srgb, var(--ui-bg) 75%, transparent) 0%,
+      color-mix(in srgb, var(--ui-bg) 15%, transparent) 40%
     );
 }
 .hero-content {
@@ -4350,15 +4350,16 @@ void loadGame(route.params.id as string);
   background-origin: border-box;
   background-clip: border-box;
   background-position: center;
-  background-color: #222222;
+  background-color: var(--ui-surface-2);
   border: 1px solid transparent;
-  box-shadow: 0 24px 48px -14px rgba(0, 0, 0, 0.8);
+  box-shadow: 0 24px 48px -14px
+    color-mix(in srgb, var(--ui-scrim-base) 80%, transparent);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 0.78rem;
   font-weight: 700;
-  color: rgba(255, 255, 255, 0.3);
+  color: color-mix(in srgb, var(--ui-wash-base) 30%, transparent);
   text-align: center;
   padding: 10px;
 }
@@ -4378,7 +4379,8 @@ void loadGame(route.params.id as string);
   line-height: 1.05;
   margin: 0 0 14px;
   letter-spacing: -0.01em;
-  text-shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
+  text-shadow: 0 4px 24px
+    color-mix(in srgb, var(--ui-scrim-base) 50%, transparent);
 }
 .overview,
 .achievements,
@@ -4415,15 +4417,16 @@ void loadGame(route.params.id as string);
   color: #ccc;
   font-size: 0.9rem;
   text-decoration: none;
-  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+  text-shadow: 0 2px 8px
+    color-mix(in srgb, var(--ui-scrim-base) 60%, transparent);
   margin-bottom: -8px;
 }
 .parent-breadcrumb:hover {
   color: #fff;
 }
 .relationship-tag {
-  background: rgba(214, 138, 52, 0.22);
-  color: #d68a34;
+  background: color-mix(in srgb, var(--ui-accent) 22%, transparent);
+  color: var(--ui-accent);
   border-radius: 999px;
   padding: 2px 10px;
   font-size: 0.72rem;
@@ -4439,26 +4442,26 @@ void loadGame(route.params.id as string);
 }
 .badge {
   line-height: 1.25;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: color-mix(in srgb, var(--ui-wash-base) 6%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ui-wash-base) 10%, transparent);
   border-radius: 7px;
   padding: 4px 11px;
   font-size: 0.78rem;
   font-weight: 600;
-  color: #9c9c9c;
+  color: var(--ui-dim);
   text-transform: capitalize;
 }
 .status-select option {
-  background: #171717;
-  color: #f2f2f2;
+  background: var(--ui-popover);
+  color: var(--ui-text);
 }
 .status-select {
   color-scheme: dark;
   appearance: none;
   -webkit-appearance: none;
   -moz-appearance: none;
-  border-color: rgba(214, 138, 52, 0.4);
-  color: #d68a34;
+  border-color: var(--ui-accent-line);
+  color: var(--ui-accent);
   font-family: inherit;
   cursor: pointer;
   padding-right: 26px;
@@ -4473,9 +4476,9 @@ void loadGame(route.params.id as string);
   gap: 8px;
 }
 .edit-btn {
-  background: #d68a34;
+  background: var(--ui-accent);
   border: none;
-  color: #14100a;
+  color: var(--ui-on-accent);
   border-radius: 8px;
   padding: 0 20px;
   height: 38px;
@@ -4491,9 +4494,9 @@ void loadGame(route.params.id as string);
   width: 38px;
   height: 38px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  color: #f2f2f2;
+  background: color-mix(in srgb, var(--ui-wash-base) 6%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ui-wash-base) 12%, transparent);
+  color: var(--ui-text);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -4505,16 +4508,16 @@ void loadGame(route.params.id as string);
   height: 16px;
 }
 .icon-btn:hover {
-  border-color: rgba(214, 138, 52, 0.4);
+  border-color: var(--ui-accent-line);
 }
 .icon-btn.active {
-  color: #d68a34;
-  border-color: rgba(214, 138, 52, 0.4);
-  background: rgba(214, 138, 52, 0.16);
+  color: var(--ui-accent);
+  border-color: var(--ui-accent-line);
+  background: var(--ui-accent-soft);
 }
 .stale-badge {
-  background: rgba(220, 38, 38, 0.18);
-  color: #fca5a5;
+  background: color-mix(in srgb, var(--ui-danger) 18%, transparent);
+  color: var(--ui-error-text);
   text-transform: none;
 }
 .achievement-progress-badge {
@@ -4531,8 +4534,8 @@ void loadGame(route.params.id as string);
   opacity: 0.85;
 }
 .achievement-progress-badge:hover {
-  background: rgba(214, 138, 52, 0.22);
-  color: #d68a34;
+  background: color-mix(in srgb, var(--ui-accent) 22%, transparent);
+  color: var(--ui-accent);
 }
 .meta {
   text-transform: capitalize;
@@ -4556,10 +4559,11 @@ void loadGame(route.params.id as string);
   list-style: none;
   margin: 0;
   padding: 6px;
-  background: #171717;
-  border: 1px solid #2b2b2b;
+  background: var(--ui-popover);
+  border: 1px solid var(--ui-border);
   border-radius: 12px;
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 16px 40px
+    color-mix(in srgb, var(--ui-scrim-base) 50%, transparent);
 }
 .tab-more-menu button {
   width: 100%;
@@ -4574,7 +4578,7 @@ void loadGame(route.params.id as string);
   cursor: pointer;
 }
 .tab-more-menu button:hover {
-  background: rgba(255, 255, 255, 0.07);
+  background: color-mix(in srgb, var(--ui-wash-base) 7%, transparent);
 }
 .tabbar-wrap {
   position: relative;
@@ -4587,7 +4591,7 @@ void loadGame(route.params.id as string);
 .tabbar {
   display: flex;
   gap: 4px;
-  background: #1a1a1a;
+  background: var(--ui-surface);
   border-radius: 10px;
   width: fit-content;
   max-width: 100%;
@@ -4603,7 +4607,7 @@ void loadGame(route.params.id as string);
   white-space: nowrap;
   background: transparent;
   border: none;
-  color: #9c9c9c;
+  color: var(--ui-dim);
   font-family: inherit;
   font-size: 0.84rem;
   font-weight: 600;
@@ -4612,8 +4616,8 @@ void loadGame(route.params.id as string);
   cursor: pointer;
 }
 .tab-btn.active {
-  background: #d68a34;
-  color: #14100a;
+  background: var(--ui-accent);
+  color: var(--ui-on-accent);
 }
 .overview {
   width: 100%;
@@ -4625,7 +4629,7 @@ void loadGame(route.params.id as string);
 .text-button {
   background: none;
   border: none;
-  color: #d68a34;
+  color: var(--ui-accent);
   font-size: 12.5px;
   font-weight: 600;
   cursor: pointer;
@@ -4641,7 +4645,7 @@ void loadGame(route.params.id as string);
   cursor: not-allowed;
 }
 .form-error-inline {
-  color: #fca5a5;
+  color: var(--ui-error-text);
   font-size: 12.5px;
   margin: 6px 0;
 }
@@ -4652,7 +4656,7 @@ void loadGame(route.params.id as string);
 .my-note {
   margin-top: 26px;
   padding-top: 22px;
-  border-top: 1px solid #1f1f1f;
+  border-top: 1px solid var(--ui-border-soft);
 }
 .my-note.empty {
   display: flex;
@@ -4669,7 +4673,7 @@ void loadGame(route.params.id as string);
   margin: 0;
   font-size: 0.9rem;
   font-weight: 800;
-  color: #f2f2f2;
+  color: var(--ui-text);
 }
 .note-private {
   flex: 1;
@@ -4692,9 +4696,9 @@ void loadGame(route.params.id as string);
   resize: vertical;
   padding: 12px 14px;
   border-radius: 10px;
-  border: 1px solid #2a2a2a;
-  background: #1a1a1a;
-  color: #f2f2f2;
+  border: 1px solid var(--ui-border);
+  background: var(--ui-surface);
+  color: var(--ui-text);
   font: inherit;
   font-size: 0.96rem;
   line-height: 1.7;
@@ -4704,10 +4708,10 @@ void loadGame(route.params.id as string);
 }
 .note-input:focus {
   outline: none;
-  border-color: rgba(214, 138, 52, 0.7);
+  border-color: color-mix(in srgb, var(--ui-accent) 70%, transparent);
 }
 .note-error {
-  color: #e57373;
+  color: var(--ui-error);
   font-size: 0.8rem;
   margin: 8px 0 0;
 }
@@ -4723,34 +4727,34 @@ void loadGame(route.params.id as string);
   /* larger tap target without moving the text */
   padding: 6px 4px;
   margin: -6px -4px;
-  color: #d68a34;
+  color: var(--ui-accent);
   font-family: inherit;
   font-size: 0.82rem;
   font-weight: 700;
   cursor: pointer;
 }
 .btn-text:hover {
-  color: #e8a552;
+  color: var(--ui-accent-bright);
 }
 .btn-text.muted {
-  color: #9c9c9c;
+  color: var(--ui-dim);
 }
 .btn-text.muted:hover {
-  color: #f2f2f2;
+  color: var(--ui-text);
 }
 .btn-solid {
-  background: #d68a34;
+  background: var(--ui-accent);
   border: none;
   border-radius: 8px;
   padding: 8px 18px;
-  color: #14100a;
+  color: var(--ui-on-accent);
   font-family: inherit;
   font-size: 0.82rem;
   font-weight: 800;
   cursor: pointer;
 }
 .btn-solid:hover {
-  background: #e29a48;
+  background: var(--ui-accent-bright);
 }
 .btn-solid:disabled {
   opacity: 0.5;
@@ -4762,7 +4766,7 @@ void loadGame(route.params.id as string);
 .description {
   font-size: 0.96rem;
   line-height: 1.7;
-  color: #9c9c9c;
+  color: var(--ui-dim);
   margin: 0;
 }
 .description.clamped {
@@ -4774,7 +4778,7 @@ void loadGame(route.params.id as string);
 .read-more-btn {
   background: none;
   border: none;
-  color: #d68a34;
+  color: var(--ui-accent);
   font-family: inherit;
   font-size: 0.82rem;
   font-weight: 700;
@@ -4802,13 +4806,13 @@ void loadGame(route.params.id as string);
   margin: 18px 0 6px;
   font-size: 15px;
   font-weight: 700;
-  color: #f2f2f2;
+  color: var(--ui-text);
 }
 .description-html :deep(p) {
   margin: 0 0 12px;
 }
 .description-html :deep(a) {
-  color: #d68a34;
+  color: var(--ui-accent);
 }
 .description-html :deep(ul) {
   padding-left: 20px;
@@ -4819,7 +4823,7 @@ void loadGame(route.params.id as string);
 .meta-block {
   margin-bottom: 24px;
   padding-bottom: 24px;
-  border-bottom: 1px solid #202020;
+  border-bottom: 1px solid var(--ui-border-soft);
 }
 .meta-grid {
   display: grid;
@@ -4847,11 +4851,11 @@ void loadGame(route.params.id as string);
 }
 .meta-value {
   font-size: 0.9rem;
-  color: #f2f2f2;
+  color: var(--ui-text);
   font-variant-numeric: tabular-nums;
 }
 .meta-value.accent {
-  color: #d68a34;
+  color: var(--ui-accent);
   font-weight: 700;
 }
 .meta-value.muted {
@@ -4871,12 +4875,12 @@ void loadGame(route.params.id as string);
 .more-details {
   margin-top: 28px;
   padding-top: 16px;
-  border-top: 1px solid #202020;
+  border-top: 1px solid var(--ui-border-soft);
 }
 .more-details > summary {
   cursor: pointer;
   list-style: none;
-  color: #d68a34;
+  color: var(--ui-accent);
   font-size: 0.82rem;
   font-weight: 700;
 }
@@ -4910,7 +4914,7 @@ void loadGame(route.params.id as string);
   align-items: baseline;
   gap: 16px;
   padding: 9px 0;
-  border-bottom: 1px solid #202020;
+  border-bottom: 1px solid var(--ui-border-soft);
   font-size: 0.88rem;
 }
 .kv-row:last-child {
@@ -4922,11 +4926,11 @@ void loadGame(route.params.id as string);
   gap: 4px;
 }
 .kv-label {
-  color: #9c9c9c;
+  color: var(--ui-dim);
   flex-shrink: 0;
 }
 .kv-value {
-  color: #f2f2f2;
+  color: var(--ui-text);
   text-align: right;
   min-width: 0;
   overflow-wrap: anywhere;
@@ -4936,7 +4940,7 @@ void loadGame(route.params.id as string);
   text-align: left;
 }
 .kv-value.accent {
-  color: #d68a34;
+  color: var(--ui-accent);
   font-weight: 700;
 }
 .kv-row.total {
@@ -4963,7 +4967,7 @@ void loadGame(route.params.id as string);
   gap: 4px;
 }
 .links-list a {
-  color: #d68a34;
+  color: var(--ui-accent);
   font-size: 0.88rem;
   text-decoration: none;
 }
@@ -4977,7 +4981,7 @@ void loadGame(route.params.id as string);
 }
 .platform-item {
   padding: 9px 0;
-  border-bottom: 1px solid #202020;
+  border-bottom: 1px solid var(--ui-border-soft);
 }
 .platform-top {
   display: flex;
@@ -4986,12 +4990,12 @@ void loadGame(route.params.id as string);
   gap: 12px;
 }
 .platform-name {
-  color: #f2f2f2;
+  color: var(--ui-text);
   font-weight: 700;
   font-size: 0.9rem;
 }
 .platform-hours {
-  color: #f2f2f2;
+  color: var(--ui-text);
   font-size: 0.88rem;
   font-variant-numeric: tabular-nums;
 }
@@ -5015,9 +5019,9 @@ void loadGame(route.params.id as string);
   margin-bottom: 8px;
 }
 .chip {
-  background: #222222;
-  color: #9c9c9c;
-  border: 1px solid #2b2b2b;
+  background: var(--ui-surface-2);
+  color: var(--ui-dim);
+  border: 1px solid var(--ui-border);
   border-radius: 999px;
   padding: 5px 13px;
   font-size: 0.78rem;
@@ -5033,8 +5037,8 @@ void loadGame(route.params.id as string);
 }
 .filter-link:hover,
 .filter-link:focus-visible {
-  color: #d68a34;
-  border-bottom-color: rgba(214, 138, 52, 0.5);
+  color: var(--ui-accent);
+  border-bottom-color: color-mix(in srgb, var(--ui-accent) 50%, transparent);
   outline: none;
 }
 .credit-dot {
@@ -5048,8 +5052,8 @@ void loadGame(route.params.id as string);
 }
 .badge.filter-badge:hover,
 .badge.filter-badge:focus-visible {
-  color: #d68a34;
-  border-color: rgba(214, 138, 52, 0.5);
+  color: var(--ui-accent);
+  border-color: color-mix(in srgb, var(--ui-accent) 50%, transparent);
   outline: none;
 }
 .chip.chip-link {
@@ -5061,14 +5065,14 @@ void loadGame(route.params.id as string);
 }
 .chip.chip-link:hover,
 .chip.chip-link:focus-visible {
-  border-color: rgba(214, 138, 52, 0.6);
+  border-color: color-mix(in srgb, var(--ui-accent) 60%, transparent);
   color: #fff;
   outline: none;
 }
 .chip.primary {
-  background: rgba(214, 138, 52, 0.16);
-  color: #d68a34;
-  border-color: rgba(214, 138, 52, 0.4);
+  background: var(--ui-accent-soft);
+  color: var(--ui-accent);
+  border-color: var(--ui-accent-line);
 }
 .related-section {
   margin-top: 28px;
@@ -5103,12 +5107,12 @@ void loadGame(route.params.id as string);
   background-origin: border-box;
   background-clip: border-box;
   background-position: center;
-  background-color: #222222;
+  background-color: var(--ui-surface-2);
   border: 1px solid transparent;
   transition: border-color 0.15s ease;
 }
 .poster-card-sm:hover .poster-card-sm-art {
-  border-color: rgba(214, 138, 52, 0.5);
+  border-color: color-mix(in srgb, var(--ui-accent) 50%, transparent);
 }
 .poster-card-sm-title {
   margin-top: 6px;
@@ -5146,7 +5150,7 @@ void loadGame(route.params.id as string);
 .ach-count {
   margin-right: auto;
   font-size: 1rem;
-  color: #9c9c9c;
+  color: var(--ui-dim);
   font-variant-numeric: tabular-nums;
 }
 .ach-tools {
@@ -5166,8 +5170,8 @@ void loadGame(route.params.id as string);
 .ach-note-box {
   margin: 0 0 12px;
   padding: 12px;
-  background: #1a1a1a;
-  border: 1px solid #202020;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border-soft);
   border-radius: 10px;
 }
 .ach-note-box {
@@ -5179,10 +5183,10 @@ void loadGame(route.params.id as string);
   box-sizing: border-box;
   resize: vertical;
   padding: 8px 10px;
-  background: #0d0d0d;
-  border: 1px solid #2b2b2b;
+  background: var(--ui-bg);
+  border: 1px solid var(--ui-border);
   border-radius: 8px;
-  color: #f2f2f2;
+  color: var(--ui-text);
   font: inherit;
   font-size: 0.82rem;
   line-height: 1.5;
@@ -5192,7 +5196,7 @@ void loadGame(route.params.id as string);
 }
 .ach-textarea:focus {
   outline: none;
-  border-color: rgba(214, 138, 52, 0.7);
+  border-color: color-mix(in srgb, var(--ui-accent) 70%, transparent);
 }
 .ach-note-actions {
   display: flex;
@@ -5209,7 +5213,7 @@ void loadGame(route.params.id as string);
   color: #666;
 }
 .ach-stats b {
-  color: #f2f2f2;
+  color: var(--ui-text);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
@@ -5240,7 +5244,7 @@ void loadGame(route.params.id as string);
 .ach-colbtn:hover,
 .ach-colbtn[aria-sort="ascending"],
 .ach-colbtn[aria-sort="descending"] {
-  color: #d68a34;
+  color: var(--ui-accent);
 }
 .ach-colbtn i {
   font-style: normal;
@@ -5275,32 +5279,32 @@ void loadGame(route.params.id as string);
   align-items: center;
   min-height: 88px;
   padding: 12px 18px 12px 12px;
-  background: #1a1a1a;
-  border: 1px solid #202020;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border-soft);
   border-radius: 12px;
   transition: border-color 0.15s ease;
 }
 .ach-row:hover {
-  border-color: rgba(214, 138, 52, 0.4);
+  border-color: var(--ui-accent-line);
 }
 .ach-row.done {
   background: #16201a;
   border-color: #22352a;
 }
 .ach-row.pin {
-  border-color: rgba(214, 138, 52, 0.5);
+  border-color: color-mix(in srgb, var(--ui-accent) 50%, transparent);
 }
 .ach-icon {
   width: 64px;
   height: 64px;
   border-radius: 10px;
-  background-color: #2a2a2a;
+  background-color: var(--ui-border);
   background-size: cover;
   background-repeat: no-repeat;
   background-position: center;
 }
 .ach-row.lock .ach-icon {
-  background-color: #1f1f1f;
+  background-color: var(--ui-border-soft);
   filter: grayscale(1) brightness(0.6);
 }
 .ach-main {
@@ -5316,44 +5320,44 @@ void loadGame(route.params.id as string);
   line-height: 1.3;
 }
 .ach-link {
-  color: #f2f2f2;
+  color: var(--ui-text);
   text-decoration: none;
 }
 .ach-link:hover {
-  color: #d68a34;
+  color: var(--ui-accent);
 }
 .ach-row.lock .ach-link,
 .ach-hidden-name {
-  color: #9c9c9c;
+  color: var(--ui-dim);
 }
 .ach-tag {
   padding: 2px 9px;
   border-radius: 5px;
-  background: #262626;
-  color: #9c9c9c;
+  background: var(--ui-surface-3);
+  color: var(--ui-dim);
   font-size: 0.7rem;
   font-weight: 700;
   line-height: 1.5;
 }
 .ach-tag.missable {
-  background: rgba(217, 111, 111, 0.14);
-  color: #d96f6f;
+  background: color-mix(in srgb, var(--ui-danger-muted) 14%, transparent);
+  color: var(--ui-danger-muted);
 }
 .ach-tag.win_condition {
-  background: rgba(214, 138, 52, 0.14);
-  color: #d68a34;
+  background: color-mix(in srgb, var(--ui-accent) 14%, transparent);
+  color: var(--ui-accent);
 }
 .ach-desc {
   margin-top: 3px;
   font-size: 0.88rem;
   line-height: 1.5;
-  color: #9c9c9c;
+  color: var(--ui-dim);
 }
 .ach-reveal {
   padding: 0;
   background: none;
   border: none;
-  color: #d68a34;
+  color: var(--ui-accent);
   font: inherit;
   font-weight: 700;
   cursor: pointer;
@@ -5383,13 +5387,13 @@ void loadGame(route.params.id as string);
   height: 5px;
   margin: 6px 0 0 auto;
   border-radius: 999px;
-  background: #2a2a2a;
+  background: var(--ui-border);
   overflow: hidden;
 }
 .ach-bar i {
   display: block;
   height: 100%;
-  background: #d68a34;
+  background: var(--ui-accent);
 }
 .ach-acts {
   display: flex;
@@ -5399,16 +5403,16 @@ void loadGame(route.params.id as string);
 .ach-btn {
   padding: 6px 13px;
   background: transparent;
-  border: 1px solid #2b2b2b;
+  border: 1px solid var(--ui-border);
   border-radius: 7px;
-  color: #9c9c9c;
+  color: var(--ui-dim);
   font: inherit;
   font-size: 0.78rem;
   white-space: nowrap;
   cursor: pointer;
 }
 .ach-btn:hover {
-  color: #f2f2f2;
+  color: var(--ui-text);
 }
 .ach-btn-media {
   display: inline-flex;
@@ -5418,21 +5422,21 @@ void loadGame(route.params.id as string);
   font-variant-numeric: tabular-nums;
 }
 .ach-btn.on {
-  color: #d68a34;
-  border-color: rgba(214, 138, 52, 0.5);
+  color: var(--ui-accent);
+  border-color: color-mix(in srgb, var(--ui-accent) 50%, transparent);
 }
 .ach-media-strip {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   padding: 10px 14px 12px;
-  border-top: 1px solid #232323;
+  border-top: 1px solid var(--ui-surface-2);
 }
 .ach-media-thumb {
   width: 160px;
   aspect-ratio: 16 / 9;
   padding: 0;
-  border: 1px solid #2b2b2b;
+  border: 1px solid var(--ui-border);
   border-radius: 8px;
   background: #000;
   overflow: hidden;
@@ -5498,8 +5502,8 @@ void loadGame(route.params.id as string);
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid #3a3a3a;
+  background: color-mix(in srgb, var(--ui-wash-base) 6%, transparent);
+  border: 1px solid var(--ui-border-strong);
   border-radius: 999px;
   color: #ccc;
   padding: 6px 12px;
@@ -5512,12 +5516,12 @@ void loadGame(route.params.id as string);
     color 0.15s ease;
 }
 .account-chip:hover {
-  border-color: #d68a34;
+  border-color: var(--ui-accent);
 }
 .account-chip.active {
-  background: rgba(214, 138, 52, 0.18);
-  border-color: #d68a34;
-  color: #d68a34;
+  background: color-mix(in srgb, var(--ui-accent) 18%, transparent);
+  border-color: var(--ui-accent);
+  color: var(--ui-accent);
 }
 .account-add {
   display: flex;
@@ -5525,7 +5529,7 @@ void loadGame(route.params.id as string);
 }
 .account-add input {
   background: #111;
-  border: 1px solid #3a3a3a;
+  border: 1px solid var(--ui-border-strong);
   border-radius: 999px;
   color: #fff;
   padding: 6px 12px;
@@ -5533,8 +5537,8 @@ void loadGame(route.params.id as string);
   min-width: 200px;
 }
 .checklist-card {
-  background: rgba(0, 0, 0, 0.2);
-  border: 1px solid #2a2a2a;
+  background: color-mix(in srgb, var(--ui-scrim-base) 20%, transparent);
+  border: 1px solid var(--ui-border);
   border-radius: 8px;
   padding: 16px;
   display: flex;
@@ -5559,12 +5563,12 @@ void loadGame(route.params.id as string);
 .checklist-progress-bar {
   height: 5px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
+  background: color-mix(in srgb, var(--ui-wash-base) 8%, transparent);
   overflow: hidden;
 }
 .checklist-progress-fill {
   height: 100%;
-  background: #d68a34;
+  background: var(--ui-accent);
   transition: width 0.2s ease;
 }
 .checklist-section {
@@ -5578,7 +5582,7 @@ void loadGame(route.params.id as string);
   gap: 8px;
   cursor: pointer;
   padding: 4px 0;
-  border-bottom: 1px solid #2a2a2a;
+  border-bottom: 1px solid var(--ui-border);
 }
 .checklist-section-caret {
   color: #777;
@@ -5627,7 +5631,7 @@ void loadGame(route.params.id as string);
   padding: 1px 2px;
 }
 .checklist-move:hover {
-  color: #d68a34;
+  color: var(--ui-accent);
 }
 .checklist-label {
   display: flex;
@@ -5644,7 +5648,7 @@ void loadGame(route.params.id as string);
 .checklist-edit-input {
   flex: 1;
   background: #111;
-  border: 1px solid #d68a34;
+  border: 1px solid var(--ui-accent);
   border-radius: 6px;
   color: #fff;
   padding: 4px 8px;
@@ -5659,7 +5663,7 @@ void loadGame(route.params.id as string);
   padding: 0 4px;
 }
 .checklist-remove:hover {
-  color: #fca5a5;
+  color: var(--ui-error-text);
 }
 .checklist-add-row {
   display: flex;
@@ -5673,7 +5677,7 @@ void loadGame(route.params.id as string);
 .checklist-add input {
   flex: 1;
   background: #111;
-  border: 1px solid #3a3a3a;
+  border: 1px solid var(--ui-border-strong);
   border-radius: 8px;
   color: #fff;
   padding: 8px 10px;
@@ -5694,8 +5698,8 @@ void loadGame(route.params.id as string);
   display: flex;
   flex-direction: column;
   gap: 4px;
-  background: rgba(0, 0, 0, 0.2);
-  border: 1px solid #2a2a2a;
+  background: color-mix(in srgb, var(--ui-scrim-base) 20%, transparent);
+  border: 1px solid var(--ui-border);
   border-radius: 8px;
   padding: 10px;
   position: sticky;
@@ -5716,11 +5720,11 @@ void loadGame(route.params.id as string);
   cursor: pointer;
 }
 .account-list-item:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: color-mix(in srgb, var(--ui-wash-base) 5%, transparent);
 }
 .account-list-item.active {
-  background: rgba(214, 138, 52, 0.16);
-  color: #d68a34;
+  background: var(--ui-accent-soft);
+  color: var(--ui-accent);
   font-weight: 600;
 }
 .account-list-meta {
@@ -5733,7 +5737,7 @@ void loadGame(route.params.id as string);
   gap: 6px;
   margin-top: 6px;
   padding-top: 10px;
-  border-top: 1px solid #2a2a2a;
+  border-top: 1px solid var(--ui-border);
 }
 .accounts-sidebar .account-add input {
   flex: 1;
@@ -5747,14 +5751,14 @@ void loadGame(route.params.id as string);
 }
 .accounts-sidebar .account-add input:focus {
   outline: none;
-  background: rgba(255, 255, 255, 0.05);
+  background: color-mix(in srgb, var(--ui-wash-base) 5%, transparent);
 }
 .accounts-sidebar .account-add button {
   flex-shrink: 0;
   width: 26px;
   height: 26px;
   border-radius: 50%;
-  border: 1px solid #3a3a3a;
+  border: 1px solid var(--ui-border-strong);
   background: none;
   color: #ccc;
   font-size: 1rem;
@@ -5762,8 +5766,8 @@ void loadGame(route.params.id as string);
   cursor: pointer;
 }
 .accounts-sidebar .account-add button:hover:not(:disabled) {
-  border-color: #d68a34;
-  color: #d68a34;
+  border-color: var(--ui-accent);
+  color: var(--ui-accent);
 }
 .accounts-sidebar .account-add button:disabled {
   opacity: 0.4;
@@ -5791,8 +5795,8 @@ void loadGame(route.params.id as string);
 .account-note-card,
 .account-stats-card,
 .account-gallery-card {
-  background: rgba(0, 0, 0, 0.2);
-  border: 1px solid #2a2a2a;
+  background: color-mix(in srgb, var(--ui-scrim-base) 20%, transparent);
+  border: 1px solid var(--ui-border);
   border-radius: 8px;
   padding: 16px;
   display: flex;
@@ -5808,7 +5812,7 @@ void loadGame(route.params.id as string);
 }
 .account-note-card textarea {
   background: #111;
-  border: 1px solid #3a3a3a;
+  border: 1px solid var(--ui-border-strong);
   border-radius: 8px;
   color: #fff;
   padding: 10px;
@@ -5843,19 +5847,19 @@ void loadGame(route.params.id as string);
   flex-direction: column;
   align-items: center;
   gap: 2px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid #2a2a2a;
+  background: color-mix(in srgb, var(--ui-wash-base) 4%, transparent);
+  border: 1px solid var(--ui-border);
   border-radius: 8px;
   padding: 8px 6px;
   text-align: center;
 }
 .account-stat-tile.headline {
   padding: 14px 6px;
-  background: rgba(214, 138, 52, 0.1);
-  border-color: rgba(214, 138, 52, 0.35);
+  background: color-mix(in srgb, var(--ui-accent) 10%, transparent);
+  border-color: color-mix(in srgb, var(--ui-accent) 35%, transparent);
 }
 .account-stat-tile.headline .stat-tile-value {
-  color: #d68a34;
+  color: var(--ui-accent);
   font-size: 1.3rem;
 }
 .stat-tile-label {
@@ -5887,8 +5891,8 @@ void loadGame(route.params.id as string);
   color: #999;
 }
 .account-history-card {
-  background: rgba(0, 0, 0, 0.2);
-  border: 1px solid #2a2a2a;
+  background: color-mix(in srgb, var(--ui-scrim-base) 20%, transparent);
+  border: 1px solid var(--ui-border);
   border-radius: 8px;
   padding: 16px;
   display: flex;
@@ -5918,7 +5922,7 @@ void loadGame(route.params.id as string);
 .wom-sync-row input {
   flex: 1;
   background: #111;
-  border: 1px solid #3a3a3a;
+  border: 1px solid var(--ui-border-strong);
   border-radius: 8px;
   color: #fff;
   padding: 8px 10px;
@@ -5936,7 +5940,7 @@ void loadGame(route.params.id as string);
 }
 .stat-row input {
   background: #111;
-  border: 1px solid #3a3a3a;
+  border: 1px solid var(--ui-border-strong);
   border-radius: 6px;
   color: #fff;
   padding: 6px 8px;
@@ -5976,7 +5980,7 @@ void loadGame(route.params.id as string);
   gap: 4px;
 }
 .stat-history-chip {
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--ui-wash-base) 6%, transparent);
   color: #ccc;
   border-radius: 999px;
   padding: 2px 8px;
@@ -5984,7 +5988,7 @@ void loadGame(route.params.id as string);
 }
 .stat-history-chip.gain {
   background: rgba(74, 222, 128, 0.14);
-  color: #86efac;
+  color: var(--ui-good-text);
   font-weight: 600;
 }
 .account-gallery-header {
@@ -6007,7 +6011,7 @@ void loadGame(route.params.id as string);
 }
 .field input {
   background: #111;
-  border: 1px solid #3a3a3a;
+  border: 1px solid var(--ui-border-strong);
   border-radius: 8px;
   color: #fff;
   padding: 10px 12px;
@@ -6026,19 +6030,19 @@ void loadGame(route.params.id as string);
   transition: opacity 0.15s ease;
 }
 .primary-button {
-  background: #d68a34;
+  background: var(--ui-accent);
   color: #111;
   padding: 10px 12px;
 }
 .small-button {
-  background: rgba(255, 255, 255, 0.08);
+  background: color-mix(in srgb, var(--ui-wash-base) 8%, transparent);
   color: #fff;
   padding: 7px 10px;
   font-size: 0.8rem;
 }
 .danger-button {
-  background: rgba(220, 38, 38, 0.18);
-  color: #fca5a5;
+  background: color-mix(in srgb, var(--ui-danger) 18%, transparent);
+  color: var(--ui-error-text);
   padding: 8px 10px;
 }
 .primary-button:disabled,
@@ -6047,18 +6051,18 @@ void loadGame(route.params.id as string);
   cursor: not-allowed;
 }
 .note-error {
-  color: #fca5a5;
+  color: var(--ui-error-text);
 }
 .field input:focus {
   outline: none;
-  border-color: #d68a34;
+  border-color: var(--ui-accent);
 }
 .empty-state {
   color: #777;
   margin: 0;
 }
 .empty-state.error {
-  color: #fca5a5;
+  color: var(--ui-error-text);
 }
 
 /* Screenshots / Clips / Saves / Docs / Stats / History */
@@ -6111,10 +6115,10 @@ void loadGame(route.params.id as string);
   font-size: 14px;
 }
 .form-error {
-  color: #fca5a5;
+  color: var(--ui-error-text);
   font-size: 13px;
-  background: rgba(220, 38, 38, 0.1);
-  border: 1px solid rgba(220, 38, 38, 0.3);
+  background: color-mix(in srgb, var(--ui-danger) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ui-danger) 30%, transparent);
   border-radius: 8px;
   padding: 8px 10px;
   margin-bottom: 14px;
@@ -6133,7 +6137,7 @@ void loadGame(route.params.id as string);
 .lightbox-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.85);
+  background: color-mix(in srgb, var(--ui-scrim-base) 85%, transparent);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -6145,7 +6149,8 @@ void loadGame(route.params.id as string);
   max-width: 100%;
   max-height: 100%;
   border-radius: 8px;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 24px 64px
+    color-mix(in srgb, var(--ui-scrim-base) 60%, transparent);
 }
 .file-list {
   list-style: none;
@@ -6159,8 +6164,8 @@ void loadGame(route.params.id as string);
   display: flex;
   align-items: center;
   gap: 10px;
-  background: rgba(0, 0, 0, 0.2);
-  border: 1px solid #2a2a2a;
+  background: color-mix(in srgb, var(--ui-scrim-base) 20%, transparent);
+  border: 1px solid var(--ui-border);
   border-radius: 8px;
   padding: 12px 16px;
   color: #999;
@@ -6188,8 +6193,8 @@ void loadGame(route.params.id as string);
   gap: 12px;
 }
 .archive-card {
-  background: rgba(0, 0, 0, 0.2);
-  border: 1px solid #2a2a2a;
+  background: color-mix(in srgb, var(--ui-scrim-base) 20%, transparent);
+  border: 1px solid var(--ui-border);
   border-radius: 10px;
   padding: 14px;
 }
@@ -6217,7 +6222,7 @@ void loadGame(route.params.id as string);
   height: 24px;
   border-radius: 6px;
   border: none;
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--ui-wash-base) 6%, transparent);
   color: #999;
   cursor: pointer;
   font-size: 12px;
@@ -6226,7 +6231,7 @@ void loadGame(route.params.id as string);
   justify-content: center;
 }
 .icon-button:hover {
-  background: rgba(255, 255, 255, 0.14);
+  background: color-mix(in srgb, var(--ui-wash-base) 14%, transparent);
   color: #fff;
 }
 .archive-meta {
@@ -6243,7 +6248,7 @@ void loadGame(route.params.id as string);
   list-style: none;
   margin: 12px 0 0;
   padding: 10px 0 0;
-  border-top: 1px solid #232323;
+  border-top: 1px solid var(--ui-surface-2);
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -6264,7 +6269,7 @@ void loadGame(route.params.id as string);
 .trash-section {
   margin-top: 20px;
   padding-top: 14px;
-  border-top: 1px solid #2a2a2a;
+  border-top: 1px solid var(--ui-border);
 }
 .trash-toggle {
   background: none;
@@ -6290,8 +6295,8 @@ void loadGame(route.params.id as string);
   align-items: center;
   gap: 10px;
   padding: 8px 10px;
-  background: rgba(0, 0, 0, 0.2);
-  border: 1px solid #2a2a2a;
+  background: color-mix(in srgb, var(--ui-scrim-base) 20%, transparent);
+  border: 1px solid var(--ui-border);
   border-radius: 8px;
   font-size: 0.82rem;
 }
@@ -6308,7 +6313,7 @@ void loadGame(route.params.id as string);
 .modpack-block {
   margin-top: 36px;
   padding-top: 28px;
-  border-top: 1px solid #262626;
+  border-top: 1px solid var(--ui-surface-3);
 }
 .file-size {
   color: #777;
@@ -6325,7 +6330,7 @@ void loadGame(route.params.id as string);
   flex-shrink: 0;
 }
 .tile-remove-inline:hover {
-  color: #fca5a5;
+  color: var(--ui-error-text);
 }
 .not-found {
   padding: 24px;
@@ -6334,20 +6339,21 @@ void loadGame(route.params.id as string);
 .confirm-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.65);
+  background: color-mix(in srgb, var(--ui-scrim-base) 65%, transparent);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 60;
 }
 .confirm-dialog {
-  background: #1a1a1a;
-  border: 1px solid #2a2a2a;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
   border-radius: 12px;
   padding: 22px;
   width: 100%;
   max-width: 360px;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 24px 64px
+    color-mix(in srgb, var(--ui-scrim-base) 60%, transparent);
 }
 .confirm-dialog h3 {
   margin: 0 0 8px;
@@ -6358,7 +6364,7 @@ void loadGame(route.params.id as string);
   font-size: 14px;
 }
 .confirm-error {
-  color: #fca5a5;
+  color: var(--ui-error-text);
   font-size: 13px;
   margin-bottom: 12px;
 }
@@ -6372,7 +6378,7 @@ void loadGame(route.params.id as string);
   padding: 10px 18px;
 }
 .secondary-button {
-  background: rgba(255, 255, 255, 0.08);
+  background: color-mix(in srgb, var(--ui-wash-base) 8%, transparent);
   color: #fff;
 }
 </style>

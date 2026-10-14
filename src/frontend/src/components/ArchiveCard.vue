@@ -242,18 +242,18 @@ async function copy() {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  background: #141414;
-  border: 1px solid #262626;
+  background: var(--ui-bg-2);
+  border: 1px solid var(--ui-surface-3);
   border-radius: 12px;
   overflow: hidden;
   transition: border-color 0.15s ease;
 }
 .ac:hover {
-  border-color: #3a3a3a;
+  border-color: var(--ui-border-strong);
 }
 .ac.selected {
-  border-color: #d68a34;
-  box-shadow: 0 0 0 1px #d68a34;
+  border-color: var(--ui-accent);
+  box-shadow: 0 0 0 1px var(--ui-accent);
 }
 .ac-thumb {
   position: relative;
@@ -268,11 +268,11 @@ async function copy() {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #d68a34;
+  color: var(--ui-accent);
   background: radial-gradient(
     circle at 50% 40%,
-    rgba(214, 138, 52, 0.18),
-    rgba(214, 138, 52, 0.05) 70%
+    color-mix(in srgb, var(--ui-accent) 18%, transparent),
+    color-mix(in srgb, var(--ui-accent) 5%, transparent) 70%
   );
 }
 .ac-art svg {
@@ -295,7 +295,7 @@ async function copy() {
 .ac-uploading {
   left: 8px;
   right: auto;
-  color: #d68a34;
+  color: var(--ui-accent);
 }
 .ac-input {
   display: none;
@@ -308,17 +308,17 @@ async function copy() {
   width: 22px;
   height: 22px;
   border-radius: 6px;
-  border: 2px solid rgba(255, 255, 255, 0.85);
+  border: 2px solid color-mix(in srgb, var(--ui-wash-base) 85%, transparent);
   background: rgba(15, 15, 15, 0.6);
-  color: #14100a;
+  color: var(--ui-on-accent);
   display: flex;
   align-items: center;
   justify-content: center;
   pointer-events: none;
 }
 .ac.selected .ac-check {
-  background: #d68a34;
-  border-color: #d68a34;
+  background: var(--ui-accent);
+  border-color: var(--ui-accent);
 }
 .ac-actions {
   position: absolute;
@@ -357,15 +357,15 @@ async function copy() {
 }
 .ac-actions button:hover,
 .ac-actions a:hover {
-  background: #d68a34;
-  color: #14100a;
+  background: var(--ui-accent);
+  color: var(--ui-on-accent);
 }
 .ac-actions button:disabled {
   opacity: 0.5;
   cursor: default;
 }
 .ac-actions button:last-of-type:hover {
-  background: #d96f6f;
+  background: var(--ui-danger-muted);
   color: #fff;
 }
 .ac-body {
@@ -399,7 +399,7 @@ async function copy() {
   color: #666;
 }
 .ac-chip {
-  background: rgba(255, 255, 255, 0.07);
+  background: color-mix(in srgb, var(--ui-wash-base) 7%, transparent);
   color: #aaa;
   border-radius: 999px;
   padding: 1px 8px;

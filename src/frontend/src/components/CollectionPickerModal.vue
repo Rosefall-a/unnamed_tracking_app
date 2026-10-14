@@ -144,22 +144,23 @@ function createAndAdd() {
 .picker-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.65);
+  background: color-mix(in srgb, var(--ui-scrim-base) 65%, transparent);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 70;
 }
 .picker-modal {
-  background: #1a1a1a;
-  border: 1px solid #2a2a2a;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
   border-radius: 12px;
   padding: 22px;
   width: 100%;
   max-width: 380px;
   color: #fff;
   font-family: system-ui, sans-serif;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 24px 64px
+    color-mix(in srgb, var(--ui-scrim-base) 60%, transparent);
 }
 .picker-modal h3 {
   margin: 0 0 14px;
@@ -172,7 +173,7 @@ function createAndAdd() {
   width: 100%;
   box-sizing: border-box;
   background: #111;
-  border: 1px solid #3a3a3a;
+  border: 1px solid var(--ui-border-strong);
   border-radius: 8px;
   color: #fff;
   padding: 10px 12px;
@@ -182,10 +183,10 @@ function createAndAdd() {
 }
 .picker-input:focus {
   outline: none;
-  border-color: #d68a34;
+  border-color: var(--ui-accent);
 }
 .picker-error {
-  color: #fca5a5;
+  color: var(--ui-error-text);
   font-size: 13px;
   margin-bottom: 10px;
 }
@@ -209,14 +210,14 @@ function createAndAdd() {
   transition: background 0.15s ease;
 }
 .picker-item:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.08);
+  background: color-mix(in srgb, var(--ui-wash-base) 8%, transparent);
 }
 .picker-item:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
 .picker-create {
-  color: #d68a34;
+  color: var(--ui-accent);
   font-weight: 600;
 }
 .picker-empty {
@@ -230,7 +231,7 @@ function createAndAdd() {
   justify-content: flex-end;
 }
 .secondary-button {
-  background: rgba(255, 255, 255, 0.08);
+  background: color-mix(in srgb, var(--ui-wash-base) 8%, transparent);
   color: #fff;
   border: none;
   border-radius: 8px;

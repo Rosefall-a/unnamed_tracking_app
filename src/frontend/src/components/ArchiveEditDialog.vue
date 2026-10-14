@@ -271,7 +271,7 @@ onBeforeUnmount(() => document.removeEventListener("keydown", onKey));
   justify-content: space-between;
   gap: 12px;
   padding: 18px 22px 14px;
-  border-bottom: 1px solid #262626;
+  border-bottom: 1px solid var(--ui-surface-3);
 }
 .aed-head-text {
   min-width: 0;
@@ -298,7 +298,7 @@ onBeforeUnmount(() => document.removeEventListener("keydown", onKey));
   cursor: pointer;
 }
 .aed-x:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: color-mix(in srgb, var(--ui-wash-base) 8%, transparent);
   color: #fff;
 }
 .aed-body {
@@ -321,7 +321,7 @@ onBeforeUnmount(() => document.removeEventListener("keydown", onKey));
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #d68a34;
+  color: var(--ui-accent);
 }
 .aed-field {
   display: flex;
@@ -331,7 +331,7 @@ onBeforeUnmount(() => document.removeEventListener("keydown", onKey));
 .aed-field > span {
   font-size: 0.74rem;
   font-weight: 700;
-  color: #9c9c9c;
+  color: var(--ui-dim);
 }
 .aed-field input.ui-field,
 .aed-field textarea {
@@ -354,7 +354,7 @@ onBeforeUnmount(() => document.removeEventListener("keydown", onKey));
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  background: rgba(255, 255, 255, 0.09);
+  background: color-mix(in srgb, var(--ui-wash-base) 9%, transparent);
   border-radius: 999px;
   padding: 2px 4px 2px 10px;
   font-size: 0.76rem;
@@ -372,7 +372,7 @@ onBeforeUnmount(() => document.removeEventListener("keydown", onKey));
   padding: 0;
 }
 .aed-tag button:hover {
-  background: rgba(255, 255, 255, 0.15);
+  background: color-mix(in srgb, var(--ui-wash-base) 15%, transparent);
   color: #fff;
 }
 .aed-tags input {
@@ -410,7 +410,7 @@ onBeforeUnmount(() => document.removeEventListener("keydown", onKey));
   gap: 8px;
   padding: 8px 10px;
   background: #111;
-  border: 1px solid #262626;
+  border: 1px solid var(--ui-surface-3);
   border-radius: 10px;
 }
 .aed-v-main {
@@ -422,7 +422,7 @@ onBeforeUnmount(() => document.removeEventListener("keydown", onKey));
 }
 .aed-v-main strong {
   font-size: 0.82rem;
-  color: #f0f0f0;
+  color: var(--ui-text);
 }
 .aed-v-main span {
   font-size: 0.74rem;
@@ -434,8 +434,8 @@ onBeforeUnmount(() => document.removeEventListener("keydown", onKey));
 .aed-latest {
   font-size: 0.68rem;
   font-weight: 800;
-  color: #d68a34;
-  background: rgba(214, 138, 52, 0.14);
+  color: var(--ui-accent);
+  background: color-mix(in srgb, var(--ui-accent) 14%, transparent);
   border-radius: 999px;
   padding: 2px 8px;
 }
@@ -444,8 +444,8 @@ onBeforeUnmount(() => document.removeEventListener("keydown", onKey));
   align-items: center;
   gap: 8px;
   padding: 14px 22px;
-  border-top: 1px solid #262626;
-  background: var(--ui-popover, #171717);
+  border-top: 1px solid var(--ui-surface-3);
+  background: var(--ui-popover, var(--ui-popover));
 }
 .aed-spacer {
   flex: 1;

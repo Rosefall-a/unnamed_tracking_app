@@ -943,8 +943,8 @@ onBeforeUnmount(() => {
   font-size: 1.1rem;
 }
 .gm-count {
-  background: rgba(214, 138, 52, 0.16);
-  color: #d68a34;
+  background: var(--ui-accent-soft);
+  color: var(--ui-accent);
   font-size: 0.72rem;
   font-weight: 700;
   border-radius: 999px;
@@ -968,12 +968,12 @@ onBeforeUnmount(() => {
   color-scheme: dark;
 }
 .gm-select option {
-  background: #171717;
-  color: #f2f2f2;
+  background: var(--ui-popover);
+  color: var(--ui-text);
 }
 .ui-btn.on {
-  color: #d68a34;
-  border-color: rgba(214, 138, 52, 0.5);
+  color: var(--ui-accent);
+  border-color: color-mix(in srgb, var(--ui-accent) 50%, transparent);
 }
 .gm-bulk {
   display: flex;
@@ -982,14 +982,14 @@ onBeforeUnmount(() => {
   gap: 8px;
   margin-bottom: 16px;
   padding: 10px 12px;
-  background: #171717;
-  border: 1px solid rgba(214, 138, 52, 0.4);
+  background: var(--ui-popover);
+  border: 1px solid var(--ui-accent-line);
   border-radius: 12px;
 }
 .gm-bulk-count {
   font-size: 0.82rem;
   font-weight: 700;
-  color: #d68a34;
+  color: var(--ui-accent);
   margin-right: 4px;
 }
 .gm-bulk-check {
@@ -1001,7 +1001,7 @@ onBeforeUnmount(() => {
   cursor: pointer;
 }
 .gm-bulk-check input {
-  accent-color: #d68a34;
+  accent-color: var(--ui-accent);
 }
 .gm-bulk-sep {
   flex: 1;
@@ -1028,15 +1028,20 @@ onBeforeUnmount(() => {
 .gm-skel {
   display: flex;
   flex-direction: column;
-  border: 1px solid #262626;
+  border: 1px solid var(--ui-surface-3);
   border-radius: 12px;
   overflow: hidden;
-  background: #141414;
+  background: var(--ui-bg-2);
 }
 .gm-skel::before,
 .gm-skel::after {
   content: "";
-  background: linear-gradient(100deg, #181818 30%, #212121 50%, #181818 70%);
+  background: linear-gradient(
+    100deg,
+    var(--ui-popover) 30%,
+    var(--ui-surface-2) 50%,
+    var(--ui-popover) 70%
+  );
   background-size: 200% 100%;
   animation: shimmer 1.4s linear infinite;
 }
@@ -1045,7 +1050,7 @@ onBeforeUnmount(() => {
 }
 .gm-skel::after {
   height: 74px;
-  border-top: 1px solid #262626;
+  border-top: 1px solid var(--ui-surface-3);
 }
 .gm-hint {
   color: #777;
@@ -1060,8 +1065,8 @@ onBeforeUnmount(() => {
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  border: 2px solid #3a3a3a;
-  border-top-color: #d68a34;
+  border: 2px solid var(--ui-border-strong);
+  border-top-color: var(--ui-accent);
   animation: gm-rot 0.8s linear infinite;
 }
 @keyframes gm-rot {
@@ -1081,7 +1086,7 @@ onBeforeUnmount(() => {
   font-size: 1.6rem;
   line-height: 1;
   font-weight: 300;
-  color: #d68a34;
+  color: var(--ui-accent);
 }
 .gm-empty {
   width: 100%;
@@ -1093,8 +1098,8 @@ onBeforeUnmount(() => {
   gap: 8px;
   padding: 24px;
   text-align: center;
-  background: rgba(255, 255, 255, 0.02);
-  border: 1.5px dashed #3a3a3a;
+  background: color-mix(in srgb, var(--ui-wash-base) 2%, transparent);
+  border: 1.5px dashed var(--ui-border-strong);
   border-radius: 14px;
   color: #999;
   font-family: inherit;
@@ -1105,12 +1110,12 @@ onBeforeUnmount(() => {
     background 0.15s ease;
 }
 .gm-empty strong {
-  color: #f2f2f2;
+  color: var(--ui-text);
   font-size: 1rem;
 }
 .gm-empty:hover:not(:disabled) {
-  border-color: #d68a34;
-  background: rgba(214, 138, 52, 0.06);
+  border-color: var(--ui-accent);
+  background: color-mix(in srgb, var(--ui-accent) 6%, transparent);
 }
 .gm-empty:disabled {
   cursor: default;
@@ -1130,8 +1135,8 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   gap: 10px;
-  background: #151515;
-  border: 1px solid #262626;
+  background: var(--ui-bg-2);
+  border: 1px solid var(--ui-surface-3);
   border-radius: 8px;
   padding: 6px 10px;
   font-size: 0.8rem;
@@ -1163,13 +1168,13 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  border: 2px dashed #d68a34;
+  border: 2px dashed var(--ui-accent);
   border-radius: 14px;
   background: rgba(20, 16, 10, 0.9);
   pointer-events: none;
 }
 .gm-drop strong {
-  color: #f2f2f2;
+  color: var(--ui-text);
   font-size: 1.05rem;
 }
 .gm-drop .gm-plus {
@@ -1184,19 +1189,20 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   gap: 14px;
-  background: #171717;
-  border: 1px solid #2b2b2b;
+  background: var(--ui-popover);
+  border: 1px solid var(--ui-border);
   border-radius: 999px;
   padding: 8px 16px;
   font-size: 0.82rem;
   font-weight: 600;
-  color: #f2f2f2;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  color: var(--ui-text);
+  box-shadow: 0 10px 30px
+    color-mix(in srgb, var(--ui-scrim-base) 50%, transparent);
 }
 .gm-toast button {
   background: none;
   border: none;
-  color: #d68a34;
+  color: var(--ui-accent);
   font: inherit;
   font-weight: 800;
   cursor: pointer;
@@ -1206,7 +1212,7 @@ onBeforeUnmount(() => {
   position: fixed;
   inset: 0;
   z-index: var(--ui-z-modal, 300);
-  background: rgba(0, 0, 0, 0.92);
+  background: color-mix(in srgb, var(--ui-scrim-base) 92%, transparent);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1229,7 +1235,8 @@ onBeforeUnmount(() => {
   max-height: calc(100vh - 130px);
   object-fit: contain;
   border-radius: 8px;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 24px 64px
+    color-mix(in srgb, var(--ui-scrim-base) 60%, transparent);
   background: #000;
 }
 .gm-figure figcaption {
@@ -1255,7 +1262,7 @@ onBeforeUnmount(() => {
 .gm-open {
   background: none;
   border: none;
-  color: #d68a34;
+  color: var(--ui-accent);
   font: inherit;
   font-size: 0.78rem;
   font-weight: 700;
@@ -1269,8 +1276,8 @@ onBeforeUnmount(() => {
   padding: 0;
   overflow: hidden;
   text-align: left;
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px dashed #3a3a3a;
+  background: color-mix(in srgb, var(--ui-wash-base) 2%, transparent);
+  border: 1px dashed var(--ui-border-strong);
   border-radius: 12px;
   color: #999;
   font-family: inherit;
@@ -1293,10 +1300,10 @@ onBeforeUnmount(() => {
   flex-direction: column;
   gap: 5px;
   padding: 10px 12px 12px;
-  border-top: 1px dashed #2b2b2b;
+  border-top: 1px dashed var(--ui-border);
 }
 .gm-add-body strong {
-  color: #f2f2f2;
+  color: var(--ui-text);
   font-size: 0.84rem;
   font-weight: 600;
 }
@@ -1308,8 +1315,8 @@ onBeforeUnmount(() => {
   color: #777;
 }
 .gm-add-card:hover:not(:disabled) {
-  border-color: #d68a34;
-  background: rgba(214, 138, 52, 0.06);
+  border-color: var(--ui-accent);
+  background: color-mix(in srgb, var(--ui-accent) 6%, transparent);
 }
 .gm-add-card:disabled {
   cursor: default;
@@ -1324,15 +1331,15 @@ onBeforeUnmount(() => {
   height: 44px;
   border-radius: 50%;
   border: 1px solid #333;
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--ui-wash-base) 6%, transparent);
   color: #fff;
   font-size: 1.6rem;
   line-height: 1;
   cursor: pointer;
 }
 .gm-nav:hover {
-  background: #d68a34;
-  color: #14100a;
+  background: var(--ui-accent);
+  color: var(--ui-on-accent);
 }
 
 @keyframes shimmer {

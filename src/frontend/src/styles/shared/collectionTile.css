@@ -15,7 +15,8 @@
 
 .collection-card-wrap:hover .collection-card {
   transform: scale(1.07) translateY(-4px);
-  box-shadow: 0 24px 56px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 24px 56px
+    color-mix(in srgb, var(--ui-scrim-base) 50%, transparent);
 }
 
 .card-actions {
@@ -56,7 +57,7 @@
 
 .card-actions button:hover,
 .card-actions button.on {
-  color: #d68a34;
+  color: var(--ui-accent);
 }
 
 .pin-badge {
@@ -71,7 +72,7 @@
   border-radius: 50%;
   background: rgba(20, 20, 20, 0.8);
   backdrop-filter: blur(4px);
-  color: #d68a34;
+  color: var(--ui-accent);
 }
 
 .collection-card-wrap[draggable="true"] {
@@ -79,12 +80,12 @@
 }
 
 .collection-card-wrap.drop-target .collection-card {
-  outline: 2px dashed #d68a34;
+  outline: 2px dashed var(--ui-accent);
   outline-offset: 3px;
 }
 
 .card-actions button[title^="Delete"]:hover {
-  color: #e57373;
+  color: var(--ui-error);
 }
 
 .desc {
@@ -101,7 +102,7 @@
   aspect-ratio: 2 / 3;
   border-radius: 10px;
   overflow: hidden;
-  background: #1a1a1a;
+  background: var(--ui-surface);
 }
 
 .cover-grid {
@@ -117,11 +118,11 @@
   background-size: cover;
   background-repeat: no-repeat;
   background-position: center;
-  background-color: #1c1c1c;
+  background-color: var(--ui-surface);
 }
 
 .cover-cell.empty {
-  background-color: #161616;
+  background-color: var(--ui-popover);
 }
 
 .smart-badge {
@@ -137,7 +138,7 @@
   border-radius: 999px;
   background: rgba(20, 20, 20, 0.8);
   backdrop-filter: blur(4px);
-  color: #d68a34;
+  color: var(--ui-accent);
 }
 
 .card-info {
@@ -158,7 +159,7 @@
   display: flex;
   gap: 8px;
   font-size: 12px;
-  color: #9c9c9c;
+  color: var(--ui-dim);
 }
 
 .parent-eyebrow {

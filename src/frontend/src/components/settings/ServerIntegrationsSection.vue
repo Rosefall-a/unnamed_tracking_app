@@ -174,7 +174,7 @@ async function save() {
 }
 .grid input {
   background: #111;
-  border: 1px solid #3a3a3a;
+  border: 1px solid var(--ui-border-strong);
   border-radius: 8px;
   color: #fff;
   padding: 10px;
@@ -182,7 +182,7 @@ async function save() {
 }
 .grid input:focus {
   outline: none;
-  border-color: #d68a34;
+  border-color: var(--ui-accent);
 }
 h2 {
   margin: 0;
@@ -208,7 +208,7 @@ h2 {
 }
 .proxy-section label input {
   background: #111;
-  border: 1px solid #3a3a3a;
+  border: 1px solid var(--ui-border-strong);
   border-radius: 8px;
   color: #fff;
   padding: 10px;
@@ -216,7 +216,7 @@ h2 {
 }
 button {
   align-self: flex-start;
-  background: #d68a34;
+  background: var(--ui-accent);
   border: 0;
   border-radius: 8px;
   padding: 10px 14px;
@@ -227,10 +227,10 @@ button:disabled {
   opacity: 0.6;
 }
 .error {
-  color: #fca5a5;
+  color: var(--ui-error-text);
 }
 .success {
-  color: #86efac;
+  color: var(--ui-good-text);
 }
 @media (max-width: 760px) {
   .grid {

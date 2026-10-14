@@ -2450,7 +2450,7 @@ function cardsInRow(rowIndex: number): Game[] {
 .library {
   position: relative;
   font-family: system-ui, sans-serif;
-  background: #0d0d0d;
+  background: var(--ui-bg);
   min-height: 100vh;
   color: #fff;
   overflow-x: hidden;
@@ -2486,23 +2486,23 @@ function cardsInRow(rowIndex: number): Game[] {
   }
 }
 .library {
-  --bg: #0d0d0d;
-  --surface: #1a1a1a;
-  --surface-2: #222222;
-  --border: #2b2b2b;
-  --border-soft: #202020;
-  --accent: #d68a34;
-  --accent-soft: rgba(214, 138, 52, 0.16);
-  --accent-line: rgba(214, 138, 52, 0.4);
-  --text: #f2f2f2;
-  --text-dim: #9c9c9c;
+  --bg: var(--ui-bg);
+  --surface: var(--ui-surface);
+  --surface-2: var(--ui-surface-2);
+  --border: var(--ui-border);
+  --border-soft: var(--ui-border-soft);
+  --accent: var(--ui-accent);
+  --accent-soft: var(--ui-accent-soft);
+  --accent-line: var(--ui-accent-line);
+  --text: var(--ui-text);
+  --text-dim: var(--ui-dim);
   --text-faint: #666;
-  --good: #6fbf73;
-  --good-soft: rgba(111, 191, 115, 0.16);
-  --hold: #7ba7d9;
-  --hold-soft: rgba(123, 167, 217, 0.16);
-  --dropped: #d96f6f;
-  --dropped-soft: rgba(217, 111, 111, 0.16);
+  --good: var(--ui-good);
+  --good-soft: color-mix(in srgb, var(--ui-good) 16%, transparent);
+  --hold: var(--ui-info);
+  --hold-soft: color-mix(in srgb, var(--ui-info) 16%, transparent);
+  --dropped: var(--ui-danger-muted);
+  --dropped-soft: color-mix(in srgb, var(--ui-danger-muted) 16%, transparent);
   --plan: #9d8cd9;
   --plan-soft: rgba(157, 140, 217, 0.16);
 }
@@ -2530,7 +2530,7 @@ function cardsInRow(rowIndex: number): Game[] {
 .add-btn {
   background: var(--accent);
   border: none;
-  color: #14100a;
+  color: var(--ui-on-accent);
   border-radius: 8px;
   padding: 0 18px;
   height: 38px;
@@ -2639,7 +2639,7 @@ function cardsInRow(rowIndex: number): Game[] {
 }
 .filter-btn .count {
   background: var(--accent);
-  color: #14100a;
+  color: var(--ui-on-accent);
   border-radius: 999px;
   font-size: 0.66rem;
   font-weight: 800;
@@ -2692,11 +2692,12 @@ function cardsInRow(rowIndex: number): Game[] {
   top: calc(100% + 6px);
   left: 0;
   width: 220px;
-  background: #1a1a1a;
-  border: 1px solid #2a2a2a;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
   border-radius: 8px;
   padding: 6px;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 12px 32px
+    color-mix(in srgb, var(--ui-scrim-base) 45%, transparent);
   z-index: 20;
 }
 .recent-searches-label {
@@ -2721,7 +2722,7 @@ function cardsInRow(rowIndex: number): Game[] {
   cursor: pointer;
 }
 .recent-search-item:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--ui-wash-base) 6%, transparent);
 }
 .recent-search-remove {
   color: #666;
@@ -2730,7 +2731,7 @@ function cardsInRow(rowIndex: number): Game[] {
   border-radius: 4px;
 }
 .recent-search-remove:hover {
-  color: #fca5a5;
+  color: var(--ui-error-text);
 }
 .select-button-wrap,
 .presets-wrap {
@@ -2741,11 +2742,12 @@ function cardsInRow(rowIndex: number): Game[] {
   top: calc(100% + 6px);
   left: 0;
   width: 220px;
-  background: #1a1a1a;
-  border: 1px solid #2a2a2a;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
   border-radius: 8px;
   padding: 6px;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 12px 32px
+    color-mix(in srgb, var(--ui-scrim-base) 45%, transparent);
   z-index: 20;
 }
 .preset-item {
@@ -2763,7 +2765,7 @@ function cardsInRow(rowIndex: number): Game[] {
   cursor: pointer;
 }
 .preset-item:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--ui-wash-base) 6%, transparent);
 }
 .preset-remove {
   color: #666;
@@ -2772,7 +2774,7 @@ function cardsInRow(rowIndex: number): Game[] {
   border-radius: 4px;
 }
 .preset-remove:hover {
-  color: #fca5a5;
+  color: var(--ui-error-text);
 }
 .preset-empty {
   color: #666;
@@ -2783,9 +2785,9 @@ function cardsInRow(rowIndex: number): Game[] {
 .preset-save {
   display: block;
   width: 100%;
-  background: rgba(214, 138, 52, 0.12);
+  background: color-mix(in srgb, var(--ui-accent) 12%, transparent);
   border: none;
-  color: #d68a34;
+  color: var(--ui-accent);
   font-size: 12.5px;
   font-weight: 600;
   text-align: left;
@@ -2795,7 +2797,7 @@ function cardsInRow(rowIndex: number): Game[] {
   margin-top: 4px;
 }
 .preset-save:hover {
-  background: rgba(214, 138, 52, 0.2);
+  background: color-mix(in srgb, var(--ui-accent) 20%, transparent);
 }
 .first-use-hint {
   position: absolute;
@@ -2806,7 +2808,8 @@ function cardsInRow(rowIndex: number): Game[] {
   border: 1px solid var(--accent-line);
   border-radius: 10px;
   padding: 12px 14px;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 12px 32px
+    color-mix(in srgb, var(--ui-scrim-base) 45%, transparent);
   z-index: 20;
   display: flex;
   flex-direction: column;
@@ -2862,10 +2865,10 @@ function cardsInRow(rowIndex: number): Game[] {
 }
 .density-button:hover {
   color: var(--text);
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--ui-wash-base) 6%, transparent);
 }
 .density-button.active {
-  color: #14100a;
+  color: var(--ui-on-accent);
   background: var(--accent);
 }
 .active-filter-pills {
@@ -2879,8 +2882,8 @@ function cardsInRow(rowIndex: number): Game[] {
   display: flex;
   align-items: center;
   gap: 6px;
-  background: rgba(214, 138, 52, 0.12);
-  border: 1px solid rgba(214, 138, 52, 0.35);
+  background: color-mix(in srgb, var(--ui-accent) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ui-accent) 35%, transparent);
   color: #f0c896;
   border-radius: 999px;
   padding: 5px 10px 5px 12px;
@@ -2888,10 +2891,10 @@ function cardsInRow(rowIndex: number): Game[] {
   cursor: pointer;
 }
 .filter-pill:hover {
-  background: rgba(214, 138, 52, 0.2);
+  background: color-mix(in srgb, var(--ui-accent) 20%, transparent);
 }
 .filter-pill-x {
-  color: #d68a34;
+  color: var(--ui-accent);
   font-size: 10px;
 }
 .filter-pill-clear-all {
@@ -2949,7 +2952,7 @@ function cardsInRow(rowIndex: number): Game[] {
   padding: 8px 12px;
 }
 .filter-select:hover {
-  border-color: #4a4a4a;
+  border-color: var(--ui-border-hover);
 }
 .filter-select {
   appearance: none;
@@ -3017,7 +3020,7 @@ function cardsInRow(rowIndex: number): Game[] {
 .btn-solid {
   background: var(--accent);
   border: none;
-  color: #14100a;
+  color: var(--ui-on-accent);
   border-radius: 8px;
   padding: 0 16px;
   height: 36px;
@@ -3032,10 +3035,10 @@ function cardsInRow(rowIndex: number): Game[] {
   cursor: not-allowed;
 }
 .form-success.bulk-success {
-  color: #86efac;
+  color: var(--ui-good-text);
   font-size: 13px;
-  background: rgba(34, 197, 94, 0.1);
-  border: 1px solid rgba(34, 197, 94, 0.3);
+  background: color-mix(in srgb, var(--ui-success) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ui-success) 30%, transparent);
   border-radius: 8px;
   padding: 8px 12px;
   margin-bottom: 20px;
@@ -3045,12 +3048,12 @@ function cardsInRow(rowIndex: number): Game[] {
   height: 26px;
   border-radius: 7px;
   background: rgba(10, 10, 10, 0.8);
-  border: 1.5px solid rgba(255, 255, 255, 0.45);
+  border: 1.5px solid color-mix(in srgb, var(--ui-wash-base) 45%, transparent);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  color: var(--accent, #d68a34);
+  color: var(--accent, var(--ui-accent));
   font-size: 0.85rem;
   font-weight: 800;
   position: absolute;
@@ -3059,9 +3062,9 @@ function cardsInRow(rowIndex: number): Game[] {
   z-index: 4;
 }
 .select-checkbox.checked {
-  background: var(--accent, #d68a34);
-  border-color: var(--accent, #d68a34);
-  color: #14100a;
+  background: var(--accent, var(--ui-accent));
+  border-color: var(--accent, var(--ui-accent));
+  color: var(--ui-on-accent);
 }
 .advanced-panel {
   display: grid;
@@ -3099,7 +3102,7 @@ function cardsInRow(rowIndex: number): Game[] {
   cursor: pointer;
 }
 .tag-chip:hover {
-  border-color: #4a4a4a;
+  border-color: var(--ui-border-hover);
 }
 .tag-chip.active {
   background: var(--accent-soft);
@@ -3131,7 +3134,7 @@ function cardsInRow(rowIndex: number): Game[] {
   align-items: center;
   gap: 10px;
   padding-top: 6px;
-  border-top: 1px solid #232323;
+  border-top: 1px solid var(--ui-surface-2);
   margin-top: 4px;
 }
 .toggle-chip {
@@ -3147,7 +3150,7 @@ function cardsInRow(rowIndex: number): Game[] {
   cursor: pointer;
 }
 .toggle-chip:hover {
-  border-color: #4a4a4a;
+  border-color: var(--ui-border-hover);
 }
 .toggle-chip.active {
   color: var(--accent);
@@ -3180,7 +3183,7 @@ function cardsInRow(rowIndex: number): Game[] {
   text-align: center;
 }
 .empty-state.error {
-  color: #e57373;
+  color: var(--ui-error);
 }
 /* the first-run "library is empty" guide, which Media has no equivalent of */
 .empty-state.rich {
@@ -3664,7 +3667,7 @@ function cardsInRow(rowIndex: number): Game[] {
 }
 .preview-actions .primary-button {
   background: var(--accent);
-  color: #14100a;
+  color: var(--ui-on-accent);
 }
 .preview-actions .secondary-button {
   background: var(--surface);
@@ -3689,17 +3692,17 @@ function cardsInRow(rowIndex: number): Game[] {
   font-size: 13px;
 }
 .primary-button {
-  background: #d68a34;
+  background: var(--ui-accent);
   color: #111;
 }
 .secondary-button,
 .small-button {
-  background: rgba(255, 255, 255, 0.08);
+  background: color-mix(in srgb, var(--ui-wash-base) 8%, transparent);
   color: #fff;
 }
 .danger-button {
-  background: rgba(220, 38, 38, 0.18);
-  color: #fca5a5;
+  background: color-mix(in srgb, var(--ui-danger) 18%, transparent);
+  color: var(--ui-error-text);
 }
 .danger-button:disabled {
   opacity: 0.5;
@@ -3710,20 +3713,21 @@ function cardsInRow(rowIndex: number): Game[] {
 .confirm-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.65);
+  background: color-mix(in srgb, var(--ui-scrim-base) 65%, transparent);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 60;
 }
 .confirm-dialog {
-  background: #1a1a1a;
-  border: 1px solid #2a2a2a;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
   border-radius: 12px;
   padding: 22px;
   width: 100%;
   max-width: 360px;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 24px 64px
+    color-mix(in srgb, var(--ui-scrim-base) 60%, transparent);
 }
 .confirm-dialog h3 {
   margin: 0 0 8px;
@@ -3734,7 +3738,7 @@ function cardsInRow(rowIndex: number): Game[] {
   font-size: 14px;
 }
 .confirm-error {
-  color: #fca5a5;
+  color: var(--ui-error-text);
   font-size: 13px;
   margin-bottom: 12px;
 }

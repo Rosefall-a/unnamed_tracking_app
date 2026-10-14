@@ -52,9 +52,9 @@ const summary = computed(() => {
 .art-section {
   grid-column: 1 / -1;
   min-width: 0;
-  border: 1px solid #2b2b2b;
+  border: 1px solid var(--ui-border);
   border-radius: 10px;
-  background: #1a1a1a;
+  background: var(--ui-surface);
   padding: 0 12px;
 }
 .art-section[open] {
@@ -74,14 +74,14 @@ const summary = computed(() => {
 }
 .art-section summary::after {
   content: "\25BE";
-  color: #8a8a8a;
+  color: var(--ui-dim-2);
   transition: transform 0.12s ease;
 }
 .art-section[open] summary::after {
   transform: rotate(180deg);
 }
 .art-section summary:focus-visible {
-  outline: 2px solid #d68a34;
+  outline: 2px solid var(--ui-accent);
   outline-offset: 2px;
   border-radius: 6px;
 }
@@ -92,6 +92,6 @@ const summary = computed(() => {
 .art-section-summary {
   margin-left: auto;
   font-size: 0.75rem;
-  color: #8a8a8a;
+  color: var(--ui-dim-2);
 }
 </style>

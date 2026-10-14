@@ -32,7 +32,7 @@ defineProps<{ fixed?: boolean }>();
   height: 46px;
   padding: 6px;
   background: rgba(20, 20, 20, 0.55);
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px solid color-mix(in srgb, var(--ui-wash-base) 14%, transparent);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
   border-radius: 999px;

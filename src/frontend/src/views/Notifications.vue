@@ -376,7 +376,7 @@ function toggleOpen(n: MediaNotification) {
 .empty-sub {
   margin: 0 auto;
   max-width: 460px;
-  color: #9c9c9c;
+  color: var(--ui-dim);
   font-size: 0.84rem;
   line-height: 1.6;
 }
@@ -386,12 +386,12 @@ function toggleOpen(n: MediaNotification) {
 .day-heading {
   margin: 0 0 10px;
   padding-bottom: 6px;
-  border-bottom: 1px solid #202020;
+  border-bottom: 1px solid var(--ui-border-soft);
   font-size: 0.74rem;
   font-weight: 800;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: #d68a34;
+  color: var(--ui-accent);
 }
 .list {
   display: flex;
@@ -399,18 +399,18 @@ function toggleOpen(n: MediaNotification) {
   gap: 8px;
 }
 .card {
-  background: #1a1a1a;
-  border: 1px solid #202020;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border-soft);
   border-radius: 12px;
   overflow: hidden;
   transition: border-color 0.15s ease;
 }
 .card:hover,
 .card.open {
-  border-color: rgba(214, 138, 52, 0.4);
+  border-color: var(--ui-accent-line);
 }
 .card.unread {
-  border-left: 3px solid #d68a34;
+  border-left: 3px solid var(--ui-accent);
 }
 .card-row {
   display: flex;
@@ -472,16 +472,16 @@ function toggleOpen(n: MediaNotification) {
   border-radius: 999px;
 }
 .badge.amber {
-  background: rgba(214, 138, 52, 0.16);
-  color: #d68a34;
+  background: var(--ui-accent-soft);
+  color: var(--ui-accent);
 }
 .badge.green {
-  background: rgba(111, 191, 115, 0.16);
-  color: #6fbf73;
+  background: color-mix(in srgb, var(--ui-good) 16%, transparent);
+  color: var(--ui-good);
 }
 .badge.blue {
-  background: rgba(123, 167, 217, 0.16);
-  color: #7ba7d9;
+  background: color-mix(in srgb, var(--ui-info) 16%, transparent);
+  color: var(--ui-info);
 }
 .badge.violet {
   background: rgba(157, 140, 217, 0.16);
@@ -491,13 +491,13 @@ function toggleOpen(n: MediaNotification) {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #d68a34;
+  background: var(--ui-accent);
   flex-shrink: 0;
 }
 .detail {
-  border-top: 1px solid #202020;
+  border-top: 1px solid var(--ui-border-soft);
   padding: 14px 16px 16px 70px;
-  background: #161616;
+  background: var(--ui-popover);
 }
 .detail dl {
   margin: 0 0 14px;

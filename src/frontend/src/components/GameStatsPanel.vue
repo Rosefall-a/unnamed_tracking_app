@@ -824,15 +824,15 @@ const ICONS: Record<string, string> = {
   gap: 4px;
   min-width: 0;
   padding: 16px 18px;
-  background: #141414;
-  border: 1px solid #262626;
+  background: var(--ui-bg-2);
+  border: 1px solid var(--ui-surface-3);
   border-radius: 14px;
 }
 .gs-value {
   font-size: 1.7rem;
   font-weight: 800;
   line-height: 1.15;
-  color: #f2f2f2;
+  color: var(--ui-text);
   font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
 }
@@ -840,13 +840,13 @@ const ICONS: Record<string, string> = {
   margin-top: 6px;
   height: 4px;
   border-radius: 999px;
-  background: #262626;
+  background: var(--ui-surface-3);
   overflow: hidden;
 }
 .gs-meter span {
   display: block;
   height: 100%;
-  background: #d68a34;
+  background: var(--ui-accent);
   border-radius: 999px;
 }
 
@@ -899,13 +899,17 @@ const ICONS: Record<string, string> = {
 .gs-bar-fill {
   display: block;
   width: 100%;
-  background: linear-gradient(to top, rgba(214, 138, 52, 0.55), #d68a34);
+  background: linear-gradient(
+    to top,
+    color-mix(in srgb, var(--ui-accent) 55%, transparent),
+    var(--ui-accent)
+  );
   border-radius: 6px 6px 2px 2px;
 }
 .gs-bar-n {
   font-size: 0.7rem;
   font-weight: 700;
-  color: #d68a34;
+  color: var(--ui-accent);
   font-variant-numeric: tabular-nums;
 }
 .gs-bar-label {
@@ -921,7 +925,7 @@ const ICONS: Record<string, string> = {
   gap: 12px;
   margin-bottom: 18px;
   padding-top: 24px;
-  border-top: 1px solid #262626;
+  border-top: 1px solid var(--ui-surface-3);
 }
 .gs-tl-head h2 {
   margin: 0;
@@ -944,7 +948,7 @@ const ICONS: Record<string, string> = {
   list-style: none;
   margin: 0;
   padding: 0 0 0 18px;
-  border-left: 2px solid #232323;
+  border-left: 2px solid var(--ui-surface-2);
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -963,13 +967,13 @@ const ICONS: Record<string, string> = {
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  background: #1a1a1a;
-  border: 2px solid #232323;
-  color: #9c9c9c;
+  background: var(--ui-surface);
+  border: 2px solid var(--ui-surface-2);
+  color: var(--ui-dim);
   box-sizing: border-box;
 }
 .gs-entry.achievements .gs-dot {
-  color: #d68a34;
+  color: var(--ui-accent);
 }
 .gs-entry.metadata .gs-dot {
   color: #7aa7d9;
@@ -983,8 +987,8 @@ const ICONS: Record<string, string> = {
   align-items: center;
   gap: 14px;
   padding: 11px 14px;
-  background: #141414;
-  border: 1px solid #262626;
+  background: var(--ui-bg-2);
+  border: 1px solid var(--ui-surface-3);
   border-radius: 12px;
   color: inherit;
   font: inherit;
@@ -996,10 +1000,10 @@ const ICONS: Record<string, string> = {
   cursor: default;
 }
 .gs-row:not(:disabled):hover {
-  border-color: #3a3a3a;
+  border-color: var(--ui-border-strong);
 }
 .gs-entry.open .gs-row {
-  border-color: rgba(214, 138, 52, 0.45);
+  border-color: color-mix(in srgb, var(--ui-accent) 45%, transparent);
   border-bottom-left-radius: 0;
   border-bottom-right-radius: 0;
 }
@@ -1013,7 +1017,7 @@ const ICONS: Record<string, string> = {
 .gs-row-title {
   font-size: 0.92rem;
   font-weight: 700;
-  color: #f2f2f2;
+  color: var(--ui-text);
   overflow-wrap: anywhere;
 }
 .gs-row-summary {
@@ -1050,7 +1054,7 @@ const ICONS: Record<string, string> = {
   gap: 8px;
   padding: 12px 14px 14px;
   background: #101010;
-  border: 1px solid rgba(214, 138, 52, 0.45);
+  border: 1px solid color-mix(in srgb, var(--ui-accent) 45%, transparent);
   border-top: none;
   border-radius: 0 0 12px 12px;
 }
@@ -1075,7 +1079,7 @@ const ICONS: Record<string, string> = {
   color: #666;
 }
 .gs-to {
-  color: #d68a34;
+  color: var(--ui-accent);
   overflow-wrap: anywhere;
 }
 .gs-ach {
@@ -1125,13 +1129,13 @@ const ICONS: Record<string, string> = {
   aspect-ratio: 16 / 9;
   object-fit: cover;
   border-radius: 8px;
-  border: 1px solid #262626;
+  border: 1px solid var(--ui-surface-3);
 }
 .gs-media-file {
   max-width: 220px;
   padding: 6px 10px;
   border-radius: 8px;
-  background: #1a1a1a;
+  background: var(--ui-surface);
   font-size: 0.78rem;
   color: #bbb;
   overflow: hidden;

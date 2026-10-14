@@ -389,7 +389,7 @@ function goBack() {
 /* the hero is the Game page's, with a smaller icon card in place of the poster */
 .hero {
   position: relative;
-  background-color: #1a1a1a;
+  background-color: var(--ui-surface);
   min-height: 300px;
   display: flex;
   align-items: flex-end;
@@ -408,14 +408,14 @@ function goBack() {
   background:
     linear-gradient(
       180deg,
-      rgba(13, 13, 13, 0.25) 0%,
-      rgba(13, 13, 13, 0.55) 45%,
-      #0d0d0d 96%
+      color-mix(in srgb, var(--ui-bg) 25%, transparent) 0%,
+      color-mix(in srgb, var(--ui-bg) 55%, transparent) 45%,
+      var(--ui-bg) 96%
     ),
     linear-gradient(
       90deg,
-      rgba(13, 13, 13, 0.75) 0%,
-      rgba(13, 13, 13, 0.15) 40%
+      color-mix(in srgb, var(--ui-bg) 75%, transparent) 0%,
+      color-mix(in srgb, var(--ui-bg) 15%, transparent) 40%
     );
 }
 .hero-content {
@@ -434,14 +434,15 @@ function goBack() {
   height: 120px;
   flex-shrink: 0;
   border-radius: 14px;
-  background: #222222 center / cover no-repeat;
-  box-shadow: 0 24px 48px -14px rgba(0, 0, 0, 0.8);
+  background: var(--ui-surface-2) center / cover no-repeat;
+  box-shadow: 0 24px 48px -14px
+    color-mix(in srgb, var(--ui-scrim-base) 80%, transparent);
 }
 .hero-text {
   min-width: 0;
 }
 .game-link {
-  color: #9c9c9c;
+  color: var(--ui-dim);
   font-size: 0.85rem;
   font-weight: 600;
   text-decoration: none;
@@ -455,7 +456,8 @@ function goBack() {
   line-height: 1.05;
   margin: 4px 0 10px;
   letter-spacing: -0.01em;
-  text-shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
+  text-shadow: 0 4px 24px
+    color-mix(in srgb, var(--ui-scrim-base) 50%, transparent);
 }
 .desc {
   color: #ccc;
@@ -483,7 +485,7 @@ function goBack() {
   position: fixed;
   inset: 0;
   z-index: var(--ui-z-modal);
-  background: rgba(0, 0, 0, 0.9);
+  background: color-mix(in srgb, var(--ui-scrim-base) 90%, transparent);
   display: flex;
   align-items: center;
   justify-content: center;

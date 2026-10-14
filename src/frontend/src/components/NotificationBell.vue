@@ -208,7 +208,7 @@ onBeforeUnmount(() => {
 .bell-button:hover,
 .bell-button.active {
   color: #fff;
-  background: rgba(255, 255, 255, 0.08);
+  background: color-mix(in srgb, var(--ui-wash-base) 8%, transparent);
 }
 .bell-dot {
   position: absolute;
@@ -217,8 +217,8 @@ onBeforeUnmount(() => {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #d68a34;
-  border: 2px solid #171717;
+  background: var(--ui-accent);
+  border: 2px solid var(--ui-popover);
 }
 </style>
 
@@ -231,11 +231,12 @@ onBeforeUnmount(() => {
   width: 320px;
   max-width: calc(100vw - 32px);
   box-sizing: border-box;
-  background: #171717;
-  border: 1px solid #2b2b2b;
+  background: var(--ui-popover);
+  border: 1px solid var(--ui-border);
   border-radius: 12px;
   padding: 6px;
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 16px 40px
+    color-mix(in srgb, var(--ui-scrim-base) 50%, transparent);
 }
 .bell-panel::before {
   content: "";
@@ -244,9 +245,9 @@ onBeforeUnmount(() => {
   left: var(--caret-offset, 20px);
   width: 11px;
   height: 11px;
-  background: #171717;
-  border-left: 1px solid #2b2b2b;
-  border-top: 1px solid #2b2b2b;
+  background: var(--ui-popover);
+  border-left: 1px solid var(--ui-border);
+  border-top: 1px solid var(--ui-border);
   border-radius: 2px;
   transform: rotate(45deg);
 }
@@ -269,7 +270,7 @@ onBeforeUnmount(() => {
   font-size: 11px;
   text-transform: none;
   letter-spacing: 0;
-  color: #d68a34;
+  color: var(--ui-accent);
   cursor: pointer;
 }
 .bell-panel .panel-empty {
@@ -301,7 +302,7 @@ onBeforeUnmount(() => {
   cursor: pointer;
 }
 .bell-panel .notification-row:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--ui-wash-base) 6%, transparent);
 }
 .bell-panel .notification-row.read {
   opacity: 0.55;
@@ -321,7 +322,7 @@ onBeforeUnmount(() => {
   flex-shrink: 0;
 }
 .bell-panel .notification-dot.unread {
-  background: #6fbf73;
+  background: var(--ui-good);
 }
 .bell-panel .notification-text {
   display: flex;
@@ -343,7 +344,7 @@ onBeforeUnmount(() => {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: #d68a34;
+  background: var(--ui-accent);
   flex-shrink: 0;
   margin: 5px 0 0 auto;
 }
@@ -352,13 +353,13 @@ onBeforeUnmount(() => {
   width: 100%;
   background: none;
   border: none;
-  border-top: 1px solid #232323;
+  border-top: 1px solid var(--ui-surface-2);
   margin-top: 4px;
   padding: 9px 8px 4px;
   font: inherit;
   font-size: 12px;
   font-weight: 700;
-  color: #d68a34;
+  color: var(--ui-accent);
   text-align: center;
   cursor: pointer;
 }

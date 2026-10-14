@@ -143,7 +143,7 @@ async function save() {
 }
 .policy-form input[type="number"] {
   background: #111;
-  border: 1px solid #3a3a3a;
+  border: 1px solid var(--ui-border-strong);
   border-radius: 8px;
   color: #fff;
   padding: 10px;
@@ -159,7 +159,7 @@ async function save() {
 }
 button {
   align-self: flex-start;
-  background: #d68a34;
+  background: var(--ui-accent);
   border: 0;
   border-radius: 8px;
   padding: 10px 14px;
@@ -171,10 +171,10 @@ button:disabled {
   cursor: not-allowed;
 }
 .error {
-  color: #fca5a5;
+  color: var(--ui-error-text);
 }
 .success {
-  color: #86efac;
+  color: var(--ui-good-text);
 }
 h2 {
   margin: 0;

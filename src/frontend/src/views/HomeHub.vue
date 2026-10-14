@@ -843,7 +843,7 @@ function scrollShelf(e: MouseEvent, dir: 1 | -1) {
   position: relative;
   padding: 84px 24px 24px;
   font-family: system-ui, sans-serif;
-  background: #0d0d0d;
+  background: var(--ui-bg);
   min-height: 100vh;
   color: #fff;
   overflow: hidden;
@@ -857,7 +857,7 @@ function scrollShelf(e: MouseEvent, dir: 1 | -1) {
   height: 500px;
   background: radial-gradient(
     circle,
-    rgba(214, 138, 52, 0.08) 0%,
+    color-mix(in srgb, var(--ui-accent) 8%, transparent) 0%,
     transparent 70%
   );
   z-index: 0;
@@ -884,8 +884,8 @@ function scrollShelf(e: MouseEvent, dir: 1 | -1) {
   display: flex;
   align-items: center;
   gap: 10px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid #232323;
+  background: color-mix(in srgb, var(--ui-wash-base) 4%, transparent);
+  border: 1px solid var(--ui-surface-2);
   border-radius: 999px;
   padding: 8px 16px;
   font-size: 12.5px;
@@ -898,15 +898,15 @@ function scrollShelf(e: MouseEvent, dir: 1 | -1) {
   font-weight: 700;
 }
 .weekly-recap-item {
-  color: #d68a34;
+  color: var(--ui-accent);
   font-weight: 600;
 }
 .shelf-customizer-wrap {
   position: relative;
 }
 .customize-button {
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid #2a2a2a;
+  background: color-mix(in srgb, var(--ui-wash-base) 6%, transparent);
+  border: 1px solid var(--ui-border);
   color: #ccc;
   border-radius: 8px;
   padding: 9px 14px;
@@ -915,7 +915,7 @@ function scrollShelf(e: MouseEvent, dir: 1 | -1) {
   cursor: pointer;
 }
 .customize-button:hover {
-  border-color: #3a3a3a;
+  border-color: var(--ui-border-strong);
   color: #fff;
 }
 .shelf-customizer-dropdown {
@@ -923,11 +923,12 @@ function scrollShelf(e: MouseEvent, dir: 1 | -1) {
   top: calc(100% + 6px);
   right: 0;
   width: 220px;
-  background: #1a1a1a;
-  border: 1px solid #2a2a2a;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
   border-radius: 8px;
   padding: 10px 12px;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 12px 32px
+    color-mix(in srgb, var(--ui-scrim-base) 45%, transparent);
   z-index: 20;
   display: flex;
   flex-direction: column;
@@ -943,11 +944,11 @@ function scrollShelf(e: MouseEvent, dir: 1 | -1) {
   cursor: pointer;
 }
 .shelf-choice input {
-  accent-color: #d68a34;
+  accent-color: var(--ui-accent);
 }
 .eyebrow {
   margin: 0 0 4px;
-  color: #d68a34;
+  color: var(--ui-accent);
   font-size: 13px;
   font-weight: 600;
   text-transform: uppercase;
@@ -966,8 +967,8 @@ function scrollShelf(e: MouseEvent, dir: 1 | -1) {
   margin-bottom: 24px;
 }
 .stat-card {
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid #232323;
+  background: color-mix(in srgb, var(--ui-wash-base) 3%, transparent);
+  border: 1px solid var(--ui-surface-2);
   border-radius: 10px;
   padding: 10px 16px;
   display: flex;
@@ -980,12 +981,12 @@ function scrollShelf(e: MouseEvent, dir: 1 | -1) {
 }
 .stat-card:hover {
   transform: translateY(-2px);
-  border-color: #3a3a3a;
+  border-color: var(--ui-border-strong);
 }
 .stat-value {
   font-size: 1.5rem;
   font-weight: 700;
-  color: #d68a34;
+  color: var(--ui-accent);
 }
 .stat-label {
   font-size: 12px;
@@ -1003,8 +1004,8 @@ function scrollShelf(e: MouseEvent, dir: 1 | -1) {
   flex-wrap: wrap;
   align-items: center;
   gap: 4px 20px;
-  background: rgba(214, 138, 52, 0.06);
-  border: 1px solid rgba(214, 138, 52, 0.25);
+  background: color-mix(in srgb, var(--ui-accent) 6%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ui-accent) 25%, transparent);
   border-radius: 12px;
   padding: 12px 18px;
   margin-bottom: 20px;
@@ -1013,7 +1014,7 @@ function scrollShelf(e: MouseEvent, dir: 1 | -1) {
   display: flex;
   align-items: center;
   gap: 10px;
-  color: #d68a34;
+  color: var(--ui-accent);
   font-size: 12.5px;
   font-weight: 700;
   text-transform: uppercase;
@@ -1034,7 +1035,7 @@ function scrollShelf(e: MouseEvent, dir: 1 | -1) {
   padding: 2px 4px;
 }
 .onboarding-dismiss:hover {
-  color: #d68a34;
+  color: var(--ui-accent);
 }
 .onboarding-step {
   display: flex;
@@ -1053,11 +1054,11 @@ function scrollShelf(e: MouseEvent, dir: 1 | -1) {
   align-items: center;
   justify-content: center;
   font-size: 10px;
-  color: #4ade80;
+  color: var(--ui-success-bright);
   flex-shrink: 0;
 }
 .onboarding-step.done .onboarding-check {
-  border-color: #4ade80;
+  border-color: var(--ui-success-bright);
 }
 .onboarding-text {
   display: flex;
@@ -1079,8 +1080,8 @@ function scrollShelf(e: MouseEvent, dir: 1 | -1) {
   display: flex;
   align-items: center;
   gap: 12px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid #232323;
+  background: color-mix(in srgb, var(--ui-wash-base) 3%, transparent);
+  border: 1px solid var(--ui-surface-2);
   border-radius: 12px;
   padding: 14px 18px;
   flex: 1;
@@ -1093,8 +1094,8 @@ function scrollShelf(e: MouseEvent, dir: 1 | -1) {
     transform 0.15s ease;
 }
 .random-widget:hover {
-  background: rgba(255, 255, 255, 0.06);
-  border-color: #3a3a3a;
+  background: color-mix(in srgb, var(--ui-wash-base) 6%, transparent);
+  border-color: var(--ui-border-strong);
   transform: translateY(-2px);
 }
 .backlog-widget,
@@ -1104,12 +1105,12 @@ function scrollShelf(e: MouseEvent, dir: 1 | -1) {
   color: inherit;
 }
 .on-this-day-widget:hover {
-  background: rgba(255, 255, 255, 0.06);
-  border-color: #3a3a3a;
+  background: color-mix(in srgb, var(--ui-wash-base) 6%, transparent);
+  border-color: var(--ui-border-strong);
   transform: translateY(-2px);
 }
 .widget-icon {
-  color: #d68a34;
+  color: var(--ui-accent);
   flex-shrink: 0;
 }
 .widget-title {
@@ -1137,12 +1138,12 @@ function scrollShelf(e: MouseEvent, dir: 1 | -1) {
   align-items: center;
   gap: 10px;
   padding-left: 12px;
-  border-left: 3px solid #d68a34;
+  border-left: 3px solid var(--ui-accent);
   text-decoration: none;
   cursor: pointer;
 }
 .row-title:hover h2 {
-  color: #d68a34;
+  color: var(--ui-accent);
 }
 .row-title h2 {
   margin: 0;
@@ -1151,11 +1152,11 @@ function scrollShelf(e: MouseEvent, dir: 1 | -1) {
   transition: color 0.15s ease;
 }
 .row-icon {
-  color: #d68a34;
+  color: var(--ui-accent);
   flex-shrink: 0;
 }
 .row-count {
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--ui-wash-base) 6%, transparent);
   color: #999;
   font-size: 12px;
   font-weight: 600;
@@ -1209,7 +1210,7 @@ function scrollShelf(e: MouseEvent, dir: 1 | -1) {
   pointer-events: auto;
 }
 .shelf-arrow:hover {
-  color: #d68a34;
+  color: var(--ui-accent);
 }
 .empty-row {
   color: #777;
@@ -1217,28 +1218,29 @@ function scrollShelf(e: MouseEvent, dir: 1 | -1) {
   margin: 0;
 }
 .error {
-  color: #f87171;
+  color: var(--ui-danger-bright);
 }
 .tour-backdrop,
 .confirm-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.65);
+  background: color-mix(in srgb, var(--ui-scrim-base) 65%, transparent);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 60;
 }
 .tour-dialog {
-  background: #1a1a1a;
-  border: 1px solid #2a2a2a;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
   border-radius: 14px;
   padding: 28px;
   width: 100%;
   max-width: 460px;
   max-height: 85vh;
   overflow-y: auto;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 24px 64px
+    color-mix(in srgb, var(--ui-scrim-base) 60%, transparent);
   box-sizing: border-box;
 }
 .tour-dialog h2 {
@@ -1259,7 +1261,7 @@ function scrollShelf(e: MouseEvent, dir: 1 | -1) {
 }
 .tour-step h3 {
   margin: 0 0 3px;
-  color: #d68a34;
+  color: var(--ui-accent);
   font-size: 13.5px;
 }
 .tour-step p {
@@ -1270,7 +1272,7 @@ function scrollShelf(e: MouseEvent, dir: 1 | -1) {
 }
 .tour-dismiss {
   width: 100%;
-  background: #d68a34;
+  background: var(--ui-accent);
   color: #111;
   border: none;
   border-radius: 8px;
@@ -1279,13 +1281,14 @@ function scrollShelf(e: MouseEvent, dir: 1 | -1) {
   cursor: pointer;
 }
 .confirm-dialog {
-  background: #1a1a1a;
-  border: 1px solid #2a2a2a;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
   border-radius: 12px;
   padding: 22px;
   width: 100%;
   max-width: 360px;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 24px 64px
+    color-mix(in srgb, var(--ui-scrim-base) 60%, transparent);
 }
 .confirm-dialog h3 {
   margin: 0 0 8px;
@@ -1296,7 +1299,7 @@ function scrollShelf(e: MouseEvent, dir: 1 | -1) {
   font-size: 14px;
 }
 .confirm-error {
-  color: #fca5a5;
+  color: var(--ui-error-text);
   font-size: 13px;
   margin-bottom: 12px;
 }
@@ -1314,11 +1317,11 @@ function scrollShelf(e: MouseEvent, dir: 1 | -1) {
   cursor: pointer;
 }
 .secondary-button {
-  background: rgba(255, 255, 255, 0.08);
+  background: color-mix(in srgb, var(--ui-wash-base) 8%, transparent);
   color: #fff;
 }
 .danger-button {
-  background: #dc2626;
+  background: var(--ui-danger);
   color: #fff;
 }
 .danger-button:disabled {

@@ -283,7 +283,7 @@ function openCreateForm() {
 .settings-section h2 {
   margin: 0 0 8px;
   padding-left: 12px;
-  border-left: 3px solid #d68a34;
+  border-left: 3px solid var(--ui-accent);
   font-size: 1rem;
   color: #fff;
 }
@@ -309,11 +309,11 @@ function openCreateForm() {
   text-transform: uppercase;
   letter-spacing: 0.03em;
   padding: 0 10px 8px;
-  border-bottom: 1px solid #2a2a2a;
+  border-bottom: 1px solid var(--ui-border);
 }
 .user-table td {
   padding: 10px;
-  border-bottom: 1px solid #232323;
+  border-bottom: 1px solid var(--ui-surface-2);
   color: #ccc;
 }
 .role-badge {
@@ -322,11 +322,11 @@ function openCreateForm() {
   padding: 3px 10px;
   border-radius: 999px;
   color: #999;
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--ui-wash-base) 6%, transparent);
 }
 .role-badge.admin {
-  color: #d68a34;
-  background: rgba(214, 138, 52, 0.14);
+  color: var(--ui-accent);
+  background: color-mix(in srgb, var(--ui-accent) 14%, transparent);
 }
 .joined {
   color: #999;
@@ -337,7 +337,7 @@ function openCreateForm() {
   gap: 6px;
 }
 .small-button {
-  background: rgba(255, 255, 255, 0.08);
+  background: color-mix(in srgb, var(--ui-wash-base) 8%, transparent);
   color: #fff;
   border: none;
   border-radius: 6px;
@@ -351,10 +351,10 @@ function openCreateForm() {
   cursor: not-allowed;
 }
 .small-button.danger {
-  color: #fca5a5;
+  color: var(--ui-error-text);
 }
 .secondary-button {
-  background: rgba(255, 255, 255, 0.08);
+  background: color-mix(in srgb, var(--ui-wash-base) 8%, transparent);
   color: #fff;
   border: none;
   border-radius: 8px;
@@ -368,7 +368,7 @@ function openCreateForm() {
   gap: 14px;
   margin-top: 16px;
   padding-top: 16px;
-  border-top: 1px solid #2a2a2a;
+  border-top: 1px solid var(--ui-border);
 }
 .field {
   display: flex;
@@ -379,7 +379,7 @@ function openCreateForm() {
 }
 .field input {
   background: #111;
-  border: 1px solid #3a3a3a;
+  border: 1px solid var(--ui-border-strong);
   border-radius: 8px;
   color: #fff;
   padding: 10px 12px;
@@ -387,10 +387,10 @@ function openCreateForm() {
 }
 .field input:focus {
   outline: none;
-  border-color: #d68a34;
+  border-color: var(--ui-accent);
 }
 .primary-button {
-  background: #d68a34;
+  background: var(--ui-accent);
   color: #111;
   border: none;
   border-radius: 8px;
@@ -403,29 +403,30 @@ function openCreateForm() {
   cursor: not-allowed;
 }
 .form-error {
-  color: #fca5a5;
+  color: var(--ui-error-text);
   font-size: 13px;
-  background: rgba(220, 38, 38, 0.1);
-  border: 1px solid rgba(220, 38, 38, 0.3);
+  background: color-mix(in srgb, var(--ui-danger) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ui-danger) 30%, transparent);
   border-radius: 8px;
   padding: 8px 10px;
 }
 .confirm-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.65);
+  background: color-mix(in srgb, var(--ui-scrim-base) 65%, transparent);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 60;
 }
 .confirm-dialog {
-  background: #1a1a1a;
-  border: 1px solid #2a2a2a;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
   border-radius: 12px;
   padding: 22px;
   max-width: 360px;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 24px 64px
+    color-mix(in srgb, var(--ui-scrim-base) 60%, transparent);
 }
 .confirm-dialog h3 {
   margin: 0 0 8px;
@@ -442,8 +443,8 @@ function openCreateForm() {
   gap: 10px;
 }
 .danger-button {
-  background: rgba(220, 38, 38, 0.18);
-  color: #fca5a5;
+  background: color-mix(in srgb, var(--ui-danger) 18%, transparent);
+  color: var(--ui-error-text);
   border: none;
   border-radius: 8px;
   padding: 10px 18px;

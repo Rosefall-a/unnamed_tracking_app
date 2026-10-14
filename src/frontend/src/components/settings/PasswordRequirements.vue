@@ -60,7 +60,7 @@ li {
   color: #dca1a1;
 }
 li.met {
-  color: #86efac;
+  color: var(--ui-good-text);
 }
 li span {
   display: inline-block;

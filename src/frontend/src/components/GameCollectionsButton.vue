@@ -292,9 +292,9 @@ onBeforeUnmount(() => document.removeEventListener("click", onDocumentClick));
   width: 38px;
   height: 38px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  color: #f2f2f2;
+  background: color-mix(in srgb, var(--ui-wash-base) 6%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ui-wash-base) 12%, transparent);
+  color: var(--ui-text);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -303,19 +303,19 @@ onBeforeUnmount(() => document.removeEventListener("click", onDocumentClick));
   position: relative;
 }
 .icon-btn:hover {
-  border-color: rgba(214, 138, 52, 0.4);
+  border-color: var(--ui-accent-line);
 }
 .icon-btn.active {
-  color: #d68a34;
-  border-color: rgba(214, 138, 52, 0.4);
-  background: rgba(214, 138, 52, 0.16);
+  color: var(--ui-accent);
+  border-color: var(--ui-accent-line);
+  background: var(--ui-accent-soft);
 }
 .badge-count {
   position: absolute;
   top: -4px;
   right: -4px;
-  background: #d68a34;
-  color: #14100a;
+  background: var(--ui-accent);
+  color: var(--ui-on-accent);
   font-size: 0.6rem;
   font-weight: 800;
   border-radius: 999px;
@@ -346,11 +346,12 @@ onBeforeUnmount(() => document.removeEventListener("click", onDocumentClick));
   width: 280px;
   max-width: calc(100vw - 32px);
   box-sizing: border-box;
-  background: #171717;
-  border: 1px solid #2b2b2b;
+  background: var(--ui-popover);
+  border: 1px solid var(--ui-border);
   border-radius: 14px;
   padding: 14px;
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 16px 40px
+    color-mix(in srgb, var(--ui-scrim-base) 50%, transparent);
 }
 .popover-header {
   display: flex;
@@ -359,23 +360,23 @@ onBeforeUnmount(() => document.removeEventListener("click", onDocumentClick));
   margin-bottom: 10px;
 }
 .popover-icon {
-  color: #d68a34;
+  color: var(--ui-accent);
   flex-shrink: 0;
 }
 .popover-title {
   margin: 0;
   font-size: 0.82rem;
   font-weight: 700;
-  color: #f2f2f2;
+  color: var(--ui-text);
 }
 .popover-divider {
   height: 1px;
-  background: #262626;
+  background: var(--ui-surface-3);
   margin: 10px 0;
 }
 .popover-primary-btn {
-  background: #d68a34;
-  color: #14100a;
+  background: var(--ui-accent);
+  color: var(--ui-on-accent);
   border: none;
   border-radius: 7px;
   padding: 7px 12px;
@@ -430,8 +431,8 @@ onBeforeUnmount(() => document.removeEventListener("click", onDocumentClick));
   cursor: pointer;
 }
 .list-row-actions button:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: #d68a34;
+  background: color-mix(in srgb, var(--ui-wash-base) 8%, transparent);
+  color: var(--ui-accent);
 }
 .list-option {
   display: flex;
@@ -449,7 +450,7 @@ onBeforeUnmount(() => document.removeEventListener("click", onDocumentClick));
   font-family: inherit;
 }
 .list-option:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--ui-wash-base) 6%, transparent);
 }
 .list-option:disabled {
   opacity: 0.6;
@@ -459,16 +460,16 @@ onBeforeUnmount(() => document.removeEventListener("click", onDocumentClick));
   width: 18px;
   height: 18px;
   border-radius: 5px;
-  border: 1.5px solid #3a3a3a;
+  border: 1.5px solid var(--ui-border-strong);
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  color: #14100a;
+  color: var(--ui-on-accent);
 }
 .list-option.checked .list-check {
-  background: #d68a34;
-  border-color: #d68a34;
+  background: var(--ui-accent);
+  border-color: var(--ui-accent);
 }
 .list-option-name {
   flex: 1;
@@ -495,8 +496,8 @@ onBeforeUnmount(() => document.removeEventListener("click", onDocumentClick));
 .new-list-input {
   flex: 1;
   min-width: 0;
-  background: #0d0d0d;
-  border: 1px solid #2a2a2a;
+  background: var(--ui-bg);
+  border: 1px solid var(--ui-border);
   border-radius: 7px;
   color: #eee;
   padding: 7px 9px;
@@ -505,10 +506,10 @@ onBeforeUnmount(() => document.removeEventListener("click", onDocumentClick));
 }
 .new-list-input:focus {
   outline: none;
-  border-color: rgba(214, 138, 52, 0.5);
+  border-color: color-mix(in srgb, var(--ui-accent) 50%, transparent);
 }
 .extras-error {
-  color: #e57373;
+  color: var(--ui-error);
   font-size: 0.76rem;
   margin: 4px 0;
 }
@@ -518,7 +519,7 @@ onBeforeUnmount(() => document.removeEventListener("click", onDocumentClick));
   text-align: center;
   background: none;
   border: none;
-  color: #d68a34;
+  color: var(--ui-accent);
   padding: 10px 0 0;
   margin-top: 8px;
   font-size: 0.76rem;
@@ -527,6 +528,6 @@ onBeforeUnmount(() => document.removeEventListener("click", onDocumentClick));
   font-family: inherit;
 }
 .manage-lists-btn:hover {
-  color: #eaa752;
+  color: var(--ui-accent-bright);
 }
 </style>

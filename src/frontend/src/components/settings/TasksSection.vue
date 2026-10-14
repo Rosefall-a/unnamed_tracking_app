@@ -169,7 +169,7 @@ function formatTime(epochSeconds: number | null): string {
 .settings-section h2 {
   margin: 0 0 8px;
   padding-left: 12px;
-  border-left: 3px solid #d68a34;
+  border-left: 3px solid var(--ui-accent);
   font-size: 1rem;
   color: #fff;
 }
@@ -181,7 +181,7 @@ function formatTime(epochSeconds: number | null): string {
 }
 .tile {
   background: #111;
-  border: 1px solid #2a2a2a;
+  border: 1px solid var(--ui-border);
   border-radius: 10px;
   padding: 18px 20px;
   margin-bottom: 16px;
@@ -204,14 +204,14 @@ function formatTime(epochSeconds: number | null): string {
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: #999;
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--ui-wash-base) 6%, transparent);
   padding: 3px 10px;
   border-radius: 999px;
   white-space: nowrap;
 }
 .status-badge.on {
-  color: #6fbf73;
-  background: rgba(111, 191, 115, 0.14);
+  color: var(--ui-good);
+  background: color-mix(in srgb, var(--ui-good) 14%, transparent);
 }
 .tile-desc {
   color: #999;
@@ -225,13 +225,13 @@ function formatTime(epochSeconds: number | null): string {
   margin: 0 0 14px;
 }
 .form-error {
-  color: #f87171;
+  color: var(--ui-danger-bright);
   font-size: 0.8rem;
   margin: 0 0 12px;
 }
 .secondary-button {
-  background: #1a1a1a;
-  border: 1px solid #2b2b2b;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
   color: #ccc;
   border-radius: 8px;
   padding: 9px 16px;
@@ -255,20 +255,20 @@ function formatTime(epochSeconds: number | null): string {
   align-items: center;
   gap: 8px;
   font-size: 0.85rem;
-  color: #e5e5e5;
+  color: var(--ui-text-strong);
 }
 .job-every {
   display: flex;
   align-items: center;
   gap: 8px;
   font-size: 0.85rem;
-  color: #e5e5e5;
+  color: var(--ui-text-strong);
 }
 .job-amount {
   width: 72px;
-  background: #1a1a1a;
-  color: #e5e5e5;
-  border: 1px solid #2a2a2a;
+  background: var(--ui-surface);
+  color: var(--ui-text-strong);
+  border: 1px solid var(--ui-border);
   border-radius: 8px;
   padding: 7px 10px;
   font-size: 0.82rem;
@@ -277,9 +277,9 @@ function formatTime(epochSeconds: number | null): string {
   opacity: 0.5;
 }
 .job-interval {
-  background: #1a1a1a;
-  color: #e5e5e5;
-  border: 1px solid #2a2a2a;
+  background: var(--ui-surface);
+  color: var(--ui-text-strong);
+  border: 1px solid var(--ui-border);
   border-radius: 8px;
   padding: 7px 10px;
   font-size: 0.82rem;

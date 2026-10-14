@@ -7,23 +7,40 @@
 :root {
   /* surfaces */
   --ui-bg: #0d0d0d;
+  --ui-bg-2: #141414;
   --ui-surface: #1a1a1a;
   --ui-surface-2: #222222;
+  --ui-surface-3: #262626;
   --ui-popover: #171717;
   --ui-border-soft: #202020;
   --ui-border: #2b2b2b;
+  --ui-border-strong: #3a3a3a;
+  --ui-border-hover: #4a4a4a;
   /* color */
   --ui-accent: #d68a34;
+  --ui-accent-bright: #e8a552;
   --ui-accent-soft: rgba(214, 138, 52, 0.16);
   --ui-accent-line: rgba(214, 138, 52, 0.4);
   --ui-on-accent: #14100a;
   --ui-danger: #dc2626;
+  --ui-danger-bright: #f87171;
+  --ui-danger-muted: #d96f6f;
   --ui-error: #e57373;
+  --ui-error-text: #fca5a5;
   --ui-good: #6fbf73;
+  --ui-good-text: #86efac;
+  --ui-success: #22c55e;
+  --ui-success-bright: #4ade80;
+  --ui-info: #7ba7d9;
   /* text: two tiers of muted */
   --ui-text: #f2f2f2;
+  --ui-text-strong: #e5e5e5;
   --ui-dim: #9c9c9c;
+  --ui-dim-2: #8a8a8a;
   --ui-faint: #666666;
+  /* bases for translucent washes and shadows, so a light theme can flip them */
+  --ui-wash-base: #ffffff;
+  --ui-scrim-base: #000000;
   /* shape */
   --ui-radius-control: 8px;
   --ui-radius-row: 10px;

@@ -57,22 +57,23 @@ const GROUPS = SHORTCUT_GROUPS;
 .shortcuts-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.65);
+  background: color-mix(in srgb, var(--ui-scrim-base) 65%, transparent);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 200;
 }
 .shortcuts-dialog {
-  background: #1a1a1a;
-  border: 1px solid #2a2a2a;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
   border-radius: 12px;
   padding: 22px 24px;
   width: 440px;
   max-width: calc(100vw - 40px);
   max-height: 85vh;
   overflow-y: auto;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 24px 64px
+    color-mix(in srgb, var(--ui-scrim-base) 60%, transparent);
   box-sizing: border-box;
 }
 .shortcuts-header {
@@ -121,12 +122,12 @@ const GROUPS = SHORTCUT_GROUPS;
 }
 .shortcut-row kbd {
   background: #111;
-  border: 1px solid #3a3a3a;
+  border: 1px solid var(--ui-border-strong);
   border-radius: 6px;
   padding: 3px 8px;
   font-family: ui-monospace, monospace;
   font-size: 12px;
-  color: #d68a34;
+  color: var(--ui-accent);
   white-space: normal;
   flex-shrink: 0;
   max-width: 200px;

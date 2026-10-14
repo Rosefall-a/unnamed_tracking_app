@@ -123,7 +123,7 @@ const arcs = computed(() => {
   flex-shrink: 0;
 }
 .donut-total {
-  fill: #f2f2f2;
+  fill: var(--ui-text);
   font-size: 20px;
   font-weight: 800;
 }
@@ -167,7 +167,7 @@ const arcs = computed(() => {
   font-variant-numeric: tabular-nums;
 }
 .pct {
-  color: #9c9c9c;
+  color: var(--ui-dim);
   text-align: right;
   font-variant-numeric: tabular-nums;
 }

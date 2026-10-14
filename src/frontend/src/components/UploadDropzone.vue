@@ -131,7 +131,7 @@ function onInputChange(e: Event) {
 
 <style scoped>
 .dropzone {
-  border: 2px dashed #3a3a3a;
+  border: 2px dashed var(--ui-border-strong);
   border-radius: 12px;
   padding: 36px 20px;
   display: flex;
@@ -140,25 +140,25 @@ function onInputChange(e: Event) {
   justify-content: center;
   gap: 8px;
   cursor: pointer;
-  background: rgba(255, 255, 255, 0.02);
+  background: color-mix(in srgb, var(--ui-wash-base) 2%, transparent);
   transition:
     border-color 0.15s ease,
     background 0.15s ease;
 }
 .dropzone:hover {
-  border-color: #d68a34;
-  background: rgba(214, 138, 52, 0.04);
+  border-color: var(--ui-accent);
+  background: color-mix(in srgb, var(--ui-accent) 4%, transparent);
 }
 .dropzone.dragging {
-  border-color: #d68a34;
-  background: rgba(214, 138, 52, 0.08);
+  border-color: var(--ui-accent);
+  background: color-mix(in srgb, var(--ui-accent) 8%, transparent);
 }
 .dropzone.uploading {
   cursor: wait;
   opacity: 0.7;
 }
 .dropzone-icon {
-  color: #d68a34;
+  color: var(--ui-accent);
 }
 .dropzone-title {
   color: #fff;

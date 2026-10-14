@@ -58,10 +58,10 @@ const max = computed(() => Math.max(1, ...props.rows.map((r) => r.value)));
   height: 100%;
   border-radius: 999px;
   min-width: 3px;
-  background: linear-gradient(90deg, #d68a34, #e8a552);
+  background: linear-gradient(90deg, var(--ui-accent), var(--ui-accent-bright));
 }
 .bar-value {
-  color: #9c9c9c;
+  color: var(--ui-dim);
   font-variant-numeric: tabular-nums;
   min-width: 2ch;
   text-align: right;

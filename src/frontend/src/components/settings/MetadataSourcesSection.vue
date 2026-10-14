@@ -2293,7 +2293,7 @@ async function toggleHltb(enabled: boolean) {
 .settings-section h2 {
   margin: 0 0 8px;
   padding-left: 12px;
-  border-left: 3px solid #d68a34;
+  border-left: 3px solid var(--ui-accent);
   font-size: 1rem;
   color: #fff;
 }
@@ -2326,7 +2326,7 @@ async function toggleHltb(enabled: boolean) {
   flex-direction: column;
   min-height: 148px;
   background: #111;
-  border: 1px solid #2a2a2a;
+  border: 1px solid var(--ui-border);
   border-radius: 8px;
   padding: 10px;
   transition:
@@ -2335,7 +2335,7 @@ async function toggleHltb(enabled: boolean) {
 }
 .source-tile:hover {
   transform: translateY(-1px);
-  border-color: #3a3a3a;
+  border-color: var(--ui-border-strong);
 }
 .source-tile.unavailable {
   opacity: 0.55;
@@ -2379,13 +2379,13 @@ async function toggleHltb(enabled: boolean) {
   letter-spacing: 0.03em;
 }
 .tile-status.connected {
-  color: #86efac;
+  color: var(--ui-good-text);
 }
 .tile-status.saved {
   color: #999;
 }
 .tile-status.error {
-  color: #fca5a5;
+  color: var(--ui-error-text);
 }
 .tile-status.disconnected {
   color: #777;
@@ -2425,7 +2425,7 @@ async function toggleHltb(enabled: boolean) {
   -webkit-line-clamp: unset;
 }
 .tile-desc.admin-note a {
-  color: #d68a34;
+  color: var(--ui-accent);
 }
 .tile-actions {
   display: flex;
@@ -2439,7 +2439,7 @@ async function toggleHltb(enabled: boolean) {
   height: 26px;
   border-radius: 50%;
   border: none;
-  background: rgba(255, 255, 255, 0.08);
+  background: color-mix(in srgb, var(--ui-wash-base) 8%, transparent);
   color: #ccc;
   display: flex;
   align-items: center;
@@ -2451,26 +2451,26 @@ async function toggleHltb(enabled: boolean) {
     color 0.15s ease;
 }
 .icon-btn:hover {
-  background: rgba(255, 255, 255, 0.16);
+  background: color-mix(in srgb, var(--ui-wash-base) 16%, transparent);
   color: #fff;
 }
 .icon-btn.active {
-  background: rgba(214, 138, 52, 0.22);
-  color: #d68a34;
+  background: color-mix(in srgb, var(--ui-accent) 22%, transparent);
+  color: var(--ui-accent);
 }
 .mini-switch {
   width: 30px;
   height: 17px;
   border-radius: 999px;
   border: none;
-  background: #3a3a3a;
+  background: var(--ui-border-strong);
   position: relative;
   cursor: pointer;
   flex-shrink: 0;
   transition: background 0.15s ease;
 }
 .mini-switch.on {
-  background: #d68a34;
+  background: var(--ui-accent);
 }
 .mini-switch:disabled {
   opacity: 0.5;
@@ -2496,9 +2496,9 @@ async function toggleHltb(enabled: boolean) {
   gap: 6px;
   width: 100%;
   margin-top: 8px;
-  background: rgba(214, 138, 52, 0.14);
-  color: #d68a34;
-  border: 1px solid rgba(214, 138, 52, 0.35);
+  background: color-mix(in srgb, var(--ui-accent) 14%, transparent);
+  color: var(--ui-accent);
+  border: 1px solid color-mix(in srgb, var(--ui-accent) 35%, transparent);
   border-radius: 6px;
   padding: 7px 10px;
   font-size: 0.76rem;
@@ -2507,7 +2507,7 @@ async function toggleHltb(enabled: boolean) {
   transition: background 0.15s ease;
 }
 .import-button:hover:not(:disabled) {
-  background: rgba(214, 138, 52, 0.24);
+  background: color-mix(in srgb, var(--ui-accent) 24%, transparent);
 }
 .import-button:disabled {
   opacity: 0.6;
@@ -2519,7 +2519,7 @@ async function toggleHltb(enabled: boolean) {
   gap: 8px;
   margin-top: 10px;
   padding-top: 10px;
-  border-top: 1px solid #232323;
+  border-top: 1px solid var(--ui-surface-2);
 }
 .tile-hint {
   color: #999;
@@ -2535,7 +2535,7 @@ async function toggleHltb(enabled: boolean) {
   line-height: 1.5;
 }
 .tile-steps a {
-  color: #d68a34;
+  color: var(--ui-accent);
 }
 .tile-steps code {
   font-size: 0.7rem;
@@ -2549,8 +2549,8 @@ async function toggleHltb(enabled: boolean) {
   color: #ccc;
 }
 .field input {
-  background: #1a1a1a;
-  border: 1px solid #3a3a3a;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border-strong);
   border-radius: 6px;
   color: #fff;
   padding: 7px 9px;
@@ -2559,30 +2559,30 @@ async function toggleHltb(enabled: boolean) {
 }
 .field input:focus {
   outline: none;
-  border-color: #d68a34;
+  border-color: var(--ui-accent);
 }
 .card-actions {
   display: flex;
   gap: 8px;
 }
 .form-error {
-  color: #fca5a5;
+  color: var(--ui-error-text);
   font-size: 12px;
-  background: rgba(220, 38, 38, 0.1);
-  border: 1px solid rgba(220, 38, 38, 0.3);
+  background: color-mix(in srgb, var(--ui-danger) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ui-danger) 30%, transparent);
   border-radius: 6px;
   padding: 6px 8px;
 }
 .form-success {
-  color: #86efac;
+  color: var(--ui-good-text);
   font-size: 12px;
-  background: rgba(34, 197, 94, 0.1);
-  border: 1px solid rgba(34, 197, 94, 0.3);
+  background: color-mix(in srgb, var(--ui-success) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ui-success) 30%, transparent);
   border-radius: 6px;
   padding: 6px 8px;
 }
 .primary-button {
-  background: #d68a34;
+  background: var(--ui-accent);
   color: #111;
   border: none;
   border-radius: 6px;
@@ -2596,7 +2596,7 @@ async function toggleHltb(enabled: boolean) {
   cursor: not-allowed;
 }
 .secondary-button {
-  background: rgba(255, 255, 255, 0.08);
+  background: color-mix(in srgb, var(--ui-wash-base) 8%, transparent);
   color: #fff;
   border: none;
   border-radius: 6px;
@@ -2606,24 +2606,25 @@ async function toggleHltb(enabled: boolean) {
   cursor: pointer;
 }
 .secondary-button:hover {
-  background: rgba(255, 255, 255, 0.14);
+  background: color-mix(in srgb, var(--ui-wash-base) 14%, transparent);
 }
 .confirm-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.65);
+  background: color-mix(in srgb, var(--ui-scrim-base) 65%, transparent);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 60;
 }
 .confirm-dialog {
-  background: #1a1a1a;
-  border: 1px solid #2a2a2a;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
   border-radius: 12px;
   padding: 22px;
   max-width: 360px;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 24px 64px
+    color-mix(in srgb, var(--ui-scrim-base) 60%, transparent);
 }
 .confirm-dialog h3 {
   margin: 0 0 8px;
@@ -2640,8 +2641,8 @@ async function toggleHltb(enabled: boolean) {
   gap: 10px;
 }
 .danger-button {
-  background: rgba(220, 38, 38, 0.18);
-  color: #fca5a5;
+  background: color-mix(in srgb, var(--ui-danger) 18%, transparent);
+  color: var(--ui-error-text);
   border: none;
   border-radius: 8px;
   padding: 10px 18px;

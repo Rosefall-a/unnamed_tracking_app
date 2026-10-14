@@ -234,7 +234,7 @@ function formatTime(epochSeconds: number): string {
 .settings-section h2 {
   margin: 0 0 8px;
   padding-left: 12px;
-  border-left: 3px solid #d68a34;
+  border-left: 3px solid var(--ui-accent);
   font-size: 1rem;
   color: #fff;
 }
@@ -249,7 +249,7 @@ function formatTime(epochSeconds: number): string {
 }
 .tile {
   background: #111;
-  border: 1px solid #2a2a2a;
+  border: 1px solid var(--ui-border);
   border-radius: 10px;
   padding: 18px 20px;
 }
@@ -265,7 +265,7 @@ function formatTime(epochSeconds: number): string {
   margin: 0 0 14px;
 }
 .form-error {
-  color: #f87171;
+  color: var(--ui-danger-bright);
   font-size: 0.8rem;
   margin: 0 0 12px;
 }
@@ -273,8 +273,8 @@ function formatTime(epochSeconds: number): string {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  background: rgba(214, 138, 52, 0.06);
-  border: 1px solid rgba(214, 138, 52, 0.25);
+  background: color-mix(in srgb, var(--ui-accent) 6%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ui-accent) 25%, transparent);
   border-radius: 8px;
   padding: 12px 14px;
   margin-bottom: 14px;
@@ -284,7 +284,7 @@ function formatTime(epochSeconds: number): string {
   justify-content: space-between;
   gap: 14px;
   font-size: 0.82rem;
-  color: #e5e5e5;
+  color: var(--ui-text-strong);
 }
 .refresh-result-row > span:last-child {
   text-align: right;
@@ -292,18 +292,18 @@ function formatTime(epochSeconds: number): string {
 .refresh-result-label {
   flex-shrink: 0;
   font-weight: 700;
-  color: #d68a34;
+  color: var(--ui-accent);
 }
 .progress-track {
   height: 8px;
   border-radius: 999px;
-  background: #1f1f1f;
+  background: var(--ui-border-soft);
   overflow: hidden;
   margin: 8px 0 6px;
 }
 .progress-fill {
   height: 100%;
-  background: #d68a34;
+  background: var(--ui-accent);
   transition: width 0.4s ease;
 }
 .progress-line {
@@ -334,7 +334,7 @@ function formatTime(epochSeconds: number): string {
   gap: 14px;
 }
 .primary-button {
-  background: #d68a34;
+  background: var(--ui-accent);
   color: #111;
   border: none;
   border-radius: 8px;
@@ -344,7 +344,7 @@ function formatTime(epochSeconds: number): string {
 }
 .refresh-secondary {
   background: transparent;
-  color: #e5e5e5;
+  color: var(--ui-text-strong);
   border: 1px solid #333;
   border-radius: 8px;
   padding: 11px 20px;
@@ -352,7 +352,7 @@ function formatTime(epochSeconds: number): string {
   cursor: pointer;
 }
 .refresh-secondary:hover:not(:disabled) {
-  border-color: rgba(214, 138, 52, 0.5);
+  border-color: color-mix(in srgb, var(--ui-accent) 50%, transparent);
 }
 .refresh-secondary:disabled {
   opacity: 0.6;

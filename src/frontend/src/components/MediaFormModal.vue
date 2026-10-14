@@ -993,15 +993,15 @@ async function remove() {
 .mf-field > span {
   font-size: 0.74rem;
   font-weight: 600;
-  color: var(--text-dim, #9c9c9c);
+  color: var(--text-dim, var(--ui-dim));
 }
 .mf-field input,
 .mf-field select,
 .mf-field textarea {
   width: 100%;
   background: var(--surface-2, #222);
-  border: 1px solid var(--border, #2b2b2b);
-  color: var(--text, #f2f2f2);
+  border: 1px solid var(--border, var(--ui-border));
+  color: var(--text, var(--ui-text));
   border-radius: 8px;
   padding: 9px 11px;
   font: inherit;
@@ -1015,7 +1015,7 @@ async function remove() {
 .mf-field select:focus,
 .mf-field textarea:focus {
   outline: none;
-  border-color: var(--accent-line, rgba(214, 138, 52, 0.4));
+  border-color: var(--accent-line, var(--ui-accent-line));
 }
 .mf-check {
   display: flex;
@@ -1026,7 +1026,7 @@ async function remove() {
   padding: 8px 0;
 }
 .mf-check input {
-  accent-color: var(--accent, #d68a34);
+  accent-color: var(--accent, var(--ui-accent));
 }
 .mf-hint {
   margin: 4px 0 10px;
@@ -1037,9 +1037,9 @@ async function remove() {
 .mf-note {
   margin: 0 0 14px;
   padding: 8px 12px;
-  border: 1px solid var(--accent-line, rgba(214, 138, 52, 0.4));
+  border: 1px solid var(--accent-line, var(--ui-accent-line));
   border-radius: 8px;
-  background: var(--accent-soft, rgba(214, 138, 52, 0.16));
+  background: var(--accent-soft, var(--ui-accent-soft));
   font-size: 0.8rem;
 }
 .mf-art {
@@ -1057,7 +1057,7 @@ async function remove() {
 }
 .mf-art-preview {
   flex: none;
-  border: 1px solid var(--border, #2b2b2b);
+  border: 1px solid var(--border, var(--ui-border));
   border-radius: 8px;
   background-color: var(--surface-2, #222);
   background-size: cover;
@@ -1089,7 +1089,7 @@ async function remove() {
   cursor: pointer;
 }
 .mf-link:hover {
-  color: var(--accent, #d68a34);
+  color: var(--accent, var(--ui-accent));
 }
 @media (max-width: 720px) {
   .mf-grid,

@@ -119,7 +119,7 @@ const emit = defineEmits<{
   aspect-ratio: 2 / 3;
   border-radius: 10px;
   overflow: hidden;
-  background: #1a1a1a;
+  background: var(--ui-surface);
   transition:
     transform 0.32s cubic-bezier(0.22, 1, 0.36, 1),
     box-shadow 0.32s cubic-bezier(0.22, 1, 0.36, 1);
@@ -127,7 +127,8 @@ const emit = defineEmits<{
 
 .item-card:hover .item-cover {
   transform: scale(1.07) translateY(-4px);
-  box-shadow: 0 24px 56px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 24px 56px
+    color-mix(in srgb, var(--ui-scrim-base) 50%, transparent);
 }
 
 .item-card.reordering:hover .item-cover {
@@ -141,7 +142,7 @@ const emit = defineEmits<{
   background-size: cover;
   background-repeat: no-repeat;
   background-position: center;
-  background-color: #1c1c1c;
+  background-color: var(--ui-surface);
 }
 
 .tile-btn {
@@ -166,7 +167,10 @@ const emit = defineEmits<{
   align-items: center;
   justify-content: space-between;
   padding: 6px;
-  background: linear-gradient(transparent, rgba(0, 0, 0, 0.85));
+  background: linear-gradient(
+    transparent,
+    color-mix(in srgb, var(--ui-scrim-base) 85%, transparent)
+  );
 }
 
 .reorder-arrows button {
@@ -174,7 +178,7 @@ const emit = defineEmits<{
   height: 26px;
   border-radius: 50%;
   border: none;
-  background: rgba(255, 255, 255, 0.14);
+  background: color-mix(in srgb, var(--ui-wash-base) 14%, transparent);
   color: #fff;
   font-size: 15px;
   cursor: pointer;
@@ -217,23 +221,23 @@ const emit = defineEmits<{
 }
 
 .pill.watching {
-  background: rgba(214, 138, 52, 0.16);
-  color: #d68a34;
+  background: var(--ui-accent-soft);
+  color: var(--ui-accent);
 }
 
 .pill.completed {
-  background: rgba(111, 191, 115, 0.16);
-  color: #6fbf73;
+  background: color-mix(in srgb, var(--ui-good) 16%, transparent);
+  color: var(--ui-good);
 }
 
 .pill.hold {
-  background: rgba(123, 167, 217, 0.16);
-  color: #7ba7d9;
+  background: color-mix(in srgb, var(--ui-info) 16%, transparent);
+  color: var(--ui-info);
 }
 
 .pill.dropped {
-  background: rgba(217, 111, 111, 0.16);
-  color: #d96f6f;
+  background: color-mix(in srgb, var(--ui-danger-muted) 16%, transparent);
+  color: var(--ui-danger-muted);
 }
 
 .pill.plan {
@@ -245,9 +249,10 @@ const emit = defineEmits<{
   left: 8px;
   top: 8px;
   z-index: 2;
-  color: #d68a34;
+  color: var(--ui-accent);
   font-size: 14px;
-  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
+  text-shadow: 0 1px 4px
+    color-mix(in srgb, var(--ui-scrim-base) 80%, transparent);
 }
 
 .tile-actions {
@@ -273,11 +278,11 @@ const emit = defineEmits<{
 }
 
 .tile-btn:hover {
-  color: #e57373;
+  color: var(--ui-error);
 }
 
 .tile-btn.star:hover,
 .tile-btn.on {
-  color: #d68a34;
+  color: var(--ui-accent);
 }
 </style>

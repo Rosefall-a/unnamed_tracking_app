@@ -1,7 +1,7 @@
 .detail {
   min-height: 100vh;
-  background: #0d0d0d;
-  color: #f2f2f2;
+  background: var(--ui-bg);
+  color: var(--ui-text);
   font-family: system-ui, sans-serif;
   position: relative;
 }
@@ -10,7 +10,7 @@
 .error-state {
   display: flex;
   flex-direction: column;
-  color: #9c9c9c;
+  color: var(--ui-dim);
 }
 
 .loading-text {
@@ -34,7 +34,7 @@
   gap: 18px 24px;
   margin-bottom: 24px;
   padding-bottom: 24px;
-  border-bottom: 1px solid #202020;
+  border-bottom: 1px solid var(--ui-border-soft);
 }
 
 .meta-item {
@@ -53,12 +53,12 @@
 
 .meta-value {
   font-size: 0.9rem;
-  color: #f2f2f2;
+  color: var(--ui-text);
   font-variant-numeric: tabular-nums;
 }
 
 .meta-value.accent {
-  color: #d68a34;
+  color: var(--ui-accent);
   font-weight: 700;
 }
 
@@ -70,9 +70,9 @@
 }
 
 .chip {
-  background: #222222;
-  color: #9c9c9c;
-  border: 1px solid #2b2b2b;
+  background: var(--ui-surface-2);
+  color: var(--ui-dim);
+  border: 1px solid var(--ui-border);
   border-radius: 999px;
   padding: 5px 13px;
   font-size: 0.78rem;
@@ -89,15 +89,15 @@
 
 .chip.chip-link:hover,
 .chip.chip-link:focus-visible {
-  border-color: rgba(214, 138, 52, 0.6);
+  border-color: color-mix(in srgb, var(--ui-accent) 60%, transparent);
   color: #fff;
   outline: none;
 }
 
 .chip.primary {
-  background: rgba(214, 138, 52, 0.16);
-  color: #d68a34;
-  border-color: rgba(214, 138, 52, 0.4);
+  background: var(--ui-accent-soft);
+  color: var(--ui-accent);
+  border-color: var(--ui-accent-line);
 }
 
 .section-heading {
@@ -137,7 +137,7 @@
   background-origin: border-box;
   background-clip: border-box;
   background-position: center;
-  background-color: #222222;
+  background-color: var(--ui-surface-2);
   border: 1px solid transparent;
   transition: border-color 0.15s ease;
 }

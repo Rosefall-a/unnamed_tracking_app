@@ -44,7 +44,7 @@ withDefaults(
 }
 .coming-soon {
   background: #111;
-  border: 1px dashed #3a3a3a;
+  border: 1px dashed var(--ui-border-strong);
   border-radius: 10px;
   padding: 32px;
   text-align: center;
@@ -53,7 +53,7 @@ withDefaults(
   align-items: center;
 }
 .coming-soon-icon {
-  color: #3a3a3a;
+  color: var(--ui-border-strong);
   margin-bottom: 14px;
 }
 .soon-badge {
@@ -61,7 +61,7 @@ withDefaults(
   font-size: 11px;
   font-weight: 700;
   color: #999;
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--ui-wash-base) 6%, transparent);
   padding: 3px 10px;
   border-radius: 999px;
   text-transform: uppercase;
@@ -87,13 +87,13 @@ withDefaults(
 .planned-list li {
   color: #ccc;
   font-size: 0.82rem;
-  background: rgba(255, 255, 255, 0.04);
+  background: color-mix(in srgb, var(--ui-wash-base) 4%, transparent);
   border-radius: 6px;
   padding: 8px 14px;
   min-width: 260px;
 }
 .planned-list li::before {
   content: "→ ";
-  color: #d68a34;
+  color: var(--ui-accent);
 }
 </style>

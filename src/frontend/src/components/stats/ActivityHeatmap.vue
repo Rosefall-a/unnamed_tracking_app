@@ -308,7 +308,7 @@ function open(kind: string, id: string) {
   padding: 0;
   border: 0;
   border-radius: 3px;
-  background: #1c1c1c;
+  background: var(--ui-surface);
   cursor: pointer;
 }
 .heat-cell:disabled {
@@ -318,23 +318,23 @@ function open(kind: string, id: string) {
   outline: 1px solid #a8a8a8;
 }
 .heat-cell:focus-visible {
-  outline: 2px solid #d68a34;
+  outline: 2px solid var(--ui-accent);
   outline-offset: 1px;
 }
 .heat-cell.off {
   background: transparent;
 }
 .heat-cell.l1 {
-  background: rgba(214, 138, 52, 0.28);
+  background: color-mix(in srgb, var(--ui-accent) 28%, transparent);
 }
 .heat-cell.l2 {
-  background: rgba(214, 138, 52, 0.5);
+  background: color-mix(in srgb, var(--ui-accent) 50%, transparent);
 }
 .heat-cell.l3 {
-  background: rgba(214, 138, 52, 0.75);
+  background: color-mix(in srgb, var(--ui-accent) 75%, transparent);
 }
 .heat-cell.l4 {
-  background: #d68a34;
+  background: var(--ui-accent);
 }
 .heat-tip {
   position: fixed;
@@ -342,9 +342,9 @@ function open(kind: string, id: string) {
   transform: translate(-50%, calc(-100% - 8px));
   padding: 6px 10px;
   border-radius: 6px;
-  background: #222222;
-  border: 1px solid #2b2b2b;
-  color: #f2f2f2;
+  background: var(--ui-surface-2);
+  border: 1px solid var(--ui-border);
+  color: var(--ui-text);
   font-size: 0.75rem;
   font-weight: 600;
   white-space: nowrap;
@@ -358,7 +358,7 @@ function open(kind: string, id: string) {
   align-items: center;
   justify-content: center;
   padding: 16px;
-  background: rgba(0, 0, 0, 0.7);
+  background: color-mix(in srgb, var(--ui-scrim-base) 70%, transparent);
 }
 .day-dialog {
   width: min(520px, 100%);
@@ -366,10 +366,11 @@ function open(kind: string, id: string) {
   overflow-y: auto;
   padding: 18px 20px;
   border-radius: 12px;
-  background: #1a1a1a;
-  border: 1px solid #2b2b2b;
-  color: #f2f2f2;
-  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.5);
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  color: var(--ui-text);
+  box-shadow: 0 18px 50px
+    color-mix(in srgb, var(--ui-scrim-base) 50%, transparent);
 }
 .day-head {
   display: flex;
@@ -402,7 +403,7 @@ function open(kind: string, id: string) {
   background: none;
   border: 0;
   padding: 0;
-  color: #d68a34;
+  color: var(--ui-accent);
   font: inherit;
   font-weight: 700;
   cursor: pointer;

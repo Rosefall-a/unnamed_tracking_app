@@ -443,7 +443,7 @@ async function save() {
   border: 1px solid #2f2f2f;
   border-radius: 10px;
   padding: 16px;
-  background: #151515;
+  background: var(--ui-bg-2);
 }
 
 .login-panel {
@@ -457,7 +457,7 @@ async function save() {
 .grid input,
 .grid select {
   background: #111;
-  border: 1px solid #3a3a3a;
+  border: 1px solid var(--ui-border-strong);
   border-radius: 8px;
   color: #fff;
   padding: 10px;
@@ -482,7 +482,7 @@ async function save() {
 
 .providers-header button,
 button {
-  background: #d68a34;
+  background: var(--ui-accent);
   border: 0;
   border-radius: 8px;
   padding: 10px 14px;
@@ -537,8 +537,8 @@ button {
 }
 
 .move {
-  background: #252525;
-  border: 1px solid #3a3a3a;
+  background: var(--ui-surface-3);
+  border: 1px solid var(--ui-border-strong);
   color: #ddd;
   padding: 7px 10px;
 }
@@ -551,7 +551,7 @@ button {
 .remove {
   background: transparent !important;
   border: 1px solid #633 !important;
-  color: #fca5a5 !important;
+  color: var(--ui-error-text) !important;
 }
 
 .grid {
@@ -583,7 +583,7 @@ button {
   height: 40px;
   padding: 3px;
   background: #111;
-  border: 1px solid #3a3a3a;
+  border: 1px solid var(--ui-border-strong);
   border-radius: 8px;
   cursor: pointer;
 }
@@ -593,7 +593,7 @@ button {
 }
 
 .generated-input {
-  background: #202020 !important;
+  background: var(--ui-border-soft) !important;
   color: #777 !important;
   border-color: #333 !important;
   cursor: not-allowed;
@@ -627,7 +627,7 @@ button {
 }
 
 .provider-options input {
-  accent-color: #d68a34;
+  accent-color: var(--ui-accent);
 }
 
 .autostart {
@@ -648,7 +648,7 @@ button {
 }
 
 .autostart code {
-  color: #d68a34;
+  color: var(--ui-accent);
   overflow-wrap: anywhere;
 }
 
@@ -657,7 +657,7 @@ button {
 }
 
 .empty {
-  border: 1px dashed #3a3a3a;
+  border: 1px dashed var(--ui-border-strong);
   border-radius: 10px;
   padding: 24px;
   color: #888;
@@ -665,11 +665,11 @@ button {
 }
 
 .error {
-  color: #fca5a5;
+  color: var(--ui-error-text);
 }
 
 .success {
-  color: #86efac;
+  color: var(--ui-good-text);
 }
 
 button:disabled {

@@ -297,7 +297,7 @@ async function emptyGroup(kind: Kind, label: string, count: number) {
 .settings-section h2 {
   margin: 0 0 8px;
   padding-left: 12px;
-  border-left: 3px solid #d68a34;
+  border-left: 3px solid var(--ui-accent);
   font-size: 1rem;
   color: #fff;
 }
@@ -324,9 +324,9 @@ async function emptyGroup(kind: Kind, label: string, count: number) {
   color: #ccc;
 }
 .retention-select {
-  background: #1a1a1a;
-  color: #e5e5e5;
-  border: 1px solid #2a2a2a;
+  background: var(--ui-surface);
+  color: var(--ui-text-strong);
+  border: 1px solid var(--ui-border);
   border-radius: 8px;
   padding: 7px 10px;
   font-size: 0.85rem;
@@ -346,9 +346,9 @@ async function emptyGroup(kind: Kind, label: string, count: number) {
   max-width: 360px;
   box-sizing: border-box;
   margin-bottom: 18px;
-  background: #1a1a1a;
-  color: #e5e5e5;
-  border: 1px solid #2a2a2a;
+  background: var(--ui-surface);
+  color: var(--ui-text-strong);
+  border: 1px solid var(--ui-border);
   border-radius: 8px;
   padding: 8px 12px;
   font-size: 0.85rem;
@@ -357,7 +357,7 @@ async function emptyGroup(kind: Kind, label: string, count: number) {
   margin-left: 6px;
   font-size: 0.72rem;
   font-weight: 600;
-  color: #8a8a8a;
+  color: var(--ui-dim-2);
 }
 .more-button {
   margin-top: 10px;
@@ -379,8 +379,8 @@ async function emptyGroup(kind: Kind, label: string, count: number) {
   align-items: center;
   gap: 12px;
   padding: 8px 12px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid #232323;
+  background: color-mix(in srgb, var(--ui-wash-base) 3%, transparent);
+  border: 1px solid var(--ui-surface-2);
   border-radius: 8px;
   font-size: 0.82rem;
 }
@@ -396,7 +396,7 @@ async function emptyGroup(kind: Kind, label: string, count: number) {
   font-size: 0.76rem;
 }
 .secondary-button {
-  background: rgba(255, 255, 255, 0.08);
+  background: color-mix(in srgb, var(--ui-wash-base) 8%, transparent);
   color: #fff;
   border: none;
   border-radius: 8px;
@@ -406,16 +406,16 @@ async function emptyGroup(kind: Kind, label: string, count: number) {
   cursor: pointer;
 }
 .secondary-button:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.14);
+  background: color-mix(in srgb, var(--ui-wash-base) 14%, transparent);
 }
 .secondary-button:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
 .danger-button {
-  background: rgba(220, 38, 38, 0.12);
-  color: #fca5a5;
-  border: 1px solid rgba(220, 38, 38, 0.3);
+  background: color-mix(in srgb, var(--ui-danger) 12%, transparent);
+  color: var(--ui-error-text);
+  border: 1px solid color-mix(in srgb, var(--ui-danger) 30%, transparent);
   border-radius: 8px;
   padding: 6px 14px;
   font-weight: 600;
@@ -423,17 +423,17 @@ async function emptyGroup(kind: Kind, label: string, count: number) {
   cursor: pointer;
 }
 .danger-button:hover:not(:disabled) {
-  background: rgba(220, 38, 38, 0.2);
+  background: color-mix(in srgb, var(--ui-danger) 20%, transparent);
 }
 .danger-button:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
 .form-error {
-  color: #fca5a5;
+  color: var(--ui-error-text);
   font-size: 13px;
-  background: rgba(220, 38, 38, 0.1);
-  border: 1px solid rgba(220, 38, 38, 0.3);
+  background: color-mix(in srgb, var(--ui-danger) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ui-danger) 30%, transparent);
   border-radius: 8px;
   padding: 8px 10px;
   margin-bottom: 16px;

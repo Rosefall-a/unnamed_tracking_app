@@ -229,7 +229,7 @@ async function onAvatarFileChange(e: Event) {
 .settings-section h2 {
   margin: 0 0 16px;
   padding-left: 12px;
-  border-left: 3px solid #d68a34;
+  border-left: 3px solid var(--ui-accent);
   font-size: 1rem;
   color: #fff;
 }
@@ -248,7 +248,7 @@ async function onAvatarFileChange(e: Event) {
   flex-shrink: 0;
 }
 .avatar-fallback {
-  background: #d68a34;
+  background: var(--ui-accent);
   color: #111;
   display: flex;
   align-items: center;
@@ -273,7 +273,7 @@ async function onAvatarFileChange(e: Event) {
   margin-bottom: 4px;
 }
 .upload-label {
-  color: #d68a34;
+  color: var(--ui-accent);
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
@@ -300,7 +300,7 @@ form {
 }
 .field input {
   background: #111;
-  border: 1px solid #3a3a3a;
+  border: 1px solid var(--ui-border-strong);
   border-radius: 8px;
   color: #fff;
   padding: 10px 12px;
@@ -308,26 +308,26 @@ form {
 }
 .field input:focus {
   outline: none;
-  border-color: #d68a34;
+  border-color: var(--ui-accent);
 }
 .form-error {
-  color: #fca5a5;
+  color: var(--ui-error-text);
   font-size: 13px;
-  background: rgba(220, 38, 38, 0.1);
-  border: 1px solid rgba(220, 38, 38, 0.3);
+  background: color-mix(in srgb, var(--ui-danger) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ui-danger) 30%, transparent);
   border-radius: 8px;
   padding: 8px 10px;
 }
 .form-success {
-  color: #86efac;
+  color: var(--ui-good-text);
   font-size: 13px;
-  background: rgba(34, 197, 94, 0.1);
-  border: 1px solid rgba(34, 197, 94, 0.3);
+  background: color-mix(in srgb, var(--ui-success) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ui-success) 30%, transparent);
   border-radius: 8px;
   padding: 8px 10px;
 }
 .primary-button {
-  background: #d68a34;
+  background: var(--ui-accent);
   color: #111;
   border: none;
   border-radius: 8px;

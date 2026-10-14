@@ -31,7 +31,7 @@ defineEmits<{ "update:modelValue": [id: string] }>();
   flex-wrap: wrap;
   gap: 4px;
   margin: 0 0 22px;
-  border-bottom: 1px solid #2a2a2a;
+  border-bottom: 1px solid var(--ui-border);
 }
 .settings-tab {
   background: none;
@@ -52,7 +52,7 @@ defineEmits<{ "update:modelValue": [id: string] }>();
   color: #fff;
 }
 .settings-tab.active {
-  color: #d68a34;
-  border-bottom-color: #d68a34;
+  color: var(--ui-accent);
+  border-bottom-color: var(--ui-accent);
 }
 </style>

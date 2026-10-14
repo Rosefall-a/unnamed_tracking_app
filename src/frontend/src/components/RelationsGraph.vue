@@ -443,10 +443,14 @@ defineExpose({ fit, focusCurrent });
   position: relative;
   height: 440px;
   background:
-    radial-gradient(circle, rgba(255, 255, 255, 0.09) 1px, transparent 1.2px) 0
-      0 / 22px 22px,
-    #1a1a1a;
-  border: 1px solid #202020;
+    radial-gradient(
+        circle,
+        color-mix(in srgb, var(--ui-wash-base) 9%, transparent) 1px,
+        transparent 1.2px
+      )
+      0 0 / 22px 22px,
+    var(--ui-surface);
+  border: 1px solid var(--ui-border-soft);
   border-radius: 12px;
   overflow: hidden;
   cursor: grab;
@@ -479,24 +483,24 @@ defineExpose({ fit, focusCurrent });
   height: 74px;
   box-sizing: border-box;
   overflow: hidden;
-  background: #222222;
-  border: 1px solid #2b2b2b;
+  background: var(--ui-surface-2);
+  border: 1px solid var(--ui-border);
   border-radius: 8px;
   padding: 10px 12px;
   cursor: pointer;
   user-select: none;
 }
 .graph-node.current {
-  border-color: #d68a34;
-  background: rgba(214, 138, 52, 0.16);
-  box-shadow: 0 0 0 1px rgba(214, 138, 52, 0.4);
+  border-color: var(--ui-accent);
+  background: var(--ui-accent-soft);
+  box-shadow: 0 0 0 1px var(--ui-accent-line);
 }
 .graph-node-title {
   font-size: 0.84rem;
   font-weight: 700;
   margin-bottom: 6px;
   line-height: 1.25;
-  color: #f2f2f2;
+  color: var(--ui-text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -512,8 +516,8 @@ defineExpose({ fit, focusCurrent });
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: #666;
-  background: #0d0d0d;
-  border: 1px solid #2b2b2b;
+  background: var(--ui-bg);
+  border: 1px solid var(--ui-border);
   padding: 1px 6px;
   border-radius: 4px;
 }
@@ -522,8 +526,8 @@ defineExpose({ fit, focusCurrent });
   color: #666;
 }
 .graph-node.current .graph-node-type {
-  color: #d68a34;
-  border-color: rgba(214, 138, 52, 0.4);
+  color: var(--ui-accent);
+  border-color: var(--ui-accent-line);
 }
 .graph-edges {
   position: absolute;
@@ -536,7 +540,7 @@ defineExpose({ fit, focusCurrent });
 }
 .graph-edge-path {
   fill: none;
-  stroke: rgba(214, 138, 52, 0.45);
+  stroke: color-mix(in srgb, var(--ui-accent) 45%, transparent);
   stroke-width: 1.5;
   stroke-dasharray: 4 4;
 }
@@ -546,9 +550,9 @@ defineExpose({ fit, focusCurrent });
   text-transform: uppercase;
   letter-spacing: 0.05em;
   font-weight: 700;
-  color: #d68a34;
-  background: #1a1a1a;
-  border: 1px solid rgba(214, 138, 52, 0.35);
+  color: var(--ui-accent);
+  background: var(--ui-surface);
+  border: 1px solid color-mix(in srgb, var(--ui-accent) 35%, transparent);
   padding: 2px 7px;
   border-radius: 5px;
   white-space: nowrap;
@@ -566,9 +570,9 @@ defineExpose({ fit, focusCurrent });
   width: 28px;
   height: 28px;
   background: rgba(20, 20, 20, 0.85);
-  border: 1px solid #2b2b2b;
+  border: 1px solid var(--ui-border);
   border-radius: 6px;
-  color: #9c9c9c;
+  color: var(--ui-dim);
   cursor: pointer;
   font-size: 0.85rem;
   display: flex;
@@ -577,8 +581,8 @@ defineExpose({ fit, focusCurrent });
   font-family: inherit;
 }
 .graph-toolbar button:hover {
-  color: #d68a34;
-  border-color: rgba(214, 138, 52, 0.4);
+  color: var(--ui-accent);
+  border-color: var(--ui-accent-line);
 }
 .graph-hint {
   position: absolute;

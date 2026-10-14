@@ -26,7 +26,7 @@ import { SHORTCUT_GROUPS } from "../../utils/shortcuts";
 .settings-section h2 {
   margin: 0 0 8px;
   padding-left: 12px;
-  border-left: 3px solid #d68a34;
+  border-left: 3px solid var(--ui-accent);
   font-size: 1rem;
   color: #fff;
 }
@@ -56,7 +56,7 @@ h3 {
   justify-content: space-between;
   gap: 16px;
   padding: 9px 4px;
-  border-bottom: 1px solid #212121;
+  border-bottom: 1px solid var(--ui-surface-2);
 }
 .label {
   color: #ddd;
@@ -73,7 +73,7 @@ kbd {
   display: inline-block;
   padding: 3px 8px;
   border-radius: 6px;
-  border: 1px solid #3a3a3a;
+  border: 1px solid var(--ui-border-strong);
   border-bottom-width: 2px;
   background: #111;
   color: #eee;
