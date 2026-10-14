@@ -1,7 +1,7 @@
 """Every HowLongToBeat time on a game, not only the main story.
 
 Revision ID: a9c3e5b7d2f4
-Revises: e7b3c9d1a5f2
+Revises: d8a2f6b1c3e4
 """
 
 from __future__ import annotations
@@ -14,7 +14,7 @@ from alembic import op
 from src.database import migration_helpers as h
 
 revision: str = "a9c3e5b7d2f4"
-down_revision: str | None = "e7b3c9d1a5f2"
+down_revision: str | None = "d8a2f6b1c3e4"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

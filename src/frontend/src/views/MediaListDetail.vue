@@ -53,7 +53,7 @@ async function load() {
   try {
     list.value = await fetchMediaListDetail(listId.value);
   } catch (e) {
-    error.value = e instanceof Error ? e.message : "Could not load list.";
+    error.value = e instanceof Error ? e.message : "Could not load collection.";
   } finally {
     loading.value = false;
   }
@@ -114,7 +114,7 @@ async function removeItem(itemId: string) {
     list.value.itemCount -= 1;
   } catch (e) {
     error.value =
-      e instanceof Error ? e.message : "Could not remove from list.";
+      e instanceof Error ? e.message : "Could not remove from collection.";
   }
 }
 
@@ -204,7 +204,7 @@ async function onEdit(payload: {
     await load();
   } catch (e) {
     showEdit.value = false;
-    error.value = e instanceof Error ? e.message : "Could not save the list.";
+    error.value = e instanceof Error ? e.message : "Could not save the collection.";
   }
 }
 
@@ -213,8 +213,8 @@ const confirm = useConfirm();
 async function deleteList() {
   if (!list.value) return;
   const ok = await confirm({
-    message: `Delete "${list.value.name}"? This doesn't delete the titles in it, just the list.`,
-    confirmLabel: "Delete list",
+    message: `Delete "${list.value.name}"? This doesn't delete the titles in it, just the collection.`,
+    confirmLabel: "Delete collection",
     danger: true,
   });
   if (!ok) return;
@@ -223,7 +223,7 @@ async function deleteList() {
     await deleteMediaList(list.value.id);
     router.push("/media/collections");
   } catch (e) {
-    error.value = e instanceof Error ? e.message : "Could not delete list.";
+    error.value = e instanceof Error ? e.message : "Could not delete collection.";
     deletingList.value = false;
   }
 }
@@ -409,9 +409,9 @@ async function addTitle(m: PickItem) {
           :reorder-mode="reorderMode"
           :dragging="dragIndex === index"
           :cover-mark="list.coverMediaId === item.mediaId"
-          cover-mark-title="List cover"
-          star-title="Use as the list cover"
-          remove-title="Remove from list"
+          cover-mark-title="Collection cover"
+          star-title="Use as the collection cover"
+          remove-title="Remove from collection"
           :can-remove="!isSmart"
           @open="openItem(item)"
           @nudge="nudge(index, $event)"

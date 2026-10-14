@@ -12,7 +12,7 @@ import {
 import type { MovieMetadataResult } from "../services/movies";
 import type { Movie, MovieStatus } from "../types/movie";
 import {
-  formatProgressMinutes,
+  formatDuration,
   parseProgressMinutes,
 } from "../utils/watchProgress";
 import {
@@ -72,7 +72,8 @@ const deleting = ref(false);
 const error = ref<string | null>(null);
 
 const search = useMetadataSearch<MovieMetadataResult>({
-  search: searchMovieMetadata,
+  search: (query) => searchMovieMetadata(query, 8, true),
+  details: (title) => searchMovieMetadata(title, 3),
   noun: "movie",
   keyHint: "TMDB or OMDb",
 });
@@ -90,7 +91,7 @@ function loadFromMovie(movie: Movie | null | undefined) {
     progressInput:
       movie.progressMinutes === null
         ? ""
-        : formatProgressMinutes(movie.progressMinutes),
+        : formatDuration(movie.progressMinutes),
     director: movie.director ?? "",
     writer: movie.writer ?? "",
     studiosInput: movie.studios.join(", "),
@@ -150,11 +151,11 @@ const searchResults = computed(() =>
   })),
 );
 
-function pickResult(key: string) {
+async function pickResult(key: string) {
   const result = search.results.value.find(
     (r) => `${r.provider}-${r.providerId}` === key,
   );
-  if (result) applyMetadata(result);
+  if (result) applyMetadata(await search.resolve(result));
 }
 
 async function submit() {
@@ -164,7 +165,7 @@ async function submit() {
   }
   const progressMinutes = parseProgressMinutes(fields.value.progressInput);
   if (progressMinutes !== null && Number.isNaN(progressMinutes)) {
-    error.value = "Left off at: enter minutes (72) or hours:minutes (1:12).";
+    error.value = "Left off at: try 72, 1:12 or 1h 12m.";
     return;
   }
   // a position in a movie you hadn't started means you're watching it
@@ -290,12 +291,12 @@ async function remove() {
         />
       </label>
       <label class="field">
-        <span>Left off at (h:mm)</span>
+        <span>Left off at</span>
         <input
           v-model="fields.progressInput"
           type="text"
           inputmode="numeric"
-          placeholder="not started"
+          placeholder="not started, or 1h 12m"
           class="text-input"
         />
       </label>

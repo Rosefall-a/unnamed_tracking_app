@@ -19,6 +19,7 @@ import type { TVShow, TVShowStatus } from "../types/tv_show";
 import { localMediaImage } from "../utils/mediaImages";
 import MediaLibraryView from "../components/library/MediaLibraryView.vue";
 import { statusBucket, bucketToReal } from "../utils/mediaStatus";
+import { useCompletionPrompt } from "../utils/completion";
 import type {
   LibraryCardVM,
   SearchResultVM,
@@ -215,6 +216,19 @@ async function onSaveNote(id: string, note: string | null) {
 
 // No cap on episodes watched — metadata's episode count is often wrong
 // or stale, and a rewatch can genuinely outrun it too.
+const askToComplete = useCompletionPrompt();
+// the last episode watched: offer to move it to Completed
+async function offerCompleted(id: string) {
+  const show = findShow(id);
+  if (!(await askToComplete(show))) return;
+  replaceShow(
+    await updateTVShow(id, {
+      ...tvShowToInput(show),
+      status: bucketToReal("completed") as TVShowStatus,
+    }),
+  );
+}
+
 async function onAdvanceEpisode(id: string) {
   const show = findShow(id);
   const season = currentSeason(show);
@@ -234,6 +248,7 @@ async function onAdvanceEpisode(id: string) {
       }),
     );
   }
+  await offerCompleted(id);
 }
 
 async function onSaveEdit(id: string, form: EditForm) {
@@ -285,6 +300,7 @@ async function onSaveEdit(id: string, form: EditForm) {
       replaceShow(await updateSeason(id, season.id, seasonUpdates));
     }
   }
+  await offerCompleted(id);
 }
 
 async function onBulkSetStatus(ids: string[], status: string) {
@@ -317,7 +333,11 @@ async function onBulkDelete(ids: string[]) {
 async function search(
   query: string,
 ): Promise<{ results: SearchResultVM[]; providerErrors: string[] }> {
-  const { results, providerErrors } = await searchTVShowMetadata(query);
+  const { results, providerErrors } = await searchTVShowMetadata(
+    query,
+    8,
+    true,
+  );
   return {
     results: results.map((r) => ({
       title: r.title,

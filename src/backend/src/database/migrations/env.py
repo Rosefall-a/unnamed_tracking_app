@@ -21,6 +21,7 @@ from src.database.models import (
     game_checklist_item,  # noqa: F401
     game_field_change,  # noqa: F401
     game_file_item,  # noqa: F401
+    game_match,  # noqa: F401
     game_profile,  # noqa: F401
     game_profile_stat_snapshot,  # noqa: F401
     inbox_item,  # noqa: F401

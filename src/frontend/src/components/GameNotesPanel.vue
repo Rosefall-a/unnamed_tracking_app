@@ -14,6 +14,8 @@ import {
   nextTick,
 } from "vue";
 import { useSlowFlag } from "../utils/useSlowFlag";
+import GameNoteCard from "./GameNoteCard.vue";
+import { dateFormat, dates, wordLabel } from "../utils/noteDisplay";
 import { marked } from "marked";
 import DOMPurify from "dompurify";
 import AchievementPicker from "./AchievementPicker.vue";
@@ -134,39 +136,6 @@ watch(
 async function openByName(name: string) {
   const found = notes.value.find((n) => n.name === name);
   if (found) await open(found);
-}
-
-function excerpt(text: string): string {
-  return text
-    .replace(/```[\s\S]*?```/g, " ")
-    .replace(/!\[[^\]]*\]\([^)]*\)/g, "")
-    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
-    .replace(/^\s{0,3}#{1,6}\s*/gm, "")
-    .replace(/^\s*[-*+]\s+\[[ xX]\]\s*/gm, "☐ ")
-    .replace(/^\s*[-*+]\s+/gm, "• ")
-    .replace(/[*_`>~]/g, "")
-    .replace(/\n{2,}/g, "\n")
-    .trim()
-    .slice(0, 280);
-}
-const dateFormat = new Intl.DateTimeFormat(undefined, {
-  month: "short",
-  day: "numeric",
-  year: "numeric",
-});
-function when(seconds: number): string {
-  return seconds ? dateFormat.format(new Date(seconds * 1000)) : "";
-}
-function dates(n: GameNoteSummary): string {
-  const created = when(n.created_at);
-  const edited = when(n.updated_at);
-  if (!created) return edited ? `Edited ${edited}` : "";
-  return created === edited || !edited
-    ? `Created ${created}`
-    : `Created ${created} · edited ${edited}`;
-}
-function wordLabel(n: number): string {
-  return `${n.toLocaleString()} word${n === 1 ? "" : "s"}`;
 }
 
 function render(text: string): string {
@@ -776,138 +745,79 @@ onBeforeUnmount(() => document.removeEventListener("keydown", onKey));
       </button>
 
       <div v-else class="np-grid">
-        <article
+        <GameNoteCard
           v-for="n in visible"
           :key="n.name"
-          class="np-card"
-          :class="{ pinned: n.pinned }"
-          tabindex="0"
-          @click="open(n)"
-          @keydown.enter="open(n)"
+          :note="n"
+          :achievement-name="achievementName(n.linked_achievement_id)"
+          @open="open(n)"
         >
-          <header class="np-card-top">
-            <h3 class="np-card-title">{{ n.name }}</h3>
-            <div class="np-card-btns" @click.stop>
-              <button
-                type="button"
-                class="np-pin"
-                :class="{ on: n.pinned }"
-                :title="n.pinned ? 'Unpin' : 'Pin to the top'"
-                :aria-pressed="n.pinned"
-                @click="togglePin(n)"
-              >
-                <svg
-                  viewBox="0 0 24 24"
-                  width="14"
-                  height="14"
-                  stroke="currentColor"
-                  stroke-width="1.8"
-                  stroke-linejoin="round"
-                  :fill="n.pinned ? 'currentColor' : 'none'"
-                >
-                  <path
-                    d="M12 2l3 7 7 .6-5.3 4.7 1.6 7.2L12 17.8 5.7 21.5l1.6-7.2L2 9.6 9 9z"
-                  />
-                </svg>
-              </button>
-              <button
-                type="button"
-                class="np-menu-btn"
-                aria-label="More"
-                aria-haspopup="menu"
-                @click="menuFor = menuFor === n.name ? null : n.name"
-              >
-                ⋯
-              </button>
-              <ul v-if="menuFor === n.name" class="np-menu" role="menu">
-                <li>
-                  <button type="button" role="menuitem" @click="startEdit(n)">
-                    Edit
-                  </button>
-                </li>
-                <li>
-                  <button type="button" role="menuitem" @click="duplicate(n)">
-                    Duplicate
-                  </button>
-                </li>
-                <li>
-                  <button type="button" role="menuitem" @click="startMove(n)">
-                    Move to another game…
-                  </button>
-                </li>
-                <li>
-                  <button type="button" role="menuitem" @click="showHistory(n)">
-                    History
-                  </button>
-                </li>
-                <li>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    class="danger"
-                    @click="remove(n)"
-                  >
-                    Delete
-                  </button>
-                </li>
-              </ul>
-            </div>
-          </header>
-          <p class="np-card-excerpt">
-            {{ excerpt(n.preview) || "Empty note" }}
-          </p>
-          <div
-            v-if="n.tags.length || achievementName(n.linked_achievement_id)"
-            class="np-card-chips"
-          >
-            <span
-              v-if="achievementName(n.linked_achievement_id)"
-              class="np-chip ach"
+          <template #buttons>
+            <button
+              type="button"
+              class="np-pin"
+              :class="{ on: n.pinned }"
+              :title="n.pinned ? 'Unpin' : 'Pin to the top'"
+              :aria-pressed="n.pinned"
+              @click="togglePin(n)"
             >
               <svg
                 viewBox="0 0 24 24"
-                width="11"
-                height="11"
-                fill="none"
+                width="14"
+                height="14"
                 stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
+                stroke-width="1.8"
                 stroke-linejoin="round"
+                :fill="n.pinned ? 'currentColor' : 'none'"
               >
-                <path d="M8 4h8v5a4 4 0 0 1-8 0z" />
-                <path d="M8 4H5a2 2 0 0 0 0 4h1.5M16 4h3a2 2 0 0 1 0 4h-1.5" />
-                <path d="M12 13v3" />
-                <path d="M9 20h6" />
-                <path d="M10 16.5h4l.8 3.5H9.2z" />
+                <path
+                  d="M12 2l3 7 7 .6-5.3 4.7 1.6 7.2L12 17.8 5.7 21.5l1.6-7.2L2 9.6 9 9z"
+                />
               </svg>
-              {{ achievementName(n.linked_achievement_id) }}
-            </span>
-            <span v-for="t in n.tags.slice(0, 3)" :key="t" class="np-chip">{{
-              t
-            }}</span>
-            <span v-if="n.tags.length > 3" class="np-chip"
-              >+{{ n.tags.length - 3 }}</span
+            </button>
+            <button
+              type="button"
+              class="np-menu-btn"
+              aria-label="More"
+              aria-haspopup="menu"
+              @click="menuFor = menuFor === n.name ? null : n.name"
             >
-          </div>
-          <div
-            v-if="n.tasks_total"
-            class="np-progress"
-            :title="`${n.tasks_done} of ${n.tasks_total} done`"
-          >
-            <span class="np-progress-bar"
-              ><span
-                :style="{ width: `${(n.tasks_done / n.tasks_total) * 100}%` }"
-              ></span
-            ></span>
-            <span class="np-progress-n"
-              >{{ n.tasks_done }}/{{ n.tasks_total }}</span
-            >
-          </div>
-          <footer class="np-card-foot">
-            <span>{{ dates(n) }}</span>
-            <span>{{ wordLabel(n.words) }}</span>
-          </footer>
-        </article>
+              ⋯
+            </button>
+            <ul v-if="menuFor === n.name" class="np-menu" role="menu">
+              <li>
+                <button type="button" role="menuitem" @click="startEdit(n)">
+                  Edit
+                </button>
+              </li>
+              <li>
+                <button type="button" role="menuitem" @click="duplicate(n)">
+                  Duplicate
+                </button>
+              </li>
+              <li>
+                <button type="button" role="menuitem" @click="startMove(n)">
+                  Move to another game…
+                </button>
+              </li>
+              <li>
+                <button type="button" role="menuitem" @click="showHistory(n)">
+                  History
+                </button>
+              </li>
+              <li>
+                <button
+                  type="button"
+                  role="menuitem"
+                  class="danger"
+                  @click="remove(n)"
+                >
+                  Delete
+                </button>
+              </li>
+            </ul>
+          </template>
+        </GameNoteCard>
         <p v-if="!visible.length" class="np-none">No note matches that.</p>
       </div>
     </template>

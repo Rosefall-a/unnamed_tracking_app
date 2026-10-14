@@ -143,7 +143,7 @@ const listSortOptions = [
       <small v-if="titlesNote">{{ titlesNote }}</small>
     </div>
     <div class="field">
-      <span>Default list sort</span>
+      <span>Default collection sort</span>
       <SegmentedControl
         :model-value="prefs.lists_default_sort"
         :options="listSortOptions"
