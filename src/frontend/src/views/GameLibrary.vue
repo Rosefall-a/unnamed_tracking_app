@@ -275,6 +275,15 @@ const tagsFilter = ref<string[]>([]);
 const hideStatuses = ref<GameStatus[]>([]);
 const hideTags = ref<string[]>([]);
 const hidePlatforms = ref<string[]>([]);
+function toggleHiddenStatus(s: GameStatus) {
+  toggleIn(hideStatuses, s);
+}
+function toggleHiddenTag(tag: string) {
+  toggleIn(hideTags, tag);
+}
+function toggleHiddenPlatform(p: string) {
+  toggleIn(hidePlatforms, p);
+}
 function toggleIn<T>(list: { value: T[] }, item: T) {
   list.value = list.value.includes(item)
     ? list.value.filter((x) => x !== item)
@@ -1760,7 +1769,7 @@ function cardsInRow(rowIndex: number): Game[] {
               type="button"
               class="tag-chip hide-chip"
               :class="{ active: hideStatuses.includes(s as GameStatus) }"
-              @click="toggleIn(hideStatuses, s as GameStatus)"
+              @click="toggleHiddenStatus(s as GameStatus)"
             >
               {{ s }}
             </button>
@@ -1775,7 +1784,7 @@ function cardsInRow(rowIndex: number): Game[] {
               type="button"
               class="tag-chip hide-chip"
               :class="{ active: hideTags.includes(tag) }"
-              @click="toggleIn(hideTags, tag)"
+              @click="toggleHiddenTag(tag)"
             >
               {{ tag }}
             </button>
@@ -1793,7 +1802,7 @@ function cardsInRow(rowIndex: number): Game[] {
               type="button"
               class="tag-chip hide-chip"
               :class="{ active: hidePlatforms.includes(platform) }"
-              @click="toggleIn(hidePlatforms, platform)"
+              @click="toggleHiddenPlatform(platform)"
             >
               {{ platform }}
             </button>

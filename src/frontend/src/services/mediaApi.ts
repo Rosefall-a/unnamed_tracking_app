@@ -87,6 +87,8 @@ export function createMediaApi<
     filters?.formats.forEach((format) => params.append("format", format));
     if (filters?.statusBucket && filters.statusBucket !== "all")
       params.set("status_bucket", filters.statusBucket);
+    if (filters?.sort && filters.sort !== "rank")
+      params.set("sort", filters.sort);
     const response = await fetch(`${base}/list?${params}`, {
       credentials: "include",
     });

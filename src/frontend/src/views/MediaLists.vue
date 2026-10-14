@@ -57,7 +57,8 @@ async function load() {
   try {
     lists.value = await fetchMediaLists();
   } catch (e) {
-    error.value = e instanceof Error ? e.message : "Could not load collections.";
+    error.value =
+      e instanceof Error ? e.message : "Could not load collections.";
   } finally {
     loading.value = false;
   }
@@ -133,7 +134,8 @@ async function togglePin(id: string) {
     const updated = await updateMediaList(id, { pinned: !list.pinned });
     lists.value = lists.value.map((l) => (l.id === updated.id ? updated : l));
   } catch (e) {
-    error.value = e instanceof Error ? e.message : "Could not pin the collection.";
+    error.value =
+      e instanceof Error ? e.message : "Could not pin the collection.";
   }
 }
 
@@ -187,7 +189,8 @@ async function onEditSave(payload: {
     });
     lists.value = lists.value.map((l) => (l.id === updated.id ? updated : l));
   } catch (e) {
-    error.value = e instanceof Error ? e.message : "Could not save the collection.";
+    error.value =
+      e instanceof Error ? e.message : "Could not save the collection.";
   } finally {
     editingList.value = null;
   }
@@ -211,7 +214,8 @@ async function deleteList(id: string) {
     await deleteMediaList(id);
     lists.value = lists.value.filter((l) => l.id !== id);
   } catch (e) {
-    error.value = e instanceof Error ? e.message : "Could not delete collection.";
+    error.value =
+      e instanceof Error ? e.message : "Could not delete collection.";
   }
 }
 </script>
@@ -284,8 +288,7 @@ async function deleteList(id: string) {
         <p v-else-if="!filteredLists.length" class="ui-state">
           No collections yet: create one above, or use a movie/TV/anime page's
           collection button to start one. A smart collection fills itself from a
-          filter, like
-          every anime you rated 9 or higher.
+          filter, like every anime you rated 9 or higher.
         </p>
         <p v-else-if="sortBy === 'custom' && filtering" class="ui-state">
           Clear the search and filters to move collections around.

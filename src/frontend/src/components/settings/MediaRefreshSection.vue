@@ -210,9 +210,9 @@ function formatTime(epochSeconds: number): string {
       <h3>Movie details</h3>
       <p class="tile-desc">
         A movie added before its length was being saved shows no time. This
-        looks up each movie that has none and fills in only what is empty:
-        its length, and the director, genres and so on. Anything you wrote
-        or locked is never changed.
+        looks up each movie that has none and fills in only what is empty: its
+        length, and the director, genres and so on. Anything you wrote or locked
+        is never changed.
       </p>
       <div v-if="movieError" class="form-error">{{ movieError }}</div>
       <p v-if="movieResult" class="refresh-note">{{ movieResult }}</p>

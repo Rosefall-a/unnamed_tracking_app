@@ -151,7 +151,8 @@ async function loadLists() {
     membership.value = mine;
     listsLoaded.value = true;
   } catch (e) {
-    listError.value = e instanceof Error ? e.message : "Could not load collections.";
+    listError.value =
+      e instanceof Error ? e.message : "Could not load collections.";
   }
 }
 
@@ -169,7 +170,8 @@ async function toggleListMembership(listId: string) {
       membership.value = fresh;
     }
   } catch (e) {
-    listError.value = e instanceof Error ? e.message : "Could not update collection.";
+    listError.value =
+      e instanceof Error ? e.message : "Could not update collection.";
   } finally {
     addingToList.value = null;
   }
@@ -199,7 +201,8 @@ async function commitRename(l: MediaListSummary) {
     const updated = await updateMediaList(l.id, { name });
     lists.value = lists.value.map((o) => (o.id === l.id ? updated : o));
   } catch (e) {
-    listError.value = e instanceof Error ? e.message : "Could not rename collection.";
+    listError.value =
+      e instanceof Error ? e.message : "Could not rename collection.";
   }
 }
 async function useAsCover(l: MediaListSummary) {
@@ -226,7 +229,8 @@ async function removeList(l: MediaListSummary) {
     lists.value = lists.value.filter((o) => o.id !== l.id);
     membership.value = membership.value.filter((m) => m.listId !== l.id);
   } catch (e) {
-    listError.value = e instanceof Error ? e.message : "Could not delete collection.";
+    listError.value =
+      e instanceof Error ? e.message : "Could not delete collection.";
   }
 }
 
@@ -239,7 +243,8 @@ async function submitNewList() {
     newListName.value = "";
     await toggleListMembership(created.id);
   } catch (e) {
-    listError.value = e instanceof Error ? e.message : "Could not create collection.";
+    listError.value =
+      e instanceof Error ? e.message : "Could not create collection.";
   }
 }
 

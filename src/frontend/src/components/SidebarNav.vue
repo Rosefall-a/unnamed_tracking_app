@@ -43,7 +43,9 @@ function isActive(path: string) {
   return route.path === path || route.path.startsWith(`${path}/`);
 }
 
-const gamesExpanded = ref(route.path === "/games" || route.path.startsWith("/games/collections"));
+const gamesExpanded = ref(
+  route.path === "/games" || route.path.startsWith("/games/collections"),
+);
 const mediaExpanded = ref(
   isActive("/movies") ||
     isActive("/tv") ||
@@ -208,10 +210,7 @@ async function handleLogout() {
         <span class="sidebar-group-label-rule"></span>
       </div>
 
-      <div
-        class="sidebar-parent-row"
-        :class="{ active: isActive('/games') }"
-      >
+      <div class="sidebar-parent-row" :class="{ active: isActive('/games') }">
         <button
           type="button"
           class="sidebar-item sidebar-parent-link"

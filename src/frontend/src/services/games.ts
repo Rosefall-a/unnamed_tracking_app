@@ -158,11 +158,13 @@ export function mapBackendGame(raw: BackendGame): Game {
       raw.sort_title === deriveSortTitle(raw.title) ? null : raw.sort_title,
     ageRating: raw.age_rating,
     timeToBeatHours: toNumberOrNull(raw.time_to_beat_hours),
-    timeToBeatExtrasHours: toNumberOrNull(raw.time_to_beat_extras_hours),
-    timeToBeatCompletionistHours: toNumberOrNull(
-      raw.time_to_beat_completionist_hours,
+    timeToBeatExtrasHours: toNumberOrNull(
+      raw.time_to_beat_extras_hours ?? null,
     ),
-    timeToBeatAllHours: toNumberOrNull(raw.time_to_beat_all_hours),
+    timeToBeatCompletionistHours: toNumberOrNull(
+      raw.time_to_beat_completionist_hours ?? null,
+    ),
+    timeToBeatAllHours: toNumberOrNull(raw.time_to_beat_all_hours ?? null),
     region: raw.region ?? null,
     language: raw.language ?? null,
     // not stored per game: a RetroAchievements library sync is the one

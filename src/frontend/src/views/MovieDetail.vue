@@ -128,9 +128,7 @@ watch(
   () => movie.value?.progressMinutes,
   (minutes) => {
     progressInput.value =
-      minutes === null || minutes === undefined
-        ? ""
-        : formatDuration(minutes);
+      minutes === null || minutes === undefined ? "" : formatDuration(minutes);
     progressError.value = null;
   },
   { immediate: true },

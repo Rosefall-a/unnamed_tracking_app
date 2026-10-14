@@ -204,7 +204,8 @@ async function onEdit(payload: {
     await load();
   } catch (e) {
     showEdit.value = false;
-    error.value = e instanceof Error ? e.message : "Could not save the collection.";
+    error.value =
+      e instanceof Error ? e.message : "Could not save the collection.";
   }
 }
 
@@ -223,7 +224,8 @@ async function deleteList() {
     await deleteMediaList(list.value.id);
     router.push("/media/collections");
   } catch (e) {
-    error.value = e instanceof Error ? e.message : "Could not delete collection.";
+    error.value =
+      e instanceof Error ? e.message : "Could not delete collection.";
     deletingList.value = false;
   }
 }
