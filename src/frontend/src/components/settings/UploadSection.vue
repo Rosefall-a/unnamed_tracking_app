@@ -67,7 +67,7 @@ async function loadInbox() {
     pruneSelectionToCurrentItems();
   } catch (err) {
     inboxError.value =
-      err instanceof Error ? err.message : "Failed to load uploads";
+      err instanceof Error ? err.message : "Could not load uploads";
   } finally {
     loadingInbox.value = false;
   }
@@ -223,7 +223,7 @@ async function assignSelected() {
     assignTargetGameId.value = "";
   } catch (err) {
     assignError.value =
-      err instanceof Error ? err.message : "Failed to assign media";
+      err instanceof Error ? err.message : "Could not assign media";
   } finally {
     // always reload, not just on the success path, a failure partway
     // through the loop still assigned some items, so the list needs to
@@ -246,7 +246,7 @@ async function removeItem(item: InboxMediaItem) {
     await refreshTrash();
   } catch (err) {
     deleteError.value =
-      err instanceof Error ? err.message : "Failed to delete media";
+      err instanceof Error ? err.message : "Could not delete media";
   }
 }
 
@@ -264,7 +264,7 @@ async function deleteSelected() {
     }
   } catch (err) {
     deleteError.value =
-      err instanceof Error ? err.message : "Failed to delete media";
+      err instanceof Error ? err.message : "Could not delete media";
   } finally {
     // always reload, not just on the success path, see assignSelected
     await loadInbox();
@@ -302,7 +302,7 @@ async function restoreItem(item: TrashedInboxItem) {
     await refreshTrash();
   } catch (err) {
     deleteError.value =
-      err instanceof Error ? err.message : "Failed to restore media";
+      err instanceof Error ? err.message : "Could not restore media";
   }
 }
 </script>
@@ -323,7 +323,7 @@ async function restoreItem(item: TrashedInboxItem) {
       accept="image/*,video/*"
       :uploading="uploading"
       title="Drop screenshots or clips here"
-      hint="Drag and drop, or click to browse — any number at once"
+      hint="Drag and drop files here, or click to browse."
       @files-selected="onFilesSelected"
       @drop-error="onDropError"
     />

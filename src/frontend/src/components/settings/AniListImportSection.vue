@@ -46,7 +46,7 @@ async function importNow() {
 const cadenceOptions = [
   { value: "60", label: "Hourly" },
   { value: "360", label: "Every 6 hours" },
-  { value: "720", label: "Twice daily" },
+  { value: "720", label: "Every 12 hours" },
   { value: "1440", label: "Daily" },
   { value: "10080", label: "Weekly" },
 ];
@@ -66,7 +66,7 @@ onMounted(async () => {
       (o) => Number(o.value) === prefs.value.anilist_import_interval_minutes,
     );
   } catch (e) {
-    error.value = e instanceof Error ? e.message : "Failed to load settings.";
+    error.value = e instanceof Error ? e.message : "Could not load settings.";
   } finally {
     loaded.value = true;
   }
@@ -81,7 +81,7 @@ async function change(changes: Partial<Preferences>) {
     saved.value = true;
     setTimeout(() => (saved.value = false), 1500);
   } catch (e) {
-    error.value = e instanceof Error ? e.message : "Failed to save.";
+    error.value = e instanceof Error ? e.message : "Could not save.";
   }
 }
 
@@ -99,10 +99,10 @@ async function setCustomCadence(hours: number) {
 
 <template>
   <section class="settings-section">
-    <h2>AniList Import</h2>
+    <h2>AniList import</h2>
     <p class="section-hint">
-      Automatically import your public AniList anime list into this library. The
-      import only reads AniList and never changes it.
+      Imports your public AniList anime list into this library. AniList data is
+      only read.
       <span v-if="saved" class="saved">Saved</span>
     </p>
     <p v-if="error" class="error">{{ error }}</p>
@@ -112,8 +112,8 @@ async function setCustomCadence(hours: number) {
       :disabled="!loaded"
       @update:model-value="change({ anilist_import_enabled: $event })"
     >
-      <strong>Automatic import</strong>: periodically sync the public list below
-      into your anime library
+      <strong>Automatic import</strong>: imports the list below into your anime
+      library on a schedule
     </ToggleButton>
     <div class="field">
       <label for="anilist-username">AniList username</label>
@@ -148,7 +148,7 @@ async function setCustomCadence(hours: number) {
       </button>
     </div>
     <div class="field custom-field">
-      <label for="anilist-hours">Or use a custom interval (hours)</label>
+      <label for="anilist-hours">Custom interval (hours)</label>
       <input
         id="anilist-hours"
         type="number"
@@ -183,10 +183,7 @@ async function setCustomCadence(hours: number) {
       </button>
       <span v-if="importMessage" class="saved">{{ importMessage }}</span>
     </div>
-    <p class="section-hint">
-      The scheduler runs in the app background once a minute. Imports are
-      bounded so a large multi-user deployment cannot monopolize the worker.
-    </p>
+    <p class="section-hint">Imports run in the background.</p>
   </section>
 </template>
 

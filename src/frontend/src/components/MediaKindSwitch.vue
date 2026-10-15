@@ -19,7 +19,7 @@ const OPTIONS: SegmentOption[] = [
   },
   {
     value: "tv",
-    label: "TV Shows",
+    label: "TV shows",
     to: "/tv",
     icon: '<rect x="2" y="5" width="20" height="13" rx="2" /><path d="M8 21h8M12 18v3" />',
   },

@@ -3,6 +3,7 @@ import { failedRequest } from "./apiError";
 import { normalizeKind } from "../utils/achievements";
 import { createEntityCache } from "../utils/entityCache";
 import { POSTER_WIDTH, sizedAssetUrl } from "../utils/gameImages";
+import { bumpArt, withArtVersion } from "../utils/artVersion";
 import type { ContentCounts, PageOverrides } from "../utils/gamePage";
 import type {
   Achievement,
@@ -36,6 +37,9 @@ export interface BackendGame {
   parent_game_id: string | null;
   relationship_type: GameRelationshipType | null;
   time_to_beat_hours: number | string | null;
+  time_to_beat_extras_hours?: number | string | null;
+  time_to_beat_completionist_hours?: number | string | null;
+  time_to_beat_all_hours?: number | string | null;
   status: string;
   priority: string | null;
   favorite: boolean;
@@ -114,10 +118,10 @@ export function mapBackendGame(raw: BackendGame): Game {
     // every place a cover is shown is a card or a poster well under 400 px
     // wide, and the stored cover is a PNG of up to a megabyte
     coverImageUrl: sizedAssetUrl(
-      `/api/game/${raw.id}/assets/key_art`,
+      withArtVersion(`/api/game/${raw.id}/assets/key_art`, raw.id),
       POSTER_WIDTH,
     ),
-    bannerImageUrl: `/api/game/${raw.id}/assets/banner`,
+    bannerImageUrl: withArtVersion(`/api/game/${raw.id}/assets/banner`, raw.id),
     status: normalizeStatus(raw.status),
     ratingOverall: toNumberOrNull(raw.rating_overall),
     ratingStory: toNumberOrNull(raw.rating_story),
@@ -154,6 +158,13 @@ export function mapBackendGame(raw: BackendGame): Game {
       raw.sort_title === deriveSortTitle(raw.title) ? null : raw.sort_title,
     ageRating: raw.age_rating,
     timeToBeatHours: toNumberOrNull(raw.time_to_beat_hours),
+    timeToBeatExtrasHours: toNumberOrNull(
+      raw.time_to_beat_extras_hours ?? null,
+    ),
+    timeToBeatCompletionistHours: toNumberOrNull(
+      raw.time_to_beat_completionist_hours ?? null,
+    ),
+    timeToBeatAllHours: toNumberOrNull(raw.time_to_beat_all_hours ?? null),
     region: raw.region ?? null,
     language: raw.language ?? null,
     // not stored per game: a RetroAchievements library sync is the one
@@ -232,7 +243,7 @@ export async function fetchGames(): Promise<Game[]> {
     );
     if (!response.ok) {
       throw new Error(
-        `Failed to fetch games: ${response.status} ${response.statusText}`,
+        `Could not fetch games: ${response.status} ${response.statusText}`,
       );
     }
     const page: BackendGame[] = await response.json();
@@ -311,7 +322,7 @@ export async function fetchGameFieldChanges(
   });
   if (!response.ok) {
     throw new Error(
-      `Failed to fetch metadata history: ${response.status} ${response.statusText}`,
+      `Could not fetch metadata history: ${response.status} ${response.statusText}`,
     );
   }
   const raw: BackendFieldChange[] = await response.json();
@@ -335,7 +346,7 @@ export async function fetchGameAchievements(
   });
   if (!response.ok) {
     throw new Error(
-      `Failed to fetch achievements: ${response.status} ${response.statusText}`,
+      `Could not fetch achievements: ${response.status} ${response.statusText}`,
     );
   }
   const raw: BackendAchievement[] = await response.json();
@@ -374,7 +385,7 @@ export async function fetchAchievementsSummary(): Promise<
   });
   if (!response.ok) {
     throw new Error(
-      `Failed to fetch achievements summary: ${response.status} ${response.statusText}`,
+      `Could not fetch achievements summary: ${response.status} ${response.statusText}`,
     );
   }
   return await response.json();
@@ -414,7 +425,7 @@ export async function fetchGame(id: string): Promise<Game | null> {
   if (response.status === 404) return null;
   if (!response.ok) {
     throw new Error(
-      `Failed to fetch game ${id}: ${response.status} ${response.statusText}`,
+      `Could not fetch game ${id}: ${response.status} ${response.statusText}`,
     );
   }
   const raw: BackendGame = await response.json();
@@ -432,7 +443,7 @@ export async function fetchGameVariants(id: string): Promise<Game[]> {
   });
   if (!response.ok) {
     throw new Error(
-      `Failed to fetch variants for game ${id}: ${response.status} ${response.statusText}`,
+      `Could not fetch variants for game ${id}: ${response.status} ${response.statusText}`,
     );
   }
   const raw: BackendGame[] = await response.json();
@@ -450,6 +461,9 @@ export interface MetadataSearchResult {
   series: string | null;
   age_rating: string | null;
   time_to_beat_hours: number | string | null;
+  time_to_beat_extras_hours?: number | string | null;
+  time_to_beat_completionist_hours?: number | string | null;
+  time_to_beat_all_hours?: number | string | null;
   tags: string[];
   features: string[];
   links: GameLink[];
@@ -513,7 +527,8 @@ export function rankMetadataResults<T extends { title: string }>(
     .map(({ result }) => result);
 }
 
-export type RefreshMetadataResult = "updated" | "preview" | "no-match" | "error";
+export type RefreshMetadataResult =
+  "updated" | "preview" | "no-match" | "error";
 
 export interface RefreshMetadataOutcome {
   status: RefreshMetadataResult;
@@ -593,6 +608,8 @@ export async function applyGameMetadataRefresh(
   options: RefreshMetadataOptions = DEFAULT_REFRESH_OPTIONS,
 ): Promise<RefreshMetadataOutcome> {
   const raw = await requestGameMetadataRefresh(game, options, false);
+  // a refresh that saved new art replaced the files under the same addresses
+  if (raw.would_add_key_art || raw.would_add_banner) bumpArt(game.id);
   return {
     status: raw.status,
     provider: raw.provider,
@@ -678,6 +695,11 @@ export interface NewGameInput {
   source: string | null;
   ageRating: string | null;
   timeToBeatHours: number | null;
+  timeToBeatExtrasHours?: number | null;
+  timeToBeatCompletionistHours?: number | null;
+  timeToBeatAllHours?: number | null;
+  // "where I left off"; undefined leaves the saved note alone
+  resumeNote?: string | null;
   region: string | null;
   language: string | null;
   achievementsProvider: AchievementsProvider;
@@ -772,6 +794,13 @@ export async function createGame(input: NewGameInput): Promise<Game> {
       language: input.language,
       age_rating: input.ageRating,
       time_to_beat_hours: input.timeToBeatHours,
+      time_to_beat_extras_hours: input.timeToBeatExtrasHours ?? null,
+      time_to_beat_completionist_hours:
+        input.timeToBeatCompletionistHours ?? null,
+      time_to_beat_all_hours: input.timeToBeatAllHours ?? null,
+      ...(input.resumeNote !== undefined
+        ? { resume_note: input.resumeNote }
+        : {}),
       rating_overall: input.ratingOverall,
       rating_story: input.ratingStory,
       rating_gameplay: input.ratingGameplay,
@@ -779,6 +808,7 @@ export async function createGame(input: NewGameInput): Promise<Game> {
       tags: input.tags,
       features: input.features,
       links: input.links,
+      collections: input.collections,
       purchase_date: dateInputToUnixSeconds(input.ownership.purchaseDate),
       completion_date: dateInputToUnixSeconds(input.completionDate),
       purchase_price: input.ownership.price,
@@ -868,6 +898,13 @@ export async function updateGame(
     language: input.language,
     age_rating: input.ageRating,
     time_to_beat_hours: input.timeToBeatHours,
+    time_to_beat_extras_hours: input.timeToBeatExtrasHours ?? null,
+    time_to_beat_completionist_hours:
+      input.timeToBeatCompletionistHours ?? null,
+    time_to_beat_all_hours: input.timeToBeatAllHours ?? null,
+    ...(input.resumeNote !== undefined
+      ? { resume_note: input.resumeNote }
+      : {}),
     rating_overall: input.ratingOverall,
     rating_story: input.ratingStory,
     rating_gameplay: input.ratingGameplay,
@@ -1504,10 +1541,11 @@ export async function uploadGameAsset(
   if (!response.ok) {
     const message = await response.text();
     throw new Error(
-      `Failed to upload ${assetKind}: ${response.status} ${response.statusText} ${message}`,
+      `Could not upload ${assetKind}: ${response.status} ${response.statusText} ${message}`,
     );
   }
 
+  bumpArt(gameId);
   return await response.json();
 }
 
@@ -1535,6 +1573,45 @@ export async function fetchArtOptions(
   return await response.json();
 }
 
+// Changes only the fields given, for the light edit: the server leaves everything
+// else on the game as it is.
+export async function patchGame(
+  id: string,
+  fields: {
+    status?: GameStatus;
+    platform?: string | null;
+    ratingOverall?: number | null;
+  },
+): Promise<Game> {
+  if (import.meta.env.VITE_USE_MOCK_DATA === "true") {
+    const index = mockGames.findIndex((g) => g.id === id);
+    if (index === -1) throw new Error(`Game ${id} not found`);
+    mockGames[index] = {
+      ...mockGames[index],
+      ...(fields.status !== undefined && { status: fields.status }),
+      ...(fields.platform !== undefined && { platform: fields.platform }),
+      ...(fields.ratingOverall !== undefined && {
+        ratingOverall: fields.ratingOverall,
+      }),
+    };
+    return mockGames[index];
+  }
+  const body: Record<string, unknown> = {};
+  if (fields.status !== undefined)
+    body.status = denormalizeStatus(fields.status);
+  if (fields.platform !== undefined) body.platform = fields.platform;
+  if (fields.ratingOverall !== undefined)
+    body.rating_overall = fields.ratingOverall;
+  const response = await fetch(`/api/game/update/${id}`, {
+    method: "PATCH",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) throw await failedRequest(response);
+  return mapBackendGame((await response.json()) as BackendGame);
+}
+
 export async function attachGameAssetFromUrl(
   gameId: string,
   assetKind: "key_art" | "banner" | "logo" | "icon",
@@ -1553,10 +1630,11 @@ export async function attachGameAssetFromUrl(
   if (!response.ok) {
     const message = await response.text();
     throw new Error(
-      `Failed to fetch ${assetKind} from URL: ${response.status} ${response.statusText} ${message}`,
+      `Could not fetch ${assetKind} from URL: ${response.status} ${response.statusText} ${message}`,
     );
   }
 
+  bumpArt(gameId);
   return await response.json();
 }
 
@@ -1615,7 +1693,7 @@ export async function setFavorite(
   if (!response.ok) {
     const message = await response.text();
     throw new Error(
-      `Failed to update favorite: ${response.status} ${response.statusText} ${message}`,
+      `Could not update favorite: ${response.status} ${response.statusText} ${message}`,
     );
   }
 
@@ -1644,7 +1722,7 @@ export async function setResumeNote(
   if (!response.ok) {
     const message = await response.text();
     throw new Error(
-      `Failed to save resume note: ${response.status} ${response.statusText} ${message}`,
+      `Could not save resume note: ${response.status} ${response.statusText} ${message}`,
     );
   }
 
@@ -1680,7 +1758,7 @@ export async function setPlaytimeSeconds(
   if (!response.ok) {
     const message = await response.text();
     throw new Error(
-      `Failed to update playtime: ${response.status} ${response.statusText} ${message}`,
+      `Could not update playtime: ${response.status} ${response.statusText} ${message}`,
     );
   }
 
@@ -1709,7 +1787,7 @@ export async function setStatus(
   if (!response.ok) {
     const message = await response.text();
     throw new Error(
-      `Failed to update status: ${response.status} ${response.statusText} ${message}`,
+      `Could not update status: ${response.status} ${response.statusText} ${message}`,
     );
   }
 
@@ -1853,7 +1931,7 @@ export async function deleteGame(gameId: string): Promise<void> {
   if (!response.ok && response.status !== 204) {
     const message = await response.text();
     throw new Error(
-      `Failed to delete game ${gameId}: ${response.status} ${response.statusText} ${message}`,
+      `Could not delete game ${gameId}: ${response.status} ${response.statusText} ${message}`,
     );
   }
 }
@@ -1872,7 +1950,7 @@ export async function fetchGameTrash(): Promise<TrashedGame[]> {
   const response = await fetch("/api/game/trash", { credentials: "include" });
   if (!response.ok)
     throw new Error(
-      `Failed to fetch game trash: ${response.status} ${response.statusText}`,
+      `Could not fetch game trash: ${response.status} ${response.statusText}`,
     );
   return await response.json();
 }
@@ -1885,7 +1963,7 @@ export async function restoreGame(gameId: string): Promise<void> {
   if (!response.ok) {
     const message = await response.text();
     throw new Error(
-      `Failed to restore game: ${response.status} ${response.statusText} ${message}`,
+      `Could not restore game: ${response.status} ${response.statusText} ${message}`,
     );
   }
 }

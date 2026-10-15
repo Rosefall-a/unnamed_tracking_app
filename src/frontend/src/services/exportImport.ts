@@ -14,7 +14,7 @@ export async function fetchLibraryExport(): Promise<unknown> {
   });
   if (!response.ok) {
     throw new Error(
-      `Failed to export library: ${response.status} ${response.statusText}`,
+      `Could not export library: ${response.status} ${response.statusText}`,
     );
   }
   return await response.json();
@@ -34,7 +34,7 @@ export async function fetchBackupStatus(): Promise<BackupStatus> {
   });
   if (!response.ok) {
     throw new Error(
-      `Failed to fetch backup status: ${response.status} ${response.statusText}`,
+      `Could not fetch backup status: ${response.status} ${response.statusText}`,
     );
   }
   return await response.json();
@@ -50,7 +50,7 @@ export async function importLibrary(games: unknown[]): Promise<ImportResult> {
   if (!response.ok) {
     const message = await response.text();
     throw new Error(
-      `Failed to import library: ${response.status} ${response.statusText} ${message}`,
+      `Could not import library: ${response.status} ${response.statusText} ${message}`,
     );
   }
   return await response.json();
@@ -171,7 +171,7 @@ export async function fetchMediaCsv(): Promise<Blob> {
   });
   if (!response.ok) {
     throw new Error(
-      `Failed to export the CSV: ${response.status} ${response.statusText}`,
+      `Could not export the CSV: ${response.status} ${response.statusText}`,
     );
   }
   return await response.blob();

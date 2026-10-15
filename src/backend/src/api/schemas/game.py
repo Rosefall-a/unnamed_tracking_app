@@ -46,12 +46,15 @@ class GameBase(BaseModel):
     relationship_type: GameRelationshipType | None = None
     age_rating: str | None = Field(default=None, max_length=20)
     time_to_beat_hours: Decimal | None = Field(default=None, ge=0)
+    time_to_beat_extras_hours: Decimal | None = Field(default=None, ge=0)
+    time_to_beat_completionist_hours: Decimal | None = Field(default=None, ge=0)
+    time_to_beat_all_hours: Decimal | None = Field(default=None, ge=0)
 
     folder_location: str = Field(
         min_length=1,
         max_length=FOLDER_NAME_MAX_LENGTH,
         pattern=FOLDER_NAME_PATTERN,
-        description="Folder name only — letters, digits, underscore, hyphen. No spaces or path separators.",
+        description="Folder name only. Letters, digits, underscore, hyphen. No spaces or path separators.",
     )
     playnite_guid: UUID | None = Field(
         default=None,
@@ -91,7 +94,7 @@ class GameBase(BaseModel):
     completion_date: int | None = Field(
         default=None,
         ge=0,
-        description="Unix timestamp in seconds — when this game was first 100%-completed (Mastered).",
+        description="Unix timestamp in seconds. When this game was first 100%-completed (Mastered).",
     )
 
     rating_story: Decimal | None = Field(default=None, ge=0, le=10)
@@ -149,6 +152,9 @@ class GameUpdate(BaseModel):
     language: str | None = Field(default=None, max_length=50)
     age_rating: str | None = Field(default=None, max_length=20)
     time_to_beat_hours: Decimal | None = Field(default=None, ge=0)
+    time_to_beat_extras_hours: Decimal | None = Field(default=None, ge=0)
+    time_to_beat_completionist_hours: Decimal | None = Field(default=None, ge=0)
+    time_to_beat_all_hours: Decimal | None = Field(default=None, ge=0)
     parent_game_id: UUID | None = None
     relationship_type: GameRelationshipType | None = None
 
@@ -187,7 +193,7 @@ class GameUpdate(BaseModel):
     completion_date: int | None = Field(
         default=None,
         ge=0,
-        description="Unix timestamp in seconds — when this game was first 100%-completed (Mastered).",
+        description="Unix timestamp in seconds. When this game was first 100%-completed (Mastered).",
     )
 
     rating_story: Decimal | None = Field(default=None, ge=0, le=10)
@@ -246,7 +252,7 @@ class GameRead(GameBase):
     updated_at: int = Field(description="Unix timestamp in seconds when the game was last updated.")
     last_played_at: int | None = Field(
         default=None,
-        description="Unix timestamp in seconds — set by a library sync, never user-editable.",
+        description="Unix timestamp in seconds. Set by a library sync, never user-editable.",
     )
     stale_since: int | None = Field(
         default=None,

@@ -1,7 +1,9 @@
 <script setup lang="ts">
+import { mediaPriority } from "../utils/priority";
 import { ref, computed, onMounted } from "vue";
 import { useKeptAlive } from "../utils/useKeptAlive";
-import { mediaPriority } from "../utils/priority";
+import { readSavedSort } from "../utils/librarySort";
+import { fetchLoadedExtent, STALE_AFTER_MS } from "../utils/libraryPaging";
 import type { LibraryFilters } from "../utils/libraryFilters";
 import {
   fetchAnimePage,
@@ -16,6 +18,7 @@ import type { SeasonUpdateInput } from "../services/anime";
 import type { Anime, AnimeStatus } from "../types/anime";
 import { localMediaImage } from "../utils/mediaImages";
 import MediaLibraryView from "../components/library/MediaLibraryView.vue";
+import AnimeFormModal from "../components/AnimeFormModal.vue";
 import { displayTitle } from "../utils/displayTitle";
 import { statusBucket, bucketToReal } from "../utils/mediaStatus";
 import { useCompletionPrompt } from "../utils/completion";
@@ -67,6 +70,8 @@ function toVM(show: Anime): LibraryCardVM {
     format: show.format,
     releaseYear: show.firstAirDate ? show.firstAirDate.slice(0, 4) : null,
     addedAt: Date.parse(show.createdAt) || null,
+    startDate: show.startDate,
+    endDate: show.endDate,
     priority: mediaPriority(show.status, show.priority),
     altTitles: [
       show.title,
@@ -82,6 +87,7 @@ const items = computed(() => shows.value.map(toVM));
 // Only the very first load shows the loading state; a refresh when the
 // page comes back swaps data in quietly, so titles never blink away.
 let loadRequest = 0;
+let loadedAt = 0;
 const total = ref(0);
 const statusCounts = ref<Record<string, number>>({});
 const scoreRanks = ref<Record<string, number>>({});
@@ -99,6 +105,7 @@ const currentFilters = ref<LibraryFilters & { statusBucket: string }>({
   yearFrom: "",
   yearTo: "",
   statusBucket: "all",
+  sort: readSavedSort("anime"),
 });
 async function load(
   filters: LibraryFilters & { statusBucket: string } = currentFilters.value,
@@ -114,8 +121,9 @@ async function load(
     total.value = page.total;
     statusCounts.value = page.statusCounts;
     scoreRanks.value = page.scoreRanks;
+    loadedAt = Date.now();
   } catch (e) {
-    error.value = e instanceof Error ? e.message : "Failed to load anime.";
+    error.value = e instanceof Error ? e.message : "Could not load anime.";
   } finally {
     loading.value = false;
   }
@@ -123,21 +131,66 @@ async function load(
 async function loadMore() {
   if (loading.value || shows.value.length >= total.value) return;
   loading.value = true;
+  // a page asked for under an older search or filter must not land in the new list
+  const request = loadRequest;
   try {
     const page = await fetchAnimePage(
       shows.value.length,
       pageSize,
       currentFilters.value,
     );
+    if (request !== loadRequest) return;
     shows.value.push(...page.items);
   } catch (e) {
-    error.value = e instanceof Error ? e.message : "Failed to load more anime.";
+    error.value = e instanceof Error ? e.message : "Could not load more anime.";
   } finally {
     loading.value = false;
   }
 }
+// Counts and ranks only (one small request): they change when a rating, a status
+// or the number of titles does, and they are all that changed.
+let metaTimer: ReturnType<typeof setTimeout> | null = null;
+function refreshMeta() {
+  if (metaTimer !== null) clearTimeout(metaTimer);
+  metaTimer = setTimeout(async () => {
+    metaTimer = null;
+    try {
+      const page = await fetchAnimePage(0, 1, currentFilters.value);
+      total.value = page.total;
+      statusCounts.value = page.statusCounts;
+      scoreRanks.value = page.scoreRanks;
+    } catch {
+      // the next full read corrects them
+    }
+  }, 400);
+}
+
+// Read again in place: every title already loaded stays, so coming back never
+// shrinks the library to its first page and then refills it.
+async function reload() {
+  const request = ++loadRequest;
+  try {
+    const page = await fetchLoadedExtent(
+      fetchAnimePage,
+      currentFilters.value,
+      shows.value.length,
+    );
+    if (request !== loadRequest) return;
+    shows.value = page.items;
+    total.value = page.total;
+    statusCounts.value = page.statusCounts;
+    scoreRanks.value = page.scoreRanks;
+    loadedAt = Date.now();
+  } catch {
+    // keep what is shown; the next visit tries again
+  }
+}
+
 onMounted(load);
-useKeptAlive(load);
+// a library read a moment ago is left alone; an older one is checked again
+useKeptAlive(() => {
+  if (Date.now() - loadedAt >= STALE_AFTER_MS) void reload();
+});
 
 function findShow(id: string): Anime {
   const show = shows.value.find((s) => s.id === id);
@@ -145,6 +198,7 @@ function findShow(id: string): Anime {
   return show;
 }
 function replaceShow(updated: Anime) {
+  refreshMeta();
   const idx = shows.value.findIndex((s) => s.id === updated.id);
   if (idx !== -1) shows.value[idx] = updated;
 }
@@ -211,6 +265,8 @@ async function onSaveEdit(id: string, form: EditForm) {
       ...animeToInput(show),
       status: form.status as AnimeStatus,
       ratingOverall: form.score,
+      ...(form.startDate !== undefined && { startDate: form.startDate }),
+      ...(form.endDate !== undefined && { endDate: form.endDate }),
     }),
   );
   // The small edit modal's "episodes watched" and "total episodes" are
@@ -224,8 +280,12 @@ async function onSaveEdit(id: string, form: EditForm) {
     currentSeason(updatedShow) ??
     updatedShow.seasons[updatedShow.seasons.length - 1];
   if (season) {
-    const watchedDelta = form.watched - seasonProgress(updatedShow).watched;
-    const totalChanged = form.totalEpisodes !== season.episodeCount;
+    const before = seasonProgress(updatedShow);
+    const watchedDelta = form.watched - before.watched;
+    // The box holds the whole show's total, not this season's count, so only
+    // an edit to it changes anything: comparing it with one season's count
+    // made every save of a multi-season show overwrite that season.
+    const totalChanged = form.totalEpisodes !== before.total;
     const seasonUpdates: SeasonUpdateInput = {};
     if (watchedDelta !== 0) {
       seasonUpdates.episodesWatched = Math.max(
@@ -234,7 +294,14 @@ async function onSaveEdit(id: string, form: EditForm) {
       );
     }
     if (totalChanged) {
-      seasonUpdates.episodeCount = form.totalEpisodes;
+      // the difference lands on this season, the rest keep their counts
+      seasonUpdates.episodeCount =
+        form.totalEpisodes === null || before.total === null
+          ? form.totalEpisodes
+          : Math.max(
+              0,
+              (season.episodeCount ?? 0) + form.totalEpisodes - before.total,
+            );
     }
     if (Object.keys(seasonUpdates).length > 0) {
       replaceShow(await updateSeason(id, season.id, seasonUpdates));
@@ -267,6 +334,7 @@ async function onBulkDelete(ids: string[]) {
     await deleteAnime(id);
   }
   shows.value = shows.value.filter((s) => !ids.includes(s.id));
+  refreshMeta();
 }
 
 async function search(
@@ -328,6 +396,7 @@ async function createFromResult(
     });
   }
   shows.value.push(finalShow);
+  refreshMeta();
 }
 
 function detailRoute(id: string): string {
@@ -358,5 +427,23 @@ function detailRoute(id: string): string {
     @bulk-favorite="onBulkFavorite"
     @bulk-delete="onBulkDelete"
   >
+    <template #full-edit="{ id, close }">
+      <AnimeFormModal
+        :show="findShow(id)"
+        @saved="
+          (saved) => {
+            replaceShow(saved);
+            close();
+          }
+        "
+        @deleted="
+          () => {
+            close();
+            void reload();
+          }
+        "
+        @closed="close"
+      />
+    </template>
   </MediaLibraryView>
 </template>

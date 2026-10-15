@@ -186,8 +186,13 @@ const facts = computed(() => {
     });
   if (props.game.timeToBeatHours)
     list.push({
-      label: "Time to beat",
+      label: "Main story",
       value: `${props.game.timeToBeatHours}h`,
+    });
+  if (props.game.timeToBeatCompletionistHours)
+    list.push({
+      label: "Completionist",
+      value: `${props.game.timeToBeatCompletionistHours}h`,
     });
   // a fact with nothing to say is left out rather than shown as N/A
   return list.filter((f) => f.value !== "N/A");

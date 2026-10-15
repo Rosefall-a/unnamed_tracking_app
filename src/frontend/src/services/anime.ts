@@ -225,6 +225,7 @@ export type TrashedAnime = TrashedMedia;
 export const fetchAnimeTrash = api.fetchTrash;
 export const restoreAnime = api.restore;
 export const purgeAnime = api.purge;
+export const emptyAnimeTrash = api.emptyTrash;
 export interface SeasonInput {
   seasonNumber: number;
   name?: string | null;
@@ -786,6 +787,6 @@ export async function fillAlternateTitles(): Promise<FillTitlesResult> {
     credentials: "include",
   });
   if (!response.ok)
-    throw new Error(`Failed to look up titles: ${response.status}`);
+    throw new Error(`Could not look up titles: ${response.status}`);
   return await response.json();
 }

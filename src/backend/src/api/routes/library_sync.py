@@ -229,6 +229,53 @@ def _apply_status(game: Game, new_status: GameStatus) -> None:
         game.completion_date = int(time.time())
 
 
+# A status the person has not moved on from: a sync's own starting point (Backlog) or
+# a game they are still working through. When the achievements show it is done, the
+# status follows; one they set themselves to Beaten, Dropped, On Hold or Mastered is
+# left alone.
+_ADVANCEABLE_STATUSES = frozenset(
+    {GameStatus.BACKLOG, GameStatus.WISHLIST, GameStatus.PLAYING, GameStatus.PLAYED}
+)
+
+
+def _advance_status(
+    game: Game, total_achievements: int, unlocked_achievements: int, playtime_seconds: int = 0
+) -> bool:
+    """Move a game on when what a library shows is ahead of its status. True when the
+    status changed.
+
+    - A wishlisted game that now turns up in a library is owned: it becomes Backlog,
+      or Played / Mastered when the library already shows play or a finished set.
+    - Every achievement unlocked makes it Mastered.
+    - Playtime or any unlocked achievement on a Backlog game makes it Played.
+
+    Without this a game bought, played or finished after it was first synced stayed
+    where it was for ever, since a sync only picks a status for a game the first time
+    it sees it. A status the person set themselves (Beaten, Dropped, On Hold, Mastered)
+    is left alone."""
+    if game.status == GameStatus.WISHLIST:
+        _apply_status(
+            game,
+            _infer_status(
+                playtime_seconds=playtime_seconds,
+                total_achievements=total_achievements,
+                unlocked_achievements=unlocked_achievements,
+            ),
+        )
+        return True
+    if (
+        total_achievements > 0
+        and unlocked_achievements >= total_achievements
+        and game.status in _ADVANCEABLE_STATUSES
+    ):
+        _apply_status(game, GameStatus.MASTERED)
+        return True
+    if (unlocked_achievements > 0 or playtime_seconds > 0) and game.status == GameStatus.BACKLOG:
+        _apply_status(game, GameStatus.PLAYED)
+        return True
+    return False
+
+
 def _add_source_tag_and_collection(game: Game, source: str) -> None:
     """A newly-synced game is tagged with its source (Steam, PlayStation,
     RetroAchievements) and dropped into a same-named collection by default
@@ -323,6 +370,9 @@ async def _enrich_new_game(
         "tags",
         "features",
         "time_to_beat_hours",
+        "time_to_beat_extras_hours",
+        "time_to_beat_completionist_hours",
+        "time_to_beat_all_hours",
     ):
         value = match.get(field)
         if value:
@@ -513,6 +563,7 @@ async def refresh_game_achievements(
         )
     if rows:
         await _replace_achievements(db, game.id, provider, rows)
+        _advance_status(game, len(rows), sum(1 for r in rows if r["unlocked"]))
         await db.commit()
     return {
         "provider": provider,
@@ -704,6 +755,10 @@ async def sync_steam_library(
                 ),
             )
             status_ids.append(str(game.id))
+        else:
+            _advance_status(
+                game, total_achievements, unlocked_count, game.playtime_seconds
+            )
         if created:
             _add_source_tag_and_collection(game, "Steam")
             newly_created.append((game, app_id))
@@ -791,7 +846,10 @@ async def sync_retroachievements_library(
         synced_titles.append(title)
 
         rows = _retro_achievement_rows(progress or {})
-        await _replace_achievements(db, game.id, "RetroAchievements", rows)
+        # a lookup that failed comes back empty, and replacing with nothing would
+        # delete every stored achievement (and unlink what was tagged to them)
+        if rows:
+            await _replace_achievements(db, game.id, "RetroAchievements", rows)
         achievements_synced += len(rows)
 
         if created:
@@ -802,6 +860,8 @@ async def sync_retroachievements_library(
             )
             _add_source_tag_and_collection(game, "RetroAchievements")
             newly_created.append(game)
+        else:
+            _advance_status(game, len(rows), sum(1 for r in rows if r["unlocked"]))
 
     async def _enrich(game: Game) -> None:
         async with semaphore:
@@ -896,7 +956,10 @@ async def sync_psn_library(
         synced_titles.append(title)
 
         rows = _psn_trophy_rows(trophies)
-        await _replace_achievements(db, game.id, "PlayStation", rows)
+        # a lookup that failed comes back empty, and replacing with nothing would
+        # delete every stored achievement (and unlink what was tagged to them)
+        if rows:
+            await _replace_achievements(db, game.id, "PlayStation", rows)
         achievements_synced += len(rows)
 
         if created:
@@ -907,6 +970,8 @@ async def sync_psn_library(
             )
             _add_source_tag_and_collection(game, "PlayStation")
             newly_created.append(game)
+        else:
+            _advance_status(game, len(rows), sum(1 for r in rows if r["unlocked"]))
 
     async def _enrich(game: Game) -> None:
         async with semaphore:

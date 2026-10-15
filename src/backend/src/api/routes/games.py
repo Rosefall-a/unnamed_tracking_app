@@ -14,7 +14,6 @@ from typing import Literal, cast
 from urllib.parse import urlparse
 from uuid import UUID
 
-import requests
 from PIL import Image, UnidentifiedImageError
 from fastapi import (
     APIRouter,
@@ -71,6 +70,7 @@ from src.features.metadata.search_utils import cached_search
 from src.features.trash.game_trash import move_game_to_trash, restore_game_from_trash
 from src.features.trash.media_trash import move_media_file_to_trash, restore_media_file_from_trash
 from src.features.trash.sweep import RETENTION_SECONDS
+from src.helpers.remote_images import RemoteImageError, download_image
 from src.helpers.media import MediaKind, classify_media, list_media, media_subdir, save_media_bytes
 from src.helpers.media_dates import detect_date, detect_from_stored
 from src.helpers.range_response import ranged_file_response
@@ -291,6 +291,9 @@ FIELD_CHANGE_TRACKED_FIELDS = {
     "age_rating",
     "release_date",
     "time_to_beat_hours",
+    "time_to_beat_extras_hours",
+    "time_to_beat_completionist_hours",
+    "time_to_beat_all_hours",
     # what the history timeline shows as "changed status" and "changed price"
     "status",
     "purchase_price",
@@ -487,12 +490,20 @@ async def list_game_achievements(
     Metadata/API -> Steam/PlayStation/RetroAchievements). Empty until that
     game has been synced at least once — this never calls out to a
     provider itself, it only reads what's already stored."""
-    await _get_game_or_404(game_id, db, current_user.id)
+    game = await _get_game_or_404(game_id, db, current_user.id)
     result = await db.execute(
         select(Achievement)
         .where(Achievement.game_id == game_id)
         .order_by(Achievement.unlocked.desc(), Achievement.name)
     )
+    achievements = result.scalars().all()
+    # Opening a game puts its status right with what is stored, so a game finished
+    # before this was fixed corrects itself instead of waiting for the next sync.
+    # Imported here because library_sync imports this module.
+    from src.api.routes.library_sync import _advance_status
+
+    if _advance_status(game, len(achievements), sum(1 for a in achievements if a.unlocked)):
+        await db.commit()
     return [
         {
             "id": str(a.id),
@@ -510,7 +521,7 @@ async def list_game_achievements(
             # progression, missable or win_condition
             "tier": a.tier,
         }
-        for a in result.scalars().all()
+        for a in achievements
     ]
 
 
@@ -603,19 +614,15 @@ async def download_game_asset(
         )
 
     try:
-        response = await asyncio.to_thread(requests.get, payload.url, timeout=20)
-        response.raise_for_status()
-    except requests.RequestException as exc:
+        # the address is the user's, so it goes through the downloader that refuses
+        # this machine, the local network and anything that is not a public image
+        image_bytes = await asyncio.to_thread(download_image, payload.url)
+    except RemoteImageError as exc:
+        # what was refused is not repeated back: it could describe an internal host
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=f"Could not download image: {exc}"
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="That address could not be used as an image. It must be a public image link.",
         ) from exc
-
-    content_type = response.headers.get("content-type", "").split(";", 1)[0].lower()
-    if not content_type.startswith("image/"):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="URL did not return an image."
-        )
-    image_bytes = response.content
     max_upload_mb = await get_max_upload_size_mb(db)
     max_bytes = max_upload_mb * 1024 * 1024
     if len(image_bytes) > max_bytes:
@@ -2253,10 +2260,26 @@ async def update_game(
 
     updates = _drop_nulls_for_required_fields(payload.model_dump(exclude_unset=True))
 
+    renamed_from: Path | None = None
+    renamed_to: Path | None = None
     if "folder_location" in updates and updates["folder_location"] is not None:
         await _ensure_folder_location_available(
             updates["folder_location"], current_user.id, db, exclude_game_id=game_id
         )
+        # the folder holds the game's art, notes, screenshots and saves, and every
+        # route finds them through this name: changing the name has to move the
+        # folder with it, or all of that is left behind and no longer shown
+        if updates["folder_location"] != game.folder_location and game.folder_location:
+            games_root = _DATA_ROOT / str(game.user_id) / "games"
+            old_dir = games_root / game.folder_location
+            new_dir = games_root / updates["folder_location"]
+            if old_dir.is_dir():
+                if new_dir.exists():
+                    raise HTTPException(
+                        status_code=status.HTTP_409_CONFLICT,
+                        detail="A folder with that name already exists on disk.",
+                    )
+                renamed_from, renamed_to = old_dir, new_dir
 
     if "parent_game_id" in updates or "relationship_type" in updates:
         effective_parent = updates.get("parent_game_id", game.parent_game_id)
@@ -2292,10 +2315,14 @@ async def update_game(
     if updates.get("status") == GameStatus.MASTERED and game.completion_date is None:
         game.completion_date = int(time.time())
 
+    if renamed_from is not None and renamed_to is not None:
+        renamed_from.rename(renamed_to)
     try:
         await db.commit()
     except IntegrityError as exc:
         await db.rollback()
+        if renamed_from is not None and renamed_to is not None and renamed_to.is_dir():
+            renamed_to.rename(renamed_from)  # the name was not kept, so the folder goes back
         raise _duplicate_folder_error(game.folder_location) from exc
 
     return game
@@ -2312,6 +2339,9 @@ _GAME_METADATA_FIELDS = frozenset({
     "age_rating",
     "release_date",
     "time_to_beat_hours",
+    "time_to_beat_extras_hours",
+    "time_to_beat_completionist_hours",
+    "time_to_beat_all_hours",
     "links",
 })
 
@@ -2418,6 +2448,9 @@ async def refresh_game_metadata(
         "age_rating": match.get("age_rating"),
         "release_date": match.get("release_date"),
         "time_to_beat_hours": match.get("time_to_beat_hours"),
+        "time_to_beat_extras_hours": match.get("time_to_beat_extras_hours"),
+        "time_to_beat_completionist_hours": match.get("time_to_beat_completionist_hours"),
+        "time_to_beat_all_hours": match.get("time_to_beat_all_hours"),
         "links": match.get("links"),
     }
     gated_flags = {
@@ -2430,6 +2463,9 @@ async def refresh_game_metadata(
         "age_rating": "save_age_rating",
         "release_date": "save_release_date",
         "time_to_beat_hours": "save_time_to_beat",
+        "time_to_beat_extras_hours": "save_time_to_beat",
+        "time_to_beat_completionist_hours": "save_time_to_beat",
+        "time_to_beat_all_hours": "save_time_to_beat",
     }
     updates: dict[str, object] = {}
     skipped_locked: list[str] = []
@@ -2520,9 +2556,8 @@ async def refresh_game_metadata(
 
     if payload.fill_missing_art:
         async def _download_art(url: str) -> bytes:
-            response = await asyncio.to_thread(requests.get, url, timeout=20)
-            response.raise_for_status()
-            return response.content
+            # the address came from a provider, so it is checked like any other
+            return await asyncio.to_thread(download_image, url)
 
         if key_art_url and (payload.overwrite_existing_art or not key_art_exists):
             try:

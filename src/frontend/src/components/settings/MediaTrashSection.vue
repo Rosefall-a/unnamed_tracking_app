@@ -2,21 +2,29 @@
 import { useConfirm } from "../../state/dialog";
 import { ref, computed, onMounted } from "vue";
 import {
+  DEFAULT_PREFERENCES,
+  fetchPreferences,
+  queuePreferences,
+} from "../../services/preferences";
+import {
   fetchMovieTrash,
   restoreMovie,
   purgeMovie,
+  emptyMovieTrash,
 } from "../../services/movies";
 import type { TrashedMovie } from "../../services/movies";
 import {
   fetchTVShowTrash,
   restoreTVShow,
   purgeTVShow,
+  emptyTVShowTrash,
 } from "../../services/tvShows";
 import type { TrashedTVShow } from "../../services/tvShows";
 import {
   fetchAnimeTrash,
   restoreAnime,
   purgeAnime,
+  emptyAnimeTrash,
 } from "../../services/anime";
 import type { TrashedAnime } from "../../services/anime";
 
@@ -66,7 +74,7 @@ const groups = computed<
   };
   return [
     build("movie", "Movies", movieTrash.value),
-    build("tv", "TV Shows", tvTrash.value),
+    build("tv", "TV shows", tvTrash.value),
     build("anime", "Anime", animeTrash.value),
   ];
 });
@@ -82,13 +90,45 @@ async function loadAll() {
     ]);
   } catch (e) {
     error.value =
-      e instanceof Error ? e.message : "Failed to load deleted media";
+      e instanceof Error ? e.message : "Could not load the media trash";
   } finally {
     loading.value = false;
     loadedOnce.value = true;
   }
 }
-onMounted(loadAll);
+// how long a deleted title stays before it is deleted for good; 0 keeps it until you delete it
+const retentionDays = ref(DEFAULT_PREFERENCES.media_trash_retention_days);
+const retentionSaved = ref(false);
+const RETENTION_CHOICES = [
+  { value: 0, label: "Never" },
+  { value: 7, label: "After 7 days" },
+  { value: 14, label: "After 14 days" },
+  { value: 30, label: "After 30 days" },
+  { value: 90, label: "After 90 days" },
+];
+
+onMounted(async () => {
+  await loadAll();
+  try {
+    retentionDays.value = (await fetchPreferences()).media_trash_retention_days;
+  } catch {
+    // the default (never) stays shown
+  }
+});
+
+async function setRetention(days: number) {
+  const previous = retentionDays.value;
+  retentionDays.value = days;
+  error.value = null;
+  try {
+    await queuePreferences({ media_trash_retention_days: days });
+    retentionSaved.value = true;
+    setTimeout(() => (retentionSaved.value = false), 1500);
+  } catch (e) {
+    retentionDays.value = previous;
+    error.value = e instanceof Error ? e.message : "Could not save.";
+  }
+}
 
 function formatDate(epochSeconds: number): string {
   return new Date(epochSeconds * 1000).toLocaleDateString(undefined, {
@@ -106,7 +146,8 @@ async function restore(kind: Kind, id: string) {
     else await restoreAnime(id);
     await loadAll();
   } catch (e) {
-    error.value = e instanceof Error ? e.message : "Failed to restore";
+    error.value =
+      e instanceof Error ? e.message : "Could not restore the title";
   } finally {
     busyId.value = null;
   }
@@ -115,8 +156,8 @@ async function restore(kind: Kind, id: string) {
 const confirm = useConfirm();
 async function purge(kind: Kind, id: string, title: string) {
   const ok = await confirm({
-    message: `Permanently delete "${title}"? This can't be undone.`,
-    confirmLabel: "Delete forever",
+    message: `Delete "${title}" permanently? This cannot be undone.`,
+    confirmLabel: "Delete",
     danger: true,
   });
   if (!ok) return;
@@ -128,8 +169,28 @@ async function purge(kind: Kind, id: string, title: string) {
     else await purgeAnime(id);
     await loadAll();
   } catch (e) {
-    error.value =
-      e instanceof Error ? e.message : "Failed to permanently delete";
+    error.value = e instanceof Error ? e.message : "Could not delete the title";
+  } finally {
+    busyId.value = null;
+  }
+}
+
+async function emptyGroup(kind: Kind, label: string, count: number) {
+  const ok = await confirm({
+    message: `Delete all ${count} ${label} in the trash permanently? This cannot be undone.`,
+    confirmLabel: "Empty trash",
+    danger: true,
+  });
+  if (!ok) return;
+  busyId.value = kind;
+  error.value = null;
+  try {
+    if (kind === "movie") await emptyMovieTrash();
+    else if (kind === "tv") await emptyTVShowTrash();
+    else await emptyAnimeTrash();
+    await loadAll();
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "Could not empty the trash";
   } finally {
     busyId.value = null;
   }
@@ -138,12 +199,31 @@ async function purge(kind: Kind, id: string, title: string) {
 
 <template>
   <section class="settings-section">
-    <h2>Media Trash</h2>
+    <h2>Media trash</h2>
     <p class="section-hint">
-      A deleted movie, show, or anime entry moves here first. Nothing gets
-      purged automatically. Restore it to bring it back, or delete it again here
-      to remove it for good.
+      Deleted movies, shows and anime are kept here until you restore or delete
+      them. Deleting from the trash is permanent.
     </p>
+    <div class="retention-row">
+      <label for="media-trash-retention">Delete trash automatically</label>
+      <select
+        id="media-trash-retention"
+        class="retention-select"
+        :value="retentionDays"
+        @change="
+          setRetention(Number(($event.target as HTMLSelectElement).value))
+        "
+      >
+        <option
+          v-for="choice in RETENTION_CHOICES"
+          :key="choice.value"
+          :value="choice.value"
+        >
+          {{ choice.label }}
+        </option>
+      </select>
+      <span v-if="retentionSaved" class="saved-note">Saved</span>
+    </div>
 
     <p v-if="!loadedOnce">Loading…</p>
     <div v-if="error" class="form-error">{{ error }}</div>
@@ -157,19 +237,30 @@ async function purge(kind: Kind, id: string, title: string) {
         aria-label="Search deleted titles"
       />
       <div v-for="group in groups" :key="group.kind" class="trash-group">
-        <h3>
-          {{ group.label }}
-          <span v-if="group.total" class="trash-count">{{ group.total }}</span>
+        <h3 class="trash-group-title">
+          <span>
+            {{ group.label }}
+            <span v-if="group.total" class="trash-count">{{
+              group.total
+            }}</span>
+          </span>
+          <button
+            v-if="group.total"
+            type="button"
+            class="danger-button"
+            :disabled="busyId !== null"
+            @click="emptyGroup(group.kind, group.label, group.total)"
+          >
+            Empty trash
+          </button>
         </h3>
-        <p v-if="!group.total" class="empty-hint">Nothing in trash.</p>
-        <p v-else-if="!group.matches" class="empty-hint">
-          Nothing here matches the search.
-        </p>
+        <p v-if="!group.total" class="empty-hint">Trash is empty.</p>
+        <p v-else-if="!group.matches" class="empty-hint">No matches.</p>
         <ul v-else class="trash-list">
           <li v-for="item in group.rows" :key="item.id" class="trash-row">
             <span class="trash-name">{{ item.title }}</span>
             <span class="trash-meta"
-              >deleted {{ formatDate(item.deleted_at) }}</span
+              >Deleted {{ formatDate(item.deleted_at) }}</span
             >
             <button
               type="button"
@@ -185,7 +276,7 @@ async function purge(kind: Kind, id: string, title: string) {
               :disabled="busyId === item.id"
               @click="purge(group.kind, item.id, item.title)"
             >
-              Delete forever
+              Delete
             </button>
           </li>
         </ul>
@@ -223,6 +314,32 @@ async function purge(kind: Kind, id: string, title: string) {
   margin: 0 0 8px;
   font-size: 0.85rem;
   color: #ccc;
+}
+.retention-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+  font-size: 0.85rem;
+  color: #ccc;
+}
+.retention-select {
+  background: #1a1a1a;
+  color: #e5e5e5;
+  border: 1px solid #2a2a2a;
+  border-radius: 8px;
+  padding: 7px 10px;
+  font-size: 0.85rem;
+}
+.saved-note {
+  color: #8fbf8f;
+  font-size: 0.8rem;
+}
+.trash-group-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
 .trash-search {
   width: 100%;

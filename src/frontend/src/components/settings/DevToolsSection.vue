@@ -24,7 +24,7 @@ const mediaTypeOptions: { value: "movie" | "tv" | "anime"; label: string }[] = [
 const kind = ref<MediaNotificationKind>("episode_aired");
 const mediaType = ref<"movie" | "tv" | "anime">("tv");
 const title = ref("Test notification");
-const body = ref("Sent from Settings > Administration > Dev Tools.");
+const body = ref("Sent from Dev Tools.");
 
 const sending = ref(false);
 const sendError = ref<string | null>(null);
@@ -48,7 +48,7 @@ async function send() {
     sendSuccess.value = true;
     await refreshMediaNotifications();
   } catch (e) {
-    sendError.value = e instanceof Error ? e.message : "Failed to send.";
+    sendError.value = e instanceof Error ? e.message : "Could not send.";
   } finally {
     sending.value = false;
   }
@@ -68,7 +68,7 @@ async function regenerate() {
     regenerateResult.value = r.created;
     await refreshMediaNotifications();
   } catch (e) {
-    regenerateError.value = e instanceof Error ? e.message : "Failed to run.";
+    regenerateError.value = e instanceof Error ? e.message : "Could not run.";
   } finally {
     regenerating.value = false;
   }
@@ -85,7 +85,7 @@ async function loadInfo() {
   try {
     info.value = await fetchSystemInfo();
   } catch (e) {
-    infoError.value = e instanceof Error ? e.message : "Failed to load.";
+    infoError.value = e instanceof Error ? e.message : "Could not load.";
   } finally {
     infoLoading.value = false;
   }
@@ -124,8 +124,7 @@ async function sendRequest() {
   reqResponse.value = "";
   reqStatus.value = null;
   if (!path.value.startsWith("/api/")) {
-    reqError.value =
-      "Path must start with /api/ — this only talks to this server's own API.";
+    reqError.value = "Path must start with /api/.";
     return;
   }
   let parsedBody: string | undefined;
@@ -211,9 +210,7 @@ async function sendRequest() {
       </button>
 
       <div v-if="sendError" class="form-error">{{ sendError }}</div>
-      <div v-if="sendSuccess" class="form-success">
-        Sent. Check the bell in the top corner.
-      </div>
+      <div v-if="sendSuccess" class="form-success">Sent</div>
     </section>
 
     <section class="settings-section">
@@ -279,9 +276,8 @@ async function sendRequest() {
     <section class="settings-section wide">
       <h2>API request</h2>
       <p class="hint">
-        Sends a request to this server's own API, using your current login — for
-        poking at an endpoint without opening the browser's dev tools. Only
-        paths starting with /api/ are allowed.
+        Sends a request to this server's API as the current user. Only paths
+        starting with /api/ are allowed.
       </p>
 
       <div class="req-row">

@@ -89,11 +89,11 @@ class IGDBClient:
         self._access_token = None
         self._token_expires_at = 0.0
 
-    def _post_games(self, body: str) -> requests.Response:
+    def _post_games(self, body: str, endpoint: str = "games") -> requests.Response:
         token = self._authenticate()
         try:
             return self.session.post(
-                f"{self.BASE_URL}/games",
+                f"{self.BASE_URL}/{endpoint}",
                 headers={
                     "Client-ID": self.client_id,
                     "Authorization": f"Bearer {token}",
@@ -103,6 +103,45 @@ class IGDBClient:
             )
         except requests.RequestException as exc:
             raise IGDBError(f"Could not reach IGDB: {exc}") from exc
+
+    def time_to_beat(self, title: str) -> float | None:
+        """Hours to finish the game's main story (see `play_times`)."""
+        return self.play_times(title).get("time_to_beat_hours")
+
+    def play_times(self, title: str) -> dict[str, float]:
+        """IGDB's own play-time figures, for when HowLongToBeat cannot be reached. The
+        title is searched and the closest match taken. "Normally" stands in for the main
+        story and "completely" for the completionist time; IGDB has no figure for main
+        plus extras or the all-styles average. Empty when IGDB has none."""
+        found = self.search(title, limit=3)
+        if not found:
+            return {}
+        squash = lambda s: "".join(ch.lower() for ch in str(s) if ch.isalnum())  # noqa: E731
+        match = next((g for g in found if squash(g.get("name")) == squash(title)), found[0])
+        game_id = match.get("id")
+        if not isinstance(game_id, int):
+            return {}
+        body = f"fields normally,hastily,completely; where game_id = {game_id}; limit 1;"
+        response = self._post_games(body, "game_time_to_beats")
+        if response.status_code == 401:
+            self._forget_token()
+            response = self._post_games(body, "game_time_to_beats")
+        if response.status_code >= 400:
+            raise IGDBError(f"IGDB time to beat failed ({response.status_code}): {response.text[:200]}")
+        try:
+            rows = response.json()
+        except ValueError as exc:
+            raise IGDBError("IGDB returned invalid JSON.") from exc
+        if not rows:
+            return {}
+        row = rows[0]
+        main = row.get("normally") or row.get("hastily") or row.get("completely")
+        out: dict[str, float] = {}
+        if main:
+            out["time_to_beat_hours"] = round(main / 3600, 1)
+        if row.get("completely"):
+            out["time_to_beat_completionist_hours"] = round(row["completely"] / 3600, 1)
+        return out
 
     def search(self, query: str, limit: int = 8) -> list[dict[str, Any]]:
         if not query.strip():

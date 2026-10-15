@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.api.routes.media_extras import log_activity, status_change_detail
 from src.api.routes.media_common import (
     library_page,
+    empty_trash,
     purge_row,
     restore_row,
     soft_delete,
@@ -165,6 +166,7 @@ async def list_movies(
     min_score: float | None = Query(default=None, ge=0, le=10),
     year_from: int | None = Query(default=None, ge=1, le=9999),
     year_to: int | None = Query(default=None, ge=1, le=9999),
+    sort: str | None = Query(default=None),
 ) -> PaginatedResponse[MovieRead]:
     """Return one page of the current user's movies and the total matching it."""
     status_values = None
@@ -187,6 +189,7 @@ async def list_movies(
         status_values=status_values, genres=genre, genre_match_all=genre_match_all,
         formats=format, only_unrated=only_unrated, only_with_note=only_with_note,
         min_score=min_score, year_column=Movie.release_date, year_from=year_from, year_to=year_to,
+        sort=sort,
     )
 
 
@@ -277,6 +280,15 @@ async def list_movie_trash(
     row, so there's nothing to clean up and it stays here until an
     admin either restores it or deletes it again to purge it for good."""
     return await trash_listing(db, Movie, current_user.id)
+
+
+@router.post("/trash/empty")
+async def empty_movie_trash(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict[str, int]:
+    """Permanently removes everything in the trash."""
+    return {"deleted": await empty_trash(db, Movie, current_user.id)}
 
 
 @router.post("/{movie_id}/restore", response_model=MovieRead)

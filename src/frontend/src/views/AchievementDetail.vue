@@ -52,7 +52,7 @@ async function loadGame() {
     if (fetched) fetched.achievements = await fetchGameAchievements(id);
     game.value = fetched;
   } catch (err) {
-    error.value = err instanceof Error ? err.message : "Failed to load game";
+    error.value = err instanceof Error ? err.message : "Could not load game";
   } finally {
     loading.value = false;
   }
@@ -133,7 +133,7 @@ async function loadLinkedMedia() {
     );
   } catch (err) {
     mediaError.value =
-      err instanceof Error ? err.message : "Failed to load media";
+      err instanceof Error ? err.message : "Could not load media";
   }
 }
 watch(() => route.params.achievementId, loadLinkedMedia, { immediate: true });
@@ -176,7 +176,7 @@ async function saveMedia(item: MediaItem, patch: MediaItemUpdate) {
     await updateMediaItem(route.params.gameId as string, item.id, patch);
     await loadLinkedMedia();
   } catch (err) {
-    mediaError.value = err instanceof Error ? err.message : "Failed to save";
+    mediaError.value = err instanceof Error ? err.message : "Could not save";
   }
 }
 async function deleteMedia(item: MediaItem) {

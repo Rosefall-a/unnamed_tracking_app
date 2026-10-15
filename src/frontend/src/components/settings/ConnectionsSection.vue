@@ -59,7 +59,7 @@ function isConnected(s: ProviderCredentialStatus): boolean {
 function timeAgo(unix: number | null | undefined): string {
   if (!unix) return "Never synced";
   const s = Math.max(0, Math.floor(Date.now() / 1000 - unix));
-  if (s < 60) return "Synced just now";
+  if (s < 60) return "Synced now";
   if (s < 3600) return `Synced ${Math.floor(s / 60)}m ago`;
   if (s < 86400) return `Synced ${Math.floor(s / 3600)}h ago`;
   return `Synced ${Math.floor(s / 86400)}d ago`;
@@ -109,7 +109,8 @@ async function load() {
   try {
     credentials.value = await fetchProviderCredentials();
   } catch (e) {
-    error.value = e instanceof Error ? e.message : "Couldn't load connections.";
+    error.value =
+      e instanceof Error ? e.message : "Could not load connections.";
   }
   loading.value = false;
 }
@@ -169,7 +170,7 @@ async function sync(row: Row) {
           :disabled="syncing !== null"
           @click="sync(row)"
         >
-          {{ syncing === row.name ? "Syncing…" : "Sync now" }}
+          {{ syncing === row.name ? "Syncing…" : "Sync" }}
         </button>
         <button
           type="button"
@@ -292,7 +293,7 @@ h3 {
   cursor: not-allowed;
 }
 /* a phone can't fit the name, the status and both buttons on one line (the
-   status pill covered the name and "Sync now" broke in two): the buttons move
+   status pill covered the name and "Sync" broke in two): the buttons move
    to a second line, and the pill goes, since the line under the name already
    says "Not connected" or what went wrong */
 @media (max-width: 560px) {

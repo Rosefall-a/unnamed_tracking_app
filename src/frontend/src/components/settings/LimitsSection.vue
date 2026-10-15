@@ -22,7 +22,7 @@ async function load() {
     draftMb.value = String(r.max_upload_size_mb);
   } catch (e) {
     loadError.value =
-      e instanceof Error ? e.message : "Failed to load the current limit.";
+      e instanceof Error ? e.message : "Could not load the upload limit.";
   } finally {
     loading.value = false;
   }
@@ -43,7 +43,8 @@ async function save() {
     effectiveMb.value = r.max_upload_size_mb;
     saveSuccess.value = true;
   } catch (e) {
-    saveError.value = e instanceof Error ? e.message : "Failed to save.";
+    saveError.value =
+      e instanceof Error ? e.message : "Could not save the upload limit.";
   } finally {
     saving.value = false;
   }
@@ -59,7 +60,8 @@ async function resetToDefault() {
     draftMb.value = String(r.max_upload_size_mb);
     saveSuccess.value = true;
   } catch (e) {
-    saveError.value = e instanceof Error ? e.message : "Failed to reset.";
+    saveError.value =
+      e instanceof Error ? e.message : "Could not reset the upload limit.";
   } finally {
     saving.value = false;
   }
@@ -68,11 +70,11 @@ async function resetToDefault() {
 
 <template>
   <section class="settings-section">
-    <h2>Limits</h2>
+    <h2>Upload limits</h2>
     <p class="hint">
-      Server-wide caps, admin-only. Currently just the image/media upload size —
-      video clips and world saves keep their own larger caps and aren't editable
-      here yet.
+      Server-wide limits for administrators. Only the image and media upload
+      size can be changed here. Video clips and world saves have separate,
+      larger limits.
     </p>
 
     <p v-if="loading" class="hint">Loading…</p>
@@ -99,8 +101,7 @@ async function resetToDefault() {
             </button>
           </div>
           <span class="field-hint">
-            Applies to cover art, banners, and general file uploads —
-            screenshots, docs, that sort of thing.
+            Applies to cover art, banners, screenshots and documents.
           </span>
         </label>
 
@@ -110,13 +111,11 @@ async function resetToDefault() {
           :disabled="saving"
           @click="resetToDefault"
         >
-          Reset to the server's .env default
+          Reset to default
         </button>
 
         <div v-if="saveError" class="form-error">{{ saveError }}</div>
-        <div v-if="saveSuccess" class="form-success">
-          Saved. New uploads use this limit right away — nothing to restart.
-        </div>
+        <div v-if="saveSuccess" class="form-success">Saved</div>
       </template>
     </template>
   </section>

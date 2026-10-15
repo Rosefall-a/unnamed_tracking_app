@@ -14,7 +14,7 @@ export async function handle<T>(
   action: string,
 ): Promise<T> {
   if (!response.ok) {
-    console.warn(`Failed to ${action}: ${response.status}`);
+    console.warn(`Could not ${action}: ${response.status}`);
     throw await failedRequest(response);
   }
   return response.json();
@@ -77,13 +77,18 @@ export function createMediaApi<
     if (filters?.onlyFavorites) params.set("favorite", "true");
     if (filters?.onlyUnrated) params.set("only_unrated", "true");
     if (filters?.onlyWithNote) params.set("only_with_note", "true");
-    if (filters?.minScore !== null && filters?.minScore !== undefined) params.set("min_score", String(filters.minScore));
-    if (filters?.yearFrom.trim()) params.set("year_from", filters.yearFrom.trim());
+    if (filters?.minScore !== null && filters?.minScore !== undefined)
+      params.set("min_score", String(filters.minScore));
+    if (filters?.yearFrom.trim())
+      params.set("year_from", filters.yearFrom.trim());
     if (filters?.yearTo.trim()) params.set("year_to", filters.yearTo.trim());
     filters?.genres.forEach((genre) => params.append("genre", genre));
     if (filters?.genreMatchAll) params.set("genre_match_all", "true");
     filters?.formats.forEach((format) => params.append("format", format));
-    if (filters?.statusBucket && filters.statusBucket !== "all") params.set("status_bucket", filters.statusBucket);
+    if (filters?.statusBucket && filters.statusBucket !== "all")
+      params.set("status_bucket", filters.statusBucket);
+    if (filters?.sort && filters.sort !== "rank")
+      params.set("sort", filters.sort);
     const response = await fetch(`${base}/list?${params}`, {
       credentials: "include",
     });
@@ -149,14 +154,14 @@ export function createMediaApi<
       credentials: "include",
     });
     if (!response.ok && response.status !== 204) {
-      throw new Error(`Failed to delete ${noun} ${id}: ${response.status}`);
+      throw new Error(`Could not delete ${noun} ${id}: ${response.status}`);
     }
   }
 
   async function fetchTrash(): Promise<TrashedMedia[]> {
     const response = await fetch(`${base}/trash`, { credentials: "include" });
     if (!response.ok) {
-      throw new Error(`Failed to fetch deleted ${plural}: ${response.status}`);
+      throw new Error(`Could not fetch deleted ${plural}: ${response.status}`);
     }
     return await response.json();
   }
@@ -167,7 +172,7 @@ export function createMediaApi<
       credentials: "include",
     });
     if (!response.ok) {
-      throw new Error(`Failed to restore ${noun} ${id}: ${response.status}`);
+      throw new Error(`Could not restore ${noun} ${id}: ${response.status}`);
     }
     return map(await response.json());
   }
@@ -178,8 +183,19 @@ export function createMediaApi<
       credentials: "include",
     });
     if (!response.ok && response.status !== 204) {
-      throw new Error(`Failed to purge ${noun} ${id}: ${response.status}`);
+      throw new Error(`Could not purge ${noun} ${id}: ${response.status}`);
     }
+  }
+
+  async function emptyTrash(): Promise<number> {
+    const response = await fetch(`${base}/trash/empty`, {
+      method: "POST",
+      credentials: "include",
+    });
+    if (!response.ok) {
+      throw new Error(`Could not empty the ${noun} trash: ${response.status}`);
+    }
+    return ((await response.json()) as { deleted: number }).deleted;
   }
 
   return {
@@ -192,5 +208,6 @@ export function createMediaApi<
     fetchTrash,
     restore,
     purge,
+    emptyTrash,
   };
 }

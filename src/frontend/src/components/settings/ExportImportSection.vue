@@ -60,7 +60,7 @@ async function exportLibrary() {
     URL.revokeObjectURL(url);
   } catch (err) {
     exportError.value =
-      err instanceof Error ? err.message : "Failed to export library";
+      err instanceof Error ? err.message : "Could not export library";
   } finally {
     exporting.value = false;
   }
@@ -80,7 +80,7 @@ async function exportCsv() {
     URL.revokeObjectURL(url);
   } catch (err) {
     csvError.value =
-      err instanceof Error ? err.message : "Failed to export the CSV";
+      err instanceof Error ? err.message : "Could not export the CSV";
   } finally {
     csvBusy.value = false;
   }
@@ -169,7 +169,7 @@ async function onMalSelected(e: Event) {
     malFile.value = file;
   } catch (err) {
     malError.value =
-      err instanceof Error ? err.message : "Failed to read the file";
+      err instanceof Error ? err.message : "Could not read the file";
   } finally {
     malBusy.value = false;
     input.value = "";
@@ -213,7 +213,7 @@ async function runMalImport() {
     cancelMal();
   } catch (err) {
     malError.value =
-      err instanceof Error ? err.message : "Failed to import the list";
+      err instanceof Error ? err.message : "Could not import the list";
   } finally {
     malBusy.value = false;
   }
@@ -238,7 +238,7 @@ async function onRestoreSelected(e: Event) {
     restoreResult.value = await restoreMedia(file);
   } catch (err) {
     restoreError.value =
-      err instanceof Error ? err.message : "Failed to restore the export";
+      err instanceof Error ? err.message : "Could not restore the export";
   } finally {
     restoreBusy.value = false;
     input.value = "";
@@ -270,7 +270,7 @@ async function onFileSelected(e: Event) {
     importResult.value = await importLibrary(games);
   } catch (err) {
     importError.value =
-      err instanceof Error ? err.message : "Failed to import library";
+      err instanceof Error ? err.message : "Could not import library";
   } finally {
     importing.value = false;
     // otherwise re-picking the same file for a second attempt fires no
@@ -282,22 +282,20 @@ async function onFileSelected(e: Event) {
 
 <template>
   <section class="settings-section">
-    <h2>Export / Import</h2>
+    <h2>Export and import</h2>
     <p class="section-hint">
-      A portable JSON snapshot of your whole library (games, movies, TV shows
-      and anime) for backups, or moving to a new server. Covers title data and
-      metadata only, not attached files (screenshots, saves, docs). Games,
-      movies, TV shows and anime can each be brought back below.
+      Exports the library (games, movies, TV shows and anime) as JSON for backup
+      or moving to a new server. Includes title data and metadata, not attached
+      files such as screenshots, saves or documents.
     </p>
 
     <div v-if="backupStatus" class="tile backup-status-tile">
       <h3>Automatic backups</h3>
       <p class="tile-desc">
-        A snapshot like the one above is written automatically every
-        {{ backupStatus.interval_hours }} hours, keeping the last
-        {{ backupStatus.backups_kept }} on this server, a safety net, not a
-        replacement for the manual export below (nothing here can be downloaded
-        directly; it's the same file shape, stored server-side).
+        A library snapshot is saved every
+        {{ backupStatus.interval_hours }} hours on this server. The last
+        {{ backupStatus.backups_kept }} are kept. These backups cannot be
+        downloaded here. Use Export for a file you can keep.
       </p>
       <p class="backup-status-line">
         <span v-if="backupStatus.last_backup_at">
@@ -305,7 +303,7 @@ async function onFileSelected(e: Event) {
           {{ backupStatus.backup_count }} kept
         </span>
         <span v-else
-          >No backup yet, the first one is written within
+          >No backup yet. The first backup is saved within
           {{ backupStatus.interval_hours }} hours of the server starting.</span
         >
       </p>
@@ -328,7 +326,7 @@ async function onFileSelected(e: Event) {
     </div>
 
     <div class="tile">
-      <h3>Export as a spreadsheet</h3>
+      <h3>Export CSV</h3>
       <p class="tile-desc">
         Movies, TV shows and anime as one CSV: status, score, favorite,
         rewatches, genres and episodes watched.
@@ -345,7 +343,7 @@ async function onFileSelected(e: Event) {
     </div>
 
     <div class="tile">
-      <h3>Import from another site</h3>
+      <h3>Import from another service</h3>
       <div class="mal-source">
         <SegmentedControl
           :model-value="source"
@@ -356,16 +354,16 @@ async function onFileSelected(e: Event) {
       <p class="tile-desc">
         Add your {{ sourceInfo.what }}. {{ sourceInfo.how }}
         <template v-if="source !== 'yamtrack'">
-          You see what it would add or change before anything happens, and for
-          titles already on the site you choose, title by title, whether to keep
-          them as they are or use the file's data.
+          A preview of additions and changes is shown before anything is saved.
+          For titles already in the library, choose per title whether to keep
+          the current data or use the file's data.
         </template>
         <template v-else>
           Yamtrack imports directly and skips items already in your library.
         </template>
       </p>
       <div v-if="source === 'yamtrack'" class="form-warning">
-        Anime from Yamtrack is currently not imported. Movies and TV shows will still be imported.
+        Yamtrack anime is not imported. Movies and TV shows are.
       </div>
       <div v-if="malError" class="form-error">{{ malError }}</div>
       <div v-if="yamtrackError" class="form-error">{{ yamtrackError }}</div>
@@ -405,12 +403,12 @@ async function onFileSelected(e: Event) {
         >
         <template v-if="malResult.details_lookup_failed">
           AniList could not be reached for
-          {{ malResult.details_lookup_failed }}, so their details are still
-          blank: import the same file again later to fill them.</template
+          {{ malResult.details_lookup_failed }}. Their details are blank. Import
+          the same file again later to fill them.</template
         >
         <template v-if="malResult.details_unavailable">
-          No TMDB or OMDb key is set, so posters and details were not fetched:
-          add one in Metadata Sources, then import the same file
+          No TMDB or OMDb key is set, so posters and details were not fetched.
+          Add a key under Settings, Library, Metadata, then import the same file
           again.</template
         >
         <template v-if="malResult.assumed_complete">
@@ -444,14 +442,14 @@ async function onFileSelected(e: Event) {
               class="secondary-button"
               @click="chooseAllMal(true)"
             >
-              Use MAL for all
+              Use file data for all
             </button>
             <button
               type="button"
               class="secondary-button"
               @click="chooseAllMal(false)"
             >
-              Keep all as they are
+              Keep all
             </button>
           </div>
           <ul class="mal-list">
@@ -464,13 +462,13 @@ async function onFileSelected(e: Event) {
                 />
                 <span class="mal-title">{{ item.site_title }}</span>
                 <span class="mal-choice">{{
-                  useMal.has(item.mal_id) ? "Use MAL's" : "Keep as is"
+                  useMal.has(item.mal_id) ? "Use file" : "Keep current"
                 }}</span>
               </label>
               <ul class="mal-diffs">
                 <li v-for="d in item.differences" :key="d.field">
-                  {{ d.field }}: {{ d.site ?? "empty" }} on the site,
-                  {{ d.mal }} on MAL
+                  {{ d.field }}: {{ d.site ?? "empty" }} (library),
+                  {{ d.mal }} (file)
                 </li>
               </ul>
             </li>
@@ -504,10 +502,10 @@ async function onFileSelected(e: Event) {
       <label v-else class="secondary-button upload-label">
         {{
           source === "yamtrack"
-            ? "Choose Yamtrack CSV…"
+            ? "Import from Yamtrack CSV"
             : malBusy
               ? "Reading…"
-              : "Choose file…"
+              : "Import from file"
         }}
         <input
           type="file"
@@ -522,9 +520,9 @@ async function onFileSelected(e: Event) {
     <div class="tile">
       <h3>Restore movies, TV shows and anime</h3>
       <p class="tile-desc">
-        Add your movies, TV shows and anime back from a library export or a
-        backup file, with their seasons and watched episodes. Anything already
-        in your library (same title and year) is skipped, never overwritten.
+        Restores movies, TV shows and anime, with seasons and watched episodes,
+        from a library export or backup file. Items with the same title and year
+        are skipped.
       </p>
       <div v-if="restoreError" class="form-error">{{ restoreError }}</div>
       <div v-if="restoreResult" class="form-success">
@@ -537,7 +535,7 @@ async function onFileSelected(e: Event) {
         </ul>
       </div>
       <label class="secondary-button upload-label">
-        {{ restoreBusy ? "Restoring…" : "Choose file…" }}
+        {{ restoreBusy ? "Restoring…" : "Restore from file" }}
         <input
           type="file"
           accept="application/json,.json"
@@ -551,9 +549,8 @@ async function onFileSelected(e: Event) {
     <div class="tile">
       <h3>Import games</h3>
       <p class="tile-desc">
-        Add games from a previously exported file. Existing games are never
-        overwritten, a folder name collision gets a numbered suffix instead of
-        failing the whole import.
+        Imports games from an exported file. Existing games are not overwritten.
+        A duplicate folder name gets a numbered suffix.
       </p>
       <div v-if="importError" class="form-error">{{ importError }}</div>
       <div v-if="importResult" class="form-success">
@@ -568,7 +565,7 @@ async function onFileSelected(e: Event) {
         </ul>
       </div>
       <label class="secondary-button upload-label">
-        {{ importing ? "Importing…" : "Choose file…" }}
+        {{ importing ? "Importing…" : "Import from file" }}
         <input
           type="file"
           accept="application/json"

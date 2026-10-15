@@ -367,7 +367,7 @@ async def add_list_item(
     if lst.smart_rule is not None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="A smart list fills itself from its rule — titles can't be added by hand.",
+            detail="Titles cannot be added to a smart list. It is filled from its rule.",
         )
     media = await _resolve_media(payload.media_type, payload.media_id, current_user.id, db)
     item = await db.scalar(

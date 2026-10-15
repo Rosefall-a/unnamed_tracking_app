@@ -63,10 +63,9 @@ watch(highContrastMode, (enabled) => {
 
 <template>
   <section class="settings-section">
-    <h2>User Interface</h2>
+    <h2>User interface</h2>
     <p class="section-hint">
-      These are the defaults used the next time you open the Games page: they
-      don't change anything on a page you already have open.
+      Defaults applied the next time the Games page opens.
     </p>
 
     <div class="field">
@@ -98,7 +97,6 @@ watch(highContrastMode, (enabled) => {
         <strong>Overlay</strong>: hidden until you open it, floats over the
         page. <strong>Pinned open</strong>: always visible at full width.
         <strong>Icon rail</strong>: a thin strip of icons, expands on hover.
-        Takes effect immediately.
       </span>
     </div>
 
@@ -107,9 +105,8 @@ watch(highContrastMode, (enabled) => {
     </ToggleButton>
 
     <ToggleButton v-model="weeklyDigestEnabled" label="Weekly digest">
-      <strong>Weekly digest</strong>: a "this week" recap card on the Home Hub
-      showing games played, achievements unlocked, and metadata changes over the
-      last 7 days
+      <strong>Weekly digest</strong>: a weekly recap card on Home showing games
+      played, achievements unlocked and metadata changes from the last 7 days
     </ToggleButton>
 
     <ToggleButton v-model="highContrastMode" label="High contrast">

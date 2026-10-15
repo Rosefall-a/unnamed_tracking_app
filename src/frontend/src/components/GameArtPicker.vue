@@ -11,6 +11,8 @@ const props = defineProps<{
   providerId: string;
   // the cover already chosen by the search list, shown as the starting pick
   currentCover: string | null;
+  // what the cover already in place is called ("Search" when adding)
+  currentLabel?: string;
 }>();
 const cover = defineModel<string | null>("cover", { required: true });
 const banner = defineModel<string | null>("banner", { required: true });
@@ -62,12 +64,16 @@ onMounted(async () => {
         type="button"
         class="art-tile cover"
         :class="{ chosen: cover === null }"
-        title="The cover from the search"
+        :title="
+          currentLabel
+            ? 'The cover that is in place now'
+            : 'The cover from the search'
+        "
         @click="cover = null"
       >
         <img :src="currentCover" alt="Cover from the search" />
         <span v-if="cover === null" class="art-check">&#10003;</span>
-        <span class="art-tag">Search</span>
+        <span class="art-tag">{{ currentLabel ?? "Search" }}</span>
       </button>
       <button
         v-for="url in covers"

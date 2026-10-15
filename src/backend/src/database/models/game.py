@@ -178,6 +178,20 @@ class Game(Base):
         Numeric(6, 1),
         nullable=True,
     )
+    # the other HowLongToBeat figures: main story and extras, every objective, and the
+    # average over all play styles. time_to_beat_hours stays the main story alone.
+    time_to_beat_extras_hours: Mapped[Decimal | None] = mapped_column(
+        Numeric(6, 1),
+        nullable=True,
+    )
+    time_to_beat_completionist_hours: Mapped[Decimal | None] = mapped_column(
+        Numeric(6, 1),
+        nullable=True,
+    )
+    time_to_beat_all_hours: Mapped[Decimal | None] = mapped_column(
+        Numeric(6, 1),
+        nullable=True,
+    )
 
     # eager (selectin, not the default lazy) — unlike every other
     # relationship on this model, GameRead serializes `links` straight into

@@ -586,7 +586,7 @@ class AniListClient:
                 raise AniListError(f"AniList returned an error: {messages}")
             return payload
         raise AniListError(
-            "AniList is rate-limiting requests right now — wait a bit and try again."
+            "AniList is rate limiting requests. Try again in a few minutes."
         )
 
     def search(self, query: str, limit: int = 8) -> list[dict[str, Any]]:

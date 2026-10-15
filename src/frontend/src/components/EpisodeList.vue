@@ -208,8 +208,12 @@ const pageCount = computed(() =>
 // rather than always starting at episode 1 — re-picks only when the
 // episode list itself changes (a different season, or the initial
 // sync), not on every watched-toggle inside the current page.
+// Every save replaces the show with a new object from the server, so the episodes
+// array is a new one after each rating, note or watched toggle. Watching the array
+// itself sent the list back to the first unwatched page after every one of them;
+// what marks a different list is its length and its first episode.
 watch(
-  () => props.episodes,
+  () => [props.episodes.length, props.episodes[0]?.id],
   () => {
     const episodes = displayEpisodes.value;
     if (!episodes.length) {

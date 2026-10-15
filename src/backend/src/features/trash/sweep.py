@@ -207,6 +207,45 @@ async def purge_expired_trash() -> dict[str, int]:
     }
 
 
+async def purge_expired_media_trash() -> int:
+    """Deletes movies, shows and anime that have been in the trash longer than their
+    owner's chosen number of days. A person who has not chosen one (the default is
+    never) loses nothing."""
+    from src.core.preferences import DEFAULTS
+    from src.database.models.anime import Anime
+    from src.database.models.movies import Movie
+    from src.database.models.tv_show import TVShow
+    from src.database.models.user_preferences import UserPreferences
+
+    removed = 0
+    now = int(time.time())
+    async with SessionLocal() as db:
+        for prefs in (await db.execute(select(UserPreferences))).scalars().all():
+            days = int({**DEFAULTS, **(prefs.data or {})}["media_trash_retention_days"])
+            if days <= 0:
+                continue
+            cutoff = now - days * 86400
+            for model in (Movie, TVShow, Anime):
+                rows = (
+                    (
+                        await db.execute(
+                            select(model).where(
+                                model.user_id == prefs.user_id,
+                                model.deleted_at.is_not(None),
+                                model.deleted_at < cutoff,
+                            )
+                        )
+                    )
+                    .scalars()
+                    .all()
+                )
+                for row in rows:
+                    await db.delete(row)
+                    removed += 1
+        await db.commit()
+    return removed
+
+
 async def run_sweep_loop() -> None:
     while True:
         try:
@@ -215,6 +254,11 @@ async def run_sweep_loop() -> None:
             logger.exception("Trash sweep failed")
         # a failed cleanup only means expired rows wait for the next sweep;
         # it never affects startup or signing in
+        try:
+            if await purge_expired_media_trash():
+                logger.info("Deleted expired titles from the media trash")
+        except Exception:
+            logger.exception("Media trash clear-out failed")
         try:
             async with SessionLocal() as db:
                 removed = await purge_expired_sessions(db)

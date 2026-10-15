@@ -214,6 +214,17 @@ def _match_value(claims, field, email):
     return email
 
 
+def email_is_unverified(claims) -> bool:
+    """True when the provider says outright that it has not checked this email.
+    A provider that sends no `email_verified` claim at all is left alone (many do
+    not), but one that says false must never be used to reach an account: anyone
+    can type someone else's address into such a provider."""
+    value = claims.get("email_verified")
+    if isinstance(value, str):
+        value = value.strip().lower() == "true"
+    return value is False
+
+
 def _safe_username(value, email):
     username = "".join(char for char in value.strip() if char.isalnum() or char in "._-")[:100]
     return username or email.split("@", 1)[0][:90] or f"user-{secrets.token_hex(4)}"
@@ -236,6 +247,8 @@ async def _complete_callback(request, db, config, client_name):
     email = str(claims.get("email", "")).strip().lower()
     if not subject or not email:
         return RedirectResponse("/login?oidc_error=identity_missing", 303)
+    if email_is_unverified(claims):
+        return RedirectResponse("/login?oidc_error=email_not_verified", 303)
 
     field = config.user_match_field if config.user_match_field in {"email", "username"} else "email"
     match = _match_value(claims, field, email)
@@ -280,7 +293,13 @@ async def _complete_callback(request, db, config, client_name):
         if user.oidc_subject and user.oidc_subject not in {linked_subject, subject}:
             return RedirectResponse("/login?oidc_error=identity_conflict", 303)
         user.oidc_subject = linked_subject
-        user.email = email
+        if user.email != email:
+            # a changed address must not land on one that another account already
+            # has: that is a conflict to report, not a database error to crash on
+            taken = await db.scalar(select(User.id).where(User.email == email, User.id != user.id))
+            if taken is not None:
+                return RedirectResponse("/login?oidc_error=identity_conflict", 303)
+            user.email = email
         if config.admin_group:
             user.is_admin = is_admin
 

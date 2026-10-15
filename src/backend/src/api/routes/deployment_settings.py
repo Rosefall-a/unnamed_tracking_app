@@ -272,7 +272,7 @@ async def update_deployment_settings(
             except ValueError as exc:
                 raise HTTPException(400, "Invalid OIDC provider configuration JSON.") from exc
             if not isinstance(incoming, list) or len(incoming) > 20:
-                raise HTTPException(400, "OIDC provider list must contain 0–20 providers.")
+                raise HTTPException(400, "OIDC provider list must contain 0 to 20 providers.")
             existing = {p.get("slug"): p for p in _provider_rows(oidc)}
             normalized = []
             slugs = set()
@@ -344,7 +344,7 @@ async def update_deployment_settings(
             elif field == "oidc_login_button_text":
                 text = (value or "").strip()
                 if not text or len(text) > 100:
-                    raise HTTPException(400, "SSO button text must be 1–100 characters.")
+                    raise HTTPException(400, "SSO button text must be 1 to 100 characters.")
                 oidc.login_button_text = text
             elif field == "oidc_allow_new_users":
                 oidc.allow_new_users = bool(value)

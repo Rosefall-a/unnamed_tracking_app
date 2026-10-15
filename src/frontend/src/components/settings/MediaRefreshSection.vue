@@ -46,7 +46,8 @@ async function run(mode: "needed" | "all") {
     progress.value = await startMediaRefresh(mode);
     startPolling();
   } catch (err) {
-    error.value = err instanceof Error ? err.message : "Refresh failed";
+    error.value =
+      err instanceof Error ? err.message : "Could not start the refresh.";
   }
 }
 
@@ -103,22 +104,20 @@ function formatTime(epochSeconds: number): string {
 
 <template>
   <section class="settings-section">
-    <h2>Refresh Media</h2>
+    <h2>Refresh media</h2>
     <p class="section-hint">
-      It runs only when you start it here or switch on its schedule under Tasks.
-      Run it to pick up newly aired episodes, fill in missing episode titles and
-      images, and correct a show whose episode count is wrong, right away.
+      Runs when started here, or on a schedule if one is turned on under Tasks.
+      Picks up newly aired episodes, fills in missing episode titles and images,
+      and corrects wrong episode counts.
     </p>
 
     <div class="tile">
-      <h3>Show &amp; anime episodes</h3>
+      <h3>Show and anime episodes</h3>
       <p class="tile-desc">
-        <strong>Refresh what needs it</strong> only looks at titles that are
-        still airing, have missing episode titles, or whose episode count
-        disagrees with AniList. That is usually a small part of your library, so
-        it is quick. <strong>Check every title</strong> looks at all of them.
-        Your watched episodes and ratings are never touched, and a title a
-        source has wrong is never trusted over what AniList says it has.
+        <strong>Refresh</strong> checks titles that are airing, have missing
+        episode titles, or have an episode count that differs from AniList.
+        <strong>Refresh all</strong> checks every title. Watched episodes and
+        ratings are never changed.
       </p>
       <div v-if="error" class="form-error">{{ error }}</div>
 
@@ -135,7 +134,7 @@ function formatTime(epochSeconds: number): string {
             <span class="progress-current">{{ progress.current }}</span>
             <span
               >{{ progress.checked }} refreshed,
-              {{ progress.skippedUpToDate }} already fine</span
+              {{ progress.skippedUpToDate }} up to date</span
             >
           </div>
         </template>
@@ -144,7 +143,7 @@ function formatTime(epochSeconds: number): string {
             <span class="refresh-result-label">Checked</span>
             <span
               >{{ progress.total }} titles: {{ progress.checked }} refreshed,
-              {{ progress.skippedUpToDate }} already up to date</span
+              {{ progress.skippedUpToDate }} up to date</span
             >
           </div>
           <div class="refresh-result-row">
@@ -170,16 +169,15 @@ function formatTime(epochSeconds: number): string {
             >
           </div>
           <p v-if="!progress.checked && !progress.error" class="refresh-note">
-            Nothing needed updating, so nothing changed. Use Check every title
-            to look at all of them anyway.
+            No titles needed updating. Use Refresh all to check every title.
           </p>
           <p v-if="progress.unreachable.length" class="refresh-note">
             Could not refresh {{ progress.unreachable.length }} title{{
               progress.unreachable.length === 1 ? "" : "s"
             }}
-            (a source did not answer):
+            (a source did not respond):
             {{ progress.unreachable.slice(0, 5).join(", ")
-            }}{{ progress.unreachable.length > 5 ? "…" : "" }}. Try again later.
+            }}{{ progress.unreachable.length > 5 ? "…" : "" }}
           </p>
           <p v-if="progress.error" class="form-error">{{ progress.error }}</p>
         </template>
@@ -192,7 +190,7 @@ function formatTime(epochSeconds: number): string {
           :disabled="running"
           @click="run('needed')"
         >
-          {{ running ? "Refreshing…" : "Refresh what needs it" }}
+          {{ running ? "Refreshing…" : "Refresh" }}
         </button>
         <button
           type="button"
@@ -200,7 +198,7 @@ function formatTime(epochSeconds: number): string {
           :disabled="running"
           @click="run('all')"
         >
-          Check every title
+          Refresh all
         </button>
         <span v-if="progress?.finishedAt && !running" class="last-run"
           >Last run {{ formatTime(progress.finishedAt) }}</span
@@ -212,9 +210,9 @@ function formatTime(epochSeconds: number): string {
       <h3>Movie details</h3>
       <p class="tile-desc">
         A movie added before its length was being saved shows no time. This
-        looks up each movie that has none and fills in only what is empty:
-        its length, and the director, genres and so on. Anything you wrote
-        or locked is never changed.
+        looks up each movie that has none and fills in only what is empty: its
+        length, and the director, genres and so on. Anything you wrote or locked
+        is never changed.
       </p>
       <div v-if="movieError" class="form-error">{{ movieError }}</div>
       <p v-if="movieResult" class="refresh-note">{{ movieResult }}</p>

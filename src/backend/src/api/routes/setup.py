@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.core.auth import (
     SESSION_TTL_SECONDS,
     get_current_admin,
+    get_current_user,
     hash_password,
     hash_token,
     set_password_policy_override,
@@ -315,7 +316,18 @@ async def _save_configuration(
     oidc.providers_json = json.dumps(providers)
 
 
-@router.get("/configuration")
+async def _admin_once_set_up(request: Request, db: AsyncSession = Depends(get_db)) -> None:
+    """The setup form is open to anyone only until the first account exists. After
+    that the configuration (issuer, usernames, the deployment's settings) is the
+    administrator's to read, as it already is to change."""
+    if await db.scalar(select(User.id).limit(1)) is None:
+        return
+    user = await get_current_user(request, db)
+    if not user.is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Administrator access required.")
+
+
+@router.get("/configuration", dependencies=[Depends(_admin_once_set_up)])
 async def setup_configuration(request: Request, db: AsyncSession = Depends(get_db)) -> dict[str, object]:
     return await _configuration(db, request)
 

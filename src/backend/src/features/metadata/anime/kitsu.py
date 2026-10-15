@@ -66,7 +66,7 @@ class KitsuClient:
                 return response.json()
             except ValueError as exc:
                 raise KitsuError("Kitsu returned invalid JSON.") from exc
-        raise KitsuError("Kitsu is rate-limiting requests right now — wait a bit and try again.")
+        raise KitsuError("Kitsu is rate limiting requests. Try again in a few minutes.")
 
     def find_exact(self, title: str, year: int | None = None) -> str | None:
         """Searches by title and returns the id only when a result's own

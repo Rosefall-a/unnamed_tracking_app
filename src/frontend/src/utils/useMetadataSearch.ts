@@ -62,9 +62,12 @@ export function useMetadataSearch<
       return (
         full.find(
           (r) =>
-            r.provider === result.provider && r.providerId === result.providerId,
+            r.provider === result.provider &&
+            r.providerId === result.providerId,
         ) ??
-        full.find((r) => r.title.toLowerCase() === result.title.toLowerCase()) ??
+        full.find(
+          (r) => r.title.toLowerCase() === result.title.toLowerCase(),
+        ) ??
         result
       );
     } catch {

@@ -2,6 +2,8 @@
 // they can be tested. A title with no known value for a filter that needs one
 // (no year for a year range, no score for a minimum score) never matches it.
 
+import type { LibrarySort } from "./librarySort";
+
 export interface Filterable {
   title: string;
   altTitles?: string[];
@@ -25,6 +27,7 @@ export interface LibraryFilters {
   yearFrom: string;
   yearTo: string;
   statusBucket?: string;
+  sort?: LibrarySort;
 }
 
 export function matchesFilters(it: Filterable, f: LibraryFilters): boolean {

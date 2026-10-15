@@ -37,7 +37,7 @@ const smart = ref(props.list?.isSmart ?? false);
 
 const MEDIA_OPTIONS: { key: MediaType; label: string }[] = [
   { key: "movie", label: "Movies" },
-  { key: "tv", label: "TV Shows" },
+  { key: "tv", label: "TV shows" },
   { key: "anime", label: "Anime" },
 ];
 

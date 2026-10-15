@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import "../styles/shared/sortHead.css";
 import { sizedAssetUrl } from "../utils/gameImages";
 import HeartIcon from "../components/HeartIcon.vue";
 import { ref, computed, onMounted, onUnmounted, watch } from "vue";
@@ -8,6 +9,7 @@ import GameCard from "../components/GameCard.vue";
 import CheckIcon from "../components/CheckIcon.vue";
 import GameFormModal from "../components/GameFormModal.vue";
 import GameQuickAdd from "../components/GameQuickAdd.vue";
+import GameQuickEdit from "../components/GameQuickEdit.vue";
 import BulkEditModal from "../components/BulkEditModal.vue";
 import RandomGamePicker from "../components/RandomGamePicker.vue";
 import { activePriority, priorityLabel } from "../utils/priority";
@@ -74,6 +76,8 @@ const error = ref<string | null>(null);
 
 const showFormModal = ref(false);
 const showQuickAdd = ref(false);
+// the light edit: status, platform, rating and artwork, with a way on to the full form
+const quickEditGame = ref<Game | null>(null);
 const editingGame = ref<Game | null>(null);
 
 const deletingGame = ref<Game | null>(null);
@@ -125,6 +129,16 @@ function toggleSelectMode() {
 // shift-click extends from whichever card was last clicked, so selecting a
 // long run doesn't mean toggling every card individually
 let lastToggledId: string | null = null;
+// a status or favorite changed from a card: the library's own copy follows, so the
+// filters, counts and preview agree with what the card shows
+function onCardChanged(
+  id: string,
+  fields: { status?: GameStatus; favorite?: boolean },
+) {
+  const game = games.value.find((g) => g.id === id);
+  if (game) Object.assign(game, fields);
+}
+
 function toggleSelect(game: Game, shiftKey = false) {
   const next = new Set(selectedIds.value);
   if (shiftKey && lastToggledId) {
@@ -216,6 +230,10 @@ interface PersistedFilters {
   retroAchievementsOnly: boolean;
   missingFilter: MissingFilter;
   tagsFilter: string[];
+  // games to leave out, the opposite of the filters above
+  hideStatuses: GameStatus[];
+  hideTags: string[];
+  hidePlatforms: string[];
 }
 function loadPersistedFilters(): Partial<PersistedFilters> {
   try {
@@ -253,6 +271,24 @@ const missingFilter = ref<MissingFilter>("none");
 // combobox above rather than replacing it, so the common "just one genre"
 // case stays a quick single click
 const tagsFilter = ref<string[]>([]);
+// "not these": a game with any of them is left out
+const hideStatuses = ref<GameStatus[]>([]);
+const hideTags = ref<string[]>([]);
+const hidePlatforms = ref<string[]>([]);
+function toggleHiddenStatus(s: GameStatus) {
+  toggleIn(hideStatuses, s);
+}
+function toggleHiddenTag(tag: string) {
+  toggleIn(hideTags, tag);
+}
+function toggleHiddenPlatform(p: string) {
+  toggleIn(hidePlatforms, p);
+}
+function toggleIn<T>(list: { value: T[] }, item: T) {
+  list.value = list.value.includes(item)
+    ? list.value.filter((x) => x !== item)
+    : [...list.value, item];
+}
 function toggleTagFilter(tag: string) {
   // a genre set from a link (or the Genre box) shows as selected here too, and
   // clicking it takes it off
@@ -328,6 +364,9 @@ const advancedFilterCount = computed(() => {
   if (retroAchievementsOnly.value) count++;
   if (missingFilter.value !== "none") count++;
   if (tagsFilter.value.length) count++;
+  if (hideStatuses.value.length) count++;
+  if (hideTags.value.length) count++;
+  if (hidePlatforms.value.length) count++;
   return count;
 });
 
@@ -353,6 +392,9 @@ function clearAdvancedFilters() {
   retroAchievementsOnly.value = false;
   missingFilter.value = "none";
   tagsFilter.value = [];
+  hideStatuses.value = [];
+  hideTags.value = [];
+  hidePlatforms.value = [];
 }
 
 function clearAllFilters() {
@@ -400,6 +442,9 @@ function currentFilterValues(): FilterPreset["filters"] {
     retroAchievementsOnly: retroAchievementsOnly.value,
     missingFilter: missingFilter.value,
     tagsFilter: [...tagsFilter.value],
+    hideStatuses: [...hideStatuses.value],
+    hideTags: [...hideTags.value],
+    hidePlatforms: [...hidePlatforms.value],
   };
 }
 async function saveCurrentAsPreset() {
@@ -439,6 +484,9 @@ function applyPreset(preset: FilterPreset) {
   retroAchievementsOnly.value = preset.filters.retroAchievementsOnly;
   missingFilter.value = preset.filters.missingFilter;
   tagsFilter.value = [...(preset.filters.tagsFilter ?? [])];
+  hideStatuses.value = [...(preset.filters.hideStatuses ?? [])];
+  hideTags.value = [...(preset.filters.hideTags ?? [])];
+  hidePlatforms.value = [...(preset.filters.hidePlatforms ?? [])];
   showAdvancedFilters.value = true;
   showPresetsMenu.value = false;
 }
@@ -583,6 +631,14 @@ const platformExtraOptions = computed(() => {
   return Array.from(set).sort();
 });
 
+const platformsInLibrary = computed(() => {
+  const set = new Set<string>();
+  games.value.forEach((g) =>
+    g.platforms.forEach((p) => set.add(normalizePlatformFamily(p.platform))),
+  );
+  return Array.from(set).sort();
+});
+
 const genreOptions = computed(() =>
   genreOptionsFor(games.value.map((g) => g.tags)),
 );
@@ -668,7 +724,7 @@ async function loadGames() {
     selectFirstForDetailView();
   } catch (err) {
     if (token !== loadGamesToken) return;
-    error.value = err instanceof Error ? err.message : "Failed to load games";
+    error.value = err instanceof Error ? err.message : "Could not load games";
   } finally {
     if (token === loadGamesToken) loading.value = false;
   }
@@ -702,6 +758,7 @@ function anyModalOpen(): boolean {
   return (
     showFormModal.value ||
     showQuickAdd.value ||
+    !!quickEditGame.value ||
     !!deletingGame.value ||
     showBulkEditModal.value ||
     !!collectionPickerGame.value ||
@@ -834,8 +891,19 @@ function openManualAdd() {
 }
 
 function openEditModal(game: Game) {
-  editingGame.value = game;
+  quickEditGame.value = game;
+}
+
+// "Edit more" in the light edit: the full form for the same game
+function openFullEdit() {
+  editingGame.value = quickEditGame.value;
+  quickEditGame.value = null;
   showFormModal.value = true;
+}
+
+async function onQuickEdited() {
+  quickEditGame.value = null;
+  await loadGames();
 }
 
 async function onGameSaved() {
@@ -888,7 +956,7 @@ async function confirmDelete() {
     await loadGames();
   } catch (err) {
     deleteError.value =
-      err instanceof Error ? err.message : "Failed to delete game";
+      err instanceof Error ? err.message : "Could not delete game";
   } finally {
     deleting.value = false;
   }
@@ -986,6 +1054,22 @@ const filteredGames = computed(() => {
   if (tagsFilter.value.length) {
     result = result.filter((g) =>
       tagsFilter.value.some((tag) => hasGenre(g.tags, tag)),
+    );
+  }
+  if (hideStatuses.value.length) {
+    result = result.filter((g) => !hideStatuses.value.includes(g.status));
+  }
+  if (hideTags.value.length) {
+    result = result.filter(
+      (g) => !hideTags.value.some((tag) => hasGenre(g.tags, tag)),
+    );
+  }
+  if (hidePlatforms.value.length) {
+    result = result.filter(
+      (g) =>
+        !g.platforms.some((p) =>
+          hidePlatforms.value.includes(normalizePlatformFamily(p.platform)),
+        ),
     );
   }
 
@@ -1216,6 +1300,24 @@ const activeFilterPills = computed(() => {
       clear: () => toggleTagFilter(tag),
     });
   }
+  for (const status of hideStatuses.value)
+    pills.push({
+      key: "hide-status:" + status,
+      label: "Not " + status,
+      clear: () => toggleIn(hideStatuses, status),
+    });
+  for (const tag of hideTags.value)
+    pills.push({
+      key: "hide-tag:" + tag,
+      label: "Not " + tag,
+      clear: () => toggleIn(hideTags, tag),
+    });
+  for (const platform of hidePlatforms.value)
+    pills.push({
+      key: "hide-platform:" + platform,
+      label: "Not " + platform,
+      clear: () => toggleIn(hidePlatforms, platform),
+    });
   return pills;
 });
 
@@ -1658,6 +1760,54 @@ function cardsInRow(rowIndex: number): Game[] {
             </button>
           </div>
         </div>
+        <div class="advanced-field advanced-field-wide">
+          <label>Hide statuses</label>
+          <div class="tags-multiselect">
+            <button
+              v-for="s in statusOptions.filter((o) => o !== 'all')"
+              :key="s"
+              type="button"
+              class="tag-chip hide-chip"
+              :class="{ active: hideStatuses.includes(s as GameStatus) }"
+              @click="toggleHiddenStatus(s as GameStatus)"
+            >
+              {{ s }}
+            </button>
+          </div>
+        </div>
+        <div class="advanced-field advanced-field-wide">
+          <label>Hide tags (any of)</label>
+          <div class="tags-multiselect">
+            <button
+              v-for="tag in genreOptions"
+              :key="tag"
+              type="button"
+              class="tag-chip hide-chip"
+              :class="{ active: hideTags.includes(tag) }"
+              @click="toggleHiddenTag(tag)"
+            >
+              {{ tag }}
+            </button>
+          </div>
+        </div>
+        <div
+          v-if="platformsInLibrary.length"
+          class="advanced-field advanced-field-wide"
+        >
+          <label>Hide platforms</label>
+          <div class="tags-multiselect">
+            <button
+              v-for="platform in platformsInLibrary"
+              :key="platform"
+              type="button"
+              class="tag-chip hide-chip"
+              :class="{ active: hidePlatforms.includes(platform) }"
+              @click="toggleHiddenPlatform(platform)"
+            >
+              {{ platform }}
+            </button>
+          </div>
+        </div>
         <div class="advanced-toggles">
           <button
             type="button"
@@ -1814,6 +1964,7 @@ function cardsInRow(rowIndex: number): Game[] {
               @edit="openEditModal"
               @add-to-collection="handleAddToCollection"
               @toggle-select="toggleSelect"
+              @changed="onCardChanged"
             />
           </div>
         </div>
@@ -1823,7 +1974,7 @@ function cardsInRow(rowIndex: number): Game[] {
             <span></span>
             <button
               type="button"
-              class="sortable left"
+              class="sort-head left"
               :class="{ active: sortBy === 'name' }"
               @click="sortBy = 'name'"
             >
@@ -1832,7 +1983,7 @@ function cardsInRow(rowIndex: number): Game[] {
             <span></span>
             <button
               type="button"
-              class="sortable"
+              class="sort-head"
               :class="{ active: sortBy === 'playtime' }"
               @click="sortBy = 'playtime'"
             >
@@ -1840,7 +1991,7 @@ function cardsInRow(rowIndex: number): Game[] {
             </button>
             <button
               type="button"
-              class="sortable"
+              class="sort-head"
               :class="{ active: sortBy === 'rating' }"
               @click="sortBy = 'rating'"
             >
@@ -1849,7 +2000,7 @@ function cardsInRow(rowIndex: number): Game[] {
             <span>Rank</span>
             <button
               type="button"
-              class="sortable"
+              class="sort-head"
               :class="{ active: sortBy === 'neglected' }"
               @click="sortBy = 'neglected'"
             >
@@ -2224,6 +2375,13 @@ function cardsInRow(rowIndex: number): Game[] {
         @close="showQuickAdd = false"
         @added="onQuickAdded"
         @manual="openManualAdd"
+      />
+      <GameQuickEdit
+        v-if="quickEditGame"
+        :game="quickEditGame"
+        @close="quickEditGame = null"
+        @saved="onQuickEdited"
+        @more="openFullEdit"
       />
       <GameFormModal
         v-if="showFormModal"
@@ -2948,6 +3106,13 @@ function cardsInRow(rowIndex: number): Game[] {
   border-color: var(--accent-line);
   color: var(--accent);
 }
+/* a chip that leaves games out reads differently from one that picks them */
+.tag-chip.hide-chip.active {
+  background: color-mix(in srgb, var(--ui-error) 14%, transparent);
+  border-color: color-mix(in srgb, var(--ui-error) 55%, transparent);
+  color: var(--ui-error);
+  text-decoration: line-through;
+}
 .advanced-field label {
   color: var(--text-dim);
   font-size: 0.7rem;
@@ -3059,7 +3224,7 @@ function cardsInRow(rowIndex: number): Game[] {
   padding: 0 16px 8px;
 }
 .list-header span,
-.list-header .sortable {
+.list-header .sort-head {
   color: var(--text-faint);
   font-size: 0.66rem;
   text-transform: uppercase;
@@ -3067,18 +3232,10 @@ function cardsInRow(rowIndex: number): Game[] {
   font-weight: 700;
   text-align: center;
 }
-.list-header .sortable {
-  background: none;
-  border: none;
-  padding: 0;
-  font-family: inherit;
-  cursor: pointer;
-}
-.list-header .sortable.left {
-  text-align: left;
-}
-.list-header .sortable:hover,
-.list-header .sortable.active {
+/* the header's own colour above is as specific as the shared active rule, so the
+   active column needs its own to show */
+.list-header .sort-head:hover,
+.list-header .sort-head.active {
   color: var(--accent);
 }
 .list-row {

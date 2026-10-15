@@ -122,7 +122,7 @@ onMounted(async () => {
     }));
   } catch (err) {
     error.value =
-      err instanceof Error ? err.message : "Failed to load OIDC settings.";
+      err instanceof Error ? err.message : "Could not load OIDC settings.";
   } finally {
     loading.value = false;
   }
@@ -154,7 +154,7 @@ async function save() {
     saved.value = true;
   } catch (err) {
     error.value =
-      err instanceof Error ? err.message : "Failed to save OIDC settings.";
+      err instanceof Error ? err.message : "Could not save OIDC settings.";
   } finally {
     saving.value = false;
   }
@@ -163,21 +163,19 @@ async function save() {
 
 <template>
   <section class="section">
-    <h2>OpenID Connect / SSO</h2>
+    <h2>Single sign-on</h2>
     <p class="hint">
-      Configure one or more named identity providers. Providers can be
-      reordered, styled, shown on the login page, or given independent autostart
-      URLs.
+      Identity providers for single sign-on. Providers can be reordered, styled,
+      shown on the login page, or given their own autostart URLs.
     </p>
 
     <div v-if="loading">Loading…</div>
     <template v-else>
       <div class="login-panel">
         <div>
-          <strong>Enable OIDC</strong>
+          <strong>Enable single sign-on</strong>
           <p class="hint">
-            When disabled, partially configured providers may be saved without
-            being used for login.
+            When off, providers are saved but not used for login.
           </p>
         </div>
         <input
@@ -191,8 +189,8 @@ async function save() {
         <div>
           <strong>Default login method</strong>
           <p class="hint">
-            Choose whether the normal login page initially prioritises local
-            credentials or SSO.
+            Chooses whether the login page shows local credentials or single
+            sign-on first.
           </p>
         </div>
         <select v-model="login.default_login_method">
@@ -205,16 +203,15 @@ async function save() {
         <div>
           <h3>Identity providers</h3>
           <p class="hint">
-            Drag using the provider header, or use the arrow controls. Order is
-            reflected on the login page.
+            Drag providers or use the arrows to reorder them. The order is used
+            on the login page.
           </p>
         </div>
-        <button type="button" @click="addProvider">+ Add provider</button>
+        <button type="button" @click="addProvider">Add provider</button>
       </div>
 
       <div v-if="!providers.length" class="empty">
-        No named providers configured. Click <strong>+ Add provider</strong> to
-        create one.
+        No providers. Select <strong>Add provider</strong>.
       </div>
 
       <div
@@ -276,18 +273,39 @@ async function save() {
         </div>
 
         <div class="grid">
-          <label><span>Provider name</span><input v-model="provider.name" placeholder="Authentik"
-              @blur="defaultProviderSlug(provider)" /></label>
-          <label><span>Slug</span><input v-model="provider.slug" placeholder="authentik" autocomplete="off" /></label>
-          <label><span>Issuer / discovery URL</span><input v-model="provider.issuer_url"
-              placeholder="https://id.example.com" /></label>
-          <label><span>Client ID</span><input v-model="provider.client_id" /></label>
+          <label
+            ><span>Provider name</span
+            ><input
+              v-model="provider.name"
+              placeholder="Authentik"
+              @blur="defaultProviderSlug(provider)"
+          /></label>
+          <label
+            ><span>Slug</span
+            ><input
+              v-model="provider.slug"
+              placeholder="authentik"
+              autocomplete="off"
+          /></label>
+          <label
+            ><span>Issuer / discovery URL</span
+            ><input
+              v-model="provider.issuer_url"
+              placeholder="https://id.example.com"
+          /></label>
+          <label
+            ><span>Client ID</span><input v-model="provider.client_id"
+          /></label>
           <label>
             <span>Client secret</span>
             <PasswordInput
               v-model="provider.client_secret"
               :mode="provider.client_secret_configured ? 'replace' : 'new'"
-              :placeholder="provider.client_secret_configured ? 'Leave blank to keep saved secret' : 'Required'"
+              :placeholder="
+                provider.client_secret_configured
+                  ? 'Leave blank to keep saved secret'
+                  : 'Required'
+              "
               autocomplete="new-password"
               :required="provider.enabled && !provider.client_secret_configured"
             />
@@ -394,9 +412,9 @@ async function save() {
       </div>
 
       <p v-if="error" class="error">{{ error }}</p>
-      <p v-if="saved" class="success">OIDC settings saved.</p>
+      <p v-if="saved" class="success">Saved</p>
       <button :disabled="saving" @click="save">
-        {{ saving ? "Saving…" : "Save OIDC settings" }}
+        {{ saving ? "Saving…" : "Save" }}
       </button>
     </template>
   </section>

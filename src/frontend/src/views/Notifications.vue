@@ -48,7 +48,7 @@ async function load() {
     items.value = (await fetchMediaNotifications(200)).items;
   } catch (e) {
     error.value =
-      e instanceof Error ? e.message : "Failed to load notifications.";
+      e instanceof Error ? e.message : "Could not load notifications.";
   } finally {
     loading.value = false;
   }
@@ -153,7 +153,7 @@ function timeOnly(unix: number): string {
 }
 function ago(unix: number): string {
   const s = Math.max(0, Math.floor(Date.now() / 1000 - unix));
-  if (s < 60) return "just now";
+  if (s < 60) return "now";
   const unit = (n: number, word: string) =>
     `${n} ${word}${n === 1 ? "" : "s"} ago`;
   if (s < 3600) return unit(Math.floor(s / 60), "minute");
@@ -188,7 +188,7 @@ async function setRead(n: MediaNotification, read: boolean) {
     refreshMediaNotifications();
   } catch (e) {
     n.read = before;
-    error.value = e instanceof Error ? e.message : "Failed to update.";
+    error.value = e instanceof Error ? e.message : "Could not update.";
   }
 }
 async function readAll() {
@@ -199,13 +199,13 @@ async function readAll() {
     refreshMediaNotifications();
   } catch (e) {
     items.value.forEach((n, i) => (n.read = before[i]));
-    error.value = e instanceof Error ? e.message : "Failed to update.";
+    error.value = e instanceof Error ? e.message : "Could not update.";
   }
 }
 async function dismiss(n: MediaNotification) {
   const ok = await confirm({
-    message: "Remove this notification?",
-    confirmLabel: "Remove",
+    message: "Delete this notification?",
+    confirmLabel: "Delete",
   });
   if (!ok) return;
   try {
@@ -213,7 +213,7 @@ async function dismiss(n: MediaNotification) {
     items.value = items.value.filter((x) => x.id !== n.id);
     refreshMediaNotifications();
   } catch (e) {
-    error.value = e instanceof Error ? e.message : "Failed to remove.";
+    error.value = e instanceof Error ? e.message : "Could not remove.";
   }
 }
 async function open(n: MediaNotification) {
@@ -241,7 +241,7 @@ function toggleOpen(n: MediaNotification) {
           :disabled="!unreadCount"
           @click="readAll"
         >
-          Mark All Read
+          Mark all read
         </button>
       </template>
     </AppTopBar>
@@ -251,7 +251,9 @@ function toggleOpen(n: MediaNotification) {
         <div>
           <h1>Notifications</h1>
           <div class="sub">
-            {{ unreadCount ? `${unreadCount} unread` : "All caught up" }}
+            {{
+              unreadCount ? `${unreadCount} unread` : "No unread notifications"
+            }}
           </div>
         </div>
       </div>
@@ -263,14 +265,13 @@ function toggleOpen(n: MediaNotification) {
           <p class="empty-title">
             {{
               filter === "unread"
-                ? "You're all caught up."
-                : "Nothing here yet."
+                ? "No unread notifications."
+                : "No notifications."
             }}
           </p>
           <p class="empty-sub">
-            Episodes, season starts, new seasons and movie releases show up here
-            as they happen, using the exact time the provider lists. Choose
-            which ones you get under Settings, Calendar and Notifications.
+            Notifications for episodes, season starts, new seasons and movie
+            releases appear here. Choose them under Settings, Notifications.
           </p>
         </div>
 
@@ -322,7 +323,9 @@ function toggleOpen(n: MediaNotification) {
                   <div>
                     <dt>
                       {{
-                        n.kind === "sequel_announced" ? "Noticed" : "Exact time"
+                        n.kind === "sequel_announced"
+                          ? "Detected"
+                          : "Exact time"
                       }}
                     </dt>
                     <dd>{{ exactTime(n.eventAt) }}</dd>
@@ -334,21 +337,21 @@ function toggleOpen(n: MediaNotification) {
                     class="ui-btn ui-btn-sm ui-btn-primary"
                     @click="open(n)"
                   >
-                    Open Title
+                    Open title
                   </button>
                   <button
                     type="button"
                     class="ui-btn ui-btn-sm ui-btn-secondary"
                     @click="setRead(n, !n.read)"
                   >
-                    {{ n.read ? "Mark Unread" : "Mark Read" }}
+                    {{ n.read ? "Mark unread" : "Mark read" }}
                   </button>
                   <button
                     type="button"
                     class="ui-btn ui-btn-sm ui-btn-danger-soft"
                     @click="dismiss(n)"
                   >
-                    Remove
+                    Delete
                   </button>
                 </div>
               </div>

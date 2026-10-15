@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { formatDisplayDate } from "../utils/dates";
+import { mediaPriority, priorityLabel } from "../utils/priority";
 import { localMediaImage } from "../utils/mediaImages";
 import { usePageTitle } from "../state/pageTitle";
 import MyNote from "../components/MyNote.vue";
@@ -71,7 +73,7 @@ async function load() {
     movie.value = await getMovie(movieId.value);
   } catch (e) {
     if (!cached)
-      error.value = e instanceof Error ? e.message : "Failed to load movie.";
+      error.value = e instanceof Error ? e.message : "Could not load movie.";
   } finally {
     loading.value = false;
   }
@@ -126,9 +128,7 @@ watch(
   () => movie.value?.progressMinutes,
   (minutes) => {
     progressInput.value =
-      minutes === null || minutes === undefined
-        ? ""
-        : formatDuration(minutes);
+      minutes === null || minutes === undefined ? "" : formatDuration(minutes);
     progressError.value = null;
   },
   { immediate: true },
@@ -233,7 +233,7 @@ async function loadRelated() {
     relatedLoaded.value = true;
   } catch (e) {
     relatedError.value =
-      e instanceof Error ? e.message : "Failed to load related movies.";
+      e instanceof Error ? e.message : "Could not load related movies.";
   } finally {
     relatedLoading.value = false;
   }
@@ -285,7 +285,7 @@ async function loadRecommended() {
     recommendedLoaded.value = true;
   } catch (e) {
     recommendedError.value =
-      e instanceof Error ? e.message : "Failed to load recommendations.";
+      e instanceof Error ? e.message : "Could not load recommendations.";
   } finally {
     recommendedLoading.value = false;
   }
@@ -343,7 +343,7 @@ async function onRelatedTitleClick(r: {
     ].filter((v): v is string => !!v);
   } catch (e) {
     previewError.value =
-      e instanceof Error ? e.message : "Failed to load a preview.";
+      e instanceof Error ? e.message : "Could not load a preview.";
   } finally {
     previewLoading.value = false;
   }
@@ -375,7 +375,7 @@ async function addPreviewToLibrary() {
     router.push(`/movies/${created.id}`);
   } catch (e) {
     previewError.value =
-      e instanceof Error ? e.message : "Failed to add to library.";
+      e instanceof Error ? e.message : "Could not add to library.";
   } finally {
     previewAdding.value = false;
   }
@@ -509,6 +509,35 @@ async function onRatingChange(value: number | null) {
     <div class="body">
       <div v-if="activeTab === 'overview'" class="tab-panel">
         <div class="meta-grid">
+          <div
+            v-if="mediaPriority(movie.status, movie.priority) !== null"
+            class="meta-item"
+          >
+            <span class="meta-label">Priority</span>
+            <span class="meta-value">{{
+              priorityLabel(mediaPriority(movie.status, movie.priority)!)
+            }}</span>
+          </div>
+          <div v-if="movie.startDate" class="meta-item">
+            <span class="meta-label">Started</span>
+            <span class="meta-value">{{
+              formatDisplayDate(movie.startDate, {
+                year: "numeric",
+                month: "short",
+                day: "numeric",
+              })
+            }}</span>
+          </div>
+          <div v-if="movie.endDate" class="meta-item">
+            <span class="meta-label">Finished</span>
+            <span class="meta-value">{{
+              formatDisplayDate(movie.endDate, {
+                year: "numeric",
+                month: "short",
+                day: "numeric",
+              })
+            }}</span>
+          </div>
           <div v-if="movie.director" class="meta-item">
             <span class="meta-label">Director</span>
             <span class="meta-value">{{ movie.director }}</span>

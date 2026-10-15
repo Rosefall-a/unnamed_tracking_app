@@ -4,8 +4,10 @@ withDefaults(
     modelValue: boolean;
     label: string;
     disabled?: boolean;
+    // why the option cannot be changed right now, shown while it is greyed out
+    reason?: string;
   }>(),
-  { disabled: false },
+  { disabled: false, reason: "" },
 );
 
 const emit = defineEmits<{
@@ -25,7 +27,10 @@ const emit = defineEmits<{
   >
     <span class="toggle-track"><span class="toggle-knob"></span></span>
     <span class="toggle-label"
-      ><slot>{{ label }}</slot></span
+      ><slot>{{ label }}</slot
+      ><span v-if="disabled && reason" class="toggle-reason">{{
+        reason
+      }}</span></span
     >
   </button>
 </template>
@@ -77,6 +82,12 @@ const emit = defineEmits<{
 }
 .toggle-label {
   flex: 1;
+}
+.toggle-reason {
+  display: block;
+  margin-top: 2px;
+  color: #8a8a8a;
+  font-size: 0.74rem;
 }
 .toggle-label :deep(strong) {
   color: #fff;

@@ -88,7 +88,7 @@ async function loadRewatches() {
     rewatches.value = await fetchRewatches(props.mediaType, props.mediaId);
   } catch (e) {
     rewatchesError.value =
-      e instanceof Error ? e.message : "Failed to load rewatch history.";
+      e instanceof Error ? e.message : "Could not load rewatch history.";
   }
 }
 
@@ -108,7 +108,7 @@ async function submitRewatch() {
     logDate.value = new Date().toISOString().slice(0, 10);
   } catch (e) {
     rewatchesError.value =
-      e instanceof Error ? e.message : "Failed to log rewatch.";
+      e instanceof Error ? e.message : "Could not log rewatch.";
   } finally {
     logging.value = false;
   }
@@ -120,7 +120,7 @@ async function removeRewatch(id: string) {
     rewatches.value = rewatches.value.filter((r) => r.id !== id);
   } catch (e) {
     rewatchesError.value =
-      e instanceof Error ? e.message : "Failed to remove rewatch.";
+      e instanceof Error ? e.message : "Could not remove rewatch.";
   }
 }
 
@@ -151,7 +151,8 @@ async function loadLists() {
     membership.value = mine;
     listsLoaded.value = true;
   } catch (e) {
-    listError.value = e instanceof Error ? e.message : "Failed to load collections.";
+    listError.value =
+      e instanceof Error ? e.message : "Could not load collections.";
   }
 }
 
@@ -169,7 +170,8 @@ async function toggleListMembership(listId: string) {
       membership.value = fresh;
     }
   } catch (e) {
-    listError.value = e instanceof Error ? e.message : "Failed to update collection.";
+    listError.value =
+      e instanceof Error ? e.message : "Could not update collection.";
   } finally {
     addingToList.value = null;
   }
@@ -199,7 +201,8 @@ async function commitRename(l: MediaListSummary) {
     const updated = await updateMediaList(l.id, { name });
     lists.value = lists.value.map((o) => (o.id === l.id ? updated : o));
   } catch (e) {
-    listError.value = e instanceof Error ? e.message : "Failed to rename collection.";
+    listError.value =
+      e instanceof Error ? e.message : "Could not rename collection.";
   }
 }
 async function useAsCover(l: MediaListSummary) {
@@ -210,13 +213,13 @@ async function useAsCover(l: MediaListSummary) {
     lists.value = lists.value.map((o) => (o.id === l.id ? updated : o));
   } catch (e) {
     listError.value =
-      e instanceof Error ? e.message : "Failed to set the cover.";
+      e instanceof Error ? e.message : "Could not set the cover.";
   }
 }
 const confirm = useConfirm();
 async function removeList(l: MediaListSummary) {
   const ok = await confirm({
-    message: `Delete "${l.name}"? This doesn't delete the titles in it, just the collection.`,
+    message: `Delete "${l.name}"? Its titles are not deleted.`,
     confirmLabel: "Delete collection",
     danger: true,
   });
@@ -226,7 +229,8 @@ async function removeList(l: MediaListSummary) {
     lists.value = lists.value.filter((o) => o.id !== l.id);
     membership.value = membership.value.filter((m) => m.listId !== l.id);
   } catch (e) {
-    listError.value = e instanceof Error ? e.message : "Failed to delete collection.";
+    listError.value =
+      e instanceof Error ? e.message : "Could not delete collection.";
   }
 }
 
@@ -239,7 +243,8 @@ async function submitNewList() {
     newListName.value = "";
     await toggleListMembership(created.id);
   } catch (e) {
-    listError.value = e instanceof Error ? e.message : "Failed to create collection.";
+    listError.value =
+      e instanceof Error ? e.message : "Could not create collection.";
   }
 }
 

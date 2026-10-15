@@ -108,7 +108,7 @@ async function loadGames() {
   try {
     games.value = await fetchGames();
   } catch (err) {
-    error.value = err instanceof Error ? err.message : "Failed to load games";
+    error.value = err instanceof Error ? err.message : "Could not load games";
   } finally {
     loading.value = false;
   }
@@ -273,7 +273,7 @@ async function onEditSave(payload: CollectionFormPayload) {
     manualCollectionNames.value = loadManualCollections();
   } catch (e) {
     error.value =
-      e instanceof Error ? e.message : "Failed to save the collection.";
+      e instanceof Error ? e.message : "Could not save the collection.";
   }
   await loadGames();
 }
@@ -283,8 +283,8 @@ async function deleteCollection(name: string) {
   const rule = smartCollections.value.find((r) => r.name === name);
   const ok = await confirm({
     message: rule
-      ? `Delete "${name}"? This only removes the rule, no games are affected.`
-      : `Delete "${name}"? This removes it from every game, no games are deleted.`,
+      ? `Delete "${name}"? This removes the rule. Games are not affected.`
+      : `Delete "${name}"? It is removed from all games. Games are not deleted.`,
     confirmLabel: "Delete collection",
     danger: true,
   });
@@ -298,7 +298,7 @@ async function deleteCollection(name: string) {
     manualCollectionNames.value = loadManualCollections();
   } catch (e) {
     error.value =
-      e instanceof Error ? e.message : "Failed to delete the collection.";
+      e instanceof Error ? e.message : "Could not delete the collection.";
   }
   await loadGames();
 }

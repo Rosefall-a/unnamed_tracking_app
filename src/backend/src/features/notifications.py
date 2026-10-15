@@ -29,6 +29,11 @@ from src.database.models.tv_show import TVEpisode, TVSeason, TVShow, TVShowStatu
 # days without turning first use into a flood of old episodes.
 WINDOW_SECONDS = 7 * 24 * 60 * 60
 
+# what a franchise entry's format says about it: a season continues the story, an extra
+# is a film, an OVA or a special. Each has its own switch.
+_SEASON_FORMATS = {"tv", "ona", "tv short"}
+_EXTRA_FORMATS = {"movie", "ova", "special"}
+
 
 def tracked_statuses(enum_cls: Any, buckets: list[str]) -> list[Any]:
     """The statuses behind the library buckets the user switched on: watching,
@@ -218,7 +223,9 @@ async def record_sequel_announcements(
     only for shows the user completed. The time is when we learned of it,
     since AniList does not say when a sequel was announced."""
     prefs = await load_preferences(db, user_id)
-    if not prefs["notify_sequel_announced"] or "anime" not in prefs["notify_media_types"]:
+    wants_seasons = prefs["notify_sequel_announced"]
+    wants_extras = prefs["notify_extras_announced"]
+    if not (wants_seasons or wants_extras) or "anime" not in prefs["notify_media_types"]:
         return
     if old_chain is None:
         return
@@ -230,7 +237,15 @@ async def record_sequel_announcements(
         if node["id"] in known or node.get("is_current"):
             continue
         fmt = (node.get("format") or "").lower()
-        if fmt not in ("tv", "ona", "tv short"):
+        if fmt in _SEASON_FORMATS:
+            if not wants_seasons:
+                continue
+            what = "season"
+        elif fmt in _EXTRA_FORMATS:
+            if not wants_extras:
+                continue
+            what = fmt if fmt == "movie" else fmt.upper() if fmt == "ova" else fmt
+        else:
             continue
         rows.append(
             {
@@ -238,7 +253,7 @@ async def record_sequel_announcements(
                 "media_type": "anime",
                 "media_id": show.id,
                 "title": show.title,
-                "body": f"A new season is listed: {node['title']}",
+                "body": f"A new {what} is listed: {node['title']}",
                 "poster_url": show.poster_url,
                 "event_at": int(time.time()),
                 "dedupe_key": f"seq:{show.id}:{node['id']}",
