@@ -90,17 +90,17 @@ const emit = defineEmits<{
   right: 12px;
   background: none;
   border: none;
-  color: #888;
+  color: var(--ui-dim-2);
   font-size: 1.3rem;
   cursor: pointer;
   line-height: 1;
   padding: 4px;
 }
 .preview-close:hover {
-  color: #fff;
+  color: var(--ui-heading);
 }
 .preview-loading {
-  color: #999;
+  color: var(--ui-dim-3);
   font-size: 0.85rem;
   text-align: center;
   padding: 30px 0;
@@ -125,7 +125,7 @@ const emit = defineEmits<{
   align-items: center;
   justify-content: center;
   font-size: 0.72rem;
-  color: #666;
+  color: var(--ui-faint);
   text-align: center;
   padding: 8px;
 }
@@ -155,7 +155,7 @@ const emit = defineEmits<{
 }
 .preview-description {
   font-size: 0.84rem;
-  color: #999;
+  color: var(--ui-dim-3);
   line-height: 1.6;
   margin: 0 0 14px;
   display: -webkit-box;

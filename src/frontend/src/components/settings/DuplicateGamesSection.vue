@@ -153,19 +153,19 @@ onMounted(load);
   padding-left: 12px;
   border-left: 3px solid var(--ui-accent);
   font-size: 1rem;
-  color: #fff;
+  color: var(--ui-heading);
 }
 .section-hint {
   margin: 0 0 20px;
   font-size: 0.82rem;
   line-height: 1.6;
-  color: #999;
+  color: var(--ui-dim-3);
 }
 .tile {
   padding: 18px 20px;
   border: 1px solid var(--ui-border);
   border-radius: 10px;
-  background: #111;
+  background: var(--ui-bg-2);
 }
 .tile + .tile {
   margin-top: 16px;
@@ -176,7 +176,7 @@ onMounted(load);
   gap: 8px;
   margin: 0;
   font-size: 0.9rem;
-  color: #fff;
+  color: var(--ui-heading);
 }
 .tile-head {
   display: flex;
@@ -198,7 +198,7 @@ onMounted(load);
 .note {
   margin: 0;
   font-size: 0.82rem;
-  color: #999;
+  color: var(--ui-dim-3);
 }
 .form-error {
   margin: 8px 0 0;
@@ -218,7 +218,7 @@ onMounted(load);
   align-items: center;
   gap: 14px;
   padding: 10px 12px;
-  border: 1px solid #222;
+  border: 1px solid var(--ui-surface-2);
   border-radius: 8px;
   background: var(--ui-popover);
 }
@@ -227,7 +227,7 @@ onMounted(load);
   width: 40px;
   aspect-ratio: 2 / 3;
   border-radius: 4px;
-  background: #222 center / cover no-repeat;
+  background: var(--ui-surface-2) center / cover no-repeat;
 }
 .pair-text {
   display: flex;
@@ -240,7 +240,7 @@ onMounted(load);
   overflow: hidden;
   font-size: 0.9rem;
   font-weight: 600;
-  color: #fff;
+  color: var(--ui-heading);
   text-overflow: ellipsis;
   white-space: nowrap;
 }

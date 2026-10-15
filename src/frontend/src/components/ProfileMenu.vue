@@ -320,7 +320,7 @@ onBeforeUnmount(() => {
   margin-bottom: 4px;
 }
 .profile-menu-panel .profile-menu-name {
-  color: #eee;
+  color: var(--ui-text-soft);
   font-size: 13px;
   font-weight: 700;
   white-space: nowrap;
@@ -328,7 +328,7 @@ onBeforeUnmount(() => {
   text-overflow: ellipsis;
 }
 .profile-menu-panel .profile-menu-email {
-  color: #888;
+  color: var(--ui-dim-2);
   font-size: 11.5px;
   white-space: nowrap;
   overflow: hidden;
@@ -345,7 +345,7 @@ onBeforeUnmount(() => {
   padding: 8px 8px;
   border-radius: 8px;
   text-align: left;
-  color: #eee;
+  color: var(--ui-text-soft);
   font: inherit;
   font-size: 13px;
   cursor: pointer;

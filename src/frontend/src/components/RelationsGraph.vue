@@ -515,7 +515,7 @@ defineExpose({ fit, focusCurrent });
   font-size: 0.6rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: #666;
+  color: var(--ui-faint);
   background: var(--ui-bg);
   border: 1px solid var(--ui-border);
   padding: 1px 6px;
@@ -523,7 +523,7 @@ defineExpose({ fit, focusCurrent });
 }
 .graph-node-sub {
   font-size: 0.68rem;
-  color: #666;
+  color: var(--ui-faint);
 }
 .graph-node.current .graph-node-type {
   color: var(--ui-accent);
@@ -589,7 +589,7 @@ defineExpose({ fit, focusCurrent });
   top: 10px;
   right: 12px;
   font-size: 0.68rem;
-  color: #666;
+  color: var(--ui-faint);
   background: rgba(20, 20, 20, 0.7);
   padding: 3px 9px;
   border-radius: 999px;

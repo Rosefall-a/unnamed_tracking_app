@@ -2642,7 +2642,7 @@ defineExpose({ openQuickAdd });
   background: rgba(20, 20, 20, 0.6);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
-  color: #fff;
+  color: var(--ui-heading);
   display: flex;
   align-items: center;
   justify-content: center;

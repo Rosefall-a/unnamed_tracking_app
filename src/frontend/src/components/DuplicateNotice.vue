@@ -95,7 +95,7 @@ function otherTitle(match: GameMatch): string {
 }
 .dup-notice-text strong {
   flex: none;
-  color: #fff;
+  color: var(--ui-heading);
   font-weight: 700;
 }
 .dup-notice-other {

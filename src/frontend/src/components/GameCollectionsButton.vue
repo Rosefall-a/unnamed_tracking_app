@@ -13,6 +13,8 @@ import {
   removeGameFromCollection,
 } from "../services/games";
 import { smartCollections } from "../state/smartCollections";
+import { preferences } from "../state/preferences";
+import { autoCollectionNames } from "../utils/autoCollections";
 import { blurOnLeave } from "../utils/blurOnLeave";
 import type { Game } from "../types/game";
 
@@ -66,8 +68,13 @@ async function load() {
     }
     // smart collections fill themselves from a rule, so they are never an add target
     const smart = new Set(smartCollections.value.map((c) => c.name));
+    // the ones a sync made are left out unless they are set to sit with yours
+    const auto =
+      preferences.value.collections_auto === "mixed"
+        ? new Set<string>()
+        : autoCollectionNames(games);
     rows.value = [...counts.entries()]
-      .filter(([name]) => !smart.has(name))
+      .filter(([name]) => !smart.has(name) && !auto.has(name))
       .map(([name, count]) => ({ name, count }))
       .sort((a, b) => a.name.localeCompare(b.name));
     covers.value = readJson<Record<string, string>>(COVER_KEY, {});
@@ -426,7 +433,7 @@ onBeforeUnmount(() => document.removeEventListener("click", onDocumentClick));
   border-radius: 6px;
   border: none;
   background: none;
-  color: #888;
+  color: var(--ui-dim-2);
   font-size: 0.78rem;
   cursor: pointer;
 }
@@ -442,7 +449,7 @@ onBeforeUnmount(() => document.removeEventListener("click", onDocumentClick));
   text-align: left;
   background: none;
   border: none;
-  color: #ddd;
+  color: var(--ui-text-soft);
   padding: 8px 7px;
   border-radius: 8px;
   cursor: pointer;
@@ -479,13 +486,13 @@ onBeforeUnmount(() => document.removeEventListener("click", onDocumentClick));
   white-space: nowrap;
 }
 .list-option-count {
-  color: #777;
+  color: var(--ui-faint-2);
   font-size: 0.72rem;
   font-variant-numeric: tabular-nums;
   flex-shrink: 0;
 }
 .empty-hint {
-  color: #777;
+  color: var(--ui-faint-2);
   font-size: 0.78rem;
   margin: 4px 0;
 }
@@ -499,7 +506,7 @@ onBeforeUnmount(() => document.removeEventListener("click", onDocumentClick));
   background: var(--ui-bg);
   border: 1px solid var(--ui-border);
   border-radius: 7px;
-  color: #eee;
+  color: var(--ui-text-soft);
   padding: 7px 9px;
   font-size: 0.78rem;
   font-family: inherit;

@@ -480,6 +480,51 @@ async def get_achievements_summary(
     }
 
 
+def _feed_row(achievement: Achievement, game: Game) -> dict:
+    return {
+        "id": str(achievement.id),
+        "game_id": str(game.id),
+        "game_title": game.title,
+        "name": achievement.name,
+        "description": achievement.description if not achievement.hidden else None,
+        "icon_url": f"/api/achievement-icon/{achievement.id}"
+        if achievement.icon_url and achievement.icon_url.startswith(("http://", "https://"))
+        else achievement.icon_url,
+        "unlocked_at": achievement.unlocked_at,
+        "global_percent": achievement.global_percent,
+    }
+
+
+@router.get("/achievements-feed")
+async def get_achievements_feed(
+    limit: int = Query(default=12, ge=1, le=50),
+    db: AsyncSession = _DB_DEPENDENCY,
+    current_user: User = _CURRENT_USER_DEPENDENCY,
+) -> dict[str, list[dict]]:
+    """What the Home page's achievement widgets show: the latest unlocks and the
+    rarest ones, across every game, each with the game it belongs to. Only reads
+    what a sync already stored."""
+    base = (
+        select(Achievement, Game)
+        .join(Game, Game.id == Achievement.game_id)
+        .where(Game.user_id == current_user.id, Game.deleted_at.is_(None), Achievement.unlocked)
+    )
+    recent = await db.execute(
+        base.where(Achievement.unlocked_at.is_not(None))
+        .order_by(Achievement.unlocked_at.desc())
+        .limit(limit)
+    )
+    rarest = await db.execute(
+        base.where(Achievement.global_percent.is_not(None))
+        .order_by(Achievement.global_percent.asc(), Achievement.unlocked_at.desc())
+        .limit(limit)
+    )
+    return {
+        "recent": [_feed_row(a, g) for a, g in recent.all()],
+        "rarest": [_feed_row(a, g) for a, g in rarest.all()],
+    }
+
+
 @router.get("/{game_id}/achievements")
 async def list_game_achievements(
     game_id: UUID,

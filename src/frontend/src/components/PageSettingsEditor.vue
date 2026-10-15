@@ -191,7 +191,7 @@ const achievementsGone = computed(() => {
   margin: 0 0 12px;
   font-size: 0.8rem;
   line-height: 1.55;
-  color: #888;
+  color: var(--ui-dim-2);
 }
 .pse-note {
   margin: 12px 0 0;
@@ -216,7 +216,7 @@ const achievementsGone = computed(() => {
   justify-content: space-between;
   gap: 16px;
   padding: 11px 0;
-  border-bottom: 1px solid #222;
+  border-bottom: 1px solid var(--ui-surface-2);
 }
 .pse-row:last-child {
   border-bottom: none;
@@ -233,12 +233,12 @@ const achievementsGone = computed(() => {
 }
 .pse-name span {
   font-size: 0.78rem;
-  color: #888;
+  color: var(--ui-dim-2);
 }
 .pse-name small,
 .pse-default {
   font-size: 0.74rem;
-  color: #777;
+  color: var(--ui-faint-2);
 }
 @media (max-width: 640px) {
   .pse-row {

@@ -74,12 +74,12 @@ const max = computed(() => Math.max(1, ...props.columns.map((c) => c.value)));
 }
 .col-label {
   font-size: 0.66rem;
-  color: #666;
+  color: var(--ui-faint);
   white-space: nowrap;
 }
 .col-empty {
   margin: 0;
-  color: #666;
+  color: var(--ui-faint);
   font-size: 0.82rem;
 }
 </style>

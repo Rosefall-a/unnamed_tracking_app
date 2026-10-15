@@ -46,7 +46,7 @@ const emit = defineEmits<{
   margin-bottom: 14px;
   cursor: pointer;
   text-align: left;
-  color: #ccc;
+  color: var(--ui-text-soft);
   font: inherit;
   font-size: 0.82rem;
   line-height: 1.5;
@@ -90,6 +90,6 @@ const emit = defineEmits<{
   font-size: 0.74rem;
 }
 .toggle-label :deep(strong) {
-  color: #fff;
+  color: var(--ui-heading);
 }
 </style>

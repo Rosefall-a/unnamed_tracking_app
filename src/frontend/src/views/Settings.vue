@@ -238,7 +238,7 @@ watch(activeSection, async () => {
 }
 .settings-layout {
   width: 100%;
-  color: #fff;
+  color: var(--ui-heading);
 }
 .settings-head {
   display: flex;

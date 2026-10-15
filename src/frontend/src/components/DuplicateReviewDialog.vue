@@ -175,7 +175,7 @@ async function run(action: () => Promise<GameMatch>) {
 .dup-dialog h2 {
   margin: 0 0 6px;
   font-size: 1.15rem;
-  color: #fff;
+  color: var(--ui-heading);
 }
 .dup-lead {
   margin: 0 0 18px;
@@ -184,7 +184,7 @@ async function run(action: () => Promise<GameMatch>) {
   color: #b5b5b5;
 }
 .dup-lead strong {
-  color: #fff;
+  color: var(--ui-heading);
 }
 .dup-compare {
   display: grid;
@@ -192,7 +192,7 @@ async function run(action: () => Promise<GameMatch>) {
   align-items: center;
   border: 1px solid var(--ui-border);
   border-radius: 10px;
-  background: #111;
+  background: var(--ui-bg-2);
   overflow: hidden;
 }
 .dup-head {
@@ -220,7 +220,7 @@ async function run(action: () => Promise<GameMatch>) {
   width: 60px;
   aspect-ratio: 2 / 3;
   border-radius: 6px;
-  background: #222 center / cover no-repeat;
+  background: var(--ui-surface-2) center / cover no-repeat;
   box-shadow: 0 8px 18px -6px
     color-mix(in srgb, var(--ui-scrim-base) 60%, transparent);
 }
@@ -228,7 +228,7 @@ async function run(action: () => Promise<GameMatch>) {
   max-width: 100%;
   font-size: 0.85rem;
   font-weight: 600;
-  color: #fff;
+  color: var(--ui-heading);
   overflow-wrap: anywhere;
 }
 .dup-label,

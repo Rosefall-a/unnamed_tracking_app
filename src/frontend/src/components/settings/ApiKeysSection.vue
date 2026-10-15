@@ -183,7 +183,7 @@ onMounted(loadKeys);
 
 <style scoped>
 .section {
-  color: #fff;
+  color: var(--ui-heading);
 }
 
 .section-header {
@@ -238,8 +238,8 @@ input {
   padding: 10px 12px;
   border: 1px solid #383838;
   border-radius: 7px;
-  background: #111;
-  color: #fff;
+  background: var(--ui-bg-2);
+  color: var(--ui-heading);
   font: inherit;
 }
 
@@ -272,7 +272,7 @@ button:disabled {
 .secondary {
   margin-top: 12px;
   background: color-mix(in srgb, var(--ui-wash-base) 10%, transparent);
-  color: #fff;
+  color: var(--ui-heading);
 }
 
 .danger {
@@ -308,7 +308,7 @@ code {
   padding: 12px;
   border-radius: 6px;
   background: var(--ui-bg);
-  color: #fff;
+  color: var(--ui-heading);
   font:
     0.85rem/1.5 ui-monospace,
     SFMono-Regular,

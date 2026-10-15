@@ -38,7 +38,7 @@ defineEmits<{ "update:modelValue": [id: string] }>();
   border: none;
   border-bottom: 2px solid transparent;
   margin-bottom: -1px;
-  color: #999;
+  color: var(--ui-dim-3);
   font: inherit;
   font-size: 0.9rem;
   font-weight: 600;
@@ -49,7 +49,7 @@ defineEmits<{ "update:modelValue": [id: string] }>();
     border-color 0.15s ease;
 }
 .settings-tab:hover {
-  color: #fff;
+  color: var(--ui-heading);
 }
 .settings-tab.active {
   color: var(--ui-accent);

@@ -190,17 +190,17 @@ async function sync(row: Row) {
   padding-left: 12px;
   border-left: 3px solid var(--ui-accent);
   font-size: 1rem;
-  color: #fff;
+  color: var(--ui-heading);
 }
 h3 {
   margin: 24px 0 10px;
   font-size: 0.85rem;
-  color: #999;
+  color: var(--ui-dim-3);
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
 .hint {
-  color: #888;
+  color: var(--ui-dim-2);
   font-size: 0.85rem;
   margin: 0 0 8px;
 }
@@ -246,11 +246,11 @@ h3 {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  color: #eee;
+  color: var(--ui-text-soft);
   font-size: 0.9rem;
 }
 .detail {
-  color: #888;
+  color: var(--ui-dim-2);
   font-size: 0.78rem;
   white-space: nowrap;
   overflow: hidden;
@@ -261,7 +261,7 @@ h3 {
   font-weight: 700;
   padding: 3px 9px;
   border-radius: 999px;
-  color: #999;
+  color: var(--ui-dim-3);
   background: color-mix(in srgb, var(--ui-wash-base) 6%, transparent);
   white-space: nowrap;
 }
@@ -286,7 +286,7 @@ h3 {
 }
 .btn.ghost {
   background: color-mix(in srgb, var(--ui-wash-base) 6%, transparent);
-  color: #ddd;
+  color: var(--ui-text-soft);
 }
 .btn:disabled {
   opacity: 0.6;

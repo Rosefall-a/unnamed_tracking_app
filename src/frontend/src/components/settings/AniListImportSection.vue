@@ -193,7 +193,7 @@ async function setCustomCadence(hours: number) {
   padding-left: 12px;
   border-left: 3px solid var(--ui-accent);
   font-size: 1rem;
-  color: #fff;
+  color: var(--ui-heading);
 }
 .section-hint {
   color: var(--ui-dim);
@@ -216,7 +216,7 @@ async function setCustomCadence(hours: number) {
   gap: 8px;
   margin: 14px 0;
   font-size: 0.82rem;
-  color: #ccc;
+  color: var(--ui-text-soft);
 }
 .field input {
   width: min(100%, 420px);
@@ -224,8 +224,8 @@ async function setCustomCadence(hours: number) {
   padding: 9px 11px;
   border: 1px solid var(--ui-border-strong);
   border-radius: 7px;
-  background: #111;
-  color: #eee;
+  background: var(--ui-bg-2);
+  color: var(--ui-text-soft);
 }
 .custom-field {
   max-width: 420px;
@@ -233,10 +233,10 @@ async function setCustomCadence(hours: number) {
 .custom-button {
   align-self: flex-start;
   padding: 8px 12px;
-  border: 1px solid #444;
+  border: 1px solid var(--ui-border-hover);
   border-radius: 7px;
-  background: #222;
-  color: #ddd;
+  background: var(--ui-surface-2);
+  color: var(--ui-text-soft);
   cursor: pointer;
 }
 .import-now {

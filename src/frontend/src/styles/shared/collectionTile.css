@@ -50,7 +50,7 @@
   border: none;
   background: rgba(20, 20, 20, 0.78);
   backdrop-filter: blur(4px);
-  color: #ccc;
+  color: var(--ui-text-soft);
   font-size: 11px;
   cursor: pointer;
 }
@@ -93,7 +93,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: #666;
+  color: var(--ui-faint);
 }
 
 .cover {
@@ -149,7 +149,7 @@
   margin: 0 0 2px;
   font-size: 14px;
   font-weight: 600;
-  color: #fff;
+  color: var(--ui-heading);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -164,7 +164,7 @@
 
 .parent-eyebrow {
   display: block;
-  color: #666;
+  color: var(--ui-faint);
   font-size: 10.5px;
   text-transform: uppercase;
   letter-spacing: 0.04em;

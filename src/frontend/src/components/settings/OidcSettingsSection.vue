@@ -429,11 +429,11 @@ async function save() {
 
 .section h2 {
   margin: 0;
-  color: #fff;
+  color: var(--ui-heading);
 }
 
 .hint {
-  color: #999;
+  color: var(--ui-dim-3);
   font-size: 13px;
   line-height: 1.5;
 }
@@ -456,10 +456,10 @@ async function save() {
 .login-panel select,
 .grid input,
 .grid select {
-  background: #111;
+  background: var(--ui-bg-2);
   border: 1px solid var(--ui-border-strong);
   border-radius: 8px;
-  color: #fff;
+  color: var(--ui-heading);
   padding: 10px;
   font: inherit;
 }
@@ -473,7 +473,7 @@ async function save() {
 
 .providers-header h3 {
   margin: 0;
-  color: #fff;
+  color: var(--ui-heading);
 }
 
 .providers-header .hint {
@@ -516,12 +516,12 @@ button {
 
 .provider-card-head small {
   display: block;
-  color: #777;
+  color: var(--ui-faint-2);
   margin-top: 3px;
 }
 
 .drag-handle {
-  color: #777;
+  color: var(--ui-faint-2);
   font-size: 20px;
   cursor: grab;
 }
@@ -539,7 +539,7 @@ button {
 .move {
   background: var(--ui-surface-3);
   border: 1px solid var(--ui-border-strong);
-  color: #ddd;
+  color: var(--ui-text-soft);
   padding: 7px 10px;
 }
 
@@ -564,7 +564,7 @@ button {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  color: #ccc;
+  color: var(--ui-text-soft);
   font-size: 13px;
 }
 
@@ -582,7 +582,7 @@ button {
   width: 48px;
   height: 40px;
   padding: 3px;
-  background: #111;
+  background: var(--ui-bg-2);
   border: 1px solid var(--ui-border-strong);
   border-radius: 8px;
   cursor: pointer;
@@ -594,19 +594,19 @@ button {
 
 .generated-input {
   background: var(--ui-border-soft) !important;
-  color: #777 !important;
-  border-color: #333 !important;
+  color: var(--ui-faint-2) !important;
+  border-color: var(--ui-border-strong) !important;
   cursor: not-allowed;
 }
 
 .generated-label {
-  color: #777;
+  color: var(--ui-faint-2);
   font-weight: 400;
   margin-left: 6px;
 }
 
 .field-hint {
-  color: #666;
+  color: var(--ui-faint);
   font-size: 11px;
   line-height: 1.4;
 }
@@ -616,7 +616,7 @@ button {
   gap: 18px;
   flex-wrap: wrap;
   margin-top: 14px;
-  color: #bbb;
+  color: var(--ui-dim-3);
   font-size: 13px;
 }
 
@@ -633,18 +633,18 @@ button {
 .autostart {
   margin-top: 14px;
   padding: 12px;
-  border: 1px solid #333;
+  border: 1px solid var(--ui-border-strong);
   border-radius: 8px;
-  background: #111;
+  background: var(--ui-bg-2);
   display: flex;
   flex-direction: column;
   gap: 5px;
-  color: #ccc;
+  color: var(--ui-text-soft);
   font-size: 12px;
 }
 
 .autostart strong {
-  color: #fff;
+  color: var(--ui-heading);
 }
 
 .autostart code {
@@ -653,14 +653,14 @@ button {
 }
 
 .autostart small {
-  color: #777;
+  color: var(--ui-faint-2);
 }
 
 .empty {
   border: 1px dashed var(--ui-border-strong);
   border-radius: 10px;
   padding: 24px;
-  color: #888;
+  color: var(--ui-dim-2);
   text-align: center;
 }
 

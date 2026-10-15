@@ -700,7 +700,7 @@ async function restoreItem(item: TrashedInboxItem) {
   padding-left: 12px;
   border-left: 3px solid var(--ui-accent);
   font-size: 1rem;
-  color: #fff;
+  color: var(--ui-heading);
 }
 .settings-section h3 {
   margin: 0;
@@ -708,18 +708,18 @@ async function restoreItem(item: TrashedInboxItem) {
   align-items: center;
   gap: 8px;
   font-size: 0.9rem;
-  color: #fff;
+  color: var(--ui-heading);
 }
 .count-pill {
   background: color-mix(in srgb, var(--ui-wash-base) 8%, transparent);
-  color: #999;
+  color: var(--ui-dim-3);
   font-size: 11px;
   font-weight: 700;
   padding: 2px 8px;
   border-radius: 999px;
 }
 .section-hint {
-  color: #999;
+  color: var(--ui-dim-3);
   font-size: 0.82rem;
   line-height: 1.6;
   margin: 0 0 16px;
@@ -785,10 +785,10 @@ async function restoreItem(item: TrashedInboxItem) {
   gap: 10px;
   width: 100%;
   box-sizing: border-box;
-  background: #111;
+  background: var(--ui-bg-2);
   border: 1px solid var(--ui-border-strong);
   border-radius: 8px;
-  color: #fff;
+  color: var(--ui-heading);
   padding: 8px 12px;
   font: inherit;
   font-size: 0.84rem;
@@ -808,7 +808,7 @@ async function restoreItem(item: TrashedInboxItem) {
   flex-shrink: 0;
 }
 .game-picker-icon {
-  color: #777;
+  color: var(--ui-faint-2);
   flex-shrink: 0;
 }
 .game-picker-label {
@@ -819,7 +819,7 @@ async function restoreItem(item: TrashedInboxItem) {
   white-space: nowrap;
 }
 .game-picker-caret {
-  color: #777;
+  color: var(--ui-faint-2);
   flex-shrink: 0;
 }
 .game-picker-menu {
@@ -829,7 +829,7 @@ async function restoreItem(item: TrashedInboxItem) {
   right: 0;
   min-width: 280px;
   background: var(--ui-surface);
-  border: 1px solid #333;
+  border: 1px solid var(--ui-border-strong);
   border-radius: 10px;
   box-shadow: 0 16px 40px
     color-mix(in srgb, var(--ui-scrim-base) 50%, transparent);
@@ -839,10 +839,10 @@ async function restoreItem(item: TrashedInboxItem) {
 .game-picker-search {
   width: 100%;
   box-sizing: border-box;
-  background: #111;
-  border: 1px solid #333;
+  background: var(--ui-bg-2);
+  border: 1px solid var(--ui-border-strong);
   border-radius: 7px;
-  color: #fff;
+  color: var(--ui-heading);
   padding: 8px 10px;
   font: inherit;
   font-size: 0.82rem;
@@ -896,19 +896,19 @@ async function restoreItem(item: TrashedInboxItem) {
 }
 .game-picker-option-title {
   font-size: 0.84rem;
-  color: #eee;
+  color: var(--ui-text-soft);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .game-picker-option-platform {
   font-size: 0.7rem;
-  color: #777;
+  color: var(--ui-faint-2);
 }
 .game-picker-empty {
   margin: 0;
   padding: 10px 8px;
-  color: #777;
+  color: var(--ui-faint-2);
   font-size: 0.82rem;
 }
 
@@ -938,7 +938,7 @@ async function restoreItem(item: TrashedInboxItem) {
 }
 .secondary-button {
   background: color-mix(in srgb, var(--ui-wash-base) 8%, transparent);
-  color: #fff;
+  color: var(--ui-heading);
 }
 .secondary-button:hover {
   background: color-mix(in srgb, var(--ui-wash-base) 14%, transparent);
@@ -977,7 +977,7 @@ async function restoreItem(item: TrashedInboxItem) {
   gap: 6px;
   background: color-mix(in srgb, var(--ui-wash-base) 6%, transparent);
   border: 1px solid var(--ui-border);
-  color: #ccc;
+  color: var(--ui-text-soft);
   border-radius: 8px;
   padding: 7px 12px;
   font: inherit;
@@ -987,7 +987,7 @@ async function restoreItem(item: TrashedInboxItem) {
 }
 .icon-text-button:hover:not(:disabled) {
   border-color: var(--ui-border-strong);
-  color: #fff;
+  color: var(--ui-heading);
 }
 .icon-text-button:disabled {
   opacity: 0.5;
@@ -998,7 +998,7 @@ async function restoreItem(item: TrashedInboxItem) {
   font-size: 0.76rem;
 }
 .empty-hint {
-  color: #777;
+  color: var(--ui-faint-2);
   font-size: 0.9rem;
 }
 .media-group {
@@ -1006,7 +1006,7 @@ async function restoreItem(item: TrashedInboxItem) {
 }
 .media-group-label {
   display: block;
-  color: #999;
+  color: var(--ui-dim-3);
   font-size: 0.78rem;
   text-transform: uppercase;
   letter-spacing: 0.03em;
@@ -1023,7 +1023,7 @@ async function restoreItem(item: TrashedInboxItem) {
   gap: 6px;
 }
 .media-date {
-  color: #777;
+  color: var(--ui-faint-2);
   font-size: 0.74rem;
   text-align: center;
 }
@@ -1034,7 +1034,7 @@ async function restoreItem(item: TrashedInboxItem) {
   overflow: hidden;
   cursor: pointer;
   border: 2px solid transparent;
-  background: #111;
+  background: var(--ui-bg-2);
   transition:
     border-color 0.15s ease,
     transform 0.15s ease;
@@ -1079,7 +1079,7 @@ async function restoreItem(item: TrashedInboxItem) {
   height: 26px;
   border-radius: 50%;
   background: color-mix(in srgb, var(--ui-scrim-base) 60%, transparent);
-  color: #fff;
+  color: var(--ui-heading);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1093,7 +1093,7 @@ async function restoreItem(item: TrashedInboxItem) {
   border-radius: 50%;
   border: none;
   background: color-mix(in srgb, var(--ui-scrim-base) 60%, transparent);
-  color: #fff;
+  color: var(--ui-heading);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -1113,13 +1113,13 @@ async function restoreItem(item: TrashedInboxItem) {
   gap: 6px;
   background: none;
   border: none;
-  color: #999;
+  color: var(--ui-dim-3);
   font-size: 0.85rem;
   cursor: pointer;
   padding: 0;
 }
 .trash-toggle:hover {
-  color: #ccc;
+  color: var(--ui-text-soft);
 }
 .trash-toggle-caret {
   transition: transform 0.15s ease;
@@ -1147,13 +1147,13 @@ async function restoreItem(item: TrashedInboxItem) {
 }
 .trash-name {
   flex: 1;
-  color: #ccc;
+  color: var(--ui-text-soft);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .trash-meta {
-  color: #777;
+  color: var(--ui-faint-2);
   font-size: 0.76rem;
 }
 .confirm-backdrop {
@@ -1180,7 +1180,7 @@ async function restoreItem(item: TrashedInboxItem) {
 }
 .confirm-dialog p {
   margin: 0 0 16px;
-  color: #aaa;
+  color: var(--ui-dim-3);
   font-size: 14px;
 }
 .confirm-actions {

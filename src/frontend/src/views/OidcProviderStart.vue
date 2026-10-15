@@ -29,7 +29,7 @@ onMounted(() => {
   display: grid;
   place-items: center;
   background: var(--ui-bg-2);
-  color: #999;
+  color: var(--ui-dim-3);
   font-family: system-ui, sans-serif;
   font-size: 13px;
 }

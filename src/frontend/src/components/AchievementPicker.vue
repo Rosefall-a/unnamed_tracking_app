@@ -172,7 +172,7 @@ onBeforeUnmount(() => {
 .ap-btn:hover,
 .ap-btn.open {
   border-color: var(--ui-border-strong);
-  color: #ddd;
+  color: var(--ui-text-soft);
 }
 .ap-btn.set {
   color: var(--ui-accent);
@@ -209,7 +209,7 @@ onBeforeUnmount(() => {
   background: var(--ui-bg);
   border: 1px solid var(--ui-border);
   border-radius: 8px;
-  color: #eee;
+  color: var(--ui-text-soft);
   font: inherit;
   font-size: 0.85rem;
 }
@@ -237,7 +237,7 @@ onBeforeUnmount(() => {
   background: none;
   border: none;
   border-radius: 8px;
-  color: #ddd;
+  color: var(--ui-text-soft);
   padding: 6px 8px;
   font-family: inherit;
   font-size: 0.82rem;
@@ -260,7 +260,7 @@ onBeforeUnmount(() => {
   height: 28px;
   flex-shrink: 0;
   border-radius: 6px;
-  background: #222 center / cover no-repeat;
+  background: var(--ui-surface-2) center / cover no-repeat;
 }
 .ap-name {
   flex: 1;
@@ -271,7 +271,7 @@ onBeforeUnmount(() => {
 }
 .ap-empty {
   padding: 10px 8px;
-  color: #777;
+  color: var(--ui-faint-2);
   font-size: 0.8rem;
 }
 </style>

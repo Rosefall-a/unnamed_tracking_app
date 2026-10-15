@@ -161,12 +161,12 @@ function onInputChange(e: Event) {
   color: var(--ui-accent);
 }
 .dropzone-title {
-  color: #fff;
+  color: var(--ui-heading);
   font-weight: 600;
   font-size: 0.95rem;
 }
 .dropzone-hint {
-  color: #777;
+  color: var(--ui-faint-2);
   font-size: 0.78rem;
 }
 .hidden-input {

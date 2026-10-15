@@ -33,7 +33,7 @@ const label = computed(() => {
   font-weight: 600;
   background: color-mix(in srgb, var(--ui-wash-base) 5%, transparent);
   border: 1px solid var(--ui-border);
-  color: #aaa;
+  color: var(--ui-dim-3);
 }
 .dot {
   width: 7px;

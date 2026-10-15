@@ -299,10 +299,10 @@ async function emptyGroup(kind: Kind, label: string, count: number) {
   padding-left: 12px;
   border-left: 3px solid var(--ui-accent);
   font-size: 1rem;
-  color: #fff;
+  color: var(--ui-heading);
 }
 .section-hint {
-  color: #999;
+  color: var(--ui-dim-3);
   font-size: 0.82rem;
   line-height: 1.6;
   margin: 0 0 20px;
@@ -313,7 +313,7 @@ async function emptyGroup(kind: Kind, label: string, count: number) {
 .trash-group h3 {
   margin: 0 0 8px;
   font-size: 0.85rem;
-  color: #ccc;
+  color: var(--ui-text-soft);
 }
 .retention-row {
   display: flex;
@@ -321,7 +321,7 @@ async function emptyGroup(kind: Kind, label: string, count: number) {
   gap: 12px;
   margin-bottom: 18px;
   font-size: 0.85rem;
-  color: #ccc;
+  color: var(--ui-text-soft);
 }
 .retention-select {
   background: var(--ui-surface);
@@ -363,7 +363,7 @@ async function emptyGroup(kind: Kind, label: string, count: number) {
   margin-top: 10px;
 }
 .empty-hint {
-  color: #777;
+  color: var(--ui-faint-2);
   font-size: 0.82rem;
 }
 .trash-list {
@@ -386,18 +386,18 @@ async function emptyGroup(kind: Kind, label: string, count: number) {
 }
 .trash-name {
   flex: 1;
-  color: #ccc;
+  color: var(--ui-text-soft);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .trash-meta {
-  color: #777;
+  color: var(--ui-faint-2);
   font-size: 0.76rem;
 }
 .secondary-button {
   background: color-mix(in srgb, var(--ui-wash-base) 8%, transparent);
-  color: #fff;
+  color: var(--ui-heading);
   border: none;
   border-radius: 8px;
   padding: 6px 14px;

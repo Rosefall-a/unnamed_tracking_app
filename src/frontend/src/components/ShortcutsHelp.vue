@@ -85,18 +85,18 @@ const GROUPS = SHORTCUT_GROUPS;
 .shortcuts-header h2 {
   margin: 0;
   font-size: 16px;
-  color: #fff;
+  color: var(--ui-heading);
 }
 .close-button {
   background: none;
   border: none;
-  color: #999;
+  color: var(--ui-dim-3);
   font-size: 14px;
   cursor: pointer;
   padding: 4px;
 }
 .close-button:hover {
-  color: #fff;
+  color: var(--ui-heading);
 }
 .shortcuts-group {
   margin-bottom: 16px;
@@ -109,7 +109,7 @@ const GROUPS = SHORTCUT_GROUPS;
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: #777;
+  color: var(--ui-faint-2);
 }
 .shortcut-row {
   display: flex;
@@ -118,10 +118,10 @@ const GROUPS = SHORTCUT_GROUPS;
   gap: 14px;
   padding: 7px 0;
   font-size: 13px;
-  color: #ccc;
+  color: var(--ui-text-soft);
 }
 .shortcut-row kbd {
-  background: #111;
+  background: var(--ui-bg-2);
   border: 1px solid var(--ui-border-strong);
   border-radius: 6px;
   padding: 3px 8px;

@@ -236,10 +236,10 @@ function formatTime(epochSeconds: number): string {
   padding-left: 12px;
   border-left: 3px solid var(--ui-accent);
   font-size: 1rem;
-  color: #fff;
+  color: var(--ui-heading);
 }
 .section-hint {
-  color: #999;
+  color: var(--ui-dim-3);
   font-size: 0.82rem;
   line-height: 1.6;
   margin: 0 0 20px;
@@ -248,7 +248,7 @@ function formatTime(epochSeconds: number): string {
   margin-top: 16px;
 }
 .tile {
-  background: #111;
+  background: var(--ui-bg-2);
   border: 1px solid var(--ui-border);
   border-radius: 10px;
   padding: 18px 20px;
@@ -256,10 +256,10 @@ function formatTime(epochSeconds: number): string {
 .tile h3 {
   margin: 0 0 6px;
   font-size: 0.9rem;
-  color: #fff;
+  color: var(--ui-heading);
 }
 .tile-desc {
-  color: #999;
+  color: var(--ui-dim-3);
   font-size: 0.8rem;
   line-height: 1.5;
   margin: 0 0 14px;
@@ -320,7 +320,7 @@ function formatTime(epochSeconds: number): string {
   white-space: nowrap;
 }
 .refresh-note {
-  color: #999;
+  color: var(--ui-dim-3);
   font-size: 0.76rem;
   line-height: 1.5;
   margin: 8px 0 0;
@@ -345,7 +345,7 @@ function formatTime(epochSeconds: number): string {
 .refresh-secondary {
   background: transparent;
   color: var(--ui-text-strong);
-  border: 1px solid #333;
+  border: 1px solid var(--ui-border-strong);
   border-radius: 8px;
   padding: 11px 20px;
   font-weight: 600;
@@ -363,7 +363,7 @@ function formatTime(epochSeconds: number): string {
   cursor: default;
 }
 .last-run {
-  color: #777;
+  color: var(--ui-faint-2);
   font-size: 0.78rem;
 }
 </style>

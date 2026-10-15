@@ -448,7 +448,7 @@ function goBack() {
   text-decoration: none;
 }
 .game-link:hover {
-  color: #fff;
+  color: var(--ui-heading);
 }
 .title {
   font-weight: 800;
@@ -460,7 +460,7 @@ function goBack() {
     color-mix(in srgb, var(--ui-scrim-base) 50%, transparent);
 }
 .desc {
-  color: #ccc;
+  color: var(--ui-text-soft);
   margin: 0 0 12px;
   max-width: 640px;
 }

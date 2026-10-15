@@ -468,10 +468,10 @@ const formatBreakdown = computed(() => stats.value?.format_breakdown ?? []);
   padding-left: 12px;
   border-left: 3px solid var(--ui-accent);
   font-size: 1rem;
-  color: #fff;
+  color: var(--ui-heading);
 }
 .section-hint {
-  color: #999;
+  color: var(--ui-dim-3);
   font-size: 0.82rem;
   line-height: 1.6;
   margin: 0 0 20px;
@@ -491,7 +491,7 @@ const formatBreakdown = computed(() => stats.value?.format_breakdown ?? []);
   margin-bottom: 28px;
 }
 .tile {
-  background: #111;
+  background: var(--ui-bg-2);
   border: 1px solid var(--ui-border);
   border-radius: 10px;
   padding: 16px;
@@ -521,12 +521,12 @@ const formatBreakdown = computed(() => stats.value?.format_breakdown ?? []);
   gap: 2px;
 }
 .burn-down-title {
-  color: #fff;
+  color: var(--ui-heading);
   font-size: 13.5px;
   font-weight: 600;
 }
 .burn-down-estimate {
-  color: #999;
+  color: var(--ui-dim-3);
   font-size: 12.5px;
 }
 .tile-value {
@@ -536,7 +536,7 @@ const formatBreakdown = computed(() => stats.value?.format_breakdown ?? []);
 }
 .tile-label {
   font-size: 0.78rem;
-  color: #999;
+  color: var(--ui-dim-3);
 }
 .breakdown-block {
   margin-bottom: 26px;
@@ -544,7 +544,7 @@ const formatBreakdown = computed(() => stats.value?.format_breakdown ?? []);
 .breakdown-block h3 {
   margin: 0 0 12px;
   font-size: 0.9rem;
-  color: #fff;
+  color: var(--ui-heading);
 }
 .breakdown-header {
   display: flex;
@@ -556,7 +556,7 @@ const formatBreakdown = computed(() => stats.value?.format_breakdown ?? []);
   margin: 0;
 }
 .empty-hint {
-  color: #777;
+  color: var(--ui-faint-2);
   font-size: 0.82rem;
 }
 .bar-chart {
@@ -591,7 +591,7 @@ const formatBreakdown = computed(() => stats.value?.format_breakdown ?? []);
   text-decoration: none;
 }
 .bar-label {
-  color: #ccc;
+  color: var(--ui-text-soft);
   font-size: 0.8rem;
   text-transform: capitalize;
   overflow: hidden;
@@ -599,7 +599,7 @@ const formatBreakdown = computed(() => stats.value?.format_breakdown ?? []);
   white-space: nowrap;
 }
 .bar-track {
-  background: #111;
+  background: var(--ui-bg-2);
   border-radius: 6px;
   height: 16px;
   overflow: hidden;
@@ -611,7 +611,7 @@ const formatBreakdown = computed(() => stats.value?.format_breakdown ?? []);
   transition: width 0.3s ease;
 }
 .bar-count {
-  color: #999;
+  color: var(--ui-dim-3);
   font-size: 0.78rem;
   text-align: right;
 }
@@ -630,8 +630,8 @@ const formatBreakdown = computed(() => stats.value?.format_breakdown ?? []);
   justify-content: space-between;
   gap: 12px;
   font-size: 0.82rem;
-  color: #ccc;
-  background: #111;
+  color: var(--ui-text-soft);
+  background: var(--ui-bg-2);
   border-radius: 6px;
   padding: 8px 12px;
 }

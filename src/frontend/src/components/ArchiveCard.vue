@@ -287,7 +287,7 @@ async function copy() {
   padding: 2px 8px;
   border-radius: 6px;
   background: rgba(15, 15, 15, 0.82);
-  color: #eee;
+  color: var(--ui-text-soft);
   font-size: 0.7rem;
   font-weight: 700;
   pointer-events: none;
@@ -346,7 +346,7 @@ async function copy() {
   border-radius: 8px;
   border: none;
   background: rgba(15, 15, 15, 0.78);
-  color: #eee;
+  color: var(--ui-text-soft);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -366,7 +366,7 @@ async function copy() {
 }
 .ac-actions button:last-of-type:hover {
   background: var(--ui-danger-muted);
-  color: #fff;
+  color: var(--ui-heading);
 }
 .ac-body {
   min-height: 74px;
@@ -392,15 +392,15 @@ async function copy() {
   flex-wrap: wrap;
   gap: 5px 6px;
   font-size: 0.72rem;
-  color: #777;
+  color: var(--ui-faint-2);
   min-width: 0;
 }
 .ac-faint {
-  color: #666;
+  color: var(--ui-faint);
 }
 .ac-chip {
   background: color-mix(in srgb, var(--ui-wash-base) 7%, transparent);
-  color: #aaa;
+  color: var(--ui-dim-3);
   border-radius: 999px;
   padding: 1px 8px;
   font-size: 0.68rem;

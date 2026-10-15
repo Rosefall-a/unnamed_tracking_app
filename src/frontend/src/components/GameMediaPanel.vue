@@ -997,7 +997,7 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 6px;
   font-size: 0.74rem;
-  color: #888;
+  color: var(--ui-dim-2);
   cursor: pointer;
 }
 .gm-bulk-check input {
@@ -1053,7 +1053,7 @@ onBeforeUnmount(() => {
   border-top: 1px solid var(--ui-surface-3);
 }
 .gm-hint {
-  color: #777;
+  color: var(--ui-faint-2);
   font-size: 14px;
 }
 .gm-grid {
@@ -1078,7 +1078,7 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   gap: 12px;
-  color: #777;
+  color: var(--ui-faint-2);
   font-size: 0.85rem;
   padding: 24px 0;
 }
@@ -1101,7 +1101,7 @@ onBeforeUnmount(() => {
   background: color-mix(in srgb, var(--ui-wash-base) 2%, transparent);
   border: 1.5px dashed var(--ui-border-strong);
   border-radius: 14px;
-  color: #999;
+  color: var(--ui-dim-3);
   font-family: inherit;
   font-size: 0.85rem;
   cursor: pointer;
@@ -1147,10 +1147,10 @@ onBeforeUnmount(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: #ccc;
+  color: var(--ui-text-soft);
 }
 .gm-trash-meta {
-  color: #777;
+  color: var(--ui-faint-2);
   font-size: 0.74rem;
 }
 .gm-body {
@@ -1252,7 +1252,7 @@ onBeforeUnmount(() => {
   flex-wrap: wrap;
   gap: 10px;
   min-width: 0;
-  color: #ccc;
+  color: var(--ui-text-soft);
   font-size: 0.82rem;
 }
 .gm-cap-actions {
@@ -1279,7 +1279,7 @@ onBeforeUnmount(() => {
   background: color-mix(in srgb, var(--ui-wash-base) 2%, transparent);
   border: 1px dashed var(--ui-border-strong);
   border-radius: 12px;
-  color: #999;
+  color: var(--ui-dim-3);
   font-family: inherit;
   cursor: pointer;
   transition:
@@ -1312,7 +1312,7 @@ onBeforeUnmount(() => {
 }
 .gm-add-sub {
   font-size: 0.72rem;
-  color: #777;
+  color: var(--ui-faint-2);
 }
 .gm-add-card:hover:not(:disabled) {
   border-color: var(--ui-accent);
@@ -1322,7 +1322,7 @@ onBeforeUnmount(() => {
   cursor: default;
 }
 .gm-pos {
-  color: #777;
+  color: var(--ui-faint-2);
   font-variant-numeric: tabular-nums;
 }
 .gm-nav {
@@ -1330,9 +1330,9 @@ onBeforeUnmount(() => {
   width: 44px;
   height: 44px;
   border-radius: 50%;
-  border: 1px solid #333;
+  border: 1px solid var(--ui-border-strong);
   background: color-mix(in srgb, var(--ui-wash-base) 6%, transparent);
-  color: #fff;
+  color: var(--ui-heading);
   font-size: 1.6rem;
   line-height: 1;
   cursor: pointer;

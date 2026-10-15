@@ -133,7 +133,7 @@ const emit = defineEmits<{
   border-radius: 999px;
 }
 .parent-crumb {
-  color: #666;
+  color: var(--ui-faint);
   font-size: 1.1rem;
   font-weight: 600;
   text-decoration: none;

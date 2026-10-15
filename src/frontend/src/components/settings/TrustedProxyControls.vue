@@ -120,10 +120,10 @@ onMounted(async () => {
 }
 
 .proxy-controls input {
-  background: #111;
+  background: var(--ui-bg-2);
   border: 1px solid var(--ui-border-strong);
   border-radius: 8px;
-  color: #fff;
+  color: var(--ui-heading);
   padding: 10px;
   font: inherit;
 }
@@ -139,7 +139,7 @@ onMounted(async () => {
 
 .proxy-controls button {
   background: var(--ui-surface-3);
-  color: #ddd;
+  color: var(--ui-text-soft);
   border: 1px solid var(--ui-border-strong);
   border-radius: 8px;
   padding: 8px 10px;
@@ -147,7 +147,7 @@ onMounted(async () => {
 }
 
 .proxy-controls small {
-  color: #777;
+  color: var(--ui-faint-2);
   font-size: 11px;
 }
 

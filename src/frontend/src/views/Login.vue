@@ -295,12 +295,12 @@ function buttonStyle(provider: OidcLoginProvider) {
 }
 .login-brand h1 {
   margin: 0;
-  color: #fff;
+  color: var(--ui-heading);
   font-size: 1.4rem;
 }
 .login-subtitle {
   margin: -8px 0 4px;
-  color: #999;
+  color: var(--ui-dim-3);
   font-size: 13px;
   text-align: center;
 }
@@ -309,13 +309,13 @@ function buttonStyle(provider: OidcLoginProvider) {
   flex-direction: column;
   gap: 6px;
   font-size: 0.85rem;
-  color: #ccc;
+  color: var(--ui-text-soft);
 }
 .field input {
-  background: #111;
+  background: var(--ui-bg-2);
   border: 1px solid var(--ui-border-strong);
   border-radius: 8px;
-  color: #fff;
+  color: var(--ui-heading);
   padding: 10px 12px;
   font: inherit;
 }
@@ -350,8 +350,8 @@ function buttonStyle(provider: OidcLoginProvider) {
 }
 .oidc-button {
   background: var(--ui-border);
-  color: #fff;
-  border: 1px solid #444;
+  color: var(--ui-heading);
+  border: 1px solid var(--ui-border-hover);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -375,14 +375,14 @@ function buttonStyle(provider: OidcLoginProvider) {
   display: flex;
   align-items: center;
   gap: 10px;
-  color: #666;
+  color: var(--ui-faint);
   font-size: 12px;
 }
 .sso-divider::before,
 .sso-divider::after {
   content: "";
   height: 1px;
-  background: #333;
+  background: var(--ui-border-strong);
   flex: 1;
 }
 .sso-divider span {
@@ -407,24 +407,24 @@ function buttonStyle(provider: OidcLoginProvider) {
   font-size: 20px;
 }
 .sso-heading strong {
-  color: #fff;
+  color: var(--ui-heading);
   font-size: 15px;
 }
 .sso-heading p {
   margin: 3px 0 0;
-  color: #999;
+  color: var(--ui-dim-3);
   font-size: 12px;
 }
 .local-credentials {
   border-top: 1px solid #2f2f2f;
   padding-top: 14px;
-  color: #ccc;
+  color: var(--ui-text-soft);
 }
 .local-credentials summary {
   cursor: pointer;
   list-style: none;
   text-align: center;
-  color: #aaa;
+  color: var(--ui-dim-3);
   font-size: 13px;
   padding: 8px 0;
 }

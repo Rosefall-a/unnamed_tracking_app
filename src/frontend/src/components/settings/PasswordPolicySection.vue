@@ -124,7 +124,7 @@ async function save() {
   gap: 16px;
 }
 .hint {
-  color: #999;
+  color: var(--ui-dim-3);
   font-size: 13px;
   line-height: 1.5;
 }
@@ -138,14 +138,14 @@ async function save() {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  color: #ccc;
+  color: var(--ui-text-soft);
   font-size: 13px;
 }
 .policy-form input[type="number"] {
-  background: #111;
+  background: var(--ui-bg-2);
   border: 1px solid var(--ui-border-strong);
   border-radius: 8px;
-  color: #fff;
+  color: var(--ui-heading);
   padding: 10px;
   font: inherit;
 }
@@ -178,6 +178,6 @@ button:disabled {
 }
 h2 {
   margin: 0;
-  color: #fff;
+  color: var(--ui-heading);
 }
 </style>

@@ -1084,7 +1084,7 @@ const episodic = computed<EpisodicStats | null>(() => {
   margin: 0 0 12px;
 }
 .dim {
-  color: #666;
+  color: var(--ui-faint);
   font-size: 0.74rem;
 }
 .plain-list {
@@ -1106,7 +1106,7 @@ const episodic = computed<EpisodicStats | null>(() => {
   background: none;
   border: none;
   padding: 0;
-  color: #ddd;
+  color: var(--ui-text-soft);
   font: inherit;
   text-align: left;
   cursor: pointer;
@@ -1144,7 +1144,7 @@ const episodic = computed<EpisodicStats | null>(() => {
   height: 50px;
   border-radius: 5px;
   flex-shrink: 0;
-  background: #222 center / cover;
+  background: var(--ui-surface-2) center / cover;
 }
 .progress-main {
   flex: 1;
@@ -1163,7 +1163,7 @@ const episodic = computed<EpisodicStats | null>(() => {
 .progress-track {
   height: 6px;
   border-radius: 999px;
-  background: #222;
+  background: var(--ui-surface-2);
   overflow: hidden;
 }
 .progress-fill {

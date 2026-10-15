@@ -615,7 +615,7 @@ async function handleLogout() {
   background: rgba(20, 20, 20, 0.55);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
-  color: #fff;
+  color: var(--ui-heading);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -850,7 +850,7 @@ async function handleLogout() {
   font-size: 22px;
 }
 .brand-name {
-  color: #fff;
+  color: var(--ui-heading);
   font-weight: 700;
   font-size: 16px;
 }
@@ -883,7 +883,7 @@ async function handleLogout() {
 .sidebar-profile-name {
   flex-grow: 1;
   min-width: 0;
-  color: #eee;
+  color: var(--ui-text-soft);
   font-size: 13.5px;
   font-weight: 700;
   white-space: nowrap;
@@ -912,7 +912,7 @@ async function handleLogout() {
   gap: 12px;
   padding: 9px 12px;
   border-radius: 8px;
-  color: #ccc;
+  color: var(--ui-text-soft);
   text-decoration: none;
   font-size: 14px;
   cursor: pointer;
@@ -924,7 +924,7 @@ async function handleLogout() {
 }
 .sidebar-item:hover {
   background: color-mix(in srgb, var(--ui-wash-base) 6%, transparent);
-  color: #fff;
+  color: var(--ui-heading);
 }
 .sidebar-item.active {
   background: color-mix(in srgb, var(--ui-accent) 12%, transparent);
@@ -975,7 +975,7 @@ async function handleLogout() {
 .sidebar-expand-toggle {
   background: none;
   border: none;
-  color: #999;
+  color: var(--ui-dim-3);
   width: 30px;
   height: 30px;
   flex-shrink: 0;
@@ -991,7 +991,7 @@ async function handleLogout() {
 }
 .sidebar-expand-toggle:hover {
   background: color-mix(in srgb, var(--ui-wash-base) 8%, transparent);
-  color: #fff;
+  color: var(--ui-heading);
 }
 .sidebar-expand-toggle.expanded {
   transform: rotate(90deg);

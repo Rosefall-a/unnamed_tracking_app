@@ -1,6 +1,7 @@
 // Server-side per-user preferences. Defaults live on the server; this only carries the shape.
 import { DEFAULT_PAGE_SETTINGS } from "../utils/gamePage";
 import type { PageSettings } from "../utils/gamePage";
+import type { HomeLayout } from "../home/layout";
 
 export interface Preferences {
   calendar_game_releases: boolean;
@@ -34,6 +35,12 @@ export interface Preferences {
   steam_import_wishlist: boolean;
   // what every game page shows; a game can override it
   game_page: PageSettings;
+  // the Home page's widgets; null until it is customised
+  home_layout: HomeLayout | null;
+  // colours changed from the app's own, by name (accent, text, and so on)
+  theme_colors: Record<string, string>;
+  // franchise and source collections the sync made: their own tab, mixed in, or hidden
+  collections_auto: "tab" | "mixed" | "hidden";
 }
 
 export const DEFAULT_PREFERENCES: Preferences = {
@@ -65,6 +72,9 @@ export const DEFAULT_PREFERENCES: Preferences = {
   steam_user_tags: true,
   steam_import_wishlist: false,
   game_page: DEFAULT_PAGE_SETTINGS,
+  home_layout: null,
+  theme_colors: {},
+  collections_auto: "tab",
 };
 
 export async function fetchPreferences(): Promise<Preferences> {
@@ -82,9 +92,20 @@ export async function updatePreferences(
     credentials: "include",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(changes),
+    // lets a save that is made as the page closes still go through
+    keepalive: true,
   });
-  if (!response.ok)
-    throw new Error(`Could not save preferences: ${response.status}`);
+  if (!response.ok) {
+    // the server says what it did not like, which is more useful than a number
+    let detail = "";
+    try {
+      const body = (await response.json()) as { detail?: unknown };
+      if (typeof body.detail === "string") detail = body.detail;
+    } catch {
+      // not JSON, the status code will do
+    }
+    throw new Error(detail || `Could not save preferences: ${response.status}`);
+  }
   return { ...DEFAULT_PREFERENCES, ...(await response.json()) };
 }
 

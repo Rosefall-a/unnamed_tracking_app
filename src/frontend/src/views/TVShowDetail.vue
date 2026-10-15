@@ -926,7 +926,7 @@ async function onRatingChange(value: number | null) {
   box-sizing: border-box;
   background: var(--ui-surface);
   border: 1px solid var(--ui-border);
-  color: #ccc;
+  color: var(--ui-text-soft);
   border-radius: 7px;
   padding: 0 12px;
   font-family: inherit;
@@ -961,7 +961,7 @@ async function onRatingChange(value: number | null) {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: #666;
+  color: var(--ui-faint);
 }
 
 .season-divider:first-child {

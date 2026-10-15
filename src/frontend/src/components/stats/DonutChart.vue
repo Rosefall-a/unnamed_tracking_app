@@ -157,13 +157,13 @@ const arcs = computed(() => {
   border-radius: 3px;
 }
 .name {
-  color: #ddd;
+  color: var(--ui-text-soft);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .num {
-  color: #ddd;
+  color: var(--ui-text-soft);
   font-variant-numeric: tabular-nums;
 }
 .pct {
@@ -173,7 +173,7 @@ const arcs = computed(() => {
 }
 .donut-empty {
   margin: 0;
-  color: #666;
+  color: var(--ui-faint);
   font-size: 0.82rem;
 }
 </style>

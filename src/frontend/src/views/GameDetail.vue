@@ -4369,7 +4369,7 @@ void loadGame(route.params.id as string);
 }
 .native-title {
   font-size: 0.82rem;
-  color: #666;
+  color: var(--ui-faint);
   margin-bottom: 4px;
   font-weight: 500;
 }
@@ -4414,7 +4414,7 @@ void loadGame(route.params.id as string);
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #ccc;
+  color: var(--ui-text-soft);
   font-size: 0.9rem;
   text-decoration: none;
   text-shadow: 0 2px 8px
@@ -4422,7 +4422,7 @@ void loadGame(route.params.id as string);
   margin-bottom: -8px;
 }
 .parent-breadcrumb:hover {
-  color: #fff;
+  color: var(--ui-heading);
 }
 .relationship-tag {
   background: color-mix(in srgb, var(--ui-accent) 22%, transparent);
@@ -4539,7 +4539,7 @@ void loadGame(route.params.id as string);
 }
 .meta {
   text-transform: capitalize;
-  color: #ddd;
+  color: var(--ui-text-soft);
 }
 .tab-more {
   position: relative;
@@ -4571,7 +4571,7 @@ void loadGame(route.params.id as string);
   border: none;
   border-radius: 8px;
   background: none;
-  color: #ddd;
+  color: var(--ui-text-soft);
   font-family: inherit;
   font-size: 0.84rem;
   text-align: left;
@@ -4678,7 +4678,7 @@ void loadGame(route.params.id as string);
 .note-private {
   flex: 1;
   font-size: 0.72rem;
-  color: #666;
+  color: var(--ui-faint);
 }
 .note-text {
   margin: 0;
@@ -4704,7 +4704,7 @@ void loadGame(route.params.id as string);
   line-height: 1.7;
 }
 .note-input::placeholder {
-  color: #666;
+  color: var(--ui-faint);
 }
 .note-input:focus {
   outline: none;
@@ -4846,7 +4846,7 @@ void loadGame(route.params.id as string);
   font-size: 0.68rem;
   text-transform: uppercase;
   letter-spacing: 0.07em;
-  color: #666;
+  color: var(--ui-faint);
   font-weight: 700;
 }
 .meta-value {
@@ -4859,7 +4859,7 @@ void loadGame(route.params.id as string);
   font-weight: 700;
 }
 .meta-value.muted {
-  color: #666;
+  color: var(--ui-faint);
 }
 .meta-link {
   background: none;
@@ -4901,7 +4901,7 @@ void loadGame(route.params.id as string);
   font-size: 0.68rem;
   text-transform: uppercase;
   letter-spacing: 0.07em;
-  color: #666;
+  color: var(--ui-faint);
   font-weight: 700;
 }
 .more-details .read-more-btn {
@@ -5005,7 +5005,7 @@ void loadGame(route.params.id as string);
   gap: 2px 12px;
   margin-top: 2px;
   font-size: 0.74rem;
-  color: #666;
+  color: var(--ui-faint);
 }
 .kv-grid {
   display: grid;
@@ -5066,7 +5066,7 @@ void loadGame(route.params.id as string);
 .chip.chip-link:hover,
 .chip.chip-link:focus-visible {
   border-color: color-mix(in srgb, var(--ui-accent) 60%, transparent);
-  color: #fff;
+  color: var(--ui-heading);
   outline: none;
 }
 .chip.primary {
@@ -5127,7 +5127,7 @@ void loadGame(route.params.id as string);
 .poster-card-sm-meta {
   margin-top: 2px;
   font-size: 0.7rem;
-  color: #666;
+  color: var(--ui-faint);
 }
 .achievements {
   max-width: 1180px;
@@ -5192,7 +5192,7 @@ void loadGame(route.params.id as string);
   line-height: 1.5;
 }
 .ach-textarea::placeholder {
-  color: #666;
+  color: var(--ui-faint);
 }
 .ach-textarea:focus {
   outline: none;
@@ -5210,7 +5210,7 @@ void loadGame(route.params.id as string);
   gap: 4px 22px;
   margin: 0 0 12px;
   font-size: 0.85rem;
-  color: #666;
+  color: var(--ui-faint);
 }
 .ach-stats b {
   color: var(--ui-text);
@@ -5229,7 +5229,7 @@ void loadGame(route.params.id as string);
   padding: 4px 0;
   background: none;
   border: none;
-  color: #666;
+  color: var(--ui-faint);
   font: inherit;
   font-size: 0.7rem;
   font-weight: 700;
@@ -5256,12 +5256,12 @@ void loadGame(route.params.id as string);
 .ach-hint {
   margin-left: auto;
   font-size: 0.72rem;
-  color: #666;
+  color: var(--ui-faint);
 }
 .ach-empty {
   margin: 0;
   padding: 24px 0;
-  color: #666;
+  color: var(--ui-faint);
   font-size: 0.85rem;
 }
 .ach-list {
@@ -5375,12 +5375,12 @@ void loadGame(route.params.id as string);
   font-size: 0.9rem;
 }
 .ach-dim {
-  color: #666;
+  color: var(--ui-faint);
 }
 .ach-lab {
   margin-top: 3px;
   font-size: 0.72rem;
-  color: #666;
+  color: var(--ui-faint);
 }
 .ach-bar {
   width: 72px;
@@ -5505,7 +5505,7 @@ void loadGame(route.params.id as string);
   background: color-mix(in srgb, var(--ui-wash-base) 6%, transparent);
   border: 1px solid var(--ui-border-strong);
   border-radius: 999px;
-  color: #ccc;
+  color: var(--ui-text-soft);
   padding: 6px 12px;
   font-size: 0.8rem;
   font-weight: 600;
@@ -5528,10 +5528,10 @@ void loadGame(route.params.id as string);
   gap: 6px;
 }
 .account-add input {
-  background: #111;
+  background: var(--ui-bg-2);
   border: 1px solid var(--ui-border-strong);
   border-radius: 999px;
-  color: #fff;
+  color: var(--ui-heading);
   padding: 6px 12px;
   font-size: 0.8rem;
   min-width: 200px;
@@ -5548,7 +5548,7 @@ void loadGame(route.params.id as string);
 .checklist-card h3 {
   margin: 0;
   font-size: 0.95rem;
-  color: #fff;
+  color: var(--ui-heading);
 }
 .checklist-card-header {
   display: flex;
@@ -5557,7 +5557,7 @@ void loadGame(route.params.id as string);
 }
 .checklist-progress-label {
   font-size: 0.8rem;
-  color: #999;
+  color: var(--ui-dim-3);
   font-weight: 600;
 }
 .checklist-progress-bar {
@@ -5585,20 +5585,20 @@ void loadGame(route.params.id as string);
   border-bottom: 1px solid var(--ui-border);
 }
 .checklist-section-caret {
-  color: #777;
+  color: var(--ui-faint-2);
   font-size: 0.7rem;
   width: 10px;
 }
 .checklist-section-title {
   flex: 1;
-  color: #fff;
+  color: var(--ui-heading);
   font-weight: 700;
   font-size: 0.85rem;
   text-transform: uppercase;
   letter-spacing: 0.03em;
 }
 .checklist-section-count {
-  color: #777;
+  color: var(--ui-faint-2);
   font-size: 0.75rem;
   font-weight: 600;
 }
@@ -5624,7 +5624,7 @@ void loadGame(route.params.id as string);
 .checklist-move {
   background: none;
   border: none;
-  color: #555;
+  color: var(--ui-faint);
   cursor: pointer;
   font-size: 0.55rem;
   line-height: 1;
@@ -5638,26 +5638,26 @@ void loadGame(route.params.id as string);
   align-items: center;
   gap: 8px;
   flex: 1;
-  color: #ddd;
+  color: var(--ui-text-soft);
   cursor: pointer;
 }
 .checklist-label span.done {
-  color: #777;
+  color: var(--ui-faint-2);
   text-decoration: line-through;
 }
 .checklist-edit-input {
   flex: 1;
-  background: #111;
+  background: var(--ui-bg-2);
   border: 1px solid var(--ui-accent);
   border-radius: 6px;
-  color: #fff;
+  color: var(--ui-heading);
   padding: 4px 8px;
   font-size: 0.9rem;
 }
 .checklist-remove {
   background: none;
   border: none;
-  color: #777;
+  color: var(--ui-faint-2);
   cursor: pointer;
   font-weight: 700;
   padding: 0 4px;
@@ -5676,10 +5676,10 @@ void loadGame(route.params.id as string);
 }
 .checklist-add input {
   flex: 1;
-  background: #111;
+  background: var(--ui-bg-2);
   border: 1px solid var(--ui-border-strong);
   border-radius: 8px;
-  color: #fff;
+  color: var(--ui-heading);
   padding: 8px 10px;
 }
 .accounts-panel {
@@ -5713,7 +5713,7 @@ void loadGame(route.params.id as string);
   background: none;
   border: none;
   border-radius: 6px;
-  color: #ccc;
+  color: var(--ui-text-soft);
   padding: 9px 10px;
   font-size: 0.85rem;
   text-align: left;
@@ -5728,7 +5728,7 @@ void loadGame(route.params.id as string);
   font-weight: 600;
 }
 .account-list-meta {
-  color: #888;
+  color: var(--ui-dim-2);
   font-size: 0.72rem;
 }
 .accounts-sidebar .account-add {
@@ -5745,7 +5745,7 @@ void loadGame(route.params.id as string);
   background: none;
   border: none;
   border-radius: 6px;
-  color: #fff;
+  color: var(--ui-heading);
   padding: 7px 8px;
   font-size: 0.85rem;
 }
@@ -5760,7 +5760,7 @@ void loadGame(route.params.id as string);
   border-radius: 50%;
   border: 1px solid var(--ui-border-strong);
   background: none;
-  color: #ccc;
+  color: var(--ui-text-soft);
   font-size: 1rem;
   line-height: 1;
   cursor: pointer;
@@ -5808,13 +5808,13 @@ void loadGame(route.params.id as string);
 .account-gallery-card h3 {
   margin: 0;
   font-size: 0.95rem;
-  color: #fff;
+  color: var(--ui-heading);
 }
 .account-note-card textarea {
-  background: #111;
+  background: var(--ui-bg-2);
   border: 1px solid var(--ui-border-strong);
   border-radius: 8px;
-  color: #fff;
+  color: var(--ui-heading);
   padding: 10px;
   font: inherit;
   resize: vertical;
@@ -5836,7 +5836,7 @@ void loadGame(route.params.id as string);
 }
 .stat-group-heading {
   margin: 4px 0 8px;
-  color: #999;
+  color: var(--ui-dim-3);
   font-size: 0.72rem;
   font-weight: 700;
   text-transform: uppercase;
@@ -5863,7 +5863,7 @@ void loadGame(route.params.id as string);
   font-size: 1.3rem;
 }
 .stat-tile-label {
-  color: #999;
+  color: var(--ui-dim-3);
   font-size: 0.65rem;
   text-transform: uppercase;
   letter-spacing: 0.03em;
@@ -5873,7 +5873,7 @@ void loadGame(route.params.id as string);
   max-width: 100%;
 }
 .stat-tile-value {
-  color: #fff;
+  color: var(--ui-heading);
   font-weight: 700;
   font-size: 0.95rem;
 }
@@ -5888,7 +5888,7 @@ void loadGame(route.params.id as string);
   height: 26px;
 }
 .stat-tile-boss-icon {
-  color: #999;
+  color: var(--ui-dim-3);
 }
 .account-history-card {
   background: color-mix(in srgb, var(--ui-scrim-base) 20%, transparent);
@@ -5905,14 +5905,14 @@ void loadGame(route.params.id as string);
   justify-content: space-between;
   background: none;
   border: none;
-  color: #fff;
+  color: var(--ui-heading);
   font-size: 0.95rem;
   font-weight: 700;
   cursor: pointer;
   padding: 0;
 }
 .account-history-caret {
-  color: #777;
+  color: var(--ui-faint-2);
   font-size: 0.75rem;
 }
 .wom-sync-row {
@@ -5921,10 +5921,10 @@ void loadGame(route.params.id as string);
 }
 .wom-sync-row input {
   flex: 1;
-  background: #111;
+  background: var(--ui-bg-2);
   border: 1px solid var(--ui-border-strong);
   border-radius: 8px;
-  color: #fff;
+  color: var(--ui-heading);
   padding: 8px 10px;
 }
 .stat-rows {
@@ -5939,10 +5939,10 @@ void loadGame(route.params.id as string);
   align-items: center;
 }
 .stat-row input {
-  background: #111;
+  background: var(--ui-bg-2);
   border: 1px solid var(--ui-border-strong);
   border-radius: 6px;
-  color: #fff;
+  color: var(--ui-heading);
   padding: 6px 8px;
   font-size: 0.85rem;
 }
@@ -5970,7 +5970,7 @@ void loadGame(route.params.id as string);
   gap: 4px;
 }
 .stat-history-date {
-  color: #999;
+  color: var(--ui-dim-3);
   font-size: 0.75rem;
   font-weight: 600;
 }
@@ -5981,7 +5981,7 @@ void loadGame(route.params.id as string);
 }
 .stat-history-chip {
   background: color-mix(in srgb, var(--ui-wash-base) 6%, transparent);
-  color: #ccc;
+  color: var(--ui-text-soft);
   border-radius: 999px;
   padding: 2px 8px;
   font-size: 0.68rem;
@@ -6006,14 +6006,14 @@ void loadGame(route.params.id as string);
   display: flex;
   flex-direction: column;
   gap: 6px;
-  color: #ddd;
+  color: var(--ui-text-soft);
   font-size: 0.85rem;
 }
 .field input {
-  background: #111;
+  background: var(--ui-bg-2);
   border: 1px solid var(--ui-border-strong);
   border-radius: 8px;
-  color: #fff;
+  color: var(--ui-heading);
   padding: 10px 12px;
 }
 .field input:disabled {
@@ -6036,7 +6036,7 @@ void loadGame(route.params.id as string);
 }
 .small-button {
   background: color-mix(in srgb, var(--ui-wash-base) 8%, transparent);
-  color: #fff;
+  color: var(--ui-heading);
   padding: 7px 10px;
   font-size: 0.8rem;
 }
@@ -6058,7 +6058,7 @@ void loadGame(route.params.id as string);
   border-color: var(--ui-accent);
 }
 .empty-state {
-  color: #777;
+  color: var(--ui-faint-2);
   margin: 0;
 }
 .empty-state.error {
@@ -6106,12 +6106,12 @@ void loadGame(route.params.id as string);
   display: none;
 }
 .section-hint {
-  color: #999;
+  color: var(--ui-dim-3);
   font-size: 0.85rem;
   margin: 0 0 16px;
 }
 .empty-row {
-  color: #777;
+  color: var(--ui-faint-2);
   font-size: 14px;
 }
 .form-error {
@@ -6168,10 +6168,10 @@ void loadGame(route.params.id as string);
   border: 1px solid var(--ui-border);
   border-radius: 8px;
   padding: 12px 16px;
-  color: #999;
+  color: var(--ui-dim-3);
 }
 .file-name {
-  color: #fff;
+  color: var(--ui-heading);
   font-size: 0.9rem;
   text-decoration: none;
   flex: 1;
@@ -6184,7 +6184,7 @@ void loadGame(route.params.id as string);
 }
 .worlds-panel h2 {
   margin: 0 0 4px;
-  color: #fff;
+  color: var(--ui-heading);
 }
 /* Saves: named, versioned archives ---------------------------------------- */
 .archive-grid {
@@ -6205,7 +6205,7 @@ void loadGame(route.params.id as string);
   gap: 8px;
 }
 .archive-name {
-  color: #fff;
+  color: var(--ui-heading);
   font-weight: 600;
   font-size: 0.92rem;
   overflow: hidden;
@@ -6223,7 +6223,7 @@ void loadGame(route.params.id as string);
   border-radius: 6px;
   border: none;
   background: color-mix(in srgb, var(--ui-wash-base) 6%, transparent);
-  color: #999;
+  color: var(--ui-dim-3);
   cursor: pointer;
   font-size: 12px;
   display: flex;
@@ -6232,10 +6232,10 @@ void loadGame(route.params.id as string);
 }
 .icon-button:hover {
   background: color-mix(in srgb, var(--ui-wash-base) 14%, transparent);
-  color: #fff;
+  color: var(--ui-heading);
 }
 .archive-meta {
-  color: #777;
+  color: var(--ui-faint-2);
   font-size: 0.76rem;
   margin: 4px 0 12px;
 }
@@ -6274,13 +6274,13 @@ void loadGame(route.params.id as string);
 .trash-toggle {
   background: none;
   border: none;
-  color: #999;
+  color: var(--ui-dim-3);
   font-size: 0.82rem;
   cursor: pointer;
   padding: 0;
 }
 .trash-toggle:hover {
-  color: #ccc;
+  color: var(--ui-text-soft);
 }
 .trash-list {
   list-style: none;
@@ -6302,10 +6302,10 @@ void loadGame(route.params.id as string);
 }
 .trash-name {
   flex: 1;
-  color: #ccc;
+  color: var(--ui-text-soft);
 }
 .trash-meta {
-  color: #777;
+  color: var(--ui-faint-2);
   font-size: 0.76rem;
 }
 
@@ -6316,14 +6316,14 @@ void loadGame(route.params.id as string);
   border-top: 1px solid var(--ui-surface-3);
 }
 .file-size {
-  color: #777;
+  color: var(--ui-faint-2);
   font-size: 0.78rem;
   flex-shrink: 0;
 }
 .tile-remove-inline {
   background: none;
   border: none;
-  color: #777;
+  color: var(--ui-faint-2);
   cursor: pointer;
   font-size: 13px;
   padding: 2px 4px;
@@ -6334,7 +6334,7 @@ void loadGame(route.params.id as string);
 }
 .not-found {
   padding: 24px;
-  color: #fff;
+  color: var(--ui-heading);
 }
 .confirm-backdrop {
   position: fixed;
@@ -6360,7 +6360,7 @@ void loadGame(route.params.id as string);
 }
 .confirm-dialog p {
   margin: 0 0 16px;
-  color: #aaa;
+  color: var(--ui-dim-3);
   font-size: 14px;
 }
 .confirm-error {
@@ -6379,6 +6379,6 @@ void loadGame(route.params.id as string);
 }
 .secondary-button {
   background: color-mix(in srgb, var(--ui-wash-base) 8%, transparent);
-  color: #fff;
+  color: var(--ui-heading);
 }
 </style>

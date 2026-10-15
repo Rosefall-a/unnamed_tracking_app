@@ -2452,7 +2452,7 @@ function cardsInRow(rowIndex: number): Game[] {
   font-family: system-ui, sans-serif;
   background: var(--ui-bg);
   min-height: 100vh;
-  color: #fff;
+  color: var(--ui-heading);
   overflow-x: hidden;
 }
 /* List + preview mode: the page itself doesn't scroll, only the list and
@@ -2701,7 +2701,7 @@ function cardsInRow(rowIndex: number): Game[] {
   z-index: 20;
 }
 .recent-searches-label {
-  color: #777;
+  color: var(--ui-faint-2);
   font-size: 10.5px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -2714,7 +2714,7 @@ function cardsInRow(rowIndex: number): Game[] {
   width: 100%;
   background: none;
   border: none;
-  color: #eee;
+  color: var(--ui-text-soft);
   font-size: 13px;
   text-align: left;
   padding: 7px 8px;
@@ -2725,7 +2725,7 @@ function cardsInRow(rowIndex: number): Game[] {
   background: color-mix(in srgb, var(--ui-wash-base) 6%, transparent);
 }
 .recent-search-remove {
-  color: #666;
+  color: var(--ui-faint);
   font-size: 11px;
   padding: 2px 4px;
   border-radius: 4px;
@@ -2757,7 +2757,7 @@ function cardsInRow(rowIndex: number): Game[] {
   width: 100%;
   background: none;
   border: none;
-  color: #eee;
+  color: var(--ui-text-soft);
   font-size: 13px;
   text-align: left;
   padding: 8px;
@@ -2768,7 +2768,7 @@ function cardsInRow(rowIndex: number): Game[] {
   background: color-mix(in srgb, var(--ui-wash-base) 6%, transparent);
 }
 .preset-remove {
-  color: #666;
+  color: var(--ui-faint);
   font-size: 11px;
   padding: 2px 4px;
   border-radius: 4px;
@@ -2777,7 +2777,7 @@ function cardsInRow(rowIndex: number): Game[] {
   color: var(--ui-error-text);
 }
 .preset-empty {
-  color: #666;
+  color: var(--ui-faint);
   font-size: 12px;
   padding: 8px;
   margin: 0;
@@ -2900,14 +2900,14 @@ function cardsInRow(rowIndex: number): Game[] {
 .filter-pill-clear-all {
   background: none;
   border: none;
-  color: #777;
+  color: var(--ui-faint-2);
   font-size: 12px;
   text-decoration: underline;
   cursor: pointer;
   padding: 5px 4px;
 }
 .filter-pill-clear-all:hover {
-  color: #ccc;
+  color: var(--ui-text-soft);
 }
 .search-suggestions {
   display: flex;
@@ -3161,17 +3161,17 @@ function cardsInRow(rowIndex: number): Game[] {
   margin-left: auto;
   background: none;
   border: none;
-  color: #999;
+  color: var(--ui-dim-3);
   font-size: 12.5px;
   font-weight: 600;
   cursor: pointer;
   text-decoration: underline;
 }
 .clear-advanced:hover:not(:disabled) {
-  color: #fff;
+  color: var(--ui-heading);
 }
 .clear-advanced:disabled {
-  color: #555;
+  color: var(--ui-faint);
   cursor: not-allowed;
   text-decoration: none;
 }
@@ -3675,7 +3675,7 @@ function cardsInRow(rowIndex: number): Game[] {
   color: var(--text-dim);
 }
 .empty-row {
-  color: #777;
+  color: var(--ui-faint-2);
   font-size: 14px;
 }
 
@@ -3698,7 +3698,7 @@ function cardsInRow(rowIndex: number): Game[] {
 .secondary-button,
 .small-button {
   background: color-mix(in srgb, var(--ui-wash-base) 8%, transparent);
-  color: #fff;
+  color: var(--ui-heading);
 }
 .danger-button {
   background: color-mix(in srgb, var(--ui-danger) 18%, transparent);
@@ -3734,7 +3734,7 @@ function cardsInRow(rowIndex: number): Game[] {
 }
 .confirm-dialog p {
   margin: 0 0 16px;
-  color: #aaa;
+  color: var(--ui-dim-3);
   font-size: 14px;
 }
 .confirm-error {

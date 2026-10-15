@@ -173,7 +173,7 @@ const listSortOptions = [
   padding-left: 12px;
   border-left: 3px solid var(--ui-accent);
   font-size: 1rem;
-  color: #fff;
+  color: var(--ui-heading);
 }
 .section-hint {
   color: var(--ui-dim);
@@ -196,10 +196,10 @@ const listSortOptions = [
   gap: 8px;
   margin: 14px 0;
   font-size: 0.82rem;
-  color: #ccc;
+  color: var(--ui-text-soft);
 }
 .field small {
-  color: #666;
+  color: var(--ui-faint);
 }
 .settings-section :deep(.toggle-button) {
   margin: 12px 0;

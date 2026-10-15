@@ -123,23 +123,23 @@ function percent(done: number, total: number): number {
   margin-bottom: 8px;
 }
 .task-toast-label {
-  color: #fff;
+  color: var(--ui-heading);
   font-size: 0.82rem;
   font-weight: 600;
 }
 .task-toast-dismiss {
   background: none;
   border: none;
-  color: #777;
+  color: var(--ui-faint-2);
   cursor: pointer;
   font-size: 12px;
   padding: 0;
 }
 .task-toast-dismiss:hover {
-  color: #fff;
+  color: var(--ui-heading);
 }
 .task-toast-track {
-  background: #111;
+  background: var(--ui-bg-2);
   border-radius: 6px;
   height: 8px;
   overflow: hidden;
@@ -170,13 +170,13 @@ function percent(done: number, total: number): number {
 }
 .task-toast-meta {
   font-size: 0.76rem;
-  color: #999;
+  color: var(--ui-dim-3);
 }
 .task-toast-error {
   color: var(--ui-error-text);
 }
 .task-toast-speed {
-  color: #777;
+  color: var(--ui-faint-2);
 }
 .task-toast-retry {
   margin-top: 8px;
@@ -208,7 +208,7 @@ function percent(done: number, total: number): number {
 .feed-line {
   font-size: 0.72rem;
   line-height: 1.4;
-  color: #aaa;
+  color: var(--ui-dim-3);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

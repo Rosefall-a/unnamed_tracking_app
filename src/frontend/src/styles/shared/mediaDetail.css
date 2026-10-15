@@ -47,7 +47,7 @@
   font-size: 0.68rem;
   text-transform: uppercase;
   letter-spacing: 0.07em;
-  color: #666;
+  color: var(--ui-faint);
   font-weight: 700;
 }
 
@@ -90,7 +90,7 @@
 .chip.chip-link:hover,
 .chip.chip-link:focus-visible {
   border-color: color-mix(in srgb, var(--ui-accent) 60%, transparent);
-  color: #fff;
+  color: var(--ui-heading);
   outline: none;
 }
 
@@ -114,7 +114,7 @@
 }
 
 .empty-state {
-  color: #666;
+  color: var(--ui-faint);
   font-size: 0.85rem;
 }
 
@@ -156,7 +156,7 @@
 .poster-card-sm-meta {
   margin-top: 2px;
   font-size: 0.7rem;
-  color: #666;
+  color: var(--ui-faint);
 }
 
 /* Sits under the top bar and stays there while the page scrolls. It is sticky

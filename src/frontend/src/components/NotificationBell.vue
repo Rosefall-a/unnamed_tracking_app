@@ -197,7 +197,7 @@ onBeforeUnmount(() => {
   border-radius: 50%;
   border: none;
   background: none;
-  color: #ccc;
+  color: var(--ui-text-soft);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -207,7 +207,7 @@ onBeforeUnmount(() => {
 }
 .bell-button:hover,
 .bell-button.active {
-  color: #fff;
+  color: var(--ui-heading);
   background: color-mix(in srgb, var(--ui-wash-base) 8%, transparent);
 }
 .bell-dot {
@@ -260,7 +260,7 @@ onBeforeUnmount(() => {
   font-weight: 800;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: #888;
+  color: var(--ui-dim-2);
 }
 .bell-panel .mark-read-btn {
   background: none;
@@ -274,7 +274,7 @@ onBeforeUnmount(() => {
   cursor: pointer;
 }
 .bell-panel .panel-empty {
-  color: #777;
+  color: var(--ui-faint-2);
   font-size: 13px;
   padding: 10px 8px;
   margin: 0;
@@ -312,7 +312,7 @@ onBeforeUnmount(() => {
   height: 42px;
   border-radius: 4px;
   flex-shrink: 0;
-  background: #222 center / cover;
+  background: var(--ui-surface-2) center / cover;
 }
 .bell-panel .notification-dot {
   width: 7px;
@@ -331,13 +331,13 @@ onBeforeUnmount(() => {
   min-width: 0;
 }
 .bell-panel .notification-title {
-  color: #eee;
+  color: var(--ui-text-soft);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .bell-panel .notification-detail {
-  color: #888;
+  color: var(--ui-dim-2);
   font-size: 11.5px;
 }
 .bell-panel .notification-unread-dot {

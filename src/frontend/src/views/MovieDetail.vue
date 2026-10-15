@@ -733,7 +733,7 @@ async function onRatingChange(value: number | null) {
 }
 
 .resume-hint {
-  color: #666;
+  color: var(--ui-faint);
   font-size: 0.74rem;
 }
 

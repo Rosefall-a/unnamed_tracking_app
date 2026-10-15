@@ -430,7 +430,7 @@ function toggleOpen(n: MediaNotification) {
   height: 66px;
   flex-shrink: 0;
   border-radius: 6px;
-  background: #222 center / cover;
+  background: var(--ui-surface-2) center / cover;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -456,11 +456,11 @@ function toggleOpen(n: MediaNotification) {
 }
 .card-body {
   font-size: 0.82rem;
-  color: #ccc;
+  color: var(--ui-text-soft);
 }
 .card-time {
   font-size: 0.72rem;
-  color: #666;
+  color: var(--ui-faint);
 }
 .badge {
   flex-shrink: 0;
@@ -510,12 +510,12 @@ function toggleOpen(n: MediaNotification) {
   font-weight: 800;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: #666;
+  color: var(--ui-faint);
 }
 .detail dd {
   margin: 2px 0 0;
   font-size: 0.84rem;
-  color: #ddd;
+  color: var(--ui-text-soft);
 }
 .detail-actions {
   display: flex;

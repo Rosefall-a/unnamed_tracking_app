@@ -109,7 +109,7 @@ function onBlur() {
   font-size: 0.85rem;
 }
 .settings-search-input::placeholder {
-  color: #777;
+  color: var(--ui-faint-2);
 }
 .settings-search-input:focus {
   border-color: var(--ui-accent);
@@ -145,7 +145,7 @@ function onBlur() {
   background: var(--ui-accent-soft);
 }
 .settings-search-results li.none {
-  color: #888;
+  color: var(--ui-dim-2);
   cursor: default;
 }
 .result-group {
@@ -153,6 +153,6 @@ function onBlur() {
   font-size: 0.7rem;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: #777;
+  color: var(--ui-faint-2);
 }
 </style>

@@ -171,16 +171,16 @@ function formatTime(epochSeconds: number | null): string {
   padding-left: 12px;
   border-left: 3px solid var(--ui-accent);
   font-size: 1rem;
-  color: #fff;
+  color: var(--ui-heading);
 }
 .section-hint {
-  color: #999;
+  color: var(--ui-dim-3);
   font-size: 0.82rem;
   line-height: 1.6;
   margin: 0 0 20px;
 }
 .tile {
-  background: #111;
+  background: var(--ui-bg-2);
   border: 1px solid var(--ui-border);
   border-radius: 10px;
   padding: 18px 20px;
@@ -196,14 +196,14 @@ function formatTime(epochSeconds: number | null): string {
 .tile-head h3 {
   margin: 0;
   font-size: 0.9rem;
-  color: #fff;
+  color: var(--ui-heading);
 }
 .status-badge {
   font-size: 0.7rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: #999;
+  color: var(--ui-dim-3);
   background: color-mix(in srgb, var(--ui-wash-base) 6%, transparent);
   padding: 3px 10px;
   border-radius: 999px;
@@ -214,13 +214,13 @@ function formatTime(epochSeconds: number | null): string {
   background: color-mix(in srgb, var(--ui-good) 14%, transparent);
 }
 .tile-desc {
-  color: #999;
+  color: var(--ui-dim-3);
   font-size: 0.8rem;
   line-height: 1.5;
   margin: 0 0 12px;
 }
 .last-run {
-  color: #777;
+  color: var(--ui-faint-2);
   font-size: 0.76rem;
   margin: 0 0 14px;
 }
@@ -232,7 +232,7 @@ function formatTime(epochSeconds: number | null): string {
 .secondary-button {
   background: var(--ui-surface);
   border: 1px solid var(--ui-border);
-  color: #ccc;
+  color: var(--ui-text-soft);
   border-radius: 8px;
   padding: 9px 16px;
   font-weight: 600;

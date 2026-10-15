@@ -655,7 +655,7 @@ async function submit() {
 .setup-page {
   min-height: 100vh;
   background: var(--ui-bg-2);
-  color: #ccc;
+  color: var(--ui-text-soft);
   font-family: system-ui, sans-serif;
   padding: 24px 16px;
   display: flex;
@@ -694,7 +694,7 @@ async function submit() {
   align-items: center;
   gap: 10px;
   justify-content: center;
-  color: #fff;
+  color: var(--ui-heading);
   margin-bottom: 12px;
 }
 .brand h1 {
@@ -705,14 +705,14 @@ async function submit() {
   font-size: 1rem;
 }
 .subtitle {
-  color: #999;
+  color: var(--ui-dim-3);
   font-size: 13px;
   line-height: 1.5;
 }
 .nav-item {
   border: 1px solid transparent;
   background: transparent;
-  color: #aaa;
+  color: var(--ui-dim-3);
   text-align: left;
   padding: 10px;
   border-radius: 8px;
@@ -724,10 +724,10 @@ async function submit() {
 .nav-item.active {
   background: var(--ui-surface-3);
   border-color: var(--ui-border-strong);
-  color: #fff;
+  color: var(--ui-heading);
 }
 .nav-item small {
-  color: #777;
+  color: var(--ui-faint-2);
   font-size: 10px;
   text-align: right;
 }
@@ -738,7 +738,7 @@ async function submit() {
   margin: 24px 0;
 }
 .section-choice {
-  border: 1px solid #333;
+  border: 1px solid var(--ui-border-strong);
   border-radius: 10px;
   padding: 14px;
   display: flex;
@@ -752,7 +752,7 @@ async function submit() {
 }
 .section-choice p {
   margin: 5px 0 0;
-  color: #888;
+  color: var(--ui-dim-2);
   font-size: 12px;
   line-height: 1.4;
 }
@@ -764,7 +764,7 @@ async function submit() {
   border: 1px solid var(--ui-border-strong);
   border-radius: 999px;
   padding: 4px 8px;
-  color: #aaa;
+  color: var(--ui-dim-3);
   font-size: 11px;
 }
 .small {
@@ -779,7 +779,7 @@ async function submit() {
 }
 .section-editor h1 {
   margin: 0;
-  color: #fff;
+  color: var(--ui-heading);
   font-size: 1.35rem;
 }
 .field-groups {
@@ -790,7 +790,7 @@ async function submit() {
 }
 .field-group h3 {
   margin: 0 0 12px;
-  color: #fff;
+  color: var(--ui-heading);
   font-size: 1rem;
 }
 .fields {
@@ -802,7 +802,7 @@ async function submit() {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  color: #ccc;
+  color: var(--ui-text-soft);
   font-size: 13px;
 }
 .fields label:has(input[type="checkbox"]) {
@@ -822,10 +822,10 @@ async function submit() {
 }
 .fields input,
 .fields select {
-  background: #111;
+  background: var(--ui-bg-2);
   border: 1px solid var(--ui-border-strong);
   border-radius: 8px;
-  color: #fff;
+  color: var(--ui-heading);
   padding: 10px;
   font: inherit;
 }
@@ -844,7 +844,7 @@ async function submit() {
   opacity: 0.55;
 }
 .fields small {
-  color: #777;
+  color: var(--ui-faint-2);
   font-size: 11px;
   line-height: 1.4;
 }
@@ -874,7 +874,7 @@ button.primary,
 }
 .secondary {
   background: var(--ui-surface-3) !important;
-  color: #ddd !important;
+  color: var(--ui-text-soft) !important;
   border: 1px solid var(--ui-border-strong) !important;
   border-radius: 8px;
   padding: 11px 14px;

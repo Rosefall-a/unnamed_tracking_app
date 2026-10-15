@@ -584,16 +584,16 @@ async function onFileSelected(e: Event) {
   padding-left: 12px;
   border-left: 3px solid var(--ui-accent);
   font-size: 1rem;
-  color: #fff;
+  color: var(--ui-heading);
 }
 .section-hint {
-  color: #999;
+  color: var(--ui-dim-3);
   font-size: 0.82rem;
   line-height: 1.6;
   margin: 0 0 20px;
 }
 .tile {
-  background: #111;
+  background: var(--ui-bg-2);
   border: 1px solid var(--ui-border);
   border-radius: 10px;
   padding: 18px 20px;
@@ -602,10 +602,10 @@ async function onFileSelected(e: Event) {
 .tile h3 {
   margin: 0 0 6px;
   font-size: 0.9rem;
-  color: #fff;
+  color: var(--ui-heading);
 }
 .tile-desc {
-  color: #999;
+  color: var(--ui-dim-3);
   font-size: 0.8rem;
   line-height: 1.5;
   margin: 0 0 14px;
@@ -635,7 +635,7 @@ async function onFileSelected(e: Event) {
 }
 .secondary-button {
   background: color-mix(in srgb, var(--ui-wash-base) 8%, transparent);
-  color: #fff;
+  color: var(--ui-heading);
   border: none;
   border-radius: 8px;
   padding: 10px 16px;
@@ -718,7 +718,7 @@ async function onFileSelected(e: Event) {
   align-items: center;
   gap: 10px;
   cursor: pointer;
-  color: #fff;
+  color: var(--ui-heading);
   font-size: 0.85rem;
 }
 .mal-title {
@@ -736,14 +736,14 @@ async function onFileSelected(e: Event) {
   list-style: none;
   margin: 6px 0 0 26px;
   padding: 0;
-  color: #999;
+  color: var(--ui-dim-3);
   font-size: 0.75rem;
   line-height: 1.5;
 }
 .mal-details {
   display: flex;
   gap: 8px;
-  color: #999;
+  color: var(--ui-dim-3);
   font-size: 0.8rem;
   line-height: 1.5;
 }

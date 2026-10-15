@@ -660,7 +660,7 @@ onBeforeUnmount(() => document.removeEventListener("click", onDocumentClick));
   background: var(--ui-bg-2);
   border: 1px solid var(--ui-border);
   border-radius: 7px;
-  color: #eee;
+  color: var(--ui-text-soft);
   padding: 7px 9px;
   font-size: 0.78rem;
   font-family: inherit;
@@ -726,12 +726,12 @@ onBeforeUnmount(() => document.removeEventListener("click", onDocumentClick));
 }
 .rewatch-date {
   font-size: 0.78rem;
-  color: #eee;
+  color: var(--ui-text-soft);
   font-weight: 600;
 }
 .rewatch-note {
   font-size: 0.72rem;
-  color: #888;
+  color: var(--ui-dim-2);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -739,7 +739,7 @@ onBeforeUnmount(() => document.removeEventListener("click", onDocumentClick));
 .remove-btn {
   background: none;
   border: none;
-  color: #555;
+  color: var(--ui-faint);
   cursor: pointer;
   font-size: 0.95rem;
   line-height: 1;
@@ -786,7 +786,7 @@ onBeforeUnmount(() => document.removeEventListener("click", onDocumentClick));
   border-radius: 6px;
   border: none;
   background: none;
-  color: #888;
+  color: var(--ui-dim-2);
   font-size: 0.78rem;
   cursor: pointer;
 }
@@ -799,10 +799,10 @@ onBeforeUnmount(() => document.removeEventListener("click", onDocumentClick));
 }
 .rename-input {
   flex: 1;
-  background: #111;
+  background: var(--ui-bg-2);
   border: 1px solid var(--ui-accent);
   border-radius: 8px;
-  color: #fff;
+  color: var(--ui-heading);
   padding: 7px 10px;
   font: inherit;
   font-size: 0.82rem;
@@ -819,7 +819,7 @@ onBeforeUnmount(() => document.removeEventListener("click", onDocumentClick));
   text-align: left;
   background: none;
   border: none;
-  color: #ddd;
+  color: var(--ui-text-soft);
   padding: 8px 7px;
   border-radius: 8px;
   cursor: pointer;
@@ -856,13 +856,13 @@ onBeforeUnmount(() => document.removeEventListener("click", onDocumentClick));
   white-space: nowrap;
 }
 .list-option-count {
-  color: #777;
+  color: var(--ui-faint-2);
   font-size: 0.72rem;
   font-variant-numeric: tabular-nums;
   flex-shrink: 0;
 }
 .empty-hint {
-  color: #777;
+  color: var(--ui-faint-2);
   font-size: 0.78rem;
   margin: 4px 0;
 }
@@ -876,7 +876,7 @@ onBeforeUnmount(() => document.removeEventListener("click", onDocumentClick));
   background: var(--ui-bg);
   border: 1px solid var(--ui-border);
   border-radius: 7px;
-  color: #eee;
+  color: var(--ui-text-soft);
   padding: 7px 9px;
   font-size: 0.78rem;
   font-family: inherit;

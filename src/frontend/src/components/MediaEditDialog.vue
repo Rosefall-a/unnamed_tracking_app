@@ -532,7 +532,7 @@ onBeforeUnmount(() => document.removeEventListener("keydown", onKey));
 .med-head p {
   margin: 3px 0 0;
   font-size: 0.78rem;
-  color: #777;
+  color: var(--ui-faint-2);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -544,12 +544,12 @@ onBeforeUnmount(() => document.removeEventListener("keydown", onKey));
   border: none;
   border-radius: 8px;
   background: none;
-  color: #888;
+  color: var(--ui-dim-2);
   cursor: pointer;
 }
 .med-x:hover {
   background: color-mix(in srgb, var(--ui-wash-base) 8%, transparent);
-  color: #fff;
+  color: var(--ui-heading);
 }
 .med-body {
   flex: 1;
@@ -617,11 +617,11 @@ onBeforeUnmount(() => document.removeEventListener("keydown", onKey));
   gap: 12px;
 }
 .med-facts dt {
-  color: #777;
+  color: var(--ui-faint-2);
 }
 .med-facts dd {
   margin: 0;
-  color: #ddd;
+  color: var(--ui-text-soft);
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
@@ -673,7 +673,7 @@ onBeforeUnmount(() => document.removeEventListener("keydown", onKey));
 }
 .med-hint {
   font-size: 0.74rem;
-  color: #777;
+  color: var(--ui-faint-2);
 }
 .med-link {
   align-self: flex-start;
@@ -695,7 +695,7 @@ onBeforeUnmount(() => document.removeEventListener("keydown", onKey));
   align-items: flex-start;
   gap: 8px;
   font-size: 0.76rem;
-  color: #888;
+  color: var(--ui-dim-2);
   cursor: pointer;
 }
 .med-check input {
@@ -723,7 +723,7 @@ onBeforeUnmount(() => document.removeEventListener("keydown", onKey));
   border-radius: 999px;
   padding: 2px 4px 2px 10px;
   font-size: 0.76rem;
-  color: #ddd;
+  color: var(--ui-text-soft);
 }
 .med-tag button {
   width: 16px;
@@ -731,14 +731,14 @@ onBeforeUnmount(() => document.removeEventListener("keydown", onKey));
   border: none;
   border-radius: 50%;
   background: none;
-  color: #999;
+  color: var(--ui-dim-3);
   font-size: 0.6rem;
   cursor: pointer;
   padding: 0;
 }
 .med-tag button:hover {
   background: color-mix(in srgb, var(--ui-wash-base) 15%, transparent);
-  color: #fff;
+  color: var(--ui-heading);
 }
 .med-tags input {
   flex: 1;

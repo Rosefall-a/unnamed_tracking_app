@@ -286,7 +286,7 @@ onBeforeUnmount(() => document.removeEventListener("keydown", onKey));
 .aed-head p {
   margin: 3px 0 0;
   font-size: 0.78rem;
-  color: #777;
+  color: var(--ui-faint-2);
 }
 .aed-x {
   width: 30px;
@@ -294,12 +294,12 @@ onBeforeUnmount(() => document.removeEventListener("keydown", onKey));
   border: none;
   border-radius: 8px;
   background: none;
-  color: #888;
+  color: var(--ui-dim-2);
   cursor: pointer;
 }
 .aed-x:hover {
   background: color-mix(in srgb, var(--ui-wash-base) 8%, transparent);
-  color: #fff;
+  color: var(--ui-heading);
 }
 .aed-body {
   flex: 1;
@@ -358,7 +358,7 @@ onBeforeUnmount(() => document.removeEventListener("keydown", onKey));
   border-radius: 999px;
   padding: 2px 4px 2px 10px;
   font-size: 0.76rem;
-  color: #ddd;
+  color: var(--ui-text-soft);
 }
 .aed-tag button {
   width: 16px;
@@ -366,14 +366,14 @@ onBeforeUnmount(() => document.removeEventListener("keydown", onKey));
   border: none;
   border-radius: 50%;
   background: none;
-  color: #999;
+  color: var(--ui-dim-3);
   font-size: 0.6rem;
   cursor: pointer;
   padding: 0;
 }
 .aed-tag button:hover {
   background: color-mix(in srgb, var(--ui-wash-base) 15%, transparent);
-  color: #fff;
+  color: var(--ui-heading);
 }
 .aed-tags input {
   flex: 1;
@@ -409,7 +409,7 @@ onBeforeUnmount(() => document.removeEventListener("keydown", onKey));
   align-items: center;
   gap: 8px;
   padding: 8px 10px;
-  background: #111;
+  background: var(--ui-bg-2);
   border: 1px solid var(--ui-surface-3);
   border-radius: 10px;
 }
@@ -426,7 +426,7 @@ onBeforeUnmount(() => document.removeEventListener("keydown", onKey));
 }
 .aed-v-main span {
   font-size: 0.74rem;
-  color: #888;
+  color: var(--ui-dim-2);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

@@ -115,7 +115,7 @@ function save() {
 .note-private {
   flex: 1;
   font-size: 0.72rem;
-  color: #666;
+  color: var(--ui-faint);
 }
 .note-text {
   margin: 0;
@@ -142,7 +142,7 @@ function save() {
   line-height: 1.7;
 }
 .note-input::placeholder {
-  color: #666;
+  color: var(--ui-faint);
 }
 .note-input:focus {
   outline: none;
@@ -157,7 +157,7 @@ function save() {
 .note-hint {
   margin-left: auto;
   font-size: 0.72rem;
-  color: #666;
+  color: var(--ui-faint);
 }
 .btn-text {
   background: none;

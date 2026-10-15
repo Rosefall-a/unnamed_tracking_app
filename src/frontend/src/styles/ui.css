@@ -5,6 +5,7 @@
    weight and color everywhere instead of being redefined page by page. */
 
 :root {
+  color-scheme: dark;
   /* surfaces */
   --ui-bg: #0d0d0d;
   --ui-bg-2: #141414;
@@ -19,8 +20,9 @@
   /* color */
   --ui-accent: #d68a34;
   --ui-accent-bright: #e8a552;
-  --ui-accent-soft: rgba(214, 138, 52, 0.16);
-  --ui-accent-line: rgba(214, 138, 52, 0.4);
+  /* made from the accent, so changing the accent changes these too */
+  --ui-accent-soft: color-mix(in srgb, var(--ui-accent) 16%, transparent);
+  --ui-accent-line: color-mix(in srgb, var(--ui-accent) 40%, transparent);
   --ui-on-accent: #14100a;
   --ui-danger: #dc2626;
   --ui-danger-bright: #f87171;
@@ -32,12 +34,24 @@
   --ui-success: #22c55e;
   --ui-success-bright: #4ade80;
   --ui-info: #7ba7d9;
+  /* what kind of title a card is, so a game and a show are told apart at a glance */
+  --ui-kind-game: #d68a34;
+  --ui-kind-movie: #7ba7d9;
+  --ui-kind-tv: #6fbf73;
+  --ui-kind-anime: #b79cf0;
   /* text: two tiers of muted */
   --ui-text: #f2f2f2;
   --ui-text-strong: #e5e5e5;
   --ui-dim: #9c9c9c;
   --ui-dim-2: #8a8a8a;
   --ui-faint: #666666;
+  --ui-faint-2: #777777;
+  --ui-dim-3: #999999;
+  --ui-text-soft: #cccccc;
+  /* page titles and headings, which are white unless you change them */
+  --ui-heading: #ffffff;
+  /* text laid over artwork, which always sits on a dark scrim */
+  --ui-on-art: #f2f2f2;
   /* bases for translucent washes and shadows, so a light theme can flip them */
   --ui-wash-base: #ffffff;
   --ui-scrim-base: #000000;
@@ -307,4 +321,16 @@ textarea.ui-field {
   justify-content: flex-end;
   gap: 8px;
   margin-top: 6px;
+}
+
+/* The open list of a dropdown is drawn by the browser. A select with a see
+   through background otherwise gets a white list, so give the list the app's own
+   surface. */
+select {
+  color-scheme: dark;
+}
+select option,
+select optgroup {
+  background-color: var(--ui-popover);
+  color: var(--ui-text);
 }

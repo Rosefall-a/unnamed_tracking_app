@@ -94,7 +94,7 @@ const path = computed(() => PATHS[props.icon ?? "grid"]);
 .stat-label {
   margin-top: 6px;
   font-size: 0.76rem;
-  color: #666;
+  color: var(--ui-faint);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   font-weight: 700;

@@ -152,7 +152,7 @@ const emit = defineEmits<{
   border: none;
   background: rgba(20, 20, 20, 0.75);
   backdrop-filter: blur(4px);
-  color: #ccc;
+  color: var(--ui-text-soft);
   font-size: 11px;
   cursor: pointer;
 }
@@ -179,7 +179,7 @@ const emit = defineEmits<{
   border-radius: 50%;
   border: none;
   background: color-mix(in srgb, var(--ui-wash-base) 14%, transparent);
-  color: #fff;
+  color: var(--ui-heading);
   font-size: 15px;
   cursor: pointer;
 }
@@ -203,7 +203,7 @@ const emit = defineEmits<{
   margin: 0 0 6px;
   font-size: 14px;
   font-weight: 600;
-  color: #fff;
+  color: var(--ui-heading);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

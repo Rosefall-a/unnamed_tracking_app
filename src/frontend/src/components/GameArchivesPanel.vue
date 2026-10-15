@@ -441,7 +441,7 @@ function daysLeft(purgeAt: number): number {
   animation: shimmer 1.4s linear infinite;
 }
 .ga-hint {
-  color: #777;
+  color: var(--ui-faint-2);
   font-size: 14px;
 }
 .ga-body {
@@ -471,7 +471,7 @@ function daysLeft(purgeAt: number): number {
   background: color-mix(in srgb, var(--ui-wash-base) 2%, transparent);
   border: 1.5px dashed var(--ui-border-strong);
   border-radius: 12px;
-  color: #999;
+  color: var(--ui-dim-3);
   font-family: inherit;
   font-size: 0.8rem;
   cursor: pointer;
@@ -524,7 +524,7 @@ function daysLeft(purgeAt: number): number {
 }
 .ga-add-sub {
   font-size: 0.74rem;
-  color: #777;
+  color: var(--ui-faint-2);
 }
 .ga-add:hover:not(:disabled),
 .ga-empty:hover:not(:disabled) {
@@ -552,7 +552,7 @@ function daysLeft(purgeAt: number): number {
   display: flex;
   align-items: center;
   gap: 12px;
-  color: #777;
+  color: var(--ui-faint-2);
   font-size: 0.85rem;
   padding: 24px 0;
 }
@@ -580,10 +580,10 @@ function daysLeft(purgeAt: number): number {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: #ccc;
+  color: var(--ui-text-soft);
 }
 .ga-trash-meta {
-  color: #777;
+  color: var(--ui-faint-2);
   font-size: 0.74rem;
 }
 .ga-drop {

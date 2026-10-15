@@ -479,7 +479,7 @@ function goToPage(p: number) {
 .pager-btn {
   background: var(--ui-surface);
   border: 1px solid var(--ui-border);
-  color: #ccc;
+  color: var(--ui-text-soft);
   border-radius: 7px;
   padding: 6px 14px;
   font-family: inherit;
@@ -517,7 +517,7 @@ function goToPage(p: number) {
   border: 1px dashed var(--ui-border);
   border-radius: 10px;
   padding: 24px;
-  color: #666;
+  color: var(--ui-faint);
   font-size: 0.86rem;
   line-height: 1.6;
   text-align: center;
@@ -536,7 +536,7 @@ function goToPage(p: number) {
 .catch-up-btn {
   background: none;
   border: 1px solid var(--ui-border);
-  color: #666;
+  color: var(--ui-faint);
   border-radius: 7px;
   padding: 5px 10px;
   font-family: inherit;
@@ -561,10 +561,10 @@ function goToPage(p: number) {
   align-self: flex-start;
   margin-top: 6px;
   background: none;
-  border: 1px dashed #333;
+  border: 1px dashed var(--ui-border-strong);
   border-radius: 6px;
   padding: 3px 10px;
-  color: #666;
+  color: var(--ui-faint);
   font-family: inherit;
   font-size: 0.72rem;
   font-weight: 600;
@@ -660,7 +660,7 @@ function goToPage(p: number) {
   background: var(--ui-bg);
   border: 1px solid var(--ui-border-strong);
   border-radius: 8px;
-  color: #eee;
+  color: var(--ui-text-soft);
   padding: 9px 11px;
   font: inherit;
   font-size: 0.82rem;
@@ -683,7 +683,7 @@ function goToPage(p: number) {
 .note-count,
 .note-hint {
   font-size: 0.68rem;
-  color: #666;
+  color: var(--ui-faint);
   font-variant-numeric: tabular-nums;
 }
 .note-count.near {
@@ -706,7 +706,7 @@ function goToPage(p: number) {
 }
 .note-cancel {
   background: color-mix(in srgb, var(--ui-wash-base) 8%, transparent);
-  color: #ccc;
+  color: var(--ui-text-soft);
 }
 .note-remove {
   background: none;
@@ -780,7 +780,7 @@ function goToPage(p: number) {
   align-items: center;
   justify-content: center;
   font-size: 0.68rem;
-  color: #666;
+  color: var(--ui-faint);
   text-align: center;
 }
 .episode-info {
@@ -795,18 +795,18 @@ function goToPage(p: number) {
 }
 .episode-number {
   font-size: 0.76rem;
-  color: #666;
+  color: var(--ui-faint);
   font-variant-numeric: tabular-nums;
   flex-shrink: 0;
 }
 .episode-title {
   font-weight: 700;
   font-size: 0.9rem;
-  color: #fff;
+  color: var(--ui-heading);
 }
 .episode-air {
   font-size: 0.72rem;
-  color: #666;
+  color: var(--ui-faint);
   margin-left: auto;
   white-space: nowrap;
 }
@@ -834,7 +834,7 @@ function goToPage(p: number) {
   width: 52px;
   background: var(--ui-surface-2);
   border: 1px solid var(--ui-border);
-  color: #fff;
+  color: var(--ui-heading);
   border-radius: 6px;
   padding: 5px 6px;
   font-family: inherit;

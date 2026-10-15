@@ -615,10 +615,10 @@ async function restoreGameById(game: TrashedGame) {
   padding-left: 12px;
   border-left: 3px solid var(--ui-accent);
   font-size: 1rem;
-  color: #fff;
+  color: var(--ui-heading);
 }
 .section-hint {
-  color: #999;
+  color: var(--ui-dim-3);
   font-size: 0.82rem;
   line-height: 1.6;
   margin: 0 0 16px;
@@ -639,7 +639,7 @@ async function restoreGameById(game: TrashedGame) {
 }
 .secondary-button {
   background: color-mix(in srgb, var(--ui-wash-base) 8%, transparent);
-  color: #fff;
+  color: var(--ui-heading);
   border: none;
   border-radius: 8px;
   padding: 10px 18px;
@@ -665,7 +665,7 @@ async function restoreGameById(game: TrashedGame) {
 .refresh-summary {
   margin-top: 14px;
   font-size: 0.82rem;
-  color: #ccc;
+  color: var(--ui-text-soft);
 }
 .refresh-summary p {
   margin: 0 0 8px;
@@ -679,7 +679,7 @@ async function restoreGameById(game: TrashedGame) {
   gap: 4px;
   max-height: 160px;
   overflow-y: auto;
-  color: #999;
+  color: var(--ui-dim-3);
   font-size: 0.78rem;
 }
 
@@ -704,11 +704,11 @@ async function restoreGameById(game: TrashedGame) {
 }
 .confirm-dialog h3 {
   margin: 0 0 8px;
-  color: #fff;
+  color: var(--ui-heading);
 }
 .confirm-dialog p {
   margin: 0 0 16px;
-  color: #aaa;
+  color: var(--ui-dim-3);
   font-size: 13.5px;
 }
 .confirm-actions {
@@ -740,7 +740,7 @@ async function restoreGameById(game: TrashedGame) {
   font-size: 12.5px;
 }
 .preview-change-title {
-  color: #fff;
+  color: var(--ui-heading);
   font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
@@ -765,7 +765,7 @@ async function restoreGameById(game: TrashedGame) {
   cursor: not-allowed;
 }
 .empty-hint {
-  color: #777;
+  color: var(--ui-faint-2);
   font-size: 0.82rem;
 }
 .trash-list {
@@ -788,13 +788,13 @@ async function restoreGameById(game: TrashedGame) {
 }
 .trash-name {
   flex: 1;
-  color: #ccc;
+  color: var(--ui-text-soft);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .trash-meta {
-  color: #777;
+  color: var(--ui-faint-2);
   font-size: 0.76rem;
 }
 </style>

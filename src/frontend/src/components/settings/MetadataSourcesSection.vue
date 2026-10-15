@@ -2295,16 +2295,16 @@ async function toggleHltb(enabled: boolean) {
   padding-left: 12px;
   border-left: 3px solid var(--ui-accent);
   font-size: 1rem;
-  color: #fff;
+  color: var(--ui-heading);
 }
 .section-hint {
-  color: #999;
+  color: var(--ui-dim-3);
   font-size: 0.82rem;
   line-height: 1.6;
   margin: 0 0 16px;
 }
 .group-heading {
-  color: #999;
+  color: var(--ui-dim-3);
   font-size: 0.76rem;
   font-weight: 700;
   text-transform: uppercase;
@@ -2325,7 +2325,7 @@ async function toggleHltb(enabled: boolean) {
   display: flex;
   flex-direction: column;
   min-height: 148px;
-  background: #111;
+  background: var(--ui-bg-2);
   border: 1px solid var(--ui-border);
   border-radius: 8px;
   padding: 10px;
@@ -2364,7 +2364,7 @@ async function toggleHltb(enabled: boolean) {
   min-width: 0;
 }
 .tile-name {
-  color: #fff;
+  color: var(--ui-heading);
   font-weight: 600;
   font-size: 0.82rem;
   overflow: hidden;
@@ -2382,19 +2382,19 @@ async function toggleHltb(enabled: boolean) {
   color: var(--ui-good-text);
 }
 .tile-status.saved {
-  color: #999;
+  color: var(--ui-dim-3);
 }
 .tile-status.error {
   color: var(--ui-error-text);
 }
 .tile-status.disconnected {
-  color: #777;
+  color: var(--ui-faint-2);
 }
 .tile-profile {
   display: flex;
   align-items: center;
   gap: 5px;
-  color: #ccc;
+  color: var(--ui-text-soft);
   font-size: 0.72rem;
   font-weight: 600;
   overflow: hidden;
@@ -2409,7 +2409,7 @@ async function toggleHltb(enabled: boolean) {
   object-fit: cover;
 }
 .tile-desc {
-  color: #888;
+  color: var(--ui-dim-2);
   font-size: 0.68rem;
   line-height: 1.4;
   margin: 0 0 8px;
@@ -2440,7 +2440,7 @@ async function toggleHltb(enabled: boolean) {
   border-radius: 50%;
   border: none;
   background: color-mix(in srgb, var(--ui-wash-base) 8%, transparent);
-  color: #ccc;
+  color: var(--ui-text-soft);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2452,7 +2452,7 @@ async function toggleHltb(enabled: boolean) {
 }
 .icon-btn:hover {
   background: color-mix(in srgb, var(--ui-wash-base) 16%, transparent);
-  color: #fff;
+  color: var(--ui-heading);
 }
 .icon-btn.active {
   background: color-mix(in srgb, var(--ui-accent) 22%, transparent);
@@ -2522,7 +2522,7 @@ async function toggleHltb(enabled: boolean) {
   border-top: 1px solid var(--ui-surface-2);
 }
 .tile-hint {
-  color: #999;
+  color: var(--ui-dim-3);
   font-size: 0.72rem;
   line-height: 1.5;
   margin: 0;
@@ -2530,7 +2530,7 @@ async function toggleHltb(enabled: boolean) {
 .tile-steps {
   margin: 0 0 10px;
   padding-left: 16px;
-  color: #999;
+  color: var(--ui-dim-3);
   font-size: 0.72rem;
   line-height: 1.5;
 }
@@ -2539,20 +2539,20 @@ async function toggleHltb(enabled: boolean) {
 }
 .tile-steps code {
   font-size: 0.7rem;
-  color: #ddd;
+  color: var(--ui-text-soft);
 }
 .field {
   display: flex;
   flex-direction: column;
   gap: 4px;
   font-size: 0.72rem;
-  color: #ccc;
+  color: var(--ui-text-soft);
 }
 .field input {
   background: var(--ui-surface);
   border: 1px solid var(--ui-border-strong);
   border-radius: 6px;
-  color: #fff;
+  color: var(--ui-heading);
   padding: 7px 9px;
   font: inherit;
   font-size: 0.78rem;
@@ -2597,7 +2597,7 @@ async function toggleHltb(enabled: boolean) {
 }
 .secondary-button {
   background: color-mix(in srgb, var(--ui-wash-base) 8%, transparent);
-  color: #fff;
+  color: var(--ui-heading);
   border: none;
   border-radius: 6px;
   padding: 7px 12px;
@@ -2628,11 +2628,11 @@ async function toggleHltb(enabled: boolean) {
 }
 .confirm-dialog h3 {
   margin: 0 0 8px;
-  color: #fff;
+  color: var(--ui-heading);
 }
 .confirm-dialog p {
   margin: 0 0 18px;
-  color: #999;
+  color: var(--ui-dim-3);
   font-size: 0.85rem;
 }
 .confirm-actions {

@@ -2008,7 +2008,7 @@ async function submitManualEntry() {
   border-radius: 8px;
   background: var(--ui-surface);
   border: 1px solid var(--ui-border);
-  color: #eee;
+  color: var(--ui-text-soft);
   font-size: 1rem;
   cursor: pointer;
 }
@@ -2035,7 +2035,7 @@ async function submitManualEntry() {
   border-radius: 8px;
   background: color-mix(in srgb, var(--ui-wash-base) 6%, transparent);
   border: 1px solid var(--ui-border);
-  color: #ccc;
+  color: var(--ui-text-soft);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -2134,7 +2134,7 @@ async function submitManualEntry() {
   text-align: center;
   font-size: 0.72rem;
   font-weight: 700;
-  color: #666;
+  color: var(--ui-faint);
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
@@ -2235,7 +2235,7 @@ async function submitManualEntry() {
   min-width: 12px;
   padding: 0 2px;
   background: color-mix(in srgb, var(--ui-scrim-base) 82%, transparent);
-  color: #fff;
+  color: var(--ui-heading);
   font-size: 0.58rem;
   font-weight: 800;
   line-height: 13px;
@@ -2247,7 +2247,7 @@ async function submitManualEntry() {
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid #333;
+  border: 1px solid var(--ui-border-strong);
   background: transparent;
   color: var(--ui-dim);
   font-size: 0.68rem;
@@ -2276,7 +2276,7 @@ async function submitManualEntry() {
   padding: 8px 12px 8px 8px;
   margin-bottom: 6px;
   text-align: left;
-  color: #ddd;
+  color: var(--ui-text-soft);
   font-family: inherit;
   cursor: pointer;
   transition:
@@ -2315,7 +2315,7 @@ async function submitManualEntry() {
 .agenda-title {
   font-size: 0.86rem;
   font-weight: 700;
-  color: #fff;
+  color: var(--ui-heading);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2329,7 +2329,7 @@ async function submitManualEntry() {
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--layer, #888);
+  color: var(--layer, var(--ui-dim-2));
   flex-shrink: 0;
 }
 
@@ -2352,7 +2352,7 @@ async function submitManualEntry() {
   flex-direction: column;
   gap: 14px;
   overflow-y: auto;
-  color: #fff;
+  color: var(--ui-heading);
   box-shadow: -24px 0 64px
     color-mix(in srgb, var(--ui-scrim-base) 50%, transparent);
 }
@@ -2372,7 +2372,7 @@ async function submitManualEntry() {
   border-radius: 8px;
   border: 1px solid var(--ui-border);
   background: color-mix(in srgb, var(--ui-wash-base) 6%, transparent);
-  color: #ccc;
+  color: var(--ui-text-soft);
   font-size: 1.1rem;
   cursor: pointer;
 }
@@ -2436,7 +2436,7 @@ async function submitManualEntry() {
   padding: 11px 14px;
   margin-bottom: 8px;
   font-size: 0.86rem;
-  color: #ddd;
+  color: var(--ui-text-soft);
   cursor: pointer;
   transition:
     border-color 0.15s ease,
@@ -2515,7 +2515,7 @@ async function submitManualEntry() {
 .entry-action-btn {
   background: color-mix(in srgb, var(--ui-wash-base) 6%, transparent);
   border: 1px solid var(--ui-border);
-  color: #ccc;
+  color: var(--ui-text-soft);
   border-radius: 6px;
   width: 24px;
   height: 24px;
@@ -2547,7 +2547,7 @@ async function submitManualEntry() {
 .entry-edit-title {
   font-weight: 700;
   font-size: 0.86rem;
-  color: #fff;
+  color: var(--ui-heading);
 }
 .entry-edit-title-search {
   position: relative;
@@ -2573,7 +2573,7 @@ async function submitManualEntry() {
   background: var(--ui-bg);
   border: 1px solid var(--ui-border);
   border-radius: 6px;
-  color: #eee;
+  color: var(--ui-text-soft);
   padding: 6px 8px;
   font-size: 0.8rem;
   font-family: inherit;
@@ -2589,7 +2589,7 @@ async function submitManualEntry() {
   background: var(--ui-bg);
   border: 1px solid var(--ui-border);
   border-radius: 6px;
-  color: #eee;
+  color: var(--ui-text-soft);
   padding: 6px 8px;
   font-size: 0.8rem;
   font-family: inherit;
@@ -2617,7 +2617,7 @@ async function submitManualEntry() {
 }
 .entry-cancel-btn {
   background: color-mix(in srgb, var(--ui-wash-base) 8%, transparent);
-  color: #ccc;
+  color: var(--ui-text-soft);
 }
 
 /* manual log-entry modal */
@@ -2632,7 +2632,7 @@ async function submitManualEntry() {
   flex-direction: column;
   gap: 6px;
   font-size: 0.82rem;
-  color: #ccc;
+  color: var(--ui-text-soft);
   margin-bottom: 14px;
   position: relative;
 }
@@ -2665,7 +2665,7 @@ async function submitManualEntry() {
   text-align: left;
   background: none;
   border: none;
-  color: #ddd;
+  color: var(--ui-text-soft);
   padding: 8px 10px;
   cursor: pointer;
   font-size: 0.82rem;
@@ -2675,7 +2675,7 @@ async function submitManualEntry() {
   background: color-mix(in srgb, var(--ui-wash-base) 6%, transparent);
 }
 .modal-search-kind {
-  color: #666;
+  color: var(--ui-faint);
   font-size: 0.7rem;
   text-transform: uppercase;
 }
@@ -2712,7 +2712,7 @@ async function submitManualEntry() {
   justify-content: space-between;
   font-size: 0.76rem;
   font-weight: 700;
-  color: #ccc;
+  color: var(--ui-text-soft);
 }
 .week-add {
   width: 22px;
@@ -2720,7 +2720,7 @@ async function submitManualEntry() {
   border-radius: 6px;
   border: 1px solid var(--ui-border);
   background: transparent;
-  color: #999;
+  color: var(--ui-dim-3);
   cursor: pointer;
 }
 .week-add:hover {

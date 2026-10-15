@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { animeFormatLabel, isAnimeMovie } from "../utils/animeFormat";
 import { formatDisplayDate } from "../utils/dates";
 import { mediaPriority, priorityLabel } from "../utils/priority";
 import { localMediaImage } from "../utils/mediaImages";
@@ -163,9 +164,19 @@ function onDeleted() {
 const firstAirYear = computed(() =>
   show.value?.firstAirDate ? show.value.firstAirDate.slice(0, 4) : null,
 );
+// "Movie", "OVA" and so on for something that is not a TV series with seasons
+const formatBadge = computed(() =>
+  show.value && show.value.seasons.length <= 1
+    ? animeFormatLabel(show.value.format)
+    : null,
+);
 const episodeRuntimeLabel = computed(() => {
   const minutes = show.value?.episodeRuntimeMinutes;
-  return minutes ? `${minutes}m episodes` : null;
+  if (!minutes) return null;
+  // a film has one running time, not episodes
+  return isAnimeMovie(show.value?.format)
+    ? `${minutes} min`
+    : `${minutes}m episodes`;
 });
 const nativeTitleLine = computed(() => {
   if (!show.value) return "";
@@ -927,14 +938,16 @@ async function onRatingChange(value: number | null) {
       :badges="[
         ...(firstAirYear ? [{ text: firstAirYear }] : []),
         ...(episodeRuntimeLabel ? [{ text: episodeRuntimeLabel }] : []),
-        ...(show.seasons.length
-          ? [
-              {
-                text: `${show.seasons.length} season${show.seasons.length === 1 ? '' : 's'}`,
-                tone: 'good' as const,
-              },
-            ]
-          : []),
+        ...(formatBadge
+          ? [{ text: formatBadge, tone: 'good' as const }]
+          : show.seasons.length
+            ? [
+                {
+                  text: `${show.seasons.length} season${show.seasons.length === 1 ? '' : 's'}`,
+                  tone: 'good' as const,
+                },
+              ]
+            : []),
       ]"
       bright-native-title
       @status-change="onStatusChange"
@@ -1282,7 +1295,7 @@ async function onRatingChange(value: number | null) {
 .seasons-count {
   font-size: 0.72rem;
   font-weight: 700;
-  color: #999;
+  color: var(--ui-dim-3);
   background: color-mix(in srgb, var(--ui-wash-base) 6%, transparent);
   padding: 2px 9px;
   border-radius: 999px;
@@ -1368,7 +1381,7 @@ async function onRatingChange(value: number | null) {
 
 .season-flag.add {
   background: rgba(20, 20, 20, 0.85);
-  color: #ddd;
+  color: var(--ui-text-soft);
 }
 
 .season-title {
@@ -1448,7 +1461,7 @@ async function onRatingChange(value: number | null) {
   box-sizing: border-box;
   background: var(--ui-surface);
   border: 1px solid var(--ui-border);
-  color: #ccc;
+  color: var(--ui-text-soft);
   border-radius: 7px;
   padding: 0 12px;
   font-family: inherit;
@@ -1483,7 +1496,7 @@ async function onRatingChange(value: number | null) {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: #666;
+  color: var(--ui-faint);
 }
 
 .season-divider:first-child {
@@ -1517,7 +1530,7 @@ async function onRatingChange(value: number | null) {
 
 .format-filter-label {
   font-size: 0.76rem;
-  color: #777;
+  color: var(--ui-faint-2);
 }
 
 .format-chip {
@@ -1536,7 +1549,7 @@ async function onRatingChange(value: number | null) {
 }
 
 .format-chip.off {
-  color: #666;
+  color: var(--ui-faint);
   background: transparent;
   border-color: var(--ui-border);
   text-decoration: line-through;

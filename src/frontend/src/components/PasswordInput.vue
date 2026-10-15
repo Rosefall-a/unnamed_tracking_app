@@ -90,10 +90,10 @@ const hideLabel = computed(() => `Hide ${secretLabel.value}`);
   width: 100%;
   min-width: 0;
   box-sizing: border-box;
-  background: #111;
+  background: var(--ui-bg-2);
   border: 1px solid var(--ui-border-strong);
   border-radius: 8px;
-  color: #fff;
+  color: var(--ui-heading);
   padding: 10px 44px 10px 12px;
   font: inherit;
 }
@@ -125,7 +125,7 @@ const hideLabel = computed(() => `Hide ${secretLabel.value}`);
   border: 0;
   border-radius: 6px;
   background: transparent;
-  color: #777;
+  color: var(--ui-faint-2);
   cursor: pointer;
 }
 

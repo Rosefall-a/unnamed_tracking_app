@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
 import { fetchGames, addGameToCollection } from "../services/games";
+import { preferences } from "../state/preferences";
+import { autoCollectionNames } from "../utils/autoCollections";
 import type { Game } from "../types/game";
 
 const props = defineProps<{
@@ -23,6 +25,9 @@ onMounted(async () => {
     const games = await fetchGames();
     const set = new Set<string>();
     games.forEach((g) => g.collections.forEach((c) => set.add(c)));
+    // the ones a sync made are left out unless they are set to sit with yours
+    if (preferences.value.collections_auto !== "mixed")
+      for (const name of autoCollectionNames(games)) set.delete(name);
     try {
       const raw = localStorage.getItem("manualCollections");
       const manual: string[] = raw ? JSON.parse(raw) : [];
@@ -157,7 +162,7 @@ function createAndAdd() {
   padding: 22px;
   width: 100%;
   max-width: 380px;
-  color: #fff;
+  color: var(--ui-heading);
   font-family: system-ui, sans-serif;
   box-shadow: 0 24px 64px
     color-mix(in srgb, var(--ui-scrim-base) 60%, transparent);
@@ -172,10 +177,10 @@ function createAndAdd() {
 .picker-input {
   width: 100%;
   box-sizing: border-box;
-  background: #111;
+  background: var(--ui-bg-2);
   border: 1px solid var(--ui-border-strong);
   border-radius: 8px;
-  color: #fff;
+  color: var(--ui-heading);
   padding: 10px 12px;
   font: inherit;
   font-size: 14px;
@@ -201,7 +206,7 @@ function createAndAdd() {
 .picker-item {
   background: none;
   border: none;
-  color: #ddd;
+  color: var(--ui-text-soft);
   text-align: left;
   padding: 10px 12px;
   border-radius: 8px;
@@ -221,7 +226,7 @@ function createAndAdd() {
   font-weight: 600;
 }
 .picker-empty {
-  color: #777;
+  color: var(--ui-faint-2);
   font-size: 13px;
   margin: 0;
   padding: 6px 12px;
@@ -232,7 +237,7 @@ function createAndAdd() {
 }
 .secondary-button {
   background: color-mix(in srgb, var(--ui-wash-base) 8%, transparent);
-  color: #fff;
+  color: var(--ui-heading);
   border: none;
   border-radius: 8px;
   padding: 9px 18px;

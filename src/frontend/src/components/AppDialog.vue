@@ -121,7 +121,7 @@ function cancel() {
   background: var(--ui-bg);
   border: 1px solid var(--ui-border-strong);
   border-radius: 8px;
-  color: #fff;
+  color: var(--ui-heading);
   padding: 9px 12px;
   font: inherit;
   font-size: 0.86rem;
@@ -148,7 +148,7 @@ function cancel() {
 }
 .dialog-cancel:hover {
   border-color: var(--ui-border-strong);
-  color: #ccc;
+  color: var(--ui-text-soft);
 }
 .dialog-accept {
   background: var(--ui-accent);
@@ -163,6 +163,6 @@ function cancel() {
 }
 .dialog-accept.danger {
   background: var(--ui-danger);
-  color: #fff;
+  color: var(--ui-heading);
 }
 </style>

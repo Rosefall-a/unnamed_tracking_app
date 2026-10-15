@@ -2,11 +2,16 @@
 // The light edit the Games library opens from a game's Edit button: the same dialog
 // as Add Game, with the four things most often changed (status, platform, rating and
 // artwork) and an "Edit more" button for the full form.
-import { ref } from "vue";
+import { computed, ref } from "vue";
 import GameArtSection from "./GameArtSection.vue";
 import QuickAddDialog from "./library/QuickAddDialog.vue";
 import type { QuickAddResult } from "./library/QuickAddDialog.vue";
-import { attachGameAssetFromUrl, patchGame } from "../services/games";
+import {
+  attachGameAssetFromUrl,
+  patchGame,
+  setRatings,
+} from "../services/games";
+import type { GameRatings } from "../services/games";
 import type { Game, GameStatus } from "../types/game";
 
 const props = defineProps<{ game: Game }>();
@@ -35,7 +40,25 @@ const STATUSES: GameStatus[] = [
 
 const status = ref<GameStatus>(props.game.status);
 const platform = ref(props.game.platform ?? "");
-const rating = ref<number | null>(props.game.ratingOverall);
+// a game is scored in four parts, the same four the game page asks for
+const RATING_FIELDS: { key: keyof GameRatings; label: string }[] = [
+  { key: "ratingOverall", label: "Atmosphere" },
+  { key: "ratingStory", label: "Story" },
+  { key: "ratingGameplay", label: "Gameplay" },
+  { key: "ratingSound", label: "Sound" },
+];
+const ratings = ref<Record<keyof GameRatings, number | null>>({
+  ratingOverall: props.game.ratingOverall,
+  ratingStory: props.game.ratingStory,
+  ratingGameplay: props.game.ratingGameplay,
+  ratingSound: props.game.ratingSound,
+});
+const total = computed(() => {
+  const given = RATING_FIELDS.map((f) => cleaned(ratings.value[f.key])).filter(
+    (v): v is number => v !== null,
+  );
+  return given.length ? given.reduce((a, b) => a + b, 0) : null;
+});
 // artwork picked in the dialog; null keeps what the game has
 const pickedCover = ref<string | null>(null);
 const pickedBanner = ref<string | null>(null);
@@ -52,18 +75,30 @@ const initial: GameResult = {
 };
 
 // a cleared number box reads "" rather than null
-const rated = () =>
-  rating.value === null || Number.isNaN(rating.value) ? null : rating.value;
+function cleaned(value: number | null): number | null {
+  if (value === null || (value as unknown) === "" || Number.isNaN(value))
+    return null;
+  return Math.min(10, Math.max(0, value));
+}
 
 async function save() {
   saving.value = true;
   error.value = null;
   try {
-    const saved = await patchGame(props.game.id, {
+    let saved = await patchGame(props.game.id, {
       status: status.value,
       platform: platform.value.trim() || null,
-      ratingOverall: rated(),
     });
+    const next: GameRatings = {
+      ratingOverall: cleaned(ratings.value.ratingOverall),
+      ratingStory: cleaned(ratings.value.ratingStory),
+      ratingGameplay: cleaned(ratings.value.ratingGameplay),
+      ratingSound: cleaned(ratings.value.ratingSound),
+    };
+    const changed = RATING_FIELDS.some(
+      (f) => next[f.key] !== props.game[f.key],
+    );
+    if (changed) saved = await setRatings(props.game.id, next);
     // a chosen picture is saved with the game and shown as soon as it is
     if (pickedCover.value)
       await attachGameAssetFromUrl(saved.id, "key_art", pickedCover.value);
@@ -108,17 +143,26 @@ async function save() {
         <span>Platform</span>
         <input v-model="platform" placeholder="e.g. PC" />
       </label>
-      <label class="qa-field">
-        <span>Your rating (0–10)</span>
-        <input
-          v-model.number="rating"
-          type="number"
-          min="0"
-          max="10"
-          step="0.1"
-          placeholder="–"
-        />
-      </label>
+      <div class="qa-field qa-wide ratings">
+        <span>
+          Your rating
+          <em v-if="total !== null">★ {{ total.toFixed(1) }}</em>
+        </span>
+        <div class="rating-grid">
+          <label v-for="f in RATING_FIELDS" :key="f.key">
+            <small>{{ f.label }}</small>
+            <input
+              v-model.number="ratings[f.key]"
+              type="number"
+              min="0"
+              max="10"
+              step="0.5"
+              placeholder="–"
+              :aria-label="`${f.label} rating, 0 to 10`"
+            />
+          </label>
+        </div>
+      </div>
       <GameArtSection
         v-model:cover="pickedCover"
         v-model:banner="pickedBanner"
@@ -133,6 +177,31 @@ async function save() {
 </template>
 
 <style scoped>
+.ratings > span em {
+  margin-left: 8px;
+  color: var(--ui-accent);
+  font-style: normal;
+  font-weight: 700;
+}
+.rating-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+.rating-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.rating-grid small {
+  color: var(--ui-faint);
+  font-size: 0.72rem;
+}
+@media (max-width: 520px) {
+  .rating-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
 /* the status picker takes the whole row, so platform and rating pair up below it */
 .qa-wide {
   grid-column: 1 / -1;

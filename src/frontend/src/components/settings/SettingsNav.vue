@@ -110,7 +110,7 @@ function iconPath(id: string): string {
   gap: 2px;
 }
 .settings-nav-group-label {
-  color: #777;
+  color: var(--ui-faint-2);
   font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
@@ -126,7 +126,7 @@ function iconPath(id: string): string {
   border-radius: 8px;
   border: none;
   background: none;
-  color: #ccc;
+  color: var(--ui-text-soft);
   text-align: left;
   font-size: 14px;
   cursor: pointer;
@@ -145,7 +145,7 @@ function iconPath(id: string): string {
 }
 .settings-nav-item:hover {
   background: color-mix(in srgb, var(--ui-wash-base) 6%, transparent);
-  color: #fff;
+  color: var(--ui-heading);
 }
 .settings-nav-item.active {
   background: color-mix(in srgb, var(--ui-accent) 14%, transparent);
@@ -153,7 +153,7 @@ function iconPath(id: string): string {
 }
 .soon-badge {
   font-size: 10px;
-  color: #777;
+  color: var(--ui-faint-2);
   background: color-mix(in srgb, var(--ui-wash-base) 6%, transparent);
   padding: 2px 6px;
   border-radius: 999px;

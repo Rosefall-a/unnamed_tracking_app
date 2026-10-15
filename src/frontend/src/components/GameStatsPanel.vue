@@ -806,11 +806,11 @@ const ICONS: Record<string, string> = {
   font-weight: 800;
   letter-spacing: 0.07em;
   text-transform: uppercase;
-  color: #777;
+  color: var(--ui-faint-2);
 }
 .gs-sub {
   font-size: 0.76rem;
-  color: #888;
+  color: var(--ui-dim-2);
 }
 
 .gs-summary {
@@ -876,7 +876,7 @@ const ICONS: Record<string, string> = {
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #777;
+  color: var(--ui-faint-2);
 }
 .gs-bars {
   display: flex;
@@ -914,7 +914,7 @@ const ICONS: Record<string, string> = {
 }
 .gs-bar-label {
   font-size: 0.68rem;
-  color: #777;
+  color: var(--ui-faint-2);
 }
 
 .gs-tl-head {
@@ -938,7 +938,7 @@ const ICONS: Record<string, string> = {
 }
 .gs-note {
   margin: 0;
-  color: #777;
+  color: var(--ui-faint-2);
   font-size: 0.88rem;
 }
 .gs-month {
@@ -1037,12 +1037,12 @@ const ICONS: Record<string, string> = {
   align-items: flex-end;
   gap: 1px;
   font-size: 0.76rem;
-  color: #888;
+  color: var(--ui-dim-2);
   font-variant-numeric: tabular-nums;
 }
 .gs-chev {
   flex-shrink: 0;
-  color: #666;
+  color: var(--ui-faint);
   transition: transform 0.15s ease;
 }
 .gs-entry.open .gs-chev {
@@ -1066,7 +1066,7 @@ const ICONS: Record<string, string> = {
   font-size: 0.84rem;
 }
 .gs-change-label {
-  color: #888;
+  color: var(--ui-dim-2);
   font-weight: 600;
 }
 .gs-from {
@@ -1076,7 +1076,7 @@ const ICONS: Record<string, string> = {
   overflow-wrap: anywhere;
 }
 .gs-arrow {
-  color: #666;
+  color: var(--ui-faint);
 }
 .gs-to {
   color: var(--ui-accent);
@@ -1093,7 +1093,7 @@ const ICONS: Record<string, string> = {
   height: 34px;
   flex-shrink: 0;
   border-radius: 7px;
-  background: #222 center / cover no-repeat;
+  background: var(--ui-surface-2) center / cover no-repeat;
 }
 .gs-ach-name {
   flex: 1;
@@ -1105,7 +1105,7 @@ const ICONS: Record<string, string> = {
 .gs-ach-note {
   flex-shrink: 0;
   font-size: 0.74rem;
-  color: #888;
+  color: var(--ui-dim-2);
   text-align: right;
 }
 .gs-factrow {
@@ -1113,10 +1113,10 @@ const ICONS: Record<string, string> = {
   justify-content: space-between;
   gap: 16px;
   font-size: 0.84rem;
-  color: #888;
+  color: var(--ui-dim-2);
 }
 .gs-factrow strong {
-  color: #ddd;
+  color: var(--ui-text-soft);
   text-transform: capitalize;
 }
 .gs-media {
@@ -1137,7 +1137,7 @@ const ICONS: Record<string, string> = {
   border-radius: 8px;
   background: var(--ui-surface);
   font-size: 0.78rem;
-  color: #bbb;
+  color: var(--ui-dim-3);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1145,7 +1145,7 @@ const ICONS: Record<string, string> = {
 .gs-more {
   align-self: center;
   font-size: 0.78rem;
-  color: #888;
+  color: var(--ui-dim-2);
 }
 
 @media (max-width: 760px) {

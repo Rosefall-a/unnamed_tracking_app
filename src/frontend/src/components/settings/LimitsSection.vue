@@ -130,10 +130,10 @@ async function resetToDefault() {
   padding-left: 12px;
   border-left: 3px solid var(--ui-accent);
   font-size: 1rem;
-  color: #fff;
+  color: var(--ui-heading);
 }
 .hint {
-  color: #888;
+  color: var(--ui-dim-2);
   font-size: 0.85rem;
   line-height: 1.5;
   margin: 0 0 18px;
@@ -143,7 +143,7 @@ async function resetToDefault() {
   flex-direction: column;
   gap: 6px;
   font-size: 0.85rem;
-  color: #ccc;
+  color: var(--ui-text-soft);
   margin-bottom: 12px;
 }
 .row {
@@ -153,10 +153,10 @@ async function resetToDefault() {
 .field input {
   flex: 1;
   min-width: 0;
-  background: #111;
+  background: var(--ui-bg-2);
   border: 1px solid var(--ui-border-strong);
   border-radius: 8px;
-  color: #fff;
+  color: var(--ui-heading);
   padding: 10px 12px;
   font: inherit;
 }
@@ -165,7 +165,7 @@ async function resetToDefault() {
   border-color: var(--ui-accent);
 }
 .field-hint {
-  color: #777;
+  color: var(--ui-faint-2);
   font-size: 0.78rem;
 }
 .primary-button {

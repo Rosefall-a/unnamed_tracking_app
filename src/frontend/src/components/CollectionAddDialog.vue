@@ -84,7 +84,7 @@ const emit = defineEmits<{
   border: none;
   border-radius: 8px;
   padding: 6px;
-  color: #ddd;
+  color: var(--ui-text-soft);
   text-align: left;
   font-family: inherit;
   cursor: pointer;
@@ -112,7 +112,7 @@ const emit = defineEmits<{
 }
 
 .add-kind {
-  color: #666;
+  color: var(--ui-faint);
   font-size: 0.7rem;
   text-transform: uppercase;
 }

@@ -8,7 +8,8 @@ import AppDialog from "./components/AppDialog.vue";
 import { authChecked, currentUser } from "./state/auth";
 import { mediaUnread } from "./state/notifications";
 import { formatDocumentTitle, pageTitleOverride } from "./state/pageTitle";
-import { loadSharedPreferences } from "./state/preferences";
+import { loadSharedPreferences, preferences } from "./state/preferences";
+import { applySavedThemeColors } from "./state/themeColors";
 import {
   sidebarMode,
   sidebarWidth,
@@ -47,6 +48,10 @@ watch(
   },
   { immediate: true },
 );
+// saved colours replace the cached ones once preferences arrive, and follow changes
+watch(() => preferences.value.theme_colors, applySavedThemeColors, {
+  deep: true,
+});
 const sidebarShown = computed(
   () =>
     route.path !== "/login" &&
@@ -146,7 +151,7 @@ const KEPT_ALIVE = [
 }
 
 .startup-error h1 {
-  color: #fff;
+  color: var(--ui-heading);
   margin: 0 0 12px;
 }
 
@@ -177,7 +182,7 @@ const KEPT_ALIVE = [
   align-items: center;
   justify-content: center;
   background: var(--ui-bg);
-  color: #999;
+  color: var(--ui-dim-3);
   font-family: system-ui, sans-serif;
 }
 

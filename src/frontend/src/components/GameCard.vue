@@ -656,7 +656,7 @@ function copyFolderPath() {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #fff;
+  color: var(--ui-heading);
   z-index: 3;
 }
 .cover-actions {
@@ -700,7 +700,7 @@ function copyFolderPath() {
   background: rgba(20, 20, 20, 0.6);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
-  color: #fff;
+  color: var(--ui-heading);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -732,7 +732,7 @@ function copyFolderPath() {
   position: fixed;
   width: 190px;
   background: #1e1e1e;
-  border: 1px solid #333;
+  border: 1px solid var(--ui-border-strong);
   border-radius: 10px;
   padding: 6px;
   box-shadow: 0 12px 32px
@@ -758,7 +758,7 @@ function copyFolderPath() {
   text-align: left;
   background: none;
   border: none;
-  color: #ddd;
+  color: var(--ui-text-soft);
   padding: 8px 10px;
   font-size: 13px;
   border-radius: 6px;
@@ -767,10 +767,10 @@ function copyFolderPath() {
 }
 .menu-item:hover:not(.disabled) {
   background: color-mix(in srgb, var(--ui-wash-base) 8%, transparent);
-  color: #fff;
+  color: var(--ui-heading);
 }
 .menu-item.disabled {
-  color: #555;
+  color: var(--ui-faint);
   cursor: not-allowed;
 }
 .menu-item.destructive {
@@ -784,7 +784,7 @@ function copyFolderPath() {
   font-weight: 600;
 }
 .menu-item.back {
-  color: #999;
+  color: var(--ui-dim-3);
 }
 .menu-divider {
   height: 1px;
@@ -836,7 +836,7 @@ function copyFolderPath() {
   border-radius: 5px;
   background: var(--surface-2, var(--ui-surface-2));
   border: 1px solid var(--border, var(--ui-border));
-  color: var(--text-faint, #666);
+  color: var(--text-faint, var(--ui-faint));
   font-weight: 600;
 }
 .meta-row {
@@ -847,7 +847,7 @@ function copyFolderPath() {
   margin-top: 2px;
   min-width: 0;
   font-size: 0.7rem;
-  color: var(--text-faint, #666);
+  color: var(--text-faint, var(--ui-faint));
 }
 .meta-row .status {
   text-transform: capitalize;

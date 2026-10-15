@@ -40,10 +40,10 @@ withDefaults(
 .settings-section h2 {
   margin: 0 0 16px;
   font-size: 1rem;
-  color: #fff;
+  color: var(--ui-heading);
 }
 .coming-soon {
-  background: #111;
+  background: var(--ui-bg-2);
   border: 1px dashed var(--ui-border-strong);
   border-radius: 10px;
   padding: 32px;
@@ -60,7 +60,7 @@ withDefaults(
   display: inline-block;
   font-size: 11px;
   font-weight: 700;
-  color: #999;
+  color: var(--ui-dim-3);
   background: color-mix(in srgb, var(--ui-wash-base) 6%, transparent);
   padding: 3px 10px;
   border-radius: 999px;
@@ -70,7 +70,7 @@ withDefaults(
 }
 .coming-soon p {
   margin: 0 0 16px;
-  color: #999;
+  color: var(--ui-dim-3);
   font-size: 0.85rem;
   line-height: 1.6;
   max-width: 440px;
@@ -85,7 +85,7 @@ withDefaults(
   text-align: left;
 }
 .planned-list li {
-  color: #ccc;
+  color: var(--ui-text-soft);
   font-size: 0.82rem;
   background: color-mix(in srgb, var(--ui-wash-base) 4%, transparent);
   border-radius: 6px;

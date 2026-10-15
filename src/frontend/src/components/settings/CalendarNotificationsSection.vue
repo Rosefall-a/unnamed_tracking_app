@@ -350,12 +350,12 @@ const props = withDefaults(
   padding-left: 12px;
   border-left: 3px solid var(--ui-accent);
   font-size: 1rem;
-  color: #fff;
+  color: var(--ui-heading);
 }
 .settings-section h3 {
   margin: 22px 0 8px;
   font-size: 0.86rem;
-  color: #ddd;
+  color: var(--ui-text-soft);
 }
 .scope-title {
   margin: 18px 0 8px;
@@ -389,7 +389,7 @@ const props = withDefaults(
   gap: 8px;
   margin: 14px 0;
   font-size: 0.82rem;
-  color: #ccc;
+  color: var(--ui-text-soft);
 }
 .settings-section :deep(.toggle-button) {
   margin: 12px 0;

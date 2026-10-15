@@ -231,7 +231,7 @@ async function onAvatarFileChange(e: Event) {
   padding-left: 12px;
   border-left: 3px solid var(--ui-accent);
   font-size: 1rem;
-  color: #fff;
+  color: var(--ui-heading);
 }
 .avatar-row {
   display: flex;
@@ -263,12 +263,12 @@ async function onAvatarFileChange(e: Event) {
   min-width: 0;
 }
 .avatar-name {
-  color: #fff;
+  color: var(--ui-heading);
   font-size: 1.05rem;
   font-weight: 700;
 }
 .avatar-email {
-  color: #888;
+  color: var(--ui-dim-2);
   font-size: 0.82rem;
   margin-bottom: 4px;
 }
@@ -282,7 +282,7 @@ async function onAvatarFileChange(e: Event) {
   text-decoration: underline;
 }
 .mock-note {
-  color: #777;
+  color: var(--ui-faint-2);
   font-size: 13px;
   margin: 0;
 }
@@ -296,13 +296,13 @@ form {
   flex-direction: column;
   gap: 6px;
   font-size: 0.85rem;
-  color: #ccc;
+  color: var(--ui-text-soft);
 }
 .field input {
-  background: #111;
+  background: var(--ui-bg-2);
   border: 1px solid var(--ui-border-strong);
   border-radius: 8px;
-  color: #fff;
+  color: var(--ui-heading);
   padding: 10px 12px;
   font: inherit;
 }

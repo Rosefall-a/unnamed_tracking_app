@@ -36,7 +36,7 @@ defineProps<{ fixed?: boolean }>();
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
   border-radius: 999px;
-  color: #fff;
+  color: var(--ui-heading);
 }
 .account-chip.fixed {
   position: fixed;
@@ -52,7 +52,7 @@ defineProps<{ fixed?: boolean }>();
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: #fff;
+  color: var(--ui-heading);
   font-size: 13px;
   font-weight: 600;
 }

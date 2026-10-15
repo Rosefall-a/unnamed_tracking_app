@@ -12,6 +12,51 @@ import type {
   BadgePlacement,
 } from "../../services/appearanceSettings";
 import { loadAppearanceSettings } from "../../state/appearance";
+import { preferences } from "../../state/preferences";
+import { queuePreferences } from "../../services/preferences";
+import {
+  ACCENT_PRESETS,
+  THEME_COLOR_INFO,
+  THEME_COLOR_KEYS,
+  applyThemeColors,
+  cacheThemeColors,
+} from "../../state/themeColors";
+import type { ThemeColorKey, ThemeColors } from "../../state/themeColors";
+
+// ---- the app's colours ----
+const colors = ref<ThemeColors>({ ...preferences.value.theme_colors });
+const colorsError = ref<string | null>(null);
+let colorsTimer: number | undefined;
+function changeColors(next: ThemeColors) {
+  colors.value = next;
+  // shown straight away, saved a moment after the last change
+  applyThemeColors(next);
+  cacheThemeColors(next);
+  window.clearTimeout(colorsTimer);
+  colorsTimer = window.setTimeout(async () => {
+    try {
+      const { prefs } = await queuePreferences({ theme_colors: next });
+      preferences.value = {
+        ...preferences.value,
+        theme_colors: prefs.theme_colors,
+      };
+      colorsError.value = null;
+    } catch (e) {
+      colorsError.value =
+        e instanceof Error ? e.message : "Could not save your colours.";
+    }
+  }, 500);
+}
+function setColor(key: ThemeColorKey, value: string) {
+  if (/^#[0-9a-fA-F]{6}$/.test(value))
+    changeColors({ ...colors.value, [key]: value.toLowerCase() });
+}
+function resetColor(key: ThemeColorKey) {
+  const { [key]: _removed, ...rest } = colors.value;
+  void _removed;
+  changeColors(rest);
+}
+const anyColor = computed(() => Object.keys(colors.value).length > 0);
 
 const loading = ref(true);
 const saving = ref(false);
@@ -122,6 +167,70 @@ async function removeImage() {
 <template>
   <section class="settings-section">
     <h2>Appearance</h2>
+
+    <h3 class="sub">Colors</h3>
+    <p class="section-hint">
+      Change the colors the whole app uses. Changes show right away and follow
+      your account.
+    </p>
+    <div class="colors">
+      <div v-for="key in THEME_COLOR_KEYS" :key="key" class="color-line">
+        <div class="color-info">
+          <strong>{{ THEME_COLOR_INFO[key].label }}</strong>
+          <span>{{ THEME_COLOR_INFO[key].hint }}</span>
+        </div>
+        <div class="color-row">
+          <input
+            type="color"
+            class="color-input"
+            :value="colors[key] ?? THEME_COLOR_INFO[key].fallback"
+            :aria-label="`${THEME_COLOR_INFO[key].label} color`"
+            @input="setColor(key, ($event.target as HTMLInputElement).value)"
+          />
+          <input
+            type="text"
+            class="color-text"
+            maxlength="7"
+            :value="colors[key] ?? THEME_COLOR_INFO[key].fallback"
+            :aria-label="`${THEME_COLOR_INFO[key].label} hex value`"
+            @change="setColor(key, ($event.target as HTMLInputElement).value)"
+          />
+          <button
+            v-if="colors[key]"
+            type="button"
+            class="reset"
+            @click="resetColor(key)"
+          >
+            Reset
+          </button>
+        </div>
+        <div v-if="key === 'accent'" class="presets">
+          <button
+            v-for="c in ACCENT_PRESETS"
+            :key="c"
+            type="button"
+            class="swatch"
+            :class="{
+              on: (colors.accent ?? THEME_COLOR_INFO.accent.fallback) === c,
+            }"
+            :style="{ background: c }"
+            :aria-label="`Use ${c} as the accent`"
+            @click="setColor('accent', c)"
+          ></button>
+        </div>
+      </div>
+      <button
+        v-if="anyColor"
+        type="button"
+        class="reset-all"
+        @click="changeColors({})"
+      >
+        Reset all colors
+      </button>
+      <p v-if="colorsError" class="colors-error">{{ colorsError }}</p>
+    </div>
+
+    <h3 class="sub">Mastered games</h3>
     <p class="section-hint">
       How Mastered (100% complete) games are highlighted in the library.
     </p>
@@ -257,10 +366,10 @@ async function removeImage() {
   padding-left: 12px;
   border-left: 3px solid var(--ui-accent);
   font-size: 1rem;
-  color: #fff;
+  color: var(--ui-heading);
 }
 .section-hint {
-  color: #999;
+  color: var(--ui-dim-3);
   font-size: 0.82rem;
   line-height: 1.6;
   margin: 0 0 16px;
@@ -271,11 +380,11 @@ async function removeImage() {
 .field > span {
   display: block;
   font-size: 0.85rem;
-  color: #ccc;
+  color: var(--ui-text-soft);
   margin-bottom: 8px;
 }
 .field-sublabel {
-  color: #777;
+  color: var(--ui-faint-2);
   font-size: 0.76rem;
   line-height: 1.5;
   margin: 0 0 10px;
@@ -290,16 +399,16 @@ async function removeImage() {
   height: 36px;
   border: 1px solid var(--ui-border-strong);
   border-radius: 8px;
-  background: #111;
+  background: var(--ui-bg-2);
   padding: 2px;
   cursor: pointer;
 }
 .color-text {
   width: 100px;
-  background: #111;
+  background: var(--ui-bg-2);
   border: 1px solid var(--ui-border-strong);
   border-radius: 8px;
-  color: #fff;
+  color: var(--ui-heading);
   padding: 8px 10px;
   font: inherit;
   font-size: 0.85rem;
@@ -313,14 +422,14 @@ async function removeImage() {
   width: 44px;
   height: 44px;
   border-radius: 8px;
-  background: #111;
+  background: var(--ui-bg-2);
   border: 1px solid var(--ui-border-strong);
   background-size: cover;
   background-position: center;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #666;
+  color: var(--ui-faint);
   flex-shrink: 0;
 }
 .upload-label {
@@ -336,7 +445,7 @@ async function removeImage() {
   width: 140px;
   border-radius: 10px;
   padding: 6px;
-  background: #111;
+  background: var(--ui-bg-2);
 }
 .preview-cover {
   position: relative;
@@ -346,7 +455,7 @@ async function removeImage() {
   margin-bottom: 6px;
 }
 .preview-title {
-  color: #ccc;
+  color: var(--ui-text-soft);
   font-size: 0.72rem;
   text-align: center;
 }
@@ -426,7 +535,7 @@ async function removeImage() {
 }
 .secondary-button {
   background: color-mix(in srgb, var(--ui-wash-base) 8%, transparent);
-  color: #fff;
+  color: var(--ui-heading);
   border: none;
   border-radius: 8px;
   padding: 9px 14px;
@@ -436,5 +545,75 @@ async function removeImage() {
 }
 .secondary-button:hover {
   background: color-mix(in srgb, var(--ui-wash-base) 14%, transparent);
+}
+.sub {
+  margin: 22px 0 6px;
+  font-size: 0.92rem;
+  color: var(--ui-text);
+}
+.colors {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-bottom: 8px;
+}
+.color-line {
+  display: grid;
+  grid-template-columns: minmax(150px, 1fr) auto;
+  align-items: center;
+  gap: 8px 16px;
+}
+.color-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.color-info strong {
+  font-size: 0.86rem;
+  color: var(--ui-text);
+}
+.color-info span {
+  font-size: 0.76rem;
+  color: var(--ui-faint);
+}
+.presets {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.swatch {
+  width: 26px;
+  height: 26px;
+  border: 2px solid transparent;
+  border-radius: 50%;
+  cursor: pointer;
+}
+.swatch.on {
+  border-color: var(--ui-text);
+}
+.reset,
+.reset-all {
+  padding: 5px 10px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
+  background: transparent;
+  color: var(--ui-dim);
+  font: inherit;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+.reset:hover,
+.reset-all:hover {
+  color: var(--ui-text);
+  border-color: var(--ui-border-strong);
+}
+.reset-all {
+  align-self: flex-start;
+}
+.colors-error {
+  margin: 0;
+  color: var(--ui-error-text);
+  font-size: 0.8rem;
 }
 </style>

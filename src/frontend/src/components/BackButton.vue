@@ -60,7 +60,7 @@ const fixedLeft = computed(() => {
   background: rgba(20, 20, 20, 0.55);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
-  color: #fff;
+  color: var(--ui-heading);
   cursor: pointer;
   transition: background 0.15s ease;
 }

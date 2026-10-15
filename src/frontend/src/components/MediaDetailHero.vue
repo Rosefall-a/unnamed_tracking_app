@@ -314,7 +314,7 @@ const emit = defineEmits<{
 }
 .native-title {
   font-size: 0.82rem;
-  color: #666;
+  color: var(--ui-faint);
   margin-bottom: 4px;
   font-weight: 500;
 }

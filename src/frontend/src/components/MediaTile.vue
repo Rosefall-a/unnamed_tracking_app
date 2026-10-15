@@ -458,7 +458,7 @@ function onThumbClick() {
   border-radius: 50%;
   background: color-mix(in srgb, var(--ui-scrim-base) 60%, transparent);
   border: 1px solid color-mix(in srgb, var(--ui-wash-base) 25%, transparent);
-  color: #fff;
+  color: var(--ui-heading);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -496,7 +496,7 @@ function onThumbClick() {
 .file {
   margin: -2px 0 0;
   font-size: 0.72rem;
-  color: #777;
+  color: var(--ui-faint-2);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -509,7 +509,7 @@ function onThumbClick() {
   padding: 2px 7px;
   border-radius: 6px;
   background: rgba(15, 15, 15, 0.82);
-  color: #eee;
+  color: var(--ui-text-soft);
   font-size: 0.7rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
@@ -540,7 +540,7 @@ function onThumbClick() {
   border-radius: 8px;
   border: none;
   background: rgba(15, 15, 15, 0.78);
-  color: #eee;
+  color: var(--ui-text-soft);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -554,7 +554,7 @@ function onThumbClick() {
 }
 .actions button:last-child:hover {
   background: var(--ui-danger-muted);
-  color: #fff;
+  color: var(--ui-heading);
 }
 .ach {
   position: absolute;
@@ -608,12 +608,12 @@ function onThumbClick() {
   flex-wrap: wrap;
   gap: 5px 6px;
   font-size: 0.72rem;
-  color: #777;
+  color: var(--ui-faint-2);
   min-width: 0;
 }
 .chip {
   background: color-mix(in srgb, var(--ui-wash-base) 7%, transparent);
-  color: #aaa;
+  color: var(--ui-dim-3);
   border-radius: 999px;
   padding: 1px 8px;
   font-size: 0.68rem;
@@ -622,7 +622,7 @@ function onThumbClick() {
 }
 .chip.strong {
   background: color-mix(in srgb, var(--ui-wash-base) 14%, transparent);
-  color: #fff;
+  color: var(--ui-heading);
   font-weight: 700;
 }
 .chip.link {
@@ -725,15 +725,15 @@ function onThumbClick() {
   border: 1px solid var(--ui-border);
   border-radius: 8px;
   background: none;
-  color: #aaa;
+  color: var(--ui-dim-3);
   font-family: inherit;
   font-size: 0.74rem;
   font-weight: 600;
   cursor: pointer;
 }
 .row-actions button:hover {
-  color: #fff;
-  border-color: #444;
+  color: var(--ui-heading);
+  border-color: var(--ui-border-hover);
 }
 .row-actions .danger:hover {
   color: var(--ui-danger-muted);
