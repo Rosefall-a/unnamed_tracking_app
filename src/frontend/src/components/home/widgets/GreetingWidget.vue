@@ -132,4 +132,28 @@ h1 {
   font-size: 1rem;
   font-variant-numeric: tabular-nums;
 }
+/* a phone: the widget is only two rows tall, so everything tightens to fit */
+@media (max-width: 760px) {
+  .date {
+    margin-right: 0;
+  }
+  h1 {
+    font-size: 1.2rem;
+  }
+  .count,
+  .label {
+    display: none;
+  }
+  .recap {
+    gap: 6px;
+  }
+  .chip {
+    gap: 4px;
+    padding: 4px 9px;
+    font-size: 0.72rem;
+  }
+  .chip strong {
+    font-size: 0.85rem;
+  }
+}
 </style>
