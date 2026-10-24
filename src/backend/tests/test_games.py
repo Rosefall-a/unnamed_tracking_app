@@ -213,3 +213,29 @@ async def test_personal_key_cards_report_a_server_wide_fallback(monkeypatch):
     assert status["SteamGridDB"] == {"status": "not_configured", "server_configured": True}
     assert status["GiantBomb"]["server_configured"] is False
     assert "server-key" not in str(status)
+
+
+async def test_logging_playtime_or_starting_a_game_marks_it_played(scratch_user):
+    async with SessionLocal() as db:
+        game = await games.create_game(_create("Played_Now"), Response(), db, scratch_user)
+        game_id = game.id
+        assert game.last_played_at is None
+
+    async def update(**fields):
+        async with SessionLocal() as db:
+            return await games.update_game(game_id, GameUpdate(**fields), db, scratch_user)
+
+    renamed = await update(title="Played Now Renamed")
+    assert renamed.last_played_at is None, "a rename is not playing"
+    more_time = await update(playtime_seconds=3600)
+    assert more_time.last_played_at is not None
+    first = more_time.last_played_at
+
+    async with SessionLocal() as db:
+        row = await db.get(Game, game_id)
+        row.last_played_at = 1_000
+        await db.commit()
+    less_time = await update(playtime_seconds=1800)
+    assert less_time.last_played_at == 1_000, "correcting playtime down is not playing"
+    started = await update(status="PLAYING")
+    assert started.last_played_at >= first

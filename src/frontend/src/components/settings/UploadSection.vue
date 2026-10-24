@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, nextTick } from "vue";
 import { fetchUploadLimits } from "../../services/settings";
-import { fetchGames } from "../../services/games";
+import { getGames } from "../../services/games";
 import type { Game } from "../../types/game";
 import UploadDropzone from "../UploadDropzone.vue";
 import {
@@ -38,7 +38,7 @@ onMounted(async () => {
 const games = ref<Game[]>([]);
 onMounted(async () => {
   try {
-    games.value = await fetchGames();
+    games.value = await getGames();
   } catch {
     // game picker just stays empty; assign still shows an error if attempted
   }

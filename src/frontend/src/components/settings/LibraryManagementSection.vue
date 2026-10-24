@@ -6,16 +6,15 @@ import {
   refreshGameAchievements,
   refreshGameMetadata,
   previewGameMetadataRefresh,
-  fetchGameTrash,
-  restoreGame,
 } from "../../services/games";
 import type {
   RefreshMetadataOptions,
   RefreshMetadataOutcome,
   RefreshMetadataResult,
   RefreshMetadataPreview,
-  TrashedGame,
 } from "../../services/games";
+import { fetchGameTrash, restoreGame } from "../../services/gameTrash";
+import type { TrashedGame } from "../../services/gameTrash";
 import type { Game } from "../../types/game";
 import ToggleButton from "./ToggleButton.vue";
 import {

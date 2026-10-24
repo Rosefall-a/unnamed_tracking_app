@@ -24,6 +24,7 @@ import {
   addGameToCollection,
   refreshGameMetadata,
 } from "../services/games";
+import { bulkDeleteGames } from "../services/gameBulk";
 import {
   addFeedItem,
   completeTask,
@@ -45,7 +46,7 @@ import {
 } from "../utils/platforms";
 import { genreOptionsFor, hasGenre } from "../utils/genres";
 import type { Game, GameStatus } from "../types/game";
-import { usePrompt } from "../state/dialog";
+import { useConfirm, usePrompt } from "../state/dialog";
 
 const prompt = usePrompt();
 
@@ -167,10 +168,44 @@ async function onBulkEditSaved(count: number) {
   showBulkEditModal.value = false;
   selectMode.value = false;
   selectedIds.value = new Set();
+  bulkEditResultVerb.value = "Updated";
   bulkEditResultCount.value = count;
   await loadGames();
 }
 const bulkEditResultCount = ref<number | null>(null);
+const bulkEditResultVerb = ref<"Updated" | "Removed">("Updated");
+
+const confirm = useConfirm();
+const bulkRemoving = ref(false);
+const bulkRemoveError = ref<string | null>(null);
+async function bulkRemove() {
+  const ids = [...selectedIds.value];
+  const plural = ids.length === 1 ? "game" : "games";
+  const ok = await confirm({
+    title: "Remove from library",
+    message: `Remove ${ids.length} ${plural} from your library? They go to the trash and can be restored from Settings for 7 days.`,
+    confirmLabel: "Remove",
+    danger: true,
+  });
+  if (!ok) return;
+  bulkRemoving.value = true;
+  bulkRemoveError.value = null;
+  try {
+    const count = await bulkDeleteGames(ids);
+    selectMode.value = false;
+    selectedIds.value = new Set();
+    if (selectedGame.value && ids.includes(selectedGame.value.id))
+      selectedGame.value = null;
+    bulkEditResultVerb.value = "Removed";
+    bulkEditResultCount.value = count;
+    await loadGames();
+  } catch (err) {
+    bulkRemoveError.value =
+      err instanceof Error ? err.message : "Could not remove the games.";
+  } finally {
+    bulkRemoving.value = false;
+  }
+}
 
 // bulk-add selected games to a collection, a keyboard/click alternative to
 // dragging cards onto a collection, which this codebase has no drag-and-drop
@@ -1499,6 +1534,14 @@ function cardsInRow(rowIndex: number): Game[] {
         </button>
         <button
           type="button"
+          class="btn-outline"
+          :disabled="!selectedIds.size || bulkRemoving"
+          @click="bulkRemove"
+        >
+          {{ bulkRemoving ? "Removing…" : "Remove from library" }}
+        </button>
+        <button
+          type="button"
           class="btn-solid"
           :disabled="!selectedIds.size"
           @click="showBulkEditModal = true"
@@ -1510,10 +1553,13 @@ function cardsInRow(rowIndex: number): Game[] {
         v-if="bulkEditResultCount !== null"
         class="form-success bulk-success"
       >
-        Updated {{ bulkEditResultCount }} game{{
+        {{ bulkEditResultVerb }} {{ bulkEditResultCount }} game{{
           bulkEditResultCount === 1 ? "" : "s"
         }}.
       </div>
+      <p v-if="bulkRemoveError" class="ui-error-box">
+        {{ bulkRemoveError }}
+      </p>
 
       <div class="toolbar">
         <div class="search-wrap">

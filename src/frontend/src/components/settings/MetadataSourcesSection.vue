@@ -20,10 +20,16 @@ import {
   updateAppIntegrations,
 } from "../../services/settings";
 import type { ProviderCredentialStatus } from "../../services/settings";
-import { syncLibrary } from "../../services/librarySync";
+import {
+  LIBRARY_SYNC_PROVIDER_LABELS as LIBRARY_SYNC_LABELS,
+  fetchLibraryImport,
+  syncLibrary,
+  waitForLibraryImport,
+} from "../../services/librarySync";
 import type {
   LibrarySyncProvider,
   LibrarySyncResult,
+  SyncProgress,
 } from "../../services/librarySync";
 import {
   startTask,
@@ -626,18 +632,30 @@ const librarySyncing = reactive<Record<LibrarySyncProvider, boolean>>({
   retroachievements: false,
   epic: false,
 });
-const LIBRARY_SYNC_LABELS: Record<LibrarySyncProvider, string> = {
-  steam: "Steam",
-  psn: "PlayStation",
-  retroachievements: "RetroAchievements",
-  epic: "Epic Games",
-};
+function handleSyncLibrary(provider: LibrarySyncProvider) {
+  return followLibraryImport(provider, (onProgress) =>
+    syncLibrary(provider, onProgress),
+  );
+}
 
-async function handleSyncLibrary(provider: LibrarySyncProvider) {
+// an import started earlier keeps running on the server while the page is
+// closed; coming back shows its progress again
+onMounted(async () => {
+  try {
+    const job = await fetchLibraryImport();
+    if (job?.running && !librarySyncing[job.provider])
+      void followLibraryImport(job.provider, waitForLibraryImport);
+  } catch {
+    // no progress to show; the import itself is unaffected
+  }
+});
+
+async function followLibraryImport(
+  provider: LibrarySyncProvider,
+  run: (onProgress: SyncProgress) => Promise<LibrarySyncResult>,
+) {
   librarySyncing[provider] = true;
-  // indeterminate, the backend is one all-at-once request with no
-  // per-game signal until it resolves, so there's nothing real to show as
-  // a fraction while it's in flight
+  // indeterminate until the server reports its first step with a count
   const taskId = startTask(
     `Syncing ${LIBRARY_SYNC_LABELS[provider]} library`,
     1,
@@ -645,13 +663,13 @@ async function handleSyncLibrary(provider: LibrarySyncProvider) {
   );
   const label = LIBRARY_SYNC_LABELS[provider];
   try {
-    const result = await syncLibrary(provider, (step, done, total) =>
+    const result = await run((step, done, total) =>
       setTaskStep(taskId, `${label}: ${step}`, done, total),
     );
     setTaskStep(taskId, `${label} library synced`, 1, 1);
     completeTask(taskId, librarySyncSummary(result));
-    // the request itself wasn't live, but revealing the touched titles one
-    // at a time still reads as a real "feed" once the result is in
+    // the titles arrive with the finished import; revealing them one at a time
+    // still reads as a feed
     for (const [i, title] of result.games.entries()) {
       setTimeout(() => addFeedItem(taskId, title), i * 90);
     }

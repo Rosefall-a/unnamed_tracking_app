@@ -16,24 +16,46 @@ def game_trash_dir(data_root: Path, game_id: UUID) -> Path:
     return data_root / "_trash" / str(game_id)
 
 
+def _free_name(path: Path) -> Path:
+    """`shot.png` -> `shot (restored).png`, then `(restored 2)`, ... until unused."""
+    candidate = path.with_name(f"{path.stem} (restored){path.suffix}")
+    n = 2
+    while candidate.exists():
+        candidate = path.with_name(f"{path.stem} (restored {n}){path.suffix}")
+        n += 1
+    return candidate
+
+
+def _move_without_overwriting(src: Path, dest: Path) -> None:
+    """Move the folder `src` to `dest`. When `dest` already exists its files
+    are kept: `src`'s files are merged in, and a file whose name is taken is
+    moved under a new name instead of replacing the one already there."""
+    if not dest.exists():
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(src), str(dest))
+        return
+    for item in src.iterdir():
+        target = dest / item.name
+        if item.is_dir() and target.is_dir():
+            _move_without_overwriting(item, target)
+        elif target.exists():
+            shutil.move(str(item), str(_free_name(target)))
+        else:
+            shutil.move(str(item), str(target))
+    src.rmdir()
+
+
 def move_game_to_trash(active_dir: Path, data_root: Path, game_id: UUID) -> None:
     if not active_dir.is_dir():
         return
-    dest = game_trash_dir(data_root, game_id)
-    if dest.exists():
-        shutil.rmtree(dest)
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    shutil.move(str(active_dir), str(dest))
+    _move_without_overwriting(active_dir, game_trash_dir(data_root, game_id))
 
 
 def restore_game_from_trash(active_dir: Path, data_root: Path, game_id: UUID) -> None:
     src = game_trash_dir(data_root, game_id)
     if not src.is_dir():
         return
-    if active_dir.exists():
-        shutil.rmtree(active_dir)
-    active_dir.parent.mkdir(parents=True, exist_ok=True)
-    shutil.move(str(src), str(active_dir))
+    _move_without_overwriting(src, active_dir)
 
 
 def purge_game_trash(data_root: Path, game_id: UUID) -> None:

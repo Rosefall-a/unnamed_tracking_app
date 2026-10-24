@@ -48,6 +48,19 @@ watch(
   },
   { immediate: true },
 );
+// Lists, Home's data and other caches live in memory for the whole visit, and
+// signing out and in does not reload the page. When a different account signs
+// in, start over so nothing of the last account's library is shown.
+let lastSignedIn: string | null = null;
+watch(
+  () => currentUser.value?.id ?? null,
+  (id) => {
+    if (!id) return;
+    if (lastSignedIn && lastSignedIn !== id) window.location.reload();
+    lastSignedIn = id;
+  },
+  { immediate: true },
+);
 // saved colours replace the cached ones once preferences arrive, and follow changes
 watch(() => preferences.value.theme_colors, applySavedThemeColors, {
   deep: true,

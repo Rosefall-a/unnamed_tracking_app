@@ -5,13 +5,21 @@
 import { computed, ref, shallowRef } from "vue";
 import { fetchAchievementsFeed } from "../services/achievementsFeed";
 import type { AchievementFeedEntry } from "../services/achievementsFeed";
-import { fetchAchievementsSummary, fetchGames } from "../services/games";
+import {
+  fetchAchievementsSummary,
+  fetchGames,
+  getGames,
+} from "../services/games";
 import type { AchievementsSummaryEntry } from "../services/games";
 import { fetchAnime, peekAllAnimes } from "../services/anime";
 import { fetchMovies, peekAllMovies } from "../services/movies";
 import { fetchTVShows, peekAllTVShows } from "../services/tvShows";
-import { fetchCalendar } from "../services/mediaExtras";
-import type { CalendarEntry } from "../services/mediaExtras";
+import {
+  fetchCalendar,
+  fetchMediaListDetail,
+  fetchMediaLists,
+} from "../services/mediaExtras";
+import type { CalendarEntry, MediaListSummary } from "../services/mediaExtras";
 import { fetchMediaNotifications } from "../services/notifications";
 import type { MediaNotification } from "../services/notifications";
 import { fetchStatsOverview, fetchWeeklyDigest } from "../services/stats";
@@ -38,7 +46,8 @@ export type DataKey =
   | "notifications"
   | "digest"
   | "stats"
-  | "screenshots";
+  | "screenshots"
+  | "lists";
 
 export type TitleKind = "game" | "movie" | "tv" | "anime";
 
@@ -74,6 +83,10 @@ export interface HomeTitle {
   hours: number | null;
   // who made it: the developer of a game, the studios behind a film or show
   makers: string[];
+  // the game collections it is in (games only; media lists are looked up apart)
+  collections: string[];
+  // hours played, for a game; null for everything else
+  playedHours: number | null;
 }
 
 // one title of each kind, for a label on a card
@@ -108,6 +121,10 @@ const notifications = shallowRef<{
 const digest = shallowRef<WeeklyDigest | null>(null);
 const stats = shallowRef<StatsOverview | null>(null);
 const screenshots = shallowRef<MediaItem[] | null>(null);
+const lists = shallowRef<MediaListSummary[] | null>(null);
+// The titles in a media list, by list id, as title keys ("tv:<id>"). Only the
+// lists a widget shows are fetched.
+const listMembers = ref<Record<string, string[]>>({});
 
 export const failed = ref<Partial<Record<DataKey, string>>>({});
 const inflight = new Map<DataKey, Promise<void>>();
@@ -115,19 +132,20 @@ const loaded = new Set<DataKey>();
 // what each widget waits on, as something the page can react to
 const ready = ref<Partial<Record<DataKey, boolean>>>({});
 
-async function load(key: DataKey): Promise<void> {
+// `fresh` asks the server again instead of taking a list another page loaded
+async function load(key: DataKey, fresh: boolean): Promise<void> {
   switch (key) {
     case "games":
-      games.value = await fetchGames();
+      games.value = fresh ? await fetchGames() : await getGames();
       break;
     case "movies":
-      movies.value = peekAllMovies() ?? (await fetchMovies());
+      movies.value = (!fresh && peekAllMovies()) || (await fetchMovies());
       break;
     case "tv":
-      tvShows.value = peekAllTVShows() ?? (await fetchTVShows());
+      tvShows.value = (!fresh && peekAllTVShows()) || (await fetchTVShows());
       break;
     case "anime":
-      anime.value = peekAllAnimes() ?? (await fetchAnime());
+      anime.value = (!fresh && peekAllAnimes()) || (await fetchAnime());
       break;
     case "achievements":
       achSummary.value = await fetchAchievementsSummary();
@@ -150,6 +168,9 @@ async function load(key: DataKey): Promise<void> {
     case "screenshots":
       screenshots.value = await fetchAllMedia({ kind: "screenshot" });
       break;
+    case "lists":
+      lists.value = await fetchMediaLists();
+      break;
   }
 }
 
@@ -157,7 +178,7 @@ export function ensure(key: DataKey, force = false): Promise<void> {
   if (!force && loaded.has(key)) return Promise.resolve();
   const running = inflight.get(key);
   if (running) return running;
-  const run = load(key)
+  const run = load(key, force)
     .then(() => {
       loaded.add(key);
       ready.value = { ...ready.value, [key]: true };
@@ -177,6 +198,60 @@ export function ensure(key: DataKey, force = false): Promise<void> {
 }
 
 export const isReady = (key: DataKey) => ready.value[key] === true;
+
+const listsInflight = new Map<string, Promise<void>>();
+/** Loads which titles are in one media list, for a shelf that shows it. */
+export function ensureListMembers(id: string, force = false): Promise<void> {
+  if (!id || (!force && listMembers.value[id])) return Promise.resolve();
+  const running = listsInflight.get(id);
+  if (running) return running;
+  const run = fetchMediaListDetail(id)
+    .then((detail) => {
+      listMembers.value = {
+        ...listMembers.value,
+        [id]: detail.items.map((i) => `${i.mediaType}:${i.mediaId}`),
+      };
+    })
+    .catch(() => {
+      // a list that was deleted, or did not load, shows as empty
+      listMembers.value = { ...listMembers.value, [id]: [] };
+    })
+    .finally(() => listsInflight.delete(id));
+  listsInflight.set(id, run);
+  return run;
+}
+export const membersOfList = (id: string): string[] | undefined =>
+  listMembers.value[id];
+
+// when Home last asked the server for everything it shows (ms), 0 before then
+export const lastRefreshed = ref(0);
+export const refreshing = ref(false);
+
+/** Loads again everything Home has already loaded once, so coming back to it
+ * (or the refresh button) shows changes made elsewhere. What is on screen stays
+ * until the new data arrives. */
+export async function refreshHome(): Promise<void> {
+  if (refreshing.value) return;
+  refreshing.value = true;
+  try {
+    await Promise.all([
+      ...[...loaded].map((key) => ensure(key, true)),
+      ...Object.keys(listMembers.value).map((id) =>
+        ensureListMembers(id, true),
+      ),
+    ]);
+  } finally {
+    refreshing.value = false;
+    lastRefreshed.value = Date.now();
+  }
+}
+
+/** Notes the first load as a refresh, so "updated" has a time to show. */
+export function markLoaded(): void {
+  if (!lastRefreshed.value) lastRefreshed.value = Date.now();
+}
+
+export const hasLoadedBefore = () => loaded.size > 0;
 
 // "in 3 hours", "in 2 days", for something that happens at a Unix time
 export function until(seconds: number, now = Date.now()): string {
@@ -314,6 +389,9 @@ function gameTitle(g: Game): HomeTitle {
     platform: g.platform || g.source || "",
     hours: g.timeToBeatHours,
     makers: g.developer ? [g.developer] : [],
+    collections: g.collections ?? [],
+    playedHours:
+      (g.platforms ?? []).reduce((sum, p) => sum + p.playtimeMinutes, 0) / 60,
   };
 }
 
@@ -341,6 +419,8 @@ function movieTitle(m: Movie): HomeTitle {
     platform: "",
     hours: m.runtimeMinutes ? m.runtimeMinutes / 60 : null,
     makers: m.studios ?? [],
+    collections: [],
+    playedHours: null,
   };
 }
 
@@ -368,6 +448,8 @@ function showTitle(s: TVShow): HomeTitle {
     platform: "",
     hours: null,
     makers: s.studios ?? [],
+    collections: [],
+    playedHours: null,
   };
 }
 
@@ -399,6 +481,8 @@ function animeTitle(a: Anime): HomeTitle {
     platform: "",
     hours: null,
     makers: a.studios ?? [],
+    collections: [],
+    playedHours: null,
   };
 }
 
@@ -448,4 +532,5 @@ export const homeData = {
   digest,
   stats,
   screenshots,
+  lists,
 };

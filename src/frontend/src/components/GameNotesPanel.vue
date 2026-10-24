@@ -21,7 +21,7 @@ import DOMPurify from "dompurify";
 import AchievementPicker from "./AchievementPicker.vue";
 import { useConfirm } from "../state/dialog";
 import {
-  fetchGames,
+  getGames,
   listGameNoteSummaries,
   fetchGameNote,
   createGameNote,
@@ -507,7 +507,7 @@ async function startMove(note: GameNoteSummary) {
   moveError.value = null;
   if (!gameChoices.value.length) {
     try {
-      gameChoices.value = await fetchGames();
+      gameChoices.value = await getGames();
     } catch (e) {
       moveError.value = e instanceof Error ? e.message : "Could not load games";
     }

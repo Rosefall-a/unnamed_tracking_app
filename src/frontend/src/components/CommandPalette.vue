@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from "vue";
 import { useRouter } from "vue-router";
-import { fetchGames, searchNotes } from "../services/games";
+import { getGames, searchNotes } from "../services/games";
 import type { NoteSearchHit } from "../services/games";
 import type { Game } from "../types/game";
 import { isCommandPaletteOpen } from "../state/commandPalette";
@@ -23,7 +23,7 @@ const loaded = ref(false);
 async function ensureLoaded() {
   if (loaded.value) return;
   try {
-    gamesCache = await fetchGames();
+    gamesCache = await getGames();
   } catch {
     gamesCache = gamesCache ?? [];
   } finally {

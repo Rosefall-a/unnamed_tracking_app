@@ -5,7 +5,7 @@ import CollectionTile from "../components/CollectionTile.vue";
 import GameTopBar from "../components/GameTopBar.vue";
 import CollectionIndexHead from "../components/CollectionIndexHead.vue";
 import type { SegmentOption } from "../components/SegmentedTabs.vue";
-import { fetchGames } from "../services/games";
+import { getGames } from "../services/games";
 import type { Game } from "../types/game";
 import {
   smartCollections,
@@ -108,7 +108,7 @@ function onCreate(payload: CollectionFormPayload) {
 async function loadGames() {
   loading.value = true;
   try {
-    games.value = await fetchGames();
+    games.value = await getGames();
   } catch (err) {
     error.value = err instanceof Error ? err.message : "Could not load games";
   } finally {

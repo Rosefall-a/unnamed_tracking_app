@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { reactive, ref } from "vue";
-import { bulkUpdateGames } from "../services/games";
-import type { BulkEditFields } from "../services/games";
+import { bulkUpdateGames } from "../services/gameBulk";
+import type { BulkEditFields } from "../services/gameBulk";
 import type { GameStatus } from "../types/game";
 import { PRIORITY_OPTIONS } from "../utils/priority";
 

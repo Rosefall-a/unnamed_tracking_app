@@ -5,6 +5,7 @@ import { computed } from "vue";
 import WidgetFrame from "../WidgetFrame.vue";
 import ArtRail from "../ArtRail.vue";
 import type { RailItem } from "../ArtRail.vue";
+import { nearestAnniversary } from "../../../home/anniversary";
 import { titlesOf } from "../../../home/data";
 import { libraryLink } from "../../../home/rail";
 import { sampleTitles } from "../../../home/samples";
@@ -12,7 +13,6 @@ import type { WidgetProps } from "../../../home/registry";
 
 const props = defineProps<WidgetProps>();
 
-const DAY = 86_400_000;
 const span = computed(() => String(props.settings.span));
 const shape = computed(() => (props.variant === "wide" ? "wide" : "poster"));
 
@@ -24,16 +24,6 @@ const HEADING: Record<string, string> = {
 
 function ago(years: number): string {
   return `${years} year${years === 1 ? "" : "s"} ago`;
-}
-
-// whole days between today and the same date in the added year
-function daysFromToday(added: Date, now: Date): number {
-  const same = new Date(now.getFullYear(), added.getMonth(), added.getDate());
-  return Math.round(
-    (same.getTime() -
-      new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()) /
-      DAY,
-  );
 }
 
 const items = computed<RailItem[]>(() => {
@@ -51,16 +41,20 @@ const items = computed<RailItem[]>(() => {
     .filter((t) => {
       if (!t.addedAt) return false;
       const d = new Date(t.addedAt);
-      const years = now.getFullYear() - d.getFullYear();
+      if (span.value === "month") {
+        const years = now.getFullYear() - d.getFullYear();
+        if (years < 1 || (back > 0 && years > back)) return false;
+        return d.getMonth() === now.getMonth();
+      }
+      // the anniversary has to fall in a later year than the day it was added
+      const { days, years } = nearestAnniversary(d, now);
       if (years < 1 || (back > 0 && years > back)) return false;
-      if (span.value === "month") return d.getMonth() === now.getMonth();
-      const gap = Math.abs(daysFromToday(d, now));
-      return span.value === "day" ? gap === 0 : gap <= 3;
+      return span.value === "day" ? days === 0 : Math.abs(days) <= 3;
     })
     // the closest date to today first, then the most recent year
     .sort((a, b) => {
-      const da = Math.abs(daysFromToday(new Date(a.addedAt), now));
-      const db = Math.abs(daysFromToday(new Date(b.addedAt), now));
+      const da = Math.abs(nearestAnniversary(new Date(a.addedAt), now).days);
+      const db = Math.abs(nearestAnniversary(new Date(b.addedAt), now).days);
       return da - db || b.addedAt - a.addedAt;
     })
     .slice(0, count);
@@ -74,7 +68,11 @@ const items = computed<RailItem[]>(() => {
       key: t.key,
       title: t.title,
       art: shape.value === "wide" ? (t.wide ?? t.art) : t.art,
-      subtitle: `${ago(now.getFullYear() - d.getFullYear())} · ${when}`,
+      subtitle: `${ago(
+        span.value === "month"
+          ? now.getFullYear() - d.getFullYear()
+          : nearestAnniversary(d, now).years,
+      )} · ${when}`,
       to: t.to,
     };
   });

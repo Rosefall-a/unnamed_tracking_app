@@ -2,7 +2,14 @@
 import { usePageTitle } from "../state/pageTitle";
 import { formatDisplayDate } from "../utils/dates";
 import { activePriority, isFinished, priorityLabel } from "../utils/priority";
-import { computed, ref, watch, onMounted, onUnmounted } from "vue";
+import {
+  computed,
+  ref,
+  watch,
+  onMounted,
+  onUnmounted,
+  defineAsyncComponent,
+} from "vue";
 import { useRoute, useRouter } from "vue-router";
 import {
   deleteGame,
@@ -12,7 +19,7 @@ import {
   fetchContentCounts,
   peekGame,
   fetchGameFieldChanges,
-  fetchGames,
+  getGames,
   setFavorite,
   setRatings,
   setStatus,
@@ -91,19 +98,28 @@ import DuplicateNotice from "../components/DuplicateNotice.vue";
 import UploadDropzone from "../components/UploadDropzone.vue";
 import SkeletonBlock from "../components/SkeletonBlock.vue";
 import MediaTile from "../components/MediaTile.vue";
-import GameMediaPanel from "../components/GameMediaPanel.vue";
+// the tab panels and the edit dialog load when first shown, not with the page
+const GameMediaPanel = defineAsyncComponent(
+  () => import("../components/GameMediaPanel.vue"),
+);
 import { isGuess, unlockSeconds } from "../utils/mediaDate";
 import { normalizePlatformFamily } from "../utils/platforms";
 import { frameFromSource } from "../utils/videoThumbnail";
-import GameArchivesPanel from "../components/GameArchivesPanel.vue";
+const GameArchivesPanel = defineAsyncComponent(
+  () => import("../components/GameArchivesPanel.vue"),
+);
 import ArchiveCard from "../components/ArchiveCard.vue";
 import ArchiveEditDialog from "../components/ArchiveEditDialog.vue";
-import GameNotesPanel from "../components/GameNotesPanel.vue";
+const GameNotesPanel = defineAsyncComponent(
+  () => import("../components/GameNotesPanel.vue"),
+);
 import { preferences, preferencesLoaded } from "../state/preferences";
 import { OPTIONAL_TABS, resolvePage, planTabs } from "../utils/gamePage";
 import type { OptionalTab } from "../utils/gamePage";
 import type { ContentCounts } from "../utils/gamePage";
-import GameStatsPanel from "../components/GameStatsPanel.vue";
+const GameStatsPanel = defineAsyncComponent(
+  () => import("../components/GameStatsPanel.vue"),
+);
 import { withArtVersion } from "../utils/artVersion";
 import {
   startTask,
@@ -114,7 +130,9 @@ import {
   setTaskRetry,
 } from "../state/taskProgress";
 import type { Achievement, Game, GameStatus } from "../types/game";
-import GameFormModal from "../components/GameFormModal.vue";
+const GameFormModal = defineAsyncComponent(
+  () => import("../components/GameFormModal.vue"),
+);
 import GameRatingPicker from "../components/GameRatingPicker.vue";
 import GameCollectionsButton from "../components/GameCollectionsButton.vue";
 import BackButton from "../components/BackButton.vue";
@@ -998,7 +1016,7 @@ async function logPlaytime(minutes: number) {
 const libraryGames = ref<Game[]>([]);
 async function loadLibraryForSimilar() {
   try {
-    libraryGames.value = await fetchGames();
+    libraryGames.value = await getGames();
   } catch {
     // similar-games section just doesn't show, not worth failing the page
   }

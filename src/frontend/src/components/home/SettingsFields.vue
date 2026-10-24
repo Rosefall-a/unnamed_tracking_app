@@ -4,7 +4,11 @@
 // Changes are applied as you make them.
 import { computed } from "vue";
 import { commonFields, effectiveSettings } from "../../home/registry";
-import type { SettingField, WidgetDefinition } from "../../home/registry";
+import type {
+  FieldOption,
+  SettingField,
+  WidgetDefinition,
+} from "../../home/registry";
 
 const props = defineProps<{
   def: WidgetDefinition;
@@ -18,6 +22,17 @@ const emit = defineEmits<{
 
 const values = computed(() => effectiveSettings(props.def, props.settings));
 const look = computed(() => commonFields(props.def));
+// fields that only apply to some settings (the collection to show, only when
+// the shelf shows one) are left out until they do
+const shown = computed(() =>
+  [props.def.fields, look.value].map((group) =>
+    group.filter((f) => !f.when || f.when(values.value)),
+  ),
+);
+function optionsOf(f: SettingField): FieldOption[] {
+  if (f.type !== "select" && f.type !== "multi") return [];
+  return typeof f.options === "function" ? f.options() : f.options;
+}
 
 function set(key: string, value: unknown) {
   emit("change", { ...props.settings, [key]: value }, props.variant);
@@ -60,7 +75,7 @@ function num(field: Extract<SettingField, { type: "number" }>, raw: string) {
       </div>
     </div>
 
-    <template v-for="(group, gi) in [def.fields, look]" :key="gi">
+    <template v-for="(group, gi) in shown" :key="gi">
       <h4 v-if="gi === 1" class="group">Appearance</h4>
       <div v-for="f in group" :key="f.key" class="field">
         <label v-if="f.type !== 'multi'" class="label" :for="`wf-${f.key}`">
@@ -73,7 +88,7 @@ function num(field: Extract<SettingField, { type: "number" }>, raw: string) {
           :value="String(values[f.key])"
           @change="set(f.key, ($event.target as HTMLSelectElement).value)"
         >
-          <option v-for="o in f.options" :key="o.value" :value="o.value">
+          <option v-for="o in optionsOf(f)" :key="o.value" :value="o.value">
             {{ o.label }}
           </option>
         </select>
@@ -119,7 +134,7 @@ function num(field: Extract<SettingField, { type: "number" }>, raw: string) {
         </label>
         <div v-else-if="f.type === 'multi'" class="chips">
           <button
-            v-for="o in f.options"
+            v-for="o in optionsOf(f)"
             :key="o.value"
             type="button"
             class="chip"

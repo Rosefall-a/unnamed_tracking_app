@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { chromeFrom } from "../home/chrome";
+import { nearestAnniversary } from "../home/anniversary";
 import { countdown } from "../home/clock";
-import { narrow, sortTitles } from "../home/select";
+import { inCollection, isUnfinished, narrow, sortTitles } from "../home/select";
 import type { HomeTitle } from "../home/data";
 
 function title(over: Partial<HomeTitle>): HomeTitle {
@@ -27,6 +28,8 @@ function title(over: Partial<HomeTitle>): HomeTitle {
     platform: "",
     hours: null,
     makers: [],
+    collections: [],
+    playedHours: null,
     ...over,
   };
 }
@@ -116,5 +119,82 @@ describe("narrow", () => {
 
   it("does nothing with blank options", () => {
     expect(narrow(list, { genre: "", minRating: 0 })).toHaveLength(3);
+  });
+});
+
+describe("nearestAnniversary", () => {
+  it("finds last year's date across New Year", () => {
+    const r = nearestAnniversary(new Date(2024, 11, 30), new Date(2026, 0, 2));
+    expect(r).toEqual({ days: -3, years: 1 });
+  });
+  it("does not call something added three days ago a throwback", () => {
+    const r = nearestAnniversary(new Date(2025, 11, 30), new Date(2026, 0, 2));
+    expect(r.years).toBe(0);
+  });
+  it("puts Feb 29 on Feb 28 in a year without one", () => {
+    const r = nearestAnniversary(new Date(2024, 1, 29), new Date(2026, 1, 28));
+    expect(r).toEqual({ days: 0, years: 2 });
+  });
+});
+
+describe("isUnfinished", () => {
+  const now = Date.UTC(2026, 9, 23);
+  const longAgo = now - 60 * 86_400_000;
+  const settings = { staleDays: 30, minHours: 3 };
+
+  it("takes a game with real playtime that is not finished and left alone", () => {
+    const game = title({
+      kind: "game",
+      group: "queue",
+      playedHours: 12,
+      touchedAt: longAgo,
+    });
+    expect(isUnfinished(game, settings, now)).toBe(true);
+  });
+  it("leaves out games barely played, finished, or touched recently", () => {
+    expect(
+      isUnfinished(
+        title({ playedHours: 1, touchedAt: longAgo }),
+        settings,
+        now,
+      ),
+    ).toBe(false);
+    expect(
+      isUnfinished(
+        title({ playedHours: 12, group: "done", touchedAt: longAgo }),
+        settings,
+        now,
+      ),
+    ).toBe(false);
+    expect(
+      isUnfinished(
+        title({ playedHours: 12, touchedAt: now - 86_400_000 }),
+        settings,
+        now,
+      ),
+    ).toBe(false);
+  });
+  it("takes a show partway through, not one not started or finished", () => {
+    const show = (progress: number | null) =>
+      title({ kind: "tv", progress, touchedAt: longAgo, playedHours: null });
+    expect(isUnfinished(show(0.4), settings, now)).toBe(true);
+    expect(isUnfinished(show(0), settings, now)).toBe(false);
+    expect(isUnfinished(show(1), settings, now)).toBe(false);
+    expect(isUnfinished(show(null), settings, now)).toBe(false);
+  });
+});
+
+describe("inCollection", () => {
+  it("matches a game collection by name and a list by its members", () => {
+    const g = title({
+      key: "game:1",
+      kind: "game",
+      collections: ["Soulslikes"],
+    });
+    expect(inCollection(g, "game:Soulslikes", undefined)).toBe(true);
+    expect(inCollection(g, "game:Other", undefined)).toBe(false);
+    const show = title({ key: "tv:9", kind: "tv" });
+    expect(inCollection(show, "list:abc", ["tv:9"])).toBe(true);
+    expect(inCollection(show, "list:abc", undefined)).toBe(false);
   });
 });

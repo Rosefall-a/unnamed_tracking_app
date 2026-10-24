@@ -128,3 +128,20 @@ export function queuePreferences(
     },
   );
 }
+
+export interface HomeLayoutVersion {
+  // when this layout stopped being the current one (Unix seconds)
+  replaced_at: number;
+  layout: unknown;
+}
+
+/** Earlier Home layouts, newest first. The server keeps one every time a new
+ * layout replaces it. */
+export async function fetchHomeLayoutHistory(): Promise<HomeLayoutVersion[]> {
+  const response = await fetch("/api/preferences/home-layout-history", {
+    credentials: "include",
+  });
+  if (!response.ok)
+    throw new Error(`Could not load earlier layouts: ${response.status}`);
+  return (await response.json()) as HomeLayoutVersion[];
+}

@@ -218,3 +218,67 @@ describe("moving leaves the rest of the page alone", () => {
     expect(settle(gappy)[1].y).toBe(3);
   });
 });
+
+describe("widget ids across pages", () => {
+  function note(id: string, text: string): WidgetInstance {
+    return {
+      id,
+      type: "note",
+      x: 0,
+      y: 0,
+      w: 4,
+      h: 3,
+      settings: { text },
+      variant: null,
+    };
+  }
+  const page = (id: string, widgets: WidgetInstance[]) => ({
+    id,
+    name: id,
+    options: { gap: "cozy", backdrop: "glow" },
+    widgets,
+  });
+
+  it("gives a repeated id a new one and keeps both notes' text", () => {
+    const out = normaliseLayout({
+      pages: [
+        page("home", [note("note-1", "first")]),
+        page("two", [note("note-1", "second")]),
+      ],
+    });
+    const [a, b] = out.pages.map((p) => p.widgets[0]);
+    expect(a.id).toBe("note-1");
+    expect(b.id).not.toBe("note-1");
+    expect([a.settings.text, b.settings.text]).toEqual(["first", "second"]);
+  });
+
+  it("names a new widget after the ids on every page", () => {
+    const out = addWidget([], "note", { w: 4, h: 3 }, {}, null, ["note-1"]);
+    expect(out[0].id).toBe("note-2");
+  });
+});
+
+describe("starter pages", () => {
+  it("only use widgets and settings that exist", async () => {
+    const { STARTER_PAGES } = await import("../home/starters");
+    for (const starter of STARTER_PAGES)
+      for (const [type, , , , , settings] of starter.widgets) {
+        const def = WIDGETS.find((d) => d.type === type);
+        expect(def, `${starter.name}: ${type}`).toBeDefined();
+        for (const key of Object.keys(settings ?? {}))
+          expect(def!.defaults, `${type}.${key}`).toHaveProperty(key);
+      }
+  });
+
+  it("add a page whose widget ids no other page uses", async () => {
+    const { STARTER_PAGES, starterPage } = await import("../home/starters");
+    const layout = defaultLayout();
+    const page = starterPage(STARTER_PAGES[0], layout);
+    const ids = [
+      ...layout.pages.flatMap((p) => p.widgets.map((w) => w.id)),
+      ...page.widgets.map((w) => w.id),
+    ];
+    expect(new Set(ids).size).toBe(ids.length);
+    noOverlaps(page.widgets);
+  });
+});

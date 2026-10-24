@@ -1,6 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { fetchGames, peekAllGames, peekGame } from "../services/games";
+import {
+  fetchGames,
+  getGames,
+  invalidateGameList,
+  peekAllGames,
+  peekGame,
+} from "../services/games";
 import type { BackendGame } from "../services/games";
 
 function raw(id: string, title: string): BackendGame {
@@ -34,10 +40,13 @@ function raw(id: string, title: string): BackendGame {
 }
 
 function serve(games: BackendGame[]) {
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(async () => ({ ok: true, json: async () => games })),
-  );
+  const fetchMock = vi.fn(async () => ({
+    ok: true,
+    headers: new Headers({ "X-Total-Count": String(games.length) }),
+    json: async () => games,
+  }));
+  vi.stubGlobal("fetch", fetchMock);
+  return fetchMock;
 }
 
 afterEach(() => vi.unstubAllGlobals());
@@ -63,5 +72,45 @@ describe("the game cache", () => {
     expect(again).not.toBe(first);
     expect(again.achievementTotal).toBe(20);
     expect(again.achievementPercent).toBe(45);
+  });
+
+  it("shares one download between callers that ask at the same time", async () => {
+    const fetchMock = serve([raw("d", "Delta")]);
+    await Promise.all([fetchGames(), fetchGames()]);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("reuses a fresh list, and downloads again once told it is stale", async () => {
+    const fetchMock = serve([raw("e", "Echo")]);
+    await fetchGames();
+    await getGames();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    invalidateGameList();
+    await getGames();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("drops a game that is gone from the server on the next full download", async () => {
+    serve([raw("f", "Foxtrot"), raw("g", "Golf")]);
+    await fetchGames();
+    serve([raw("f", "Foxtrot")]);
+    await fetchGames();
+    expect(peekGame("g")).toBeUndefined();
+    expect(peekAllGames()?.map((g) => g.id)).toEqual(["f"]);
+  });
+});
+
+describe("removing games", () => {
+  it("drops bulk-deleted games from the cached list at once", async () => {
+    serve([raw("h", "Hotel"), raw("i", "India")]);
+    await fetchGames();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({ ok: true, json: async () => ({ deleted: 1 }) })),
+    );
+    const { bulkDeleteGames } = await import("../services/gameBulk");
+    await bulkDeleteGames(["h"]);
+    expect(peekGame("h")).toBeUndefined();
+    expect(peekAllGames()?.map((g) => g.id)).not.toContain("h");
   });
 });

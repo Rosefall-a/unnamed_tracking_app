@@ -6,19 +6,24 @@
 import { defineAsyncComponent } from "vue";
 import type { Component } from "vue";
 import { CHROME_DEFAULTS } from "./chrome";
-import { allTitles, homeData } from "./data";
+import { allTitles, homeData, titlesByKind } from "./data";
 import type { DataKey } from "./data";
 
 interface FieldBase {
   key: string;
   label: string;
   help?: string;
+  // shown only when this says so, given the widget's current settings
+  when?: (settings: Record<string, unknown>) => boolean;
 }
+
+export type FieldOption = { value: string; label: string };
 
 export type SettingField =
   | (FieldBase & {
       type: "select";
-      options: { value: string; label: string }[];
+      // a function for choices that come from the library (your collections)
+      options: FieldOption[] | (() => FieldOption[]);
     })
   | (FieldBase & { type: "toggle" })
   | (FieldBase & { type: "number"; min: number; max: number })
@@ -94,7 +99,46 @@ export const RAIL_SOURCES = [
   { value: "highest-rated", label: "Highest rated" },
   { value: "finished", label: "Finished" },
   { value: "dropped", label: "Dropped" },
+  { value: "unfinished", label: "Started but not finished" },
+  { value: "collection", label: "One collection or list" },
   { value: "everything", label: "Everything" },
+];
+
+/** The game collections and media lists a shelf can show, as "game:<name>" and
+ * "list:<id>". */
+export function collectionOptions(): FieldOption[] {
+  const names = new Set<string>();
+  for (const t of titlesByKind.value.game)
+    for (const name of t.collections) names.add(name);
+  const games = [...names]
+    .sort((a, b) => a.localeCompare(b))
+    .map((name) => ({ value: `game:${name}`, label: `Games: ${name}` }));
+  const lists = (homeData.lists.value ?? []).map((l) => ({
+    value: `list:${l.id}`,
+    label: `List: ${l.name}`,
+  }));
+  const all = [...games, ...lists];
+  return all.length
+    ? [{ value: "", label: "Pick one" }, ...all]
+    : [{ value: "", label: "You have no collections or lists yet" }];
+}
+
+const unfinishedFields: SettingField[] = [
+  {
+    key: "staleDays",
+    label: "Untouched for at least (days)",
+    type: "number",
+    min: 0,
+    max: 365,
+    help: "0 shows everything started and not finished.",
+  },
+  {
+    key: "minHours",
+    label: "Games played at least (hours)",
+    type: "number",
+    min: 0,
+    max: 500,
+  },
 ];
 
 export const SORTS = [
@@ -439,6 +483,9 @@ export const WIDGETS: WidgetDefinition[] = [
     size: { w: 12, h: 4, minW: 3, minH: 3 },
     defaults: {
       source: "recently-added",
+      collection: "",
+      staleDays: 30,
+      minHours: 3,
       kinds: [],
       count: 16,
       sort: "default",
@@ -454,6 +501,17 @@ export const WIDGETS: WidgetDefinition[] = [
         type: "select",
         options: RAIL_SOURCES,
       },
+      {
+        key: "collection",
+        label: "Which collection or list",
+        type: "select",
+        options: collectionOptions,
+        when: (s) => s.source === "collection",
+      },
+      ...unfinishedFields.map((f) => ({
+        ...f,
+        when: (s: Record<string, unknown>) => s.source === "unfinished",
+      })),
       kindsField,
       sortField,
       genreField,
@@ -466,7 +524,32 @@ export const WIDGETS: WidgetDefinition[] = [
     cards: true,
     cog: true,
     needs: ["games", "movies", "tv", "anime"],
-    soft: ["calendar"],
+    soft: ["calendar", "lists"],
+    hasData: hasTitles,
+    component: lazy(() => import("../components/home/widgets/RailWidget.vue")),
+  },
+  {
+    type: "unfinished",
+    name: "Unfinished",
+    description: "Things you started and have not touched in a while.",
+    details:
+      "Games with real playtime that are not finished, and shows and films you are partway through, that you have not touched for a month (you choose how long). Uses only recorded playtime and episodes watched.",
+    category: "Progress",
+    size: { w: 12, h: 4, minW: 3, minH: 3 },
+    defaults: {
+      source: "unfinished",
+      staleDays: 30,
+      minHours: 3,
+      kinds: [],
+      count: 16,
+      sort: "updated",
+      showProgress: true,
+      showCountdown: false,
+    },
+    fields: [...unfinishedFields, kindsField, sortField, countField()],
+    variants: POSTER_WIDE,
+    cards: true,
+    needs: ["games", "movies", "tv", "anime"],
     hasData: hasTitles,
     component: lazy(() => import("../components/home/widgets/RailWidget.vue")),
   },

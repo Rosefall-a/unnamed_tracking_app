@@ -8,7 +8,7 @@
 import { ref, computed, onMounted, onBeforeUnmount } from "vue";
 import { useRouter } from "vue-router";
 import {
-  fetchGames,
+  getGames,
   addGameToCollection,
   removeGameFromCollection,
 } from "../services/games";
@@ -58,7 +58,7 @@ function readJson<T>(key: string, fallback: T): T {
 async function load() {
   error.value = null;
   try {
-    const games = await fetchGames();
+    const games = await getGames();
     const counts = new Map<string, number>();
     for (const g of games) {
       for (const c of g.collections) counts.set(c, (counts.get(c) ?? 0) + 1);

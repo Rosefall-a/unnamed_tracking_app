@@ -18,7 +18,7 @@ import PageSettingsEditor from "./PageSettingsEditor.vue";
 import {
   attachGameAssetFromUrl,
   createGame,
-  fetchGames,
+  getGames,
   setPlaytimeSeconds,
   updateGame,
   uploadGameAsset,
@@ -58,7 +58,7 @@ const currencyCodes = ref<string[]>([]);
 const hasSteamgriddbKey = ref(true);
 onMounted(async () => {
   try {
-    availableParentGames.value = (await fetchGames()).filter(
+    availableParentGames.value = (await getGames()).filter(
       (g) => g.id !== props.game?.id,
     );
   } catch {

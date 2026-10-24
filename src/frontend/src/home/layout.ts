@@ -138,8 +138,27 @@ export function normaliseLayout(raw: unknown): HomeLayout {
     });
   }
   return clean.length
-    ? { version: LAYOUT_VERSION, pages: clean }
+    ? { version: LAYOUT_VERSION, pages: uniqueWidgetIds(clean) }
     : defaultLayout();
+}
+
+// A widget's settings are changed by its id, so two widgets sharing one (a
+// note on each of two pages, from before ids were unique across pages) would
+// overwrite each other. The first keeps its id; a later one gets a new id and
+// keeps its own settings.
+function uniqueWidgetIds(pages: HomePage[]): HomePage[] {
+  const seen = new Set<string>();
+  for (const page of pages)
+    for (const w of page.widgets) {
+      if (seen.has(w.id)) w.id = uniqueId(w.type, [...seen]);
+      seen.add(w.id);
+    }
+  return pages;
+}
+
+/** Every widget id on every page, for naming a new widget. */
+export function allWidgetIds(layout: HomeLayout): string[] {
+  return layout.pages.flatMap((p) => p.widgets.map((w) => w.id));
 }
 
 export function cloneLayout(layout: HomeLayout): HomeLayout {
@@ -250,10 +269,14 @@ export function bottomOf(widgets: WidgetInstance[]): number {
   return widgets.reduce((low, w) => Math.max(low, w.y + w.h), 0);
 }
 
-export function uniqueId(type: string, widgets: WidgetInstance[]): string {
-  const taken = new Set(widgets.map((w) => w.id));
+export function uniqueId(
+  type: string,
+  taken: Iterable<string> | WidgetInstance[],
+): string {
+  const ids = [...taken].map((t) => (typeof t === "string" ? t : t.id));
+  const used = new Set(ids);
   let n = 1;
-  while (taken.has(`${type}-${n}`)) n += 1;
+  while (used.has(`${type}-${n}`)) n += 1;
   return `${type}-${n}`;
 }
 
@@ -263,11 +286,13 @@ export function addWidget(
   size: { w: number; h: number },
   settings: Record<string, unknown>,
   variant: string | null,
+  // ids used on the other pages too: ids must be unique across the layout
+  otherIds: string[] = [],
 ): WidgetInstance[] {
   return resolveOverlaps([
     ...widgets,
     {
-      id: uniqueId(type, widgets),
+      id: uniqueId(type, [...widgets.map((w) => w.id), ...otherIds]),
       type,
       x: 0,
       y: bottomOf(widgets),

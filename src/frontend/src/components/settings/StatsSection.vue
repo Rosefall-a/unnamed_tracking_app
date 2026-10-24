@@ -2,7 +2,7 @@
 import { ref, computed, onMounted } from "vue";
 import { fetchStatsOverview } from "../../services/stats";
 import type { StatsOverview } from "../../services/stats";
-import { fetchGames } from "../../services/games";
+import { getGames } from "../../services/games";
 import type { Game } from "../../types/game";
 import SegmentedControl from "./SegmentedControl.vue";
 
@@ -28,7 +28,7 @@ onMounted(async () => {
 const libraryForBurnDown = ref<Game[]>([]);
 onMounted(async () => {
   try {
-    libraryForBurnDown.value = await fetchGames();
+    libraryForBurnDown.value = await getGames();
   } catch {
     libraryForBurnDown.value = [];
   }

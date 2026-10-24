@@ -13,9 +13,16 @@ import {
 } from "vue";
 import AccountChip from "../components/AccountChip.vue";
 import HomeGrid from "../components/home/HomeGrid.vue";
+import LayoutsPanel from "../components/home/LayoutsPanel.vue";
 import WidgetDrawer from "../components/home/WidgetDrawer.vue";
 import WidgetSettings from "../components/home/WidgetSettings.vue";
-import { addWidget, defaultLayout, moveWidget, settle } from "../home/layout";
+import {
+  addWidget,
+  allWidgetIds,
+  defaultLayout,
+  moveWidget,
+  settle,
+} from "../home/layout";
 import type {
   HomeLayout,
   HomePage,
@@ -33,6 +40,15 @@ import {
   updateWidgetSettings,
 } from "../home/store";
 import { UPDATE_WIDGET } from "../home/context";
+import { useConfirm } from "../state/dialog";
+import { useNow } from "../home/clock";
+import {
+  hasLoadedBefore,
+  lastRefreshed,
+  markLoaded,
+  refreshHome,
+  refreshing,
+} from "../home/data";
 import { onBeforeRouteLeave } from "vue-router";
 
 const draft = ref<HomeLayout | null>(null);
@@ -51,7 +67,7 @@ provide(UPDATE_WIDGET, (id, settings, variant) =>
   updateWidgetSettings(id, settings, variant),
 );
 
-type Panel = "add" | "page" | { settings: string } | null;
+type Panel = "add" | "page" | "layouts" | { settings: string } | null;
 const panel = ref<Panel>(null);
 const saving = ref(false);
 const confirmReset = ref(false);
@@ -113,8 +129,9 @@ async function addFromGallery(
 ) {
   if (!definitionOf(type)) return;
   let newId = "";
+  const taken = draft.value ? allWidgetIds(draft.value) : [];
   mutatePage((p) => {
-    p.widgets = addWidget(p.widgets, type, size, settings, variant);
+    p.widgets = addWidget(p.widgets, type, size, settings, variant, taken);
     newId = p.widgets[p.widgets.length - 1].id;
   });
   await nextTick();
@@ -169,11 +186,42 @@ function addPage() {
   pageId.value = `page-${n}`;
   panel.value = "page";
 }
-function deletePage() {
+const confirm = useConfirm();
+async function deletePage() {
   if (!draft.value || draft.value.pages.length < 2) return;
+  const count = page.value.widgets.length;
+  if (
+    count &&
+    !(await confirm({
+      title: "Delete page",
+      message: `Delete "${page.value.name}" and its ${count} widget${count === 1 ? "" : "s"}? Anything written in them, such as a note, goes with it once you press Done.`,
+      confirmLabel: "Delete page",
+      danger: true,
+    }))
+  )
+    return;
   draft.value.pages = draft.value.pages.filter((p) => p.id !== pageId.value);
   pageId.value = draft.value.pages[0].id;
   panel.value = null;
+}
+function addStarterPage(added: HomePage) {
+  if (!draft.value || draft.value.pages.length >= 8) return;
+  draft.value.pages.push(added);
+  pageId.value = added.id;
+}
+// an earlier version or a file takes the place of the working copy; Cancel still
+// brings back what was saved, Done keeps it
+async function replaceDraft(next: HomeLayout, what: string) {
+  if (
+    !(await confirm({
+      title: "Replace this layout",
+      message: `Show ${what} instead of the layout you are editing? Nothing is saved until you press Done, and Cancel brings back the saved one.`,
+      confirmLabel: "Replace",
+    }))
+  )
+    return;
+  draft.value = next;
+  pageId.value = next.pages[0].id;
 }
 function renamePage(name: string) {
   mutatePage((p) => (p.name = name));
@@ -209,7 +257,11 @@ onBeforeRouteLeave(
       "You have changes to Home that are not saved. Leave anyway?",
     ),
 );
+// Home's data is shared for the whole visit; coming back to the page loads it
+// again, so a change made elsewhere (a status, a new title) shows here
+if (hasLoadedBefore()) void refreshHome();
 onMounted(() => {
+  markLoaded();
   window.addEventListener("keydown", onKey);
   window.addEventListener("beforeunload", warnLeaving);
   document.addEventListener("visibilitychange", onHide);
@@ -219,6 +271,16 @@ onBeforeUnmount(() => {
   window.removeEventListener("beforeunload", warnLeaving);
   document.removeEventListener("visibilitychange", onHide);
   flushPending();
+});
+
+const now = useNow();
+const refreshTitle = computed(() => {
+  if (refreshing.value) return "Updating…";
+  if (!lastRefreshed.value) return "Refresh";
+  const minutes = Math.floor((now.value - lastRefreshed.value) / 60_000);
+  if (minutes < 1) return "Updated just now. Refresh";
+  if (minutes < 60) return `Updated ${minutes} min ago. Refresh`;
+  return `Updated ${Math.floor(minutes / 60)} h ago. Refresh`;
 });
 
 function retrySave() {
@@ -315,14 +377,33 @@ const TOUR = [
             + Page
           </button>
         </nav>
-        <button
-          v-if="!editing"
-          type="button"
-          class="ghost customize"
-          @click="startEditing"
-        >
-          Customize
-        </button>
+        <span v-if="!editing" class="top-actions">
+          <button
+            type="button"
+            class="ghost square"
+            :disabled="refreshing"
+            :title="refreshTitle"
+            :aria-label="refreshTitle"
+            @click="refreshHome"
+          >
+            <svg
+              :class="{ spin: refreshing }"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+              <polyline points="21 3 21 9 15 9" />
+            </svg>
+          </button>
+          <button type="button" class="ghost customize" @click="startEditing">
+            Customize
+          </button>
+        </span>
       </div>
 
       <!-- the editing tools float at the bottom, so they are always in reach and
@@ -349,6 +430,9 @@ const TOUR = [
         </button>
         <button type="button" class="ghost" @click="panel = 'page'">
           Page options
+        </button>
+        <button type="button" class="ghost" @click="panel = 'layouts'">
+          Layouts
         </button>
         <button
           type="button"
@@ -405,6 +489,13 @@ const TOUR = [
         @change="changeWidget"
         @resize="resizeWidget"
         @remove="removeWidget(settingsTarget.widget.id)"
+        @close="panel = null"
+      />
+      <LayoutsPanel
+        v-else-if="panel === 'layouts' && draft"
+        :layout="draft"
+        @add-page="addStarterPage"
+        @replace="replaceDraft"
         @close="panel = null"
       />
       <div v-else-if="panel === 'page'" class="pageopts">
@@ -643,6 +734,32 @@ const TOUR = [
 .customize {
   opacity: 0.9;
 }
+.top-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ghost.square {
+  display: inline-grid;
+  place-items: center;
+  width: 36px;
+  padding: 0;
+}
+.ghost.square svg {
+  width: 16px;
+  height: 16px;
+}
+.ghost.square:disabled {
+  cursor: default;
+}
+.spin {
+  animation: spin 0.9s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
 .err {
   color: var(--ui-error-text);
   font-size: 0.8rem;
@@ -786,7 +903,7 @@ const TOUR = [
   .home {
     padding: 76px 16px 32px;
   }
-  .customize {
+  .top-actions {
     display: none;
   }
 }

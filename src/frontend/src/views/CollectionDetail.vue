@@ -13,7 +13,7 @@ import CollectionAddDialog from "../components/CollectionAddDialog.vue";
 import { useReorderGrid } from "../utils/useReorderGrid";
 import GameTopBar from "../components/GameTopBar.vue";
 import {
-  fetchGames,
+  getGames,
   addGameToCollection,
   removeGameFromCollection,
 } from "../services/games";
@@ -223,7 +223,7 @@ const coverGameId = computed(
 async function loadGames() {
   loading.value = true;
   try {
-    games.value = await fetchGames();
+    games.value = await getGames();
   } catch (err) {
     error.value = err instanceof Error ? err.message : "Could not load games";
   } finally {

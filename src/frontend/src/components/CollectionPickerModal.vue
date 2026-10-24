@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
-import { fetchGames, addGameToCollection } from "../services/games";
+import { getGames, addGameToCollection } from "../services/games";
 import { preferences } from "../state/preferences";
 import { autoCollectionNames } from "../utils/autoCollections";
 import type { Game } from "../types/game";
@@ -22,7 +22,7 @@ const allNames = ref<string[]>([]);
 
 onMounted(async () => {
   try {
-    const games = await fetchGames();
+    const games = await getGames();
     const set = new Set<string>();
     games.forEach((g) => g.collections.forEach((c) => set.add(c)));
     // the ones a sync made are left out unless they are set to sit with yours

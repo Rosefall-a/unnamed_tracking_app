@@ -53,3 +53,39 @@ export function narrow(
       (maxHours <= 0 || (t.hours !== null && t.hours <= maxHours)),
   );
 }
+
+const DAY = 86_400_000;
+
+/** Started and not finished, and left alone for a while: a game with real
+ * playtime that is not done, or a show or film partway through. Only recorded
+ * playtime and episodes count; nothing is estimated. */
+export function isUnfinished(
+  t: HomeTitle,
+  settings: Record<string, unknown>,
+  now = Date.now(),
+): boolean {
+  if (t.group === "done" || t.group === "dropped" || t.group === "wishlist")
+    return false;
+  const started =
+    t.kind === "game"
+      ? (t.playedHours ?? 0) > 0 &&
+        (t.playedHours ?? 0) >= (Number(settings.minHours) || 0)
+      : t.progress !== null && t.progress > 0 && t.progress < 1;
+  if (!started) return false;
+  const staleDays = Number(settings.staleDays) || 0;
+  return !staleDays || !t.touchedAt || now - t.touchedAt >= staleDays * DAY;
+}
+
+/** Whether a title is in the collection a shelf shows: "game:<name>" for a game
+ * collection, "list:<id>" for a media list (its members as title keys). */
+export function inCollection(
+  t: HomeTitle,
+  collection: string,
+  listMembers: string[] | undefined,
+): boolean {
+  if (collection.startsWith("game:"))
+    return t.kind === "game" && t.collections.includes(collection.slice(5));
+  if (collection.startsWith("list:"))
+    return (listMembers ?? []).includes(t.key);
+  return false;
+}

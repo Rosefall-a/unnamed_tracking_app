@@ -4,6 +4,7 @@ option is a one-line change to DEFAULTS, not a migration."""
 
 import json
 import re
+import time
 from typing import Any
 from uuid import UUID
 
@@ -217,9 +218,54 @@ def validate_preference(key: str, value: Any) -> Any:
     return value
 
 
+# Earlier Home layouts, newest first, so a bad edit or a deleted page can be
+# undone. Kept beside the preferences but never sent with them (it can be large)
+# and never written by the app directly: saving a new layout files the old one.
+HOME_HISTORY_KEY = "home_layout_history"
+_HOME_HISTORY_MAX = 15
+# typing in a note saves the layout every moment; those settings-only saves keep
+# at most one earlier version per this many seconds
+_HOME_HISTORY_SETTINGS_GAP = 10 * 60
+
+
+def _layout_shape(layout: Any) -> Any:
+    """The layout without what widgets hold (a note's text): pages, and where
+    each widget is and what it is."""
+    return [
+        (
+            page["id"],
+            page["name"],
+            json.dumps(page["options"], sort_keys=True),
+            [(w["id"], w["type"], w["x"], w["y"], w["w"], w["h"], w["variant"]) for w in page["widgets"]],
+        )
+        for page in layout["pages"]
+    ]
+
+
+def _file_previous_home_layout(data: dict[str, Any], new: Any, now: int) -> None:
+    previous = data.get("home_layout")
+    if previous is None or previous == new:
+        return
+    history = list(data.get(HOME_HISTORY_KEY) or [])
+    settings_only = new is not None and _layout_shape(previous) == _layout_shape(new)
+    if settings_only and history and now - history[0]["replaced_at"] < _HOME_HISTORY_SETTINGS_GAP:
+        return
+    history.insert(0, {"replaced_at": now, "layout": previous})
+    data[HOME_HISTORY_KEY] = history[:_HOME_HISTORY_MAX]
+
+
+def _public(data: dict[str, Any]) -> dict[str, Any]:
+    return {k: v for k, v in data.items() if k != HOME_HISTORY_KEY}
+
+
 async def load_preferences(db: AsyncSession, user_id: UUID) -> dict[str, Any]:
     row = await db.scalar(select(UserPreferences).where(UserPreferences.user_id == user_id))
-    return {**DEFAULTS, **(row.data if row else {})}
+    return {**DEFAULTS, **_public(row.data if row else {})}
+
+
+async def load_home_layout_history(db: AsyncSession, user_id: UUID) -> list[dict[str, Any]]:
+    row = await db.scalar(select(UserPreferences).where(UserPreferences.user_id == user_id))
+    return list((row.data if row else {}).get(HOME_HISTORY_KEY) or [])
 
 
 async def save_preferences(
@@ -230,6 +276,9 @@ async def save_preferences(
     if row is None:
         row = UserPreferences(user_id=user_id, data={})
         db.add(row)
-    row.data = {**row.data, **clean}
+    data = dict(row.data)
+    if "home_layout" in clean:
+        _file_previous_home_layout(data, clean["home_layout"], int(time.time()))
+    row.data = {**data, **clean}
     await db.commit()
-    return {**DEFAULTS, **row.data}
+    return {**DEFAULTS, **_public(row.data)}

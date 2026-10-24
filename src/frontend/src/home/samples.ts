@@ -82,6 +82,8 @@ export function sampleTitles(n: number, kinds: TitleKind[] = []): HomeTitle[] {
       platform: kind === "game" ? "PC" : "",
       hours: 8 + i * 3,
       makers: ["Northlight Studio"],
+      collections: [],
+      playedHours: kind === "game" ? 6 + i * 4 : null,
     };
   });
 }
