@@ -55,8 +55,8 @@ from src.features.metadata.games.steam_achievements import (
     SteamAchievementData,
     fetch_steam_achievements,
 )
-from src.features.metadata.games.steam_grid_db import SteamGridDBClient
 from src.helpers.game_art_download import download_asset as _download_asset
+from src.helpers.game_art_download import steamgriddb_key_art_url as _fetch_key_art_from_steamgriddb
 from src.helpers.game_art_download import steam_cdn_art_urls as _steam_cdn_art_urls
 from src.helpers.library_games import LibraryIndex
 from src.helpers.steam_bare_games import bare_steam_game_ids
@@ -104,27 +104,6 @@ _JUNK_TITLE_PATTERN = re.compile(
 
 def _is_junk_title(title: str) -> bool:
     return bool(_JUNK_TITLE_PATTERN.search(title))
-
-
-async def _fetch_key_art_from_steamgriddb(app_id: int, api_key: str | None) -> str | None:
-    """SteamGridDB's "grids" are the portrait (~2:3) shape key_art actually
-    needs — Steam's storefront API has no portrait art at all (header/
-    capsule images are all wide), so using one of those as a key_art
-    fallback (an earlier version of this function did, briefly) just
-    force-crops a landscape image into a portrait slot and produces a
-    mangled cover. Looked up by Steam appid, same as the rest of this
-    function — no title-matching ambiguity. No-ops without a key."""
-    if not api_key:
-        return None
-    try:
-        client = SteamGridDBClient(api_key)
-        sgdb_game = await asyncio.to_thread(client.get_game_by_steam_appid, app_id)
-        if not sgdb_game or not sgdb_game.get("id"):
-            return None
-        images = await asyncio.to_thread(client.get_game_images, sgdb_game["id"], "grids")
-    except Exception:
-        return None
-    return images[0].url if images else None
 
 
 async def _enrich_steam_game_by_appid(

@@ -652,3 +652,40 @@ async def test_the_server_runs_the_whole_import_without_the_app(account) -> None
         if app_id in with_art and not (folder / "key_art.png").is_file():
             problems.append(f"{game.title!r}: no cover")
     assert not problems, "; ".join(problems)
+
+async def test_a_game_without_steam_cover_art_gets_one_from_steamgriddb(account, monkeypatch) -> None:
+    """Steam has no portrait cover for some games; with a SteamGridDB key the
+    import takes the cover from there instead (helpers/game_art_download.py)."""
+    from src.helpers import game_art_download
+
+    asked: list[int] = []
+
+    class FakeGrid:
+        def __init__(self, api_key: str) -> None:
+            assert api_key == "sgdb-key"
+
+        def get_game_by_steam_appid(self, app_id: int) -> dict:
+            asked.append(app_id)
+            return {"id": app_id}
+
+        def get_game_images(self, game_id: int, kind: str) -> list:
+            assert kind == "grids"
+            return [SimpleNamespace(url=f"{CDN}/steam/apps/{game_id}/header.jpg")]
+
+    monkeypatch.setattr(game_art_download, "SteamGridDBClient", FakeGrid)
+    async with SessionLocal() as db:
+        user = await db.get(User, account.user_id)
+        user.steamgriddb_api_key = "sgdb-key"
+        await db.commit()
+
+    await _import_like_the_app(account)
+
+    no_art = [g for g in account.world if not g.has_art and g.has_store_page]
+    assert no_art, "the account needs a game without Steam cover art"
+    stored = await _stored(account)
+    for fake_game in no_art:
+        game = stored[fake_game.app_id][0]
+        folder = account.tmp / str(account.user_id) / "games" / game.folder_location
+        assert (folder / "key_art.png").is_file(), f"{game.title!r}: no cover from SteamGridDB"
+    with_art = {g.app_id for g in account.world if g.has_art}
+    assert not with_art & set(asked), "SteamGridDB was asked for a game Steam already has art for"
