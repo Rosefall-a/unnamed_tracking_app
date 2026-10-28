@@ -230,7 +230,7 @@ export function peekMediaStats(): MediaStats | null {
 export async function fetchMediaStats(): Promise<MediaStats> {
   const response = await fetch("/api/media-stats", { credentials: "include" });
   if (!response.ok)
-    throw new Error(`Failed to load statistics: ${response.status}`);
+    throw new Error(`Could not load statistics: ${response.status}`);
   const raw = (await response.json()) as MediaStats;
   // the server names it poster_url; the rest of the app says posterUrl
   const fix = (
@@ -245,4 +245,31 @@ export async function fetchMediaStats(): Promise<MediaStats> {
   fix(raw.anime.top_rated);
   cached = raw;
   return cached;
+}
+
+export interface ActivityDay {
+  date: string;
+  episodes: {
+    kind: "movie" | "tv" | "anime";
+    id: string;
+    title: string;
+    count: number;
+    detail: string | null;
+  }[];
+  games: {
+    kind: "game";
+    id: string;
+    title: string;
+    achievements: string[];
+  }[];
+}
+
+// What one square of the activity grid is made of.
+export async function fetchActivityDay(date: string): Promise<ActivityDay> {
+  const response = await fetch(`/api/media-stats/activity/${date}`, {
+    credentials: "include",
+  });
+  if (!response.ok)
+    throw new Error(`Could not load that day: ${response.status}`);
+  return (await response.json()) as ActivityDay;
 }

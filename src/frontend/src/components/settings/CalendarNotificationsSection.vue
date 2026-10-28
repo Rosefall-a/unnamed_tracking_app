@@ -2,7 +2,7 @@
 // Calendar and notification preferences. These are stored on the server
 // (not in this browser), so they follow you between devices, and each
 // change saves as soon as it is made.
-import { ref, onMounted } from "vue";
+import { ref, computed, onMounted } from "vue";
 import SegmentedControl from "./SegmentedControl.vue";
 import ToggleButton from "./ToggleButton.vue";
 import {
@@ -22,7 +22,7 @@ onMounted(async () => {
   try {
     prefs.value = await fetchPreferences();
   } catch (e) {
-    error.value = e instanceof Error ? e.message : "Failed to load settings.";
+    error.value = e instanceof Error ? e.message : "Could not load settings.";
   } finally {
     loaded.value = true;
   }
@@ -41,7 +41,7 @@ async function change(changes: Partial<Preferences>) {
     savedNote.value = "Saved";
     setTimeout(() => (savedNote.value = ""), 1500);
   } catch (e) {
-    error.value = e instanceof Error ? e.message : "Failed to save.";
+    error.value = e instanceof Error ? e.message : "Could not save.";
     try {
       prefs.value = await fetchPreferences();
     } catch {
@@ -95,6 +95,27 @@ const weekOptions = [
   { value: "1", label: "Monday" },
 ];
 
+// options that only do something while another one is on are greyed out, with the reason
+const hiddenReason = "Game layers are hidden from the calendar above.";
+const episodicOn = computed(
+  () =>
+    prefs.value.notify_media_types.includes("anime") ||
+    prefs.value.notify_media_types.includes("tv"),
+);
+const episodicReason = "Turn on Anime or TV shows under Notify me about.";
+const animeOn = computed(() =>
+  prefs.value.notify_media_types.includes("anime"),
+);
+const animeReason = "Turn on Anime under Notify me about.";
+// a film is never "watching", so it needs Plan to Watch or On Hold as well
+const moviesOn = computed(
+  () =>
+    prefs.value.notify_media_types.includes("movie") &&
+    (prefs.value.notify_statuses.includes("plan") ||
+      prefs.value.notify_statuses.includes("hold")),
+);
+const moviesReason = "Turn on Movies, and Plan to Watch or On Hold, above.";
+
 const props = withDefaults(
   defineProps<{ part?: "calendar" | "notifications" }>(),
   { part: "calendar" },
@@ -114,7 +135,8 @@ const props = withDefaults(
       <ToggleButton
         :model-value="prefs.calendar_game_releases"
         label="Game releases"
-        :disabled="!loaded"
+        :disabled="!loaded || prefs.calendar_hide_games"
+        :reason="hiddenReason"
         @update:model-value="change({ calendar_game_releases: $event })"
       >
         <strong>Game releases</strong>: show the release date of every game in
@@ -123,7 +145,8 @@ const props = withDefaults(
       <ToggleButton
         :model-value="prefs.calendar_game_history"
         label="Games history"
-        :disabled="!loaded"
+        :disabled="!loaded || prefs.calendar_hide_games"
+        :reason="hiddenReason"
         @update:model-value="change({ calendar_game_history: $event })"
       >
         <strong>Games history</strong>: show the day you finished a game and the
@@ -264,7 +287,8 @@ const props = withDefaults(
       <ToggleButton
         :model-value="prefs.notify_episode_aired"
         label="Episode aired"
-        :disabled="!loaded"
+        :disabled="!loaded || !episodicOn"
+        :reason="episodicReason"
         @update:model-value="change({ notify_episode_aired: $event })"
       >
         <strong>Episode aired</strong>: a new episode of something you are
@@ -273,7 +297,8 @@ const props = withDefaults(
       <ToggleButton
         :model-value="prefs.notify_season_started"
         label="Season started airing"
-        :disabled="!loaded"
+        :disabled="!loaded || !episodicOn"
+        :reason="episodicReason"
         @update:model-value="change({ notify_season_started: $event })"
       >
         <strong>Season started airing</strong>: the first episode of a season
@@ -282,16 +307,34 @@ const props = withDefaults(
       <ToggleButton
         :model-value="prefs.notify_sequel_announced"
         label="New season listed"
-        :disabled="!loaded"
+        :disabled="!loaded || !animeOn"
+        :reason="animeReason"
         @update:model-value="change({ notify_sequel_announced: $event })"
       >
         <strong>New season listed</strong>: a sequel appears for an anime you
         completed
       </ToggleButton>
       <ToggleButton
+        :model-value="prefs.notify_extras_announced"
+        label="New movie or special listed"
+        :disabled="!loaded || !animeOn"
+        :reason="animeReason"
+        @update:model-value="change({ notify_extras_announced: $event })"
+      >
+        <strong>New movie or special listed</strong>: a film, OVA or special
+        appears for an anime you completed
+      </ToggleButton>
+      <p class="section-hint scope-note">
+        New season and movie notices need the New season check task (Settings,
+        Tasks) turned on. It is off until you switch it on, and it looks at a
+        few finished anime franchises a day. Without it, they only appear when
+        you open a title's Related tab.
+      </p>
+      <ToggleButton
         :model-value="prefs.notify_movie_released"
         label="Movie released"
-        :disabled="!loaded"
+        :disabled="!loaded || !moviesOn"
+        :reason="moviesReason"
         @update:model-value="change({ notify_movie_released: $event })"
       >
         <strong>Movie released</strong>: a movie you were waiting on has come

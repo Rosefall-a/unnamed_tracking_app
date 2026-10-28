@@ -15,7 +15,7 @@ from src.core.crypto import decrypt_secret
 from src.features.metadata.games import gog, steam, steam_tags
 from src.features.metadata.games.giant_bomb import GiantBombClient
 from src.features.metadata.games.hltb import HLTBClient, HLTBError
-from src.features.metadata.games.igdb import IGDBClient
+from src.features.metadata.games.igdb import IGDBClient, IGDBError
 from src.features.metadata.games.retroachievements import RetroAchievementsClient
 from src.features.metadata.games.screenscraper import ScreenScraperClient, ScreenScraperError
 from src.features.metadata.games.steam_grid_db import SteamGridDBClient, SteamGridDBError
@@ -62,6 +62,9 @@ def _blank_result(provider: str, provider_id: str, title: str) -> dict[str, Any]
         "icon_url": None,
         "icon_urls": [],
         "time_to_beat_hours": None,
+        "time_to_beat_extras_hours": None,
+        "time_to_beat_completionist_hours": None,
+        "time_to_beat_all_hours": None,
     }
 
 
@@ -131,6 +134,30 @@ def _apply_steam_user_tags(results: list[dict[str, Any]], enabled: bool) -> None
 def _titles_match(a: str, b: str) -> bool:
     normalize = lambda s: "".join(ch.lower() for ch in s if ch.isalnum())  # noqa: E731
     return normalize(a) == normalize(b) and bool(normalize(a))
+
+
+def _relevance(title: str, query: str) -> int:
+    """How closely a result's title matches what was typed: 0 the same, 1 starts with
+    it, 2 has every word, 3 contains it, 4 anything else."""
+    squash = lambda s: "".join(ch.lower() for ch in s if ch.isalnum())  # noqa: E731
+    wanted, found = squash(query), squash(title)
+    if not wanted:
+        return 4
+    if found == wanted:
+        return 0
+    if found.startswith(wanted):
+        return 1
+    words = [squash(w) for w in query.split() if squash(w)]
+    if words and all(w in found for w in words):
+        return 2
+    return 3 if wanted in found else 4
+
+
+def _rank_by_relevance(results: list[dict[str, Any]], query: str) -> None:
+    """Closest title first. Providers answer in the order they are configured, so
+    without this a store that returns loose matches (GOG ahead of Steam) buried the
+    exact one. Sorting is stable, so ties keep the provider order."""
+    results.sort(key=lambda r: _relevance(str(r.get("title", "")), query))
 
 
 def _merge_or_append(results: list[dict[str, Any]], candidate: dict[str, Any]) -> None:
@@ -505,18 +532,39 @@ def _run_screenscraper(
             result["banner_url"] = art["screenshot_url"]
 
 
+# only the first results are looked up: each one is a request, and the ones further
+# down the list are rarely the game being added
+_TIME_TO_BEAT_LOOKUPS = 5
+
+
 def _run_hltb(query: str, limit: int, ctx: ProviderContext, existing: list[dict[str, Any]]) -> None:
-    del query, limit, ctx
-    client = HLTBClient()
-    for result in existing:
+    """Fill in time to beat from HowLongToBeat. When the site cannot be reached (it
+    changes its handshake now and then), IGDB's own play-time figures are used instead
+    if its keys are saved, so a broken lookup does not leave every game without one."""
+    del query, limit
+    client_id = ctx.igdb_client_id or settings.IGDB_CLIENT_ID
+    client_secret = ctx.igdb_client_secret or settings.IGDB_CLIENT_SECRET
+    igdb = IGDBClient(client_id=client_id, client_secret=client_secret) if client_id and client_secret else None
+    hltb = HLTBClient()
+    hltb_down = False
+    for result in existing[:_TIME_TO_BEAT_LOOKUPS]:
         if result.get("time_to_beat_hours") is not None:
             continue
-        try:
-            hours = client.find_time_to_beat(result["title"])
-        except (HLTBError, TypeError, ValueError):
-            continue
-        if hours is not None:
-            result["time_to_beat_hours"] = hours
+        times: dict[str, float] = {}
+        if not hltb_down:
+            try:
+                times = hltb.find_times(result["title"])
+            except HLTBError:
+                # not asked again for the rest of this search: each try costs a timeout
+                hltb_down = True
+            except (TypeError, ValueError):
+                pass
+        if not times and igdb is not None:
+            try:
+                times = igdb.play_times(result["title"])
+            except (IGDBError, TypeError, ValueError):
+                pass
+        result.update(times)
 
 
 PROVIDERS: dict[str, ProviderSpec] = {
@@ -579,6 +627,9 @@ _GATED_FIELDS: dict[str, tuple[str, Any]] = {
     "age_rating": ("save_age_rating", None),
     "release_date": ("save_release_date", None),
     "time_to_beat_hours": ("save_time_to_beat", None),
+    "time_to_beat_extras_hours": ("save_time_to_beat", None),
+    "time_to_beat_completionist_hours": ("save_time_to_beat", None),
+    "time_to_beat_all_hours": ("save_time_to_beat", None),
     "key_art_url": ("save_key_art", None),
     "key_art_urls": ("save_key_art", []),
     "banner_url": ("save_banner", None),
@@ -598,7 +649,7 @@ IMAGE_PROVIDER_NAMES = {"SteamGridDB", "ScreenScraper"}
 # "best of category first" — see user_scan_settings.py's identical constant
 # for the reasoning; kept in sync manually since these are two intentionally
 # separate modules (backend model defaults vs. search-time fallback)
-DEFAULT_PROVIDER_ORDER = ["IGDB", "GiantBomb", "GOG", "Steam", "RetroAchievements", "HowLongToBeat"]
+DEFAULT_PROVIDER_ORDER = ["IGDB", "GiantBomb", "Steam", "GOG", "RetroAchievements", "HowLongToBeat"]
 DEFAULT_IMAGE_PROVIDER_ORDER = ["SteamGridDB", "ScreenScraper"]
 DEFAULT_PREFERENCES: dict[str, Any] = {
     "provider_order": DEFAULT_PROVIDER_ORDER,
@@ -758,6 +809,7 @@ def search_game_metadata(
     if include_image_providers and not light:
         _add_steam_art_fallback(targets if only_matching else results)
 
+    _rank_by_relevance(results, query)
     _apply_steam_user_tags(results, ctx.steam_user_tags and not light)
     _strip_unsaved_fields(results, preferences)
 

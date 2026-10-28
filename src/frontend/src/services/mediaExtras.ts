@@ -7,7 +7,7 @@ export type MediaType = "movie" | "tv" | "anime";
 async function handle<T>(response: Response, action: string): Promise<T> {
   if (!response.ok) {
     const message = await response.text();
-    throw new Error(`Failed to ${action}: ${response.status} ${message}`);
+    throw new Error(`Could not ${action}: ${response.status} ${message}`);
   }
   if (response.status === 204) return undefined as T;
   return response.json();
@@ -260,7 +260,7 @@ export async function saveListOrder(listIds: string[]): Promise<void> {
     body: JSON.stringify({ list_ids: listIds }),
   });
   if (!response.ok)
-    throw new Error(`Failed to save the list order: ${response.status}`);
+    throw new Error(`Could not save the list order: ${response.status}`);
 }
 
 export async function updateMediaList(
@@ -685,5 +685,5 @@ export async function deleteCalendarEvent(id: string): Promise<void> {
     credentials: "include",
   });
   if (!response.ok)
-    throw new Error(`Failed to delete the calendar entry: ${response.status}`);
+    throw new Error(`Could not delete the calendar entry: ${response.status}`);
 }

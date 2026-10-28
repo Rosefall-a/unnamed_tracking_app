@@ -31,7 +31,7 @@ export async function listUsers(): Promise<AdminUser[]> {
   const response = await fetch("/api/auth/users", { credentials: "include" });
   if (!response.ok) {
     throw new Error(
-      `Failed to list users: ${response.status} ${response.statusText}`,
+      `Could not list users: ${response.status} ${response.statusText}`,
     );
   }
   return await response.json();
@@ -68,7 +68,7 @@ export async function createUser(
   if (!response.ok) {
     const message = await response.text();
     throw new Error(
-      `Failed to create user: ${response.status} ${response.statusText} ${message}`,
+      `Could not create user: ${response.status} ${response.statusText} ${message}`,
     );
   }
   return await response.json();
@@ -88,7 +88,7 @@ export async function deleteUser(id: string): Promise<void> {
   if (!response.ok) {
     const message = await response.text();
     throw new Error(
-      `Failed to delete user: ${response.status} ${response.statusText} ${message}`,
+      `Could not delete user: ${response.status} ${response.statusText} ${message}`,
     );
   }
 }
@@ -112,7 +112,7 @@ export async function setUserAdmin(
   if (!response.ok) {
     const message = await response.text();
     throw new Error(
-      `Failed to update user: ${response.status} ${response.statusText} ${message}`,
+      `Could not update user: ${response.status} ${response.statusText} ${message}`,
     );
   }
   return await response.json();

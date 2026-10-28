@@ -78,41 +78,53 @@ const KEPT_ALIVE = [
 <template>
   <!-- First-run setup and the direct OIDC entrypoint deliberately bypass
        normal authentication, so both must render while authChecked is false. -->
-  <template v-if="
-    (authChecked && routerReady) ||
-    route.path === '/setup' ||
-    route.path === '/login/oidcstart'
-  ">
+  <template
+    v-if="
+      (authChecked && routerReady) ||
+      route.path === '/setup' ||
+      route.path === '/login/oidcstart'
+    "
+  >
     <SidebarNav v-if="sidebarShown" />
     <!-- Library, calendar and list pages stay mounted when you leave them, so
          switching tabs is instant instead of reloading from empty. Detail
          pages are deliberately not kept: they must reload per title. -->
-    <div class="app-content" :class="{ resizing: sidebarResizing }" :style="contentStyle">
+    <div
+      class="app-content"
+      :class="{ resizing: sidebarResizing }"
+      :style="contentStyle"
+    >
       <router-view v-slot="{ Component }">
         <KeepAlive :include="KEPT_ALIVE" :max="8">
           <component :is="Component" />
         </KeepAlive>
       </router-view>
     </div>
-    <TaskProgressToast v-if="route.path !== '/setup' && route.path !== '/login/oidcstart'" />
+    <TaskProgressToast
+      v-if="route.path !== '/setup' && route.path !== '/login/oidcstart'"
+    />
     <AppDialog />
-    <ShortcutsHelp v-if="
-      route.path !== '/login' &&
-      route.path !== '/setup' &&
-      route.path !== '/login/oidcstart'
-    " />
-    <CommandPalette v-if="
-      route.path !== '/login' &&
-      route.path !== '/setup' &&
-      route.path !== '/login/oidcstart'
-    " />
+    <ShortcutsHelp
+      v-if="
+        route.path !== '/login' &&
+        route.path !== '/setup' &&
+        route.path !== '/login/oidcstart'
+      "
+    />
+    <CommandPalette
+      v-if="
+        route.path !== '/login' &&
+        route.path !== '/setup' &&
+        route.path !== '/login/oidcstart'
+      "
+    />
   </template>
   <main v-else-if="startupState === 'unavailable'" class="app-loading">
     <section class="startup-error">
       <h1>Backend unavailable</h1>
       <p>
-        The frontend cannot reach the backend yet. It may still be starting
-        or may be temporarily unavailable.
+        The frontend cannot reach the backend yet. It may still be starting or
+        may be temporarily unavailable.
       </p>
       <p v-if="startupError" class="startup-detail">{{ startupError }}</p>
       <button type="button" @click="router.go(0)">Retry</button>

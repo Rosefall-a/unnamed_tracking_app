@@ -1,17 +1,21 @@
 from src.helpers.media import classify_media, list_media, media_subdir, safe_filename
 
 
-def test_classify_media_prefers_content_type() -> None:
-    assert classify_media("image/png; charset=utf-8", "recording.mp4") == "screenshot"
-    assert classify_media("video/webm", "image.png") == "clip"
-    assert classify_media("audio/mpeg", "cover.jpg") == "soundtrack"
-
-
-def test_classify_media_falls_back_to_extension() -> None:
+def test_classify_media_goes_by_the_extension_not_the_claimed_type() -> None:
+    # the content type is whatever the sender says; the extension is what is kept
+    # on the file and what it is later served as
+    assert classify_media("image/png; charset=utf-8", "recording.mp4") == "clip"
+    assert classify_media("video/webm", "image.png") == "screenshot"
+    assert classify_media("audio/mpeg", "cover.jpg") == "screenshot"
     assert classify_media(None, "Screenshot.PNG") == "screenshot"
     assert classify_media("application/octet-stream", "clip.MKV") == "clip"
     assert classify_media(None, "theme.flac") == "soundtrack"
     assert classify_media(None, "document.pdf") is None
+
+
+def test_a_web_page_cannot_pass_as_an_image() -> None:
+    for name in ("x.html", "x.htm", "x.svg", "x.xhtml", "x.js", "x.png.html", "noextension"):
+        assert classify_media("image/png", name) is None, name
 
 
 def test_media_subdir_maps_each_supported_kind() -> None:
@@ -90,3 +94,21 @@ def test_ranged_file_response_serves_partial_content(tmp_path) -> None:
     refused = get("bytes=500-")
     assert refused.status_code == 416
     assert refused.headers["content-range"] == "bytes */100"
+
+
+def test_files_are_served_with_nosniff_and_a_sandbox(tmp_path) -> None:
+    from starlette.requests import Request
+
+    from src.helpers.range_response import ranged_file_response
+
+    page = tmp_path / "x.png"
+    page.write_bytes(b"not really a picture")
+    request = Request({"type": "http", "headers": [], "method": "GET", "path": "/", "query_string": b""})
+    response = ranged_file_response(request, page)
+    assert response.headers["x-content-type-options"] == "nosniff"
+    assert response.headers["content-security-policy"] == "sandbox"
+
+    ranged = Request(
+        {"type": "http", "headers": [(b"range", b"bytes=0-3")], "method": "GET", "path": "/", "query_string": b""}
+    )
+    assert ranged_file_response(ranged, page).headers["content-security-policy"] == "sandbox"

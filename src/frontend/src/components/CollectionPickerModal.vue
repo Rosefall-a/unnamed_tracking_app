@@ -62,7 +62,7 @@ async function pick(name: string) {
     emit("close");
   } catch (err) {
     error.value =
-      err instanceof Error ? err.message : "Failed to add to collection";
+      err instanceof Error ? err.message : "Could not add to collection";
   } finally {
     saving.value = false;
   }

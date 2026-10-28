@@ -14,6 +14,8 @@ from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
+from src.features.imports.ratings import clean_rating
+
 from sqlalchemy import func, or_, select
 
 from src.api.routes.anime import _derive_sort_title
@@ -72,7 +74,7 @@ def _score(value: str | None) -> Decimal | None:
     if not value or not value.strip():
         return None
     try:
-        return Decimal(value)
+        return clean_rating(Decimal(value))
     except InvalidOperation:
         return None
 

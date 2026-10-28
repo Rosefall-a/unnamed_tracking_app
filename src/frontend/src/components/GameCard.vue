@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import HeartIcon from "./HeartIcon.vue";
+import { activePriority, priorityLabel } from "../utils/priority";
 import { useRouter } from "vue-router";
 import CheckIcon from "./CheckIcon.vue";
 import type { Game, GameStatus } from "../types/game";
 import { setFavorite, setStatus } from "../services/games";
-import { ref, computed, nextTick, onUnmounted } from "vue";
+import { ref, computed, nextTick, onUnmounted, watch } from "vue";
 import { computeScore } from "../utils/scoring";
 import { appearanceSettings } from "../state/appearance";
 
@@ -20,6 +21,9 @@ const emit = defineEmits<{
   edit: [game: Game];
   "add-to-collection": [game: Game];
   "toggle-select": [game: Game, shiftKey: boolean];
+  // a status or favorite changed from this card, so the library's own copy of
+  // the game (its filters, counts and preview) can follow
+  changed: [id: string, fields: { status?: GameStatus; favorite?: boolean }];
 }>();
 
 const router = useRouter();
@@ -57,7 +61,21 @@ const badgeCardStyle = computed(() => {
 
 const menuOpen = ref(false);
 const statusSubmenuOpen = ref(false);
+// 1 (highest) to 5, and gone once the game is finished
+const priority = computed(() =>
+  activePriority({ status: localStatus.value, priority: props.game.priority }),
+);
 const localFavorite = ref(props.game.favorite);
+// the card was drawn from the game as it was; an edit, a bulk edit or a reload
+// changes the game under it, and the card has to show that, not its first copy
+watch(
+  () => props.game.status,
+  (status) => (localStatus.value = status),
+);
+watch(
+  () => props.game.favorite,
+  (favorite) => (localFavorite.value = favorite),
+);
 const favoriteSaving = ref(false);
 
 const coverRef = ref<HTMLElement | null>(null);
@@ -119,6 +137,7 @@ async function toggleFavorite() {
   favoriteSaving.value = true;
   try {
     await setFavorite(props.game.id, next);
+    emit("changed", props.game.id, { favorite: next });
   } catch {
     localFavorite.value = !next;
   } finally {
@@ -130,6 +149,7 @@ async function chooseStatus(status: GameStatus) {
   try {
     await setStatus(props.game.id, status);
     localStatus.value = status;
+    emit("changed", props.game.id, { status });
   } catch {
     // silently ignore, card just keeps showing the old status
   }
@@ -231,6 +251,12 @@ function copyFolderPath() {
         </div>
 
         <span v-if="rank" class="shelf-rank rank-badge">#{{ rank }}</span>
+        <span
+          v-if="priority !== null && !selectMode"
+          class="priority-badge"
+          :title="`Priority: ${priorityLabel(priority)}`"
+          >P{{ priority }}</span
+        >
 
         <div
           v-if="game.staleSince && !selectMode"
@@ -596,6 +622,23 @@ function copyFolderPath() {
   background: var(--accent, #d68a34);
   border-color: var(--accent, #d68a34);
   color: #14100a;
+}
+.priority-badge {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  z-index: 3;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(13, 13, 13, 0.82);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  border: 1px solid rgba(214, 138, 52, 0.5);
+  color: #e8a552;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  pointer-events: none;
 }
 .stale-indicator {
   position: absolute;

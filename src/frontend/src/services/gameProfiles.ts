@@ -31,7 +31,7 @@ export async function listGameProfiles(gameId: string): Promise<GameProfile[]> {
   });
   if (!response.ok)
     throw new Error(
-      `Failed to list profiles: ${response.status} ${response.statusText}`,
+      `Could not list profiles: ${response.status} ${response.statusText}`,
     );
   const body = await response.json();
   return body.profiles;
@@ -49,7 +49,7 @@ export async function createGameProfile(
   });
   if (!response.ok)
     throw new Error(
-      `Failed to create profile: ${response.status} ${response.statusText}`,
+      `Could not create profile: ${response.status} ${response.statusText}`,
     );
   return await response.json();
 }
@@ -75,7 +75,7 @@ export async function updateGameProfile(
   });
   if (!response.ok)
     throw new Error(
-      `Failed to update profile: ${response.status} ${response.statusText}`,
+      `Could not update profile: ${response.status} ${response.statusText}`,
     );
   return await response.json();
 }
@@ -97,7 +97,7 @@ export async function syncProfileWiseOldMan(
   if (!response.ok) {
     const message = await response.text();
     throw new Error(
-      `Failed to sync WiseOldMan: ${response.status} ${response.statusText} ${message}`,
+      `Could not sync WiseOldMan: ${response.status} ${response.statusText} ${message}`,
     );
   }
   return await response.json();
@@ -127,7 +127,7 @@ export async function fetchProfileStatHistory(
   );
   if (!response.ok)
     throw new Error(
-      `Failed to fetch stat history: ${response.status} ${response.statusText}`,
+      `Could not fetch stat history: ${response.status} ${response.statusText}`,
     );
   const body = await response.json();
   return body.snapshots;
@@ -144,7 +144,7 @@ export async function deleteGameProfile(
   });
   if (!response.ok)
     throw new Error(
-      `Failed to delete profile: ${response.status} ${response.statusText}`,
+      `Could not delete profile: ${response.status} ${response.statusText}`,
     );
 }
 
@@ -157,7 +157,7 @@ export async function fetchGameProfileTrash(
   });
   if (!response.ok)
     throw new Error(
-      `Failed to fetch profile trash: ${response.status} ${response.statusText}`,
+      `Could not fetch profile trash: ${response.status} ${response.statusText}`,
     );
   const body = await response.json();
   return body.profiles;
@@ -176,7 +176,7 @@ export async function restoreGameProfile(
   );
   if (!response.ok)
     throw new Error(
-      `Failed to restore profile: ${response.status} ${response.statusText}`,
+      `Could not restore profile: ${response.status} ${response.statusText}`,
     );
   return await response.json();
 }
@@ -210,7 +210,7 @@ export async function listChecklist(
   );
   if (!response.ok)
     throw new Error(
-      `Failed to list checklist: ${response.status} ${response.statusText}`,
+      `Could not list checklist: ${response.status} ${response.statusText}`,
     );
   const body = await response.json();
   return body.items;
@@ -234,7 +234,7 @@ export async function createChecklistItem(
   });
   if (!response.ok)
     throw new Error(
-      `Failed to create checklist item: ${response.status} ${response.statusText}`,
+      `Could not create checklist item: ${response.status} ${response.statusText}`,
     );
   return await response.json();
 }
@@ -255,7 +255,7 @@ export async function reorderChecklist(
   });
   if (!response.ok)
     throw new Error(
-      `Failed to reorder checklist: ${response.status} ${response.statusText}`,
+      `Could not reorder checklist: ${response.status} ${response.statusText}`,
     );
 }
 
@@ -277,7 +277,7 @@ export async function updateChecklistItem(
   });
   if (!response.ok)
     throw new Error(
-      `Failed to update checklist item: ${response.status} ${response.statusText}`,
+      `Could not update checklist item: ${response.status} ${response.statusText}`,
     );
   return await response.json();
 }
@@ -292,6 +292,6 @@ export async function deleteChecklistItem(
   });
   if (!response.ok)
     throw new Error(
-      `Failed to delete checklist item: ${response.status} ${response.statusText}`,
+      `Could not delete checklist item: ${response.status} ${response.statusText}`,
     );
 }

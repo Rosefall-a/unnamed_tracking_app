@@ -4,7 +4,9 @@ import { isFullyWatched } from "../utils/completion";
 const season = (watched: number, count: number | null, ticked = 0) => ({
   episodeCount: count,
   episodesWatched: watched,
-  episodes: Array.from({ length: count ?? 0 }, (_, i) => ({ watched: i < ticked })),
+  episodes: Array.from({ length: count ?? 0 }, (_, i) => ({
+    watched: i < ticked,
+  })),
 });
 const show = (seasons: ReturnType<typeof season>[], extra = {}) => ({
   id: "s1",
@@ -31,7 +33,11 @@ describe("isFullyWatched", () => {
   });
 
   it("is false while another episode is on the way", () => {
-    expect(isFullyWatched(show([season(12, 12)], { nextEpisodeAirAt: "2026-11-01" }))).toBe(false);
+    expect(
+      isFullyWatched(
+        show([season(12, 12)], { nextEpisodeAirAt: "2026-11-01" }),
+      ),
+    ).toBe(false);
   });
 
   it("is false for a show with no seasons", () => {

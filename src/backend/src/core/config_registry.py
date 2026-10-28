@@ -173,6 +173,9 @@ CONFIG_REGISTRY: tuple[ConfigSpec, ...] = (
         "database",
         ConfigSource.ENV,
         label="Legacy database URL",
+        # it holds the database password, so its value is never sent to a browser
+        input_type="secret",
+        secret=True,
         deprecated=True,
         description="Legacy compatibility setting; prefer the individual PostgreSQL variables.",
         deprecated_message="DATABASE_URL is deprecated; use POSTGRES_USER, POSTGRES_PASSWORD, and POSTGRES_DB instead.",

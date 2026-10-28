@@ -42,7 +42,7 @@ export async function fetchAppearanceSettings(): Promise<AppearanceSettings> {
   });
   if (!response.ok) {
     throw new Error(
-      `Failed to fetch appearance settings: ${response.status} ${response.statusText}`,
+      `Could not fetch appearance settings: ${response.status} ${response.statusText}`,
     );
   }
   return await response.json();
@@ -64,7 +64,7 @@ export async function updateAppearanceSettings(
   if (!response.ok) {
     const message = await response.text();
     throw new Error(
-      `Failed to update appearance settings: ${response.status} ${response.statusText} ${message}`,
+      `Could not update appearance settings: ${response.status} ${response.statusText} ${message}`,
     );
   }
   return await response.json();
@@ -87,7 +87,7 @@ export async function uploadBadgeImage(
   if (!response.ok) {
     const message = await response.text();
     throw new Error(
-      `Failed to upload badge image: ${response.status} ${response.statusText} ${message}`,
+      `Could not upload badge image: ${response.status} ${response.statusText} ${message}`,
     );
   }
   return await response.json();
@@ -104,7 +104,7 @@ export async function deleteBadgeImage(): Promise<AppearanceSettings> {
   });
   if (!response.ok) {
     throw new Error(
-      `Failed to delete badge image: ${response.status} ${response.statusText}`,
+      `Could not delete badge image: ${response.status} ${response.statusText}`,
     );
   }
   return await response.json();

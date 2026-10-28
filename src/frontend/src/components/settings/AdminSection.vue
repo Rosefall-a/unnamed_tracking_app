@@ -11,7 +11,11 @@ import ToggleButton from "./ToggleButton.vue";
 import PasswordInput from "../PasswordInput.vue";
 import type { AdminUser } from "../../services/admin";
 import PasswordRequirements from "./PasswordRequirements.vue";
-import { fetchPasswordPolicy, passwordValidationErrors, type PasswordPolicy } from "../../services/passwordPolicy";
+import {
+  fetchPasswordPolicy,
+  passwordValidationErrors,
+  type PasswordPolicy,
+} from "../../services/passwordPolicy";
 
 const users = ref<AdminUser[]>([]);
 const loading = ref(true);
@@ -24,7 +28,7 @@ async function loadUsers() {
   try {
     users.value = await listUsers();
   } catch (err) {
-    error.value = err instanceof Error ? err.message : "Failed to load users";
+    error.value = err instanceof Error ? err.message : "Could not load users";
   } finally {
     loading.value = false;
   }
@@ -32,9 +36,14 @@ async function loadUsers() {
 onMounted(async () => {
   await Promise.all([
     loadUsers(),
-    fetchPasswordPolicy().then((policy) => { passwordPolicy.value = policy; }).catch((err) => {
-      error.value = err instanceof Error ? err.message : "Failed to load password policy";
-    }),
+    fetchPasswordPolicy()
+      .then((policy) => {
+        passwordPolicy.value = policy;
+      })
+      .catch((err) => {
+        error.value =
+          err instanceof Error ? err.message : "Could not load password policy";
+      }),
   ]);
 });
 
@@ -77,7 +86,7 @@ async function handleCreateUser() {
     await loadUsers();
   } catch (err) {
     createError.value =
-      err instanceof Error ? err.message : "Failed to create user";
+      err instanceof Error ? err.message : "Could not create user";
   } finally {
     creating.value = false;
   }
@@ -96,7 +105,7 @@ async function confirmDeleteUser() {
     await loadUsers();
   } catch (err) {
     deleteError.value =
-      err instanceof Error ? err.message : "Failed to delete user";
+      err instanceof Error ? err.message : "Could not delete user";
   } finally {
     deleting.value = false;
   }
@@ -110,7 +119,7 @@ async function toggleAdmin(user: AdminUser) {
     const index = users.value.findIndex((u) => u.id === user.id);
     if (index !== -1) users.value[index] = updated;
   } catch (err) {
-    error.value = err instanceof Error ? err.message : "Failed to update user";
+    error.value = err instanceof Error ? err.message : "Could not update user";
   } finally {
     togglingAdminId.value = null;
   }
@@ -217,8 +226,12 @@ function openCreateForm() {
             mode="new"
             autocomplete="new-password"
             :required="true"
-          /></label>
-        <PasswordRequirements v-if="passwordPolicy" :password="newPassword" :policy="passwordPolicy" />
+        /></label>
+        <PasswordRequirements
+          v-if="passwordPolicy"
+          :password="newPassword"
+          :policy="passwordPolicy"
+        />
         <label class="field"
           ><span>Confirm password</span
           ><PasswordInput
@@ -226,7 +239,7 @@ function openCreateForm() {
             mode="new"
             autocomplete="new-password"
             :required="true"
-          /></label>
+        /></label>
         <ToggleButton v-model="newIsAdmin" label="Grant admin access"
           >Grant admin access</ToggleButton
         >
@@ -243,7 +256,7 @@ function openCreateForm() {
     >
       <div class="confirm-dialog">
         <h3>Delete {{ deletingUser.username }}?</h3>
-        <p>This can't be undone: their data folder is removed too.</p>
+        <p>This cannot be undone. The user's data folder is also deleted.</p>
         <div v-if="deleteError" class="form-error">{{ deleteError }}</div>
         <div class="confirm-actions">
           <button

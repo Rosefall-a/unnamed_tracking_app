@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { formatDisplayDate } from "../utils/dates";
+import { mediaPriority, priorityLabel } from "../utils/priority";
 import { localMediaImage } from "../utils/mediaImages";
 import { usePageTitle } from "../state/pageTitle";
 import MyNote from "../components/MyNote.vue";
@@ -76,7 +78,7 @@ async function load() {
     show.value = await getTVShow(showId.value);
   } catch (e) {
     if (!cached)
-      error.value = e instanceof Error ? e.message : "Failed to load show.";
+      error.value = e instanceof Error ? e.message : "Could not load show.";
   } finally {
     loading.value = false;
   }
@@ -185,7 +187,7 @@ async function loadAllEpisodes() {
     episodesLoaded.value = true;
   } catch (e) {
     episodesError.value =
-      e instanceof Error ? e.message : "Failed to load episodes.";
+      e instanceof Error ? e.message : "Could not load episodes.";
   } finally {
     episodesLoading.value = false;
   }
@@ -203,9 +205,9 @@ function maybePromptMoveToWatching() {
   if (bucket !== "plan" && bucket !== "hold") return;
   moveToWatchingPromptShown.value = true;
   void confirm({
-    message: "Move this to Watching?",
-    confirmLabel: "Move to Watching",
-    cancelLabel: "Leave as is",
+    message: "Change status to Watching?",
+    confirmLabel: "Change to Watching",
+    cancelLabel: "Keep current status",
   }).then(confirmMoveToWatching);
 }
 async function confirmMoveToWatching(move: boolean) {
@@ -235,9 +237,9 @@ function maybePromptMoveToCompleted(): boolean {
   if (!isFullyWatched(show.value)) return false;
   moveToCompletedPromptShown.value = true;
   void confirm({
-    message: "You've watched every episode. Move this to Completed?",
-    confirmLabel: "Move to Completed",
-    cancelLabel: "Leave as is",
+    message: "All episodes are watched. Change status to Completed?",
+    confirmLabel: "Change to Completed",
+    cancelLabel: "Keep current status",
   }).then(confirmMoveToCompleted);
   return true;
 }
@@ -272,7 +274,7 @@ async function onSetEpisodeNote(
     });
   } catch (e) {
     episodesError.value =
-      e instanceof Error ? e.message : "Failed to save note.";
+      e instanceof Error ? e.message : "Could not save note.";
   }
 }
 
@@ -286,7 +288,7 @@ async function onRefreshAiring() {
     show.value = await refreshTVShowAiring(show.value.id);
   } catch (e) {
     episodesError.value =
-      e instanceof Error ? e.message : "Failed to check the airing schedule.";
+      e instanceof Error ? e.message : "Could not check the airing schedule.";
   } finally {
     refreshingAiring.value = false;
   }
@@ -317,7 +319,7 @@ async function onCadenceChange(event: Event) {
     });
   } catch (e) {
     episodesError.value =
-      e instanceof Error ? e.message : "Failed to save the schedule.";
+      e instanceof Error ? e.message : "Could not save the schedule.";
   }
 }
 
@@ -334,7 +336,7 @@ async function onToggleEpisodeWatched(seasonId: string, episodeId: string) {
     if (markingWatched) afterMarkedWatched();
   } catch (e) {
     episodesError.value =
-      e instanceof Error ? e.message : "Failed to update episode.";
+      e instanceof Error ? e.message : "Could not update episode.";
   }
 }
 
@@ -354,7 +356,7 @@ async function onBulkSetEpisodesWatched(
     if (watched) afterMarkedWatched();
   } catch (e) {
     episodesError.value =
-      e instanceof Error ? e.message : "Failed to update episodes.";
+      e instanceof Error ? e.message : "Could not update episodes.";
   }
 }
 
@@ -370,7 +372,7 @@ async function onSetEpisodeRating(
     });
   } catch (e) {
     episodesError.value =
-      e instanceof Error ? e.message : "Failed to update episode.";
+      e instanceof Error ? e.message : "Could not update episode.";
   }
 }
 
@@ -394,7 +396,7 @@ async function loadRelated() {
     relatedLoaded.value = true;
   } catch (e) {
     relatedError.value =
-      e instanceof Error ? e.message : "Failed to load related shows.";
+      e instanceof Error ? e.message : "Could not load related shows.";
   } finally {
     relatedLoading.value = false;
   }
@@ -446,7 +448,7 @@ async function loadRecommended() {
     recommendedLoaded.value = true;
   } catch (e) {
     recommendedError.value =
-      e instanceof Error ? e.message : "Failed to load recommendations.";
+      e instanceof Error ? e.message : "Could not load recommendations.";
   } finally {
     recommendedLoading.value = false;
   }
@@ -504,7 +506,7 @@ async function onRelatedTitleClick(r: {
     ].filter((v): v is string => !!v);
   } catch (e) {
     previewError.value =
-      e instanceof Error ? e.message : "Failed to load a preview.";
+      e instanceof Error ? e.message : "Could not load a preview.";
   } finally {
     previewLoading.value = false;
   }
@@ -543,7 +545,7 @@ async function addPreviewToLibrary() {
     router.push(`/tv/${created.id}`);
   } catch (e) {
     previewError.value =
-      e instanceof Error ? e.message : "Failed to add to library.";
+      e instanceof Error ? e.message : "Could not add to library.";
   } finally {
     previewAdding.value = false;
   }
@@ -658,6 +660,35 @@ async function onRatingChange(value: number | null) {
     <div class="body">
       <div v-if="activeTab === 'overview'" class="tab-panel">
         <div class="meta-grid">
+          <div
+            v-if="mediaPriority(show.status, show.priority) !== null"
+            class="meta-item"
+          >
+            <span class="meta-label">Priority</span>
+            <span class="meta-value">{{
+              priorityLabel(mediaPriority(show.status, show.priority)!)
+            }}</span>
+          </div>
+          <div v-if="show.startDate" class="meta-item">
+            <span class="meta-label">Started</span>
+            <span class="meta-value">{{
+              formatDisplayDate(show.startDate, {
+                year: "numeric",
+                month: "short",
+                day: "numeric",
+              })
+            }}</span>
+          </div>
+          <div v-if="show.endDate" class="meta-item">
+            <span class="meta-label">Finished</span>
+            <span class="meta-value">{{
+              formatDisplayDate(show.endDate, {
+                year: "numeric",
+                month: "short",
+                day: "numeric",
+              })
+            }}</span>
+          </div>
           <div v-if="show.creators.length" class="meta-item">
             <span class="meta-label">Creators</span>
             <span class="meta-value">{{ show.creators.join(", ") }}</span>

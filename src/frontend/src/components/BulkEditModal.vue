@@ -88,7 +88,7 @@ async function submit() {
     emit("saved", count);
   } catch (err) {
     error.value =
-      err instanceof Error ? err.message : "Failed to bulk-update games";
+      err instanceof Error ? err.message : "Could not bulk-update games";
   } finally {
     saving.value = false;
   }

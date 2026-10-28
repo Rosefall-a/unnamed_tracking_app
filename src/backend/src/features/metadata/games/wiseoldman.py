@@ -178,7 +178,7 @@ def get_player_stats(username: str) -> dict[str, Any]:
 
     if response.status_code == 404:
         raise WiseOldManError(
-            f"WiseOldMan doesn't track '{name}' yet — search for it at wiseoldman.net to register it first."
+            f"WiseOldMan does not track '{name}'. Register it at wiseoldman.net first."
         )
     if response.status_code >= 400:
         raise WiseOldManError(f"WiseOldMan request failed ({response.status_code}).")

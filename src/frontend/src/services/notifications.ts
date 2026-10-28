@@ -35,7 +35,7 @@ interface BackendNotification {
 }
 
 async function ok(response: Response, action: string): Promise<Response> {
-  if (!response.ok) throw new Error(`Failed to ${action}: ${response.status}`);
+  if (!response.ok) throw new Error(`Could not ${action}: ${response.status}`);
   return response;
 }
 

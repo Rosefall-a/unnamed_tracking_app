@@ -57,7 +57,8 @@ async function load() {
   try {
     lists.value = await fetchMediaLists();
   } catch (e) {
-    error.value = e instanceof Error ? e.message : "Failed to load collections.";
+    error.value =
+      e instanceof Error ? e.message : "Could not load collections.";
   } finally {
     loading.value = false;
   }
@@ -83,7 +84,7 @@ async function onCreate(payload: {
   } catch (e) {
     showCreate.value = false;
     createError.value =
-      e instanceof Error ? e.message : "Failed to create collection.";
+      e instanceof Error ? e.message : "Could not create collection.";
   }
 }
 
@@ -133,7 +134,8 @@ async function togglePin(id: string) {
     const updated = await updateMediaList(id, { pinned: !list.pinned });
     lists.value = lists.value.map((l) => (l.id === updated.id ? updated : l));
   } catch (e) {
-    error.value = e instanceof Error ? e.message : "Failed to pin the collection.";
+    error.value =
+      e instanceof Error ? e.message : "Could not pin the collection.";
   }
 }
 
@@ -148,7 +150,7 @@ async function applyOrder(ordered: MediaListSummary[]) {
   try {
     await saveListOrder(ordered.map((l) => l.id));
   } catch (e) {
-    error.value = e instanceof Error ? e.message : "Failed to save the order.";
+    error.value = e instanceof Error ? e.message : "Could not save the order.";
     await load();
   }
 }
@@ -166,7 +168,7 @@ const kindOptions = computed<SegmentOption[]>(() =>
 const TYPE_OPTIONS: SegmentOption[] = [
   { value: "all", label: "Any Type" },
   { value: "movie", label: "Movies" },
-  { value: "tv", label: "TV Shows" },
+  { value: "tv", label: "TV shows" },
   { value: "anime", label: "Anime" },
 ];
 function editList(id: string) {
@@ -187,7 +189,8 @@ async function onEditSave(payload: {
     });
     lists.value = lists.value.map((l) => (l.id === updated.id ? updated : l));
   } catch (e) {
-    error.value = e instanceof Error ? e.message : "Failed to save the collection.";
+    error.value =
+      e instanceof Error ? e.message : "Could not save the collection.";
   } finally {
     editingList.value = null;
   }
@@ -211,7 +214,8 @@ async function deleteList(id: string) {
     await deleteMediaList(id);
     lists.value = lists.value.filter((l) => l.id !== id);
   } catch (e) {
-    error.value = e instanceof Error ? e.message : "Failed to delete collection.";
+    error.value =
+      e instanceof Error ? e.message : "Could not delete collection.";
   }
 }
 </script>
@@ -284,8 +288,7 @@ async function deleteList(id: string) {
         <p v-else-if="!filteredLists.length" class="ui-state">
           No collections yet: create one above, or use a movie/TV/anime page's
           collection button to start one. A smart collection fills itself from a
-          filter, like
-          every anime you rated 9 or higher.
+          filter, like every anime you rated 9 or higher.
         </p>
         <p v-else-if="sortBy === 'custom' && filtering" class="ui-state">
           Clear the search and filters to move collections around.

@@ -45,7 +45,7 @@ async def update_job(
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=(
-                    f"Choose between {spec.min_interval_minutes} and {spec.max_interval_minutes} minutes."
+                    f"Interval must be between {spec.min_interval_minutes} and {spec.max_interval_minutes} minutes."
                 ),
             )
         row.interval_minutes = payload.interval_minutes

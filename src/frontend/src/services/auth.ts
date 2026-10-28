@@ -72,7 +72,7 @@ export async function fetchCurrentUser(): Promise<CurrentUser | null> {
   if (response.status === 401) return null;
   if (!response.ok) {
     throw new Error(
-      `Failed to fetch current user: ${response.status} ${response.statusText}`,
+      `Could not fetch current user: ${response.status} ${response.statusText}`,
     );
   }
   return await response.json();
@@ -103,7 +103,7 @@ export async function updateProfile(
   if (!response.ok) {
     const message = await response.text();
     throw new Error(
-      `Failed to update profile: ${response.status} ${response.statusText} ${message}`,
+      `Could not update profile: ${response.status} ${response.statusText} ${message}`,
     );
   }
 
@@ -117,7 +117,7 @@ export async function fetchApiKeys(): Promise<ApiKeySummary[]> {
   if (!response.ok) {
     const message = await response.text();
     throw new Error(
-      `Failed to load API keys: ${response.status} ${response.statusText} ${message}`,
+      `Could not load API keys: ${response.status} ${response.statusText} ${message}`,
     );
   }
   return await response.json();
@@ -133,7 +133,7 @@ export async function createApiKey(name: string): Promise<CreatedApiKey> {
   if (!response.ok) {
     const message = await response.text();
     throw new Error(
-      `Failed to create API key: ${response.status} ${response.statusText} ${message}`,
+      `Could not create API key: ${response.status} ${response.statusText} ${message}`,
     );
   }
   return await response.json();
@@ -147,7 +147,7 @@ export async function revokeApiKey(keyId: string): Promise<void> {
   if (!response.ok) {
     const message = await response.text();
     throw new Error(
-      `Failed to revoke API key: ${response.status} ${response.statusText} ${message}`,
+      `Could not revoke API key: ${response.status} ${response.statusText} ${message}`,
     );
   }
 }
@@ -181,7 +181,7 @@ export async function uploadProfilePicture(
     throw new Error(
       typeof body?.detail === "string"
         ? body.detail
-        : `Failed to upload profile picture (${response.status}).`,
+        : `Could not upload profile picture (${response.status}).`,
     );
   }
   const body = (await response.json().catch(() => null)) as {

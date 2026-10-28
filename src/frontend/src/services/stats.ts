@@ -58,7 +58,7 @@ export async function fetchStatsOverview(): Promise<StatsOverview> {
   });
   if (!response.ok) {
     throw new Error(
-      `Failed to fetch stats: ${response.status} ${response.statusText}`,
+      `Could not fetch stats: ${response.status} ${response.statusText}`,
     );
   }
   return await response.json();
@@ -90,7 +90,7 @@ export async function fetchWeeklyDigest(): Promise<WeeklyDigest> {
   });
   if (!response.ok) {
     throw new Error(
-      `Failed to fetch weekly digest: ${response.status} ${response.statusText}`,
+      `Could not fetch weekly digest: ${response.status} ${response.statusText}`,
     );
   }
   return await response.json();

@@ -53,7 +53,7 @@ onMounted(async () => {
     imageUrl.value = settings.completion_badge_image_url;
   } catch (err) {
     error.value =
-      err instanceof Error ? err.message : "Failed to load appearance settings";
+      err instanceof Error ? err.message : "Could not load appearance settings";
   } finally {
     loading.value = false;
   }
@@ -73,7 +73,7 @@ async function save() {
     saveSuccess.value = true;
   } catch (err) {
     error.value =
-      err instanceof Error ? err.message : "Failed to save appearance settings";
+      err instanceof Error ? err.message : "Could not save appearance settings";
   } finally {
     saving.value = false;
   }
@@ -96,7 +96,7 @@ async function onImageSelected(e: Event) {
     await loadAppearanceSettings();
   } catch (err) {
     error.value =
-      err instanceof Error ? err.message : "Failed to upload badge image";
+      err instanceof Error ? err.message : "Could not upload badge image";
   } finally {
     uploading.value = false;
     input.value = "";
@@ -112,7 +112,7 @@ async function removeImage() {
     await loadAppearanceSettings();
   } catch (err) {
     error.value =
-      err instanceof Error ? err.message : "Failed to remove badge image";
+      err instanceof Error ? err.message : "Could not remove badge image";
   } finally {
     uploading.value = false;
   }
@@ -123,8 +123,7 @@ async function removeImage() {
   <section class="settings-section">
     <h2>Appearance</h2>
     <p class="section-hint">
-      How a 100%-complete (Mastered) game's card is highlighted in your library.
-      Changes apply everywhere that card renders once saved.
+      How Mastered (100% complete) games are highlighted in the library.
     </p>
 
     <p v-if="loading">Loading…</p>
@@ -158,8 +157,7 @@ async function removeImage() {
       <div v-if="usesImage" class="field">
         <span>Custom badge image</span>
         <p class="field-sublabel">
-          Optional: replaces the default trophy icon. A small square/round image
-          works best.
+          Replaces the default trophy icon. Use a small square or round image.
         </p>
         <div class="image-row">
           <div
@@ -233,15 +231,13 @@ async function removeImage() {
                 </svg>
               </div>
             </div>
-            <div class="preview-title">Mastered Game</div>
+            <div class="preview-title">Mastered game</div>
           </div>
         </div>
       </div>
 
       <div v-if="error" class="form-error">{{ error }}</div>
-      <div v-if="saveSuccess" class="form-success">
-        Appearance settings saved.
-      </div>
+      <div v-if="saveSuccess" class="form-success">Saved</div>
 
       <button
         type="button"

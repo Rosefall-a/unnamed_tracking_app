@@ -51,7 +51,7 @@ export async function fetchDeploymentSettings(): Promise<DeploymentSettings> {
     credentials: "include",
   });
   if (!response.ok)
-    throw new Error(`Failed to load server integrations: ${response.status}`);
+    throw new Error(`Could not load server integrations: ${response.status}`);
   return await response.json();
 }
 export async function updateDeploymentSettings(
@@ -66,7 +66,7 @@ export async function updateDeploymentSettings(
   if (!response.ok) {
     const message = await response.text();
     throw new Error(
-      `Failed to save server integrations: ${response.status} ${message}`,
+      `Could not save server integrations: ${response.status} ${message}`,
     );
   }
   return await response.json();

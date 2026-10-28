@@ -172,7 +172,7 @@ export async function listGameScreenshots(
   );
   if (!response.ok)
     throw new Error(
-      `Failed to list media: ${response.status} ${response.statusText}`,
+      `Could not list media: ${response.status} ${response.statusText}`,
     );
   const body = await response.json();
   return body.media;
@@ -198,7 +198,7 @@ export async function deleteGameScreenshot(
   );
   if (!response.ok)
     throw new Error(
-      `Failed to delete media: ${response.status} ${response.statusText}`,
+      `Could not delete media: ${response.status} ${response.statusText}`,
     );
 }
 
@@ -216,7 +216,7 @@ export async function fetchGameMediaTrash(
   });
   if (!response.ok)
     throw new Error(
-      `Failed to fetch media trash: ${response.status} ${response.statusText}`,
+      `Could not fetch media trash: ${response.status} ${response.statusText}`,
     );
   const body = await response.json();
   return body.media;
@@ -236,7 +236,7 @@ export async function restoreGameMedia(
   );
   if (!response.ok)
     throw new Error(
-      `Failed to restore media: ${response.status} ${response.statusText}`,
+      `Could not restore media: ${response.status} ${response.statusText}`,
     );
 }
 
@@ -263,7 +263,7 @@ export async function updateMediaItem(
   if (!response.ok) {
     const message = await response.text();
     throw new Error(
-      `Failed to update media item: ${response.status} ${response.statusText} ${message}`,
+      `Could not update media item: ${response.status} ${response.statusText} ${message}`,
     );
   }
   return await response.json();
@@ -293,7 +293,7 @@ export async function saveClipThumbnail(
     body: form,
   });
   if (!response.ok)
-    throw new Error(`Failed to save thumbnail: ${response.status}`);
+    throw new Error(`Could not save thumbnail: ${response.status}`);
   return await response.json();
 }
 
@@ -312,7 +312,7 @@ export async function detectMediaDates(
   });
   if (!response.ok)
     throw new Error(
-      `Failed to detect dates: ${response.status} ${response.statusText}`,
+      `Could not detect dates: ${response.status} ${response.statusText}`,
     );
   return (await response.json()).media;
 }
@@ -332,7 +332,7 @@ export async function fetchAllMedia(
   });
   if (!response.ok)
     throw new Error(
-      `Failed to fetch media: ${response.status} ${response.statusText}`,
+      `Could not fetch media: ${response.status} ${response.statusText}`,
     );
   return await response.json();
 }
@@ -375,7 +375,7 @@ export async function listInbox(): Promise<InboxMediaItem[]> {
   const response = await fetch("/api/media/inbox", { credentials: "include" });
   if (!response.ok)
     throw new Error(
-      `Failed to list inbox: ${response.status} ${response.statusText}`,
+      `Could not list inbox: ${response.status} ${response.statusText}`,
     );
   const body = await response.json();
   return body.media;
@@ -388,7 +388,7 @@ export async function fetchInboxTrash(): Promise<TrashedInboxItem[]> {
   });
   if (!response.ok)
     throw new Error(
-      `Failed to fetch inbox trash: ${response.status} ${response.statusText}`,
+      `Could not fetch inbox trash: ${response.status} ${response.statusText}`,
     );
   const body = await response.json();
   return body.media;
@@ -409,7 +409,7 @@ export async function deleteInboxMedia(
   );
   if (!response.ok)
     throw new Error(
-      `Failed to delete media: ${response.status} ${response.statusText}`,
+      `Could not delete media: ${response.status} ${response.statusText}`,
     );
 }
 
@@ -426,7 +426,7 @@ export async function restoreInboxMedia(
   );
   if (!response.ok)
     throw new Error(
-      `Failed to restore media: ${response.status} ${response.statusText}`,
+      `Could not restore media: ${response.status} ${response.statusText}`,
     );
 }
 
@@ -448,7 +448,7 @@ export async function assignInboxMedia(
   if (!response.ok) {
     const message = await response.text();
     throw new Error(
-      `Failed to assign media: ${response.status} ${response.statusText} ${message}`,
+      `Could not assign media: ${response.status} ${response.statusText} ${message}`,
     );
   }
 }
@@ -502,7 +502,7 @@ export async function listGameFiles(
   });
   if (!response.ok)
     throw new Error(
-      `Failed to list files: ${response.status} ${response.statusText}`,
+      `Could not list files: ${response.status} ${response.statusText}`,
     );
   const body = await response.json();
   return body.files;
@@ -528,7 +528,7 @@ export async function deleteGameFile(
   );
   if (!response.ok)
     throw new Error(
-      `Failed to delete file: ${response.status} ${response.statusText}`,
+      `Could not delete file: ${response.status} ${response.statusText}`,
     );
 }
 
@@ -566,7 +566,7 @@ export async function updateGameFile(
   );
   if (!response.ok)
     throw new Error(
-      `Failed to update file: ${response.status} ${response.statusText}`,
+      `Could not update file: ${response.status} ${response.statusText}`,
     );
   return await response.json();
 }
@@ -588,7 +588,7 @@ export async function fetchGameFileTrash(
   });
   if (!response.ok)
     throw new Error(
-      `Failed to fetch file trash: ${response.status} ${response.statusText}`,
+      `Could not fetch file trash: ${response.status} ${response.statusText}`,
     );
   const body = await response.json();
   return body.files;
@@ -608,6 +608,6 @@ export async function restoreGameFile(
   );
   if (!response.ok)
     throw new Error(
-      `Failed to restore file: ${response.status} ${response.statusText}`,
+      `Could not restore file: ${response.status} ${response.statusText}`,
     );
 }

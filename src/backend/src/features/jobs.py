@@ -18,6 +18,7 @@ from src.database.session import SessionLocal
 from src.features.imports.anilist import import_anilist_library
 from src.features.metadata import refresh_job
 from src.features.metadata.refresh import check_airing_episodes
+from src.features.sequel_check import check_sequels
 
 logger = logging.getLogger(__name__)
 TICK_SECONDS = 60
@@ -40,18 +41,56 @@ class JobSpec:
 
 
 def _summarize_refresh(r: dict[str, Any]) -> str:
-    parts = [f"{r.get('checked') or 0} refreshed", f"{r.get('skipped_up_to_date') or 0} already fine"]
+    parts = [f"{r.get('checked') or 0} refreshed", f"{r.get('skipped_up_to_date') or 0} up to date"]
     if r.get("counts_fixed"):
-        parts.append(f"{r['counts_fixed']} count(s) corrected")
+        parts.append(f"{r['counts_fixed']} episode count{'' if r['counts_fixed'] == 1 else 's'} corrected")
     return ", ".join(parts)
 
 
 def _summarize_airing(r: dict[str, Any]) -> str:
     added = (r.get("anime_episodes_added") or 0) + (r.get("tv_episodes_added") or 0)
-    parts = [f"{r.get('checked') or 0} checked", f"{r.get('not_due') or 0} not due yet"]
+    parts = [f"{r.get('checked') or 0} checked", f"{r.get('not_due') or 0} not due"]
     if added:
-        parts.append(f"{added} new episode(s)")
+        parts.append(f"{added} new episode{'' if added == 1 else 's'}")
     return ", ".join(parts)
+
+def _summarize_sequels(r: dict[str, Any]) -> str:
+    if r.get("failed"):
+        return "Last run failed"
+    checked, due = r.get("checked") or 0, r.get("titles") or 0
+    return f"{checked} franchise{'' if checked == 1 else 's'} checked, {due} finished title{'' if due == 1 else 's'} due"
+
+
+_sequels_running = False
+
+
+def _sequels_is_running() -> bool:
+    return _sequels_running
+
+
+def _start_sequels(mode: str) -> dict[str, Any]:
+    global _sequels_running
+    if not _sequels_running:
+        _sequels_running = True
+        asyncio.get_running_loop().create_task(_run_sequels(force=mode == "all"))
+    return {"running": True}
+
+
+async def _run_sequels(force: bool) -> None:
+    global _sequels_running
+    try:
+        await record_run("sequel_check", await check_sequels(force=force))
+    except Exception:
+        logger.exception("The new season check failed")
+        # recorded as a run for the same reason as the airing check: otherwise it is due
+        # again on the next tick and asks AniList every minute while it is down
+        try:
+            await record_run("sequel_check", {"failed": True})
+        except Exception:
+            logger.exception("The new season check's failed run could not be recorded")
+    finally:
+        _sequels_running = False
+
 
 _airing_running = False
 
@@ -74,13 +113,21 @@ async def _run_airing(force: bool) -> None:
         await record_run("airing_check", await check_airing_episodes(force=force))
     except Exception:
         logger.exception("The airing check failed")
+        # a failed pass still counts as a run: without a time recorded the job is due
+        # again on the very next minute's tick, and asks AniList again every minute
+        # for as long as it is down
+        try:
+            await record_run("airing_check", {"failed": True})
+        except Exception:
+            logger.exception("The airing check's failed run could not be recorded")
     finally:
         _airing_running = False
 
 
 JOBS: dict[str, JobSpec] = {
-    "airing_check": JobSpec("airing_check", "Airing episode check", "Checks for newly aired episodes.", 5, 24 * 60, 30, True, _start_airing, _airing_is_running, _summarize_airing, "all"),
-    "media_refresh": JobSpec("media_refresh", "Media refresh", "Fills missing episode metadata and corrects stale media data.", 60, 30 * 24 * 60, 24 * 60, False, refresh_job.start, refresh_job.is_running, _summarize_refresh),
+    "airing_check": JobSpec("airing_check", "Airing episode check", "Checks airing titles for newly aired episodes.", 5, 24 * 60, 30, True, _start_airing, _airing_is_running, _summarize_airing, "all"),
+    "sequel_check": JobSpec("sequel_check", "New season check", "Checks finished anime for newly listed seasons, and optionally films and specials, and creates a notification for each.", 60, 30 * 24 * 60, 24 * 60, False, _start_sequels, _sequels_is_running, _summarize_sequels),
+    "media_refresh": JobSpec("media_refresh", "Media refresh", "Fills missing episode metadata and corrects outdated media data.", 60, 30 * 24 * 60, 24 * 60, False, refresh_job.start, refresh_job.is_running, _summarize_refresh),
 }
 
 
@@ -128,16 +175,22 @@ async def _run_due_anilist_imports(now: int) -> None:
                 select(UserPreferences, User)
                 .join(User, User.id == UserPreferences.user_id)
                 .where(UserPreferences.data["anilist_import_enabled"].as_boolean().is_(True))
-                .limit(ANILIST_IMPORT_MAX_USERS_PER_TICK)
             )
         ).all()
+    # the batch is the people who are due, longest-waiting first: choosing four
+    # before looking at the time let the same four block everyone after them
+    due_rows = []
     for pref_row, user in rows:
         data = pref_row.data
-        username = str(data.get("anilist_import_username") or "").strip()
         interval = int(data.get("anilist_import_interval_minutes") or 24 * 60)
-        last_run = data.get("anilist_import_last_run_at")
-        if not username or not is_due(True, last_run, interval, now):
-            continue
+        if str(data.get("anilist_import_username") or "").strip() and is_due(
+            True, data.get("anilist_import_last_run_at"), interval, now
+        ):
+            due_rows.append((pref_row, user))
+    due_rows.sort(key=lambda pair: pair[0].data.get("anilist_import_last_run_at") or 0)
+    for pref_row, user in due_rows[:ANILIST_IMPORT_MAX_USERS_PER_TICK]:
+        data = pref_row.data
+        username = str(data.get("anilist_import_username") or "").strip()
         try:
             async with SessionLocal() as db:
                 result = await import_anilist_library(db, user.id, username, bool(data.get("anilist_import_update_existing")))
@@ -148,6 +201,16 @@ async def _run_due_anilist_imports(now: int) -> None:
             logger.info("Scheduled AniList import for user %s: %s", user.id, result)
         except Exception:
             logger.exception("Scheduled AniList import failed for user %s", user.id)
+            # a wrong or private username fails every time, so the failed try counts
+            # as a run: it is tried again after the interval, not every minute
+            try:
+                async with SessionLocal() as db:
+                    pref = await db.get(UserPreferences, pref_row.id)
+                    if pref is not None:
+                        pref.data = {**pref.data, "anilist_import_last_run_at": now}
+                        await db.commit()
+            except Exception:
+                logger.exception("Could not record the failed AniList import for user %s", user.id)
 
 
 async def run_jobs_loop() -> None:

@@ -49,7 +49,7 @@ async function loadGames() {
     games.value = fetched;
   } catch (err) {
     if (token !== loadGamesToken) return;
-    error.value = err instanceof Error ? err.message : "Failed to load games";
+    error.value = err instanceof Error ? err.message : "Could not load games";
   } finally {
     if (token === loadGamesToken) {
       loading.value = false;
@@ -113,7 +113,7 @@ async function confirmDelete() {
     await loadGames();
   } catch (err) {
     deleteError.value =
-      err instanceof Error ? err.message : "Failed to delete game";
+      err instanceof Error ? err.message : "Could not delete game";
   } finally {
     deleting.value = false;
   }

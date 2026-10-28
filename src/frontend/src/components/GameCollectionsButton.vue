@@ -74,7 +74,7 @@ async function load() {
     loaded.value = true;
   } catch (e) {
     error.value =
-      e instanceof Error ? e.message : "Failed to load collections.";
+      e instanceof Error ? e.message : "Could not load collections.";
   }
 }
 
@@ -91,7 +91,7 @@ async function toggle(name: string) {
     if (row) row.count += was ? -1 : 1;
   } catch (e) {
     error.value =
-      e instanceof Error ? e.message : "Failed to update collection.";
+      e instanceof Error ? e.message : "Could not update collection.";
   } finally {
     busy.value = null;
   }
@@ -113,7 +113,7 @@ async function submitNew() {
     newName.value = "";
   } catch (e) {
     error.value =
-      e instanceof Error ? e.message : "Failed to create collection.";
+      e instanceof Error ? e.message : "Could not create collection.";
   }
 }
 

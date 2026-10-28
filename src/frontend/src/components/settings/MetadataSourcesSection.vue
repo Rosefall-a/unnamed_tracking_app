@@ -101,7 +101,7 @@ async function saveSteamgriddbKey() {
     saveSuccess.value = true;
   } catch (err) {
     saveError.value =
-      err instanceof Error ? err.message : "Failed to save settings";
+      err instanceof Error ? err.message : "Could not save settings";
   } finally {
     saving.value = false;
   }
@@ -188,7 +188,7 @@ async function saveIgdbCredentials() {
     };
   } catch (err) {
     igdbError.value =
-      err instanceof Error ? err.message : "Failed to save IGDB credentials";
+      err instanceof Error ? err.message : "Could not save IGDB credentials";
   } finally {
     igdbSaving.value = false;
   }
@@ -211,7 +211,7 @@ async function clearIgdbCredentials() {
     };
   } catch (err) {
     igdbError.value =
-      err instanceof Error ? err.message : "Failed to clear IGDB credentials";
+      err instanceof Error ? err.message : "Could not clear IGDB credentials";
   } finally {
     igdbSaving.value = false;
   }
@@ -236,7 +236,7 @@ async function saveTmdbKey() {
     };
   } catch (err) {
     tmdbError.value =
-      err instanceof Error ? err.message : "Failed to save TMDB key";
+      err instanceof Error ? err.message : "Could not save TMDB key";
   } finally {
     tmdbSaving.value = false;
   }
@@ -255,7 +255,7 @@ async function clearTmdbKey() {
     };
   } catch (err) {
     tmdbError.value =
-      err instanceof Error ? err.message : "Failed to clear TMDB key";
+      err instanceof Error ? err.message : "Could not clear TMDB key";
   } finally {
     tmdbSaving.value = false;
   }
@@ -275,7 +275,7 @@ async function saveOmdbKey() {
     };
   } catch (err) {
     omdbError.value =
-      err instanceof Error ? err.message : "Failed to save OMDb key";
+      err instanceof Error ? err.message : "Could not save OMDb key";
   } finally {
     omdbSaving.value = false;
   }
@@ -294,7 +294,7 @@ async function clearOmdbKey() {
     };
   } catch (err) {
     omdbError.value =
-      err instanceof Error ? err.message : "Failed to clear OMDb key";
+      err instanceof Error ? err.message : "Could not clear OMDb key";
   } finally {
     omdbSaving.value = false;
   }
@@ -314,7 +314,7 @@ async function saveTvdbKey() {
     };
   } catch (err) {
     tvdbError.value =
-      err instanceof Error ? err.message : "Failed to save TVDB key";
+      err instanceof Error ? err.message : "Could not save TVDB key";
   } finally {
     tvdbSaving.value = false;
   }
@@ -333,7 +333,7 @@ async function clearTvdbKey() {
     };
   } catch (err) {
     tvdbError.value =
-      err instanceof Error ? err.message : "Failed to clear TVDB key";
+      err instanceof Error ? err.message : "Could not clear TVDB key";
   } finally {
     tvdbSaving.value = false;
   }
@@ -368,7 +368,7 @@ async function handleConnectPsn() {
     psnError.value =
       err instanceof Error
         ? err.message
-        : "Failed to connect PlayStation account";
+        : "Could not connect PlayStation account";
   } finally {
     psnConnecting.value = false;
   }
@@ -384,7 +384,7 @@ async function confirmDisconnectPsn() {
     psnError.value =
       err instanceof Error
         ? err.message
-        : "Failed to disconnect PlayStation account";
+        : "Could not disconnect PlayStation account";
   }
 }
 
@@ -600,7 +600,7 @@ async function saveCard(card: ProviderCardConfig) {
       cardInfo[card.key] = result.detail;
     }
   } catch (err) {
-    cardError[card.key] = err instanceof Error ? err.message : "Failed to save";
+    cardError[card.key] = err instanceof Error ? err.message : "Could not save";
   } finally {
     cardSaving[card.key] = false;
   }
@@ -614,7 +614,7 @@ async function clearCard(card: ProviderCardConfig) {
     fieldValues[card.key] = {};
   } catch (err) {
     cardError[card.key] =
-      err instanceof Error ? err.message : "Failed to disconnect";
+      err instanceof Error ? err.message : "Could not disconnect";
   }
 }
 
@@ -795,7 +795,7 @@ async function toggleHltb(enabled: boolean) {
     hltbEnabled.value = enabled;
   } catch (err) {
     hltbError.value =
-      err instanceof Error ? err.message : "Failed to update HowLongToBeat";
+      err instanceof Error ? err.message : "Could not update HowLongToBeat";
   } finally {
     hltbSaving.value = false;
   }
@@ -917,7 +917,7 @@ async function toggleHltb(enabled: boolean) {
             />
           </label>
           <div v-if="saveError" class="form-error">{{ saveError }}</div>
-          <div v-if="saveSuccess" class="form-success">Settings saved.</div>
+          <div v-if="saveSuccess" class="form-success">Saved</div>
           <button type="submit" class="primary-button" :disabled="saving">
             {{ saving ? "Saving…" : "Save" }}
           </button>

@@ -9,7 +9,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, Field, field_validator
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -83,6 +83,14 @@ class UserProfileUpdateRequest(BaseModel):
     def validate_new_password(cls, value: str | None) -> str | None:
         return validate_password(value) if value is not None else None
 
+    @field_validator("username")
+    @classmethod
+    def username_is_not_an_email(cls, value: str | None) -> str | None:
+        # sign-in takes a username or an email in one box, so a username that
+        # looks like someone's address could be used to take over their sign-in
+        if value is not None and "@" in value:
+            raise ValueError("A username cannot contain @.")
+        return value
 
 
 @router.get("/password-policy")
@@ -146,9 +154,9 @@ async def login(
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, str]:
     identifier = payload.username_or_email.strip()
-    user = await db.scalar(
-        select(User).where((User.username == identifier) | (User.email == identifier.lower()))
-    )
+    user = await db.scalar(select(User).where(User.username == identifier))
+    if user is None:
+        user = await db.scalar(select(User).where(User.email == identifier.lower()))
     if (
         user is None
         or not user.is_active
@@ -210,6 +218,7 @@ async def current_user(
 @router.patch("/me")
 async def update_current_user(
     payload: UserProfileUpdateRequest,
+    request: Request,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, str | bool | int | None]:
@@ -235,6 +244,15 @@ async def update_current_user(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Username and email are required."
         )
+
+    if payload.new_password is not None:
+        # a changed password is how a stolen session is cut off, so every other
+        # session of this account ends; the one that made the change stays
+        keep = request.cookies.get(session_cookie_name(request.headers.get("host", "")))
+        others = delete(UserSession).where(UserSession.user_id == user.id)
+        if keep:
+            others = others.where(UserSession.token_hash != hash_token(keep))
+        await db.execute(others)
 
     try:
         await db.commit()
@@ -323,9 +341,17 @@ async def list_users(
 @router.post("/api-keys")
 async def create_user_api_key(
     payload: ApiKeyCreateRequest,
+    request: Request,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, str | list[str]]:
+    # keys are made from a signed-in session in the app: a leaked key must not be
+    # able to create more keys that outlive its own revocation
+    if request.headers.get("authorization"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="API keys can only be created while signed in to the app.",
+        )
     api_key, key_prefix, key_hash = create_api_key()
     db.add(
         UserApiKey(

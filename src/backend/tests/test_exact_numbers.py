@@ -1911,7 +1911,7 @@ async def test_the_airing_check_starts_on_and_the_refresh_off_and_intervals_stay
             await db.execute(delete(JobSetting))
             await db.commit()
 
-            airing, refresh = await list_jobs(db)
+            airing, seasons, refresh = await list_jobs(db)
             assert (
                 airing["id"] == "airing_check" and airing["enabled"] is True
             )  # new episodes appear by themselves
@@ -1920,6 +1920,9 @@ async def test_the_airing_check_starts_on_and_the_refresh_off_and_intervals_stay
                 refresh["id"] == "media_refresh" and refresh["enabled"] is False
             )  # the heavy one is asked for
             assert refresh["interval_minutes"] == 1440
+            assert (
+                seasons["id"] == "sequel_check" and seasons["enabled"] is False
+            )  # looks at AniList for you, so it is asked for too
 
             faster = await update_job("airing_check", JobUpdate(interval_minutes=10), db)
             assert faster["interval_minutes"] == 10 and faster["enabled"] is True

@@ -62,7 +62,7 @@ function onKeydown(e: KeyboardEvent) {
 
 function timeAgo(unix: number): string {
   const s = Math.max(0, Math.floor(Date.now() / 1000 - unix));
-  if (s < 60) return "just now";
+  if (s < 60) return "now";
   if (s < 3600) return `${Math.floor(s / 60)}m ago`;
   if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
   return `${Math.floor(s / 86400)}d ago`;
@@ -149,7 +149,7 @@ onBeforeUnmount(() => {
           </button>
         </div>
         <p v-if="!mediaNotifications.length" class="panel-empty">
-          Nothing to flag right now.
+          No notifications.
         </p>
         <div class="panel-list">
           <button
@@ -180,7 +180,7 @@ onBeforeUnmount(() => {
           </button>
         </div>
         <button type="button" class="see-all-btn" @click="seeAll">
-          See all notifications
+          View all
         </button>
       </div>
     </Teleport>

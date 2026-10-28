@@ -56,6 +56,14 @@ class Reply:
             raise ValueError("not json")
         return self._data
 
+    def iter_content(self, size: int):
+        # a download reads the body in pieces, as a real response allows
+        for start in range(0, len(self.content), size):
+            yield self.content[start : start + size]
+
+    def close(self) -> None:
+        pass
+
     def raise_for_status(self) -> None:
         if self.status_code >= 400:
             raise requests.HTTPError(str(self.status_code))

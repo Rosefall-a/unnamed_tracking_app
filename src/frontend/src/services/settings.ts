@@ -96,7 +96,7 @@ export async function fetchScanSettings(): Promise<ScanSettings> {
   });
   if (!response.ok) {
     throw new Error(
-      `Failed to fetch scan settings: ${response.status} ${response.statusText}`,
+      `Could not fetch scan settings: ${response.status} ${response.statusText}`,
     );
   }
   return await response.json();
@@ -119,7 +119,7 @@ export async function updateScanSettings(
   if (!response.ok) {
     const message = await response.text();
     throw new Error(
-      `Failed to update scan settings: ${response.status} ${response.statusText} ${message}`,
+      `Could not update scan settings: ${response.status} ${response.statusText} ${message}`,
     );
   }
   return await response.json();
@@ -137,7 +137,7 @@ export async function fetchUploadLimits(): Promise<{
   });
   if (!response.ok) {
     throw new Error(
-      `Failed to fetch upload limits: ${response.status} ${response.statusText}`,
+      `Could not fetch upload limits: ${response.status} ${response.statusText}`,
     );
   }
   return await response.json();
@@ -161,7 +161,7 @@ export async function updateUploadLimit(
   if (!response.ok) {
     const message = await response.text();
     throw new Error(
-      `Failed to update the upload limit: ${response.status} ${response.statusText} ${message}`,
+      `Could not update the upload limit: ${response.status} ${response.statusText} ${message}`,
     );
   }
   return await response.json();
@@ -192,7 +192,7 @@ export async function fetchSystemInfo(): Promise<SystemInfo> {
   });
   if (!response.ok) {
     throw new Error(
-      `Failed to fetch system info: ${response.status} ${response.statusText}`,
+      `Could not fetch system info: ${response.status} ${response.statusText}`,
     );
   }
   return await response.json();
@@ -230,7 +230,7 @@ export async function fetchProviderCredentials(): Promise<
   });
   if (!response.ok) {
     throw new Error(
-      `Failed to fetch provider credentials: ${response.status} ${response.statusText}`,
+      `Could not fetch provider credentials: ${response.status} ${response.statusText}`,
     );
   }
   return await response.json();
@@ -258,7 +258,7 @@ export async function saveProviderCredentials(
   if (!response.ok) {
     const message = await response.text();
     throw new Error(
-      `Failed to save ${provider} credentials: ${response.status} ${response.statusText} ${message}`,
+      `Could not save ${provider} credentials: ${response.status} ${response.statusText} ${message}`,
     );
   }
   return await response.json();
@@ -281,7 +281,7 @@ export async function deleteProviderCredentials(
   );
   if (!response.ok) {
     throw new Error(
-      `Failed to disconnect ${provider}: ${response.status} ${response.statusText}`,
+      `Could not disconnect ${provider}: ${response.status} ${response.statusText}`,
     );
   }
 }
@@ -315,7 +315,7 @@ export async function fetchAppIntegrations(): Promise<AppIntegrationSettings> {
   });
   if (!response.ok) {
     throw new Error(
-      `Failed to fetch app integrations: ${response.status} ${response.statusText}`,
+      `Could not fetch app integrations: ${response.status} ${response.statusText}`,
     );
   }
   return await response.json();
@@ -346,7 +346,7 @@ export async function updateAppIntegrations(payload: {
   if (!response.ok) {
     const message = await response.text();
     throw new Error(
-      `Failed to save app integrations: ${response.status} ${response.statusText} ${message}`,
+      `Could not save app integrations: ${response.status} ${response.statusText} ${message}`,
     );
   }
   return await response.json();
@@ -428,7 +428,7 @@ export async function startMediaRefresh(
     { method: "POST", credentials: "include" },
   );
   if (!response.ok) {
-    throw new Error(`Failed to start the refresh: ${response.status}`);
+    throw new Error(`Could not start the refresh: ${response.status}`);
   }
   return mapRefreshProgress(await response.json());
 }
@@ -438,7 +438,7 @@ export async function fetchMediaRefreshProgress(): Promise<MediaRefreshProgress>
     credentials: "include",
   });
   if (!response.ok) {
-    throw new Error(`Failed to read the refresh progress: ${response.status}`);
+    throw new Error(`Could not read the refresh progress: ${response.status}`);
   }
   return mapRefreshProgress(await response.json());
 }
@@ -491,7 +491,7 @@ export async function fetchJobs(): Promise<CleanupJob[]> {
     credentials: "include",
   });
   if (!response.ok)
-    throw new Error(`Failed to load the jobs: ${response.status}`);
+    throw new Error(`Could not load the jobs: ${response.status}`);
   return ((await response.json()) as BackendJob[]).map(mapJob);
 }
 export async function updateJob(
@@ -508,7 +508,7 @@ export async function updateJob(
     }),
   });
   if (!response.ok)
-    throw new Error(`Failed to save the job: ${response.status}`);
+    throw new Error(`Could not save the job: ${response.status}`);
   return mapJob(await response.json());
 }
 export async function runJobNow(id: string): Promise<void> {
@@ -517,5 +517,5 @@ export async function runJobNow(id: string): Promise<void> {
     credentials: "include",
   });
   if (!response.ok)
-    throw new Error(`Failed to start the job: ${response.status}`);
+    throw new Error(`Could not start the job: ${response.status}`);
 }
