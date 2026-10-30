@@ -654,8 +654,8 @@ async function submit() {
 <style scoped>
 .setup-page {
   min-height: 100vh;
-  background: #121212;
-  color: #ccc;
+  background: var(--ui-bg-2);
+  color: var(--ui-text-soft);
   font-family: system-ui, sans-serif;
   padding: 24px 16px;
   display: flex;
@@ -671,8 +671,8 @@ async function submit() {
 }
 .setup-card,
 .setup-nav {
-  background: #1a1a1a;
-  border: 1px solid #2a2a2a;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
   border-radius: 14px;
 }
 .setup-card {
@@ -694,7 +694,7 @@ async function submit() {
   align-items: center;
   gap: 10px;
   justify-content: center;
-  color: #fff;
+  color: var(--ui-heading);
   margin-bottom: 12px;
 }
 .brand h1 {
@@ -705,14 +705,14 @@ async function submit() {
   font-size: 1rem;
 }
 .subtitle {
-  color: #999;
+  color: var(--ui-dim-3);
   font-size: 13px;
   line-height: 1.5;
 }
 .nav-item {
   border: 1px solid transparent;
   background: transparent;
-  color: #aaa;
+  color: var(--ui-dim-3);
   text-align: left;
   padding: 10px;
   border-radius: 8px;
@@ -722,12 +722,12 @@ async function submit() {
   gap: 8px;
 }
 .nav-item.active {
-  background: #252525;
-  border-color: #3a3a3a;
-  color: #fff;
+  background: var(--ui-surface-3);
+  border-color: var(--ui-border-strong);
+  color: var(--ui-heading);
 }
 .nav-item small {
-  color: #777;
+  color: var(--ui-faint-2);
   font-size: 10px;
   text-align: right;
 }
@@ -738,33 +738,33 @@ async function submit() {
   margin: 24px 0;
 }
 .section-choice {
-  border: 1px solid #333;
+  border: 1px solid var(--ui-border-strong);
   border-radius: 10px;
   padding: 14px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  background: #151515;
+  background: var(--ui-bg-2);
 }
 .section-choice.selected {
   border-color: #57411f;
 }
 .section-choice p {
   margin: 5px 0 0;
-  color: #888;
+  color: var(--ui-dim-2);
   font-size: 12px;
   line-height: 1.4;
 }
 .section-choice.required {
-  background: #181818;
+  background: var(--ui-popover);
 }
 .badge {
   white-space: nowrap;
-  border: 1px solid #3a3a3a;
+  border: 1px solid var(--ui-border-strong);
   border-radius: 999px;
   padding: 4px 8px;
-  color: #aaa;
+  color: var(--ui-dim-3);
   font-size: 11px;
 }
 .small {
@@ -779,7 +779,7 @@ async function submit() {
 }
 .section-editor h1 {
   margin: 0;
-  color: #fff;
+  color: var(--ui-heading);
   font-size: 1.35rem;
 }
 .field-groups {
@@ -790,7 +790,7 @@ async function submit() {
 }
 .field-group h3 {
   margin: 0 0 12px;
-  color: #fff;
+  color: var(--ui-heading);
   font-size: 1rem;
 }
 .fields {
@@ -802,7 +802,7 @@ async function submit() {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  color: #ccc;
+  color: var(--ui-text-soft);
   font-size: 13px;
 }
 .fields label:has(input[type="checkbox"]) {
@@ -822,29 +822,29 @@ async function submit() {
 }
 .fields input,
 .fields select {
-  background: #111;
-  border: 1px solid #3a3a3a;
+  background: var(--ui-bg-2);
+  border: 1px solid var(--ui-border-strong);
   border-radius: 8px;
-  color: #fff;
+  color: var(--ui-heading);
   padding: 10px;
   font: inherit;
 }
 .fields input[type="checkbox"] {
   width: 18px;
   height: 18px;
-  accent-color: #d68a34;
+  accent-color: var(--ui-accent);
 }
 .fields input:focus,
 .fields select:focus {
   outline: none;
-  border-color: #d68a34;
+  border-color: var(--ui-accent);
 }
 .fields input:disabled,
 .fields select:disabled {
   opacity: 0.55;
 }
 .fields small {
-  color: #777;
+  color: var(--ui-faint-2);
   font-size: 11px;
   line-height: 1.4;
 }
@@ -852,7 +852,7 @@ async function submit() {
   color: #d8c39a !important;
 }
 .required-mark {
-  color: #fca5a5;
+  color: var(--ui-error-text);
 }
 .actions {
   display: flex;
@@ -864,7 +864,7 @@ async function submit() {
 }
 button.primary,
 .setup-card button.primary {
-  background: #d68a34;
+  background: var(--ui-accent);
   color: #111;
   border: 0;
   border-radius: 8px;
@@ -873,9 +873,9 @@ button.primary,
   cursor: pointer;
 }
 .secondary {
-  background: #252525 !important;
-  color: #ddd !important;
-  border: 1px solid #3a3a3a !important;
+  background: var(--ui-surface-3) !important;
+  color: var(--ui-text-soft) !important;
+  border: 1px solid var(--ui-border-strong) !important;
   border-radius: 8px;
   padding: 11px 14px;
   cursor: pointer;
@@ -891,17 +891,17 @@ button.primary,
   margin-bottom: 10px;
 }
 .error {
-  color: #fca5a5;
-  background: rgba(220, 38, 38, 0.1);
-  border: 1px solid rgba(220, 38, 38, 0.3);
+  color: var(--ui-error-text);
+  background: color-mix(in srgb, var(--ui-danger) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ui-danger) 30%, transparent);
   border-radius: 8px;
   padding: 9px;
   font-size: 13px;
 }
 .success {
-  color: #86efac;
-  background: rgba(34, 197, 94, 0.08);
-  border: 1px solid rgba(34, 197, 94, 0.2);
+  color: var(--ui-good-text);
+  background: color-mix(in srgb, var(--ui-success) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ui-success) 20%, transparent);
   border-radius: 8px;
   padding: 9px;
   font-size: 13px;

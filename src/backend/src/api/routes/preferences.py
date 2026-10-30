@@ -7,7 +7,11 @@ from fastapi import APIRouter, Body, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.auth import get_current_user
-from src.core.preferences import load_preferences, save_preferences
+from src.core.preferences import (
+    load_home_layout_history,
+    load_preferences,
+    save_preferences,
+)
 from src.database.models.user import User
 from src.database.session import get_db
 
@@ -35,3 +39,12 @@ async def update_preferences(
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
         ) from exc
+
+
+@router.get("/home-layout-history")
+async def get_home_layout_history(
+    db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)
+) -> list[dict[str, Any]]:
+    """Earlier Home layouts, newest first: when each stopped being the current
+    one, and the layout itself."""
+    return await load_home_layout_history(db, current_user.id)

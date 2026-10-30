@@ -69,7 +69,7 @@ const emit = defineEmits<{
   position: fixed;
   inset: 0;
   z-index: 300;
-  background: rgba(0, 0, 0, 0.65);
+  background: color-mix(in srgb, var(--ui-scrim-base) 65%, transparent);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -79,8 +79,8 @@ const emit = defineEmits<{
   position: relative;
   width: 100%;
   max-width: 520px;
-  background: #171717;
-  border: 1px solid #2b2b2b;
+  background: var(--ui-popover);
+  border: 1px solid var(--ui-border);
   border-radius: 14px;
   padding: 22px;
 }
@@ -90,17 +90,17 @@ const emit = defineEmits<{
   right: 12px;
   background: none;
   border: none;
-  color: #888;
+  color: var(--ui-dim-2);
   font-size: 1.3rem;
   cursor: pointer;
   line-height: 1;
   padding: 4px;
 }
 .preview-close:hover {
-  color: #fff;
+  color: var(--ui-heading);
 }
 .preview-loading {
-  color: #999;
+  color: var(--ui-dim-3);
   font-size: 0.85rem;
   text-align: center;
   padding: 30px 0;
@@ -119,13 +119,13 @@ const emit = defineEmits<{
   background-origin: border-box;
   background-clip: border-box;
   background-position: center;
-  background-color: #222222;
+  background-color: var(--ui-surface-2);
   border: 1px solid transparent;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 0.72rem;
-  color: #666;
+  color: var(--ui-faint);
   text-align: center;
   padding: 8px;
 }
@@ -147,15 +147,15 @@ const emit = defineEmits<{
 }
 .preview-meta span {
   font-size: 0.74rem;
-  color: #9c9c9c;
-  background: #222222;
-  border: 1px solid #2b2b2b;
+  color: var(--ui-dim);
+  background: var(--ui-surface-2);
+  border: 1px solid var(--ui-border);
   border-radius: 6px;
   padding: 3px 8px;
 }
 .preview-description {
   font-size: 0.84rem;
-  color: #999;
+  color: var(--ui-dim-3);
   line-height: 1.6;
   margin: 0 0 14px;
   display: -webkit-box;
@@ -164,15 +164,15 @@ const emit = defineEmits<{
   overflow: hidden;
 }
 .preview-error {
-  color: #fca5a5;
+  color: var(--ui-error-text);
   font-size: 0.82rem;
   margin: 0 0 10px;
 }
 .preview-add-btn {
   margin-top: auto;
   align-self: flex-start;
-  background: #d68a34;
-  color: #0d0d0d;
+  background: var(--ui-accent);
+  color: var(--ui-bg);
   border: none;
   border-radius: 8px;
   padding: 9px 18px;

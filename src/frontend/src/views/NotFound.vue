@@ -16,7 +16,7 @@ import { RouterLink } from "vue-router";
   margin: 96px auto;
   padding: 0 24px;
   text-align: center;
-  color: #e5e5e5;
+  color: var(--ui-text-strong);
 }
 h1 {
   font-size: 1.6rem;
@@ -24,11 +24,11 @@ h1 {
   margin: 0 0 8px;
 }
 p {
-  color: #9a9a9a;
+  color: var(--ui-dim);
   margin: 0 0 20px;
 }
 .home-link {
-  color: #d68a34;
+  color: var(--ui-accent);
   font-weight: 700;
   text-decoration: none;
 }

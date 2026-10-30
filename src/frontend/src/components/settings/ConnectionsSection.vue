@@ -188,28 +188,28 @@ async function sync(row: Row) {
 .settings-section h2 {
   margin: 0 0 8px;
   padding-left: 12px;
-  border-left: 3px solid #d68a34;
+  border-left: 3px solid var(--ui-accent);
   font-size: 1rem;
-  color: #fff;
+  color: var(--ui-heading);
 }
 h3 {
   margin: 24px 0 10px;
   font-size: 0.85rem;
-  color: #999;
+  color: var(--ui-dim-3);
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
 .hint {
-  color: #888;
+  color: var(--ui-dim-2);
   font-size: 0.85rem;
   margin: 0 0 8px;
 }
 .error {
-  color: #fca5a5;
+  color: var(--ui-error-text);
   font-size: 0.85rem;
 }
 .note {
-  color: #86efac;
+  color: var(--ui-good-text);
   font-size: 0.85rem;
 }
 .rows {
@@ -225,8 +225,8 @@ h3 {
   align-items: center;
   gap: 12px;
   padding: 10px 12px;
-  background: #151515;
-  border: 1px solid #262626;
+  background: var(--ui-bg-2);
+  border: 1px solid var(--ui-surface-3);
   border-radius: 10px;
 }
 .mark {
@@ -246,11 +246,11 @@ h3 {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  color: #eee;
+  color: var(--ui-text-soft);
   font-size: 0.9rem;
 }
 .detail {
-  color: #888;
+  color: var(--ui-dim-2);
   font-size: 0.78rem;
   white-space: nowrap;
   overflow: hidden;
@@ -261,20 +261,20 @@ h3 {
   font-weight: 700;
   padding: 3px 9px;
   border-radius: 999px;
-  color: #999;
-  background: rgba(255, 255, 255, 0.06);
+  color: var(--ui-dim-3);
+  background: color-mix(in srgb, var(--ui-wash-base) 6%, transparent);
   white-space: nowrap;
 }
 .pill.ok {
-  color: #86efac;
-  background: rgba(34, 197, 94, 0.12);
+  color: var(--ui-good-text);
+  background: color-mix(in srgb, var(--ui-success) 12%, transparent);
 }
 .pill.bad {
-  color: #fca5a5;
-  background: rgba(220, 38, 38, 0.14);
+  color: var(--ui-error-text);
+  background: color-mix(in srgb, var(--ui-danger) 14%, transparent);
 }
 .btn {
-  background: #d68a34;
+  background: var(--ui-accent);
   color: #111;
   border: none;
   border-radius: 8px;
@@ -285,8 +285,8 @@ h3 {
   cursor: pointer;
 }
 .btn.ghost {
-  background: rgba(255, 255, 255, 0.06);
-  color: #ddd;
+  background: color-mix(in srgb, var(--ui-wash-base) 6%, transparent);
+  color: var(--ui-text-soft);
 }
 .btn:disabled {
   opacity: 0.6;

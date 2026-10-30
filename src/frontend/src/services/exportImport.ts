@@ -2,6 +2,8 @@
 // or moving to a new server. Scoped to game data only, not screenshots/
 // saves, see backend/src/api/routes/export_import.py.
 
+import { invalidateGameList } from "./games";
+
 export interface ImportResult {
   created: number;
   skipped: number;
@@ -41,6 +43,7 @@ export async function fetchBackupStatus(): Promise<BackupStatus> {
 }
 
 export async function importLibrary(games: unknown[]): Promise<ImportResult> {
+  invalidateGameList();
   const response = await fetch("/api/import/library", {
     method: "POST",
     credentials: "include",

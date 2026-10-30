@@ -8,7 +8,8 @@ import AppDialog from "./components/AppDialog.vue";
 import { authChecked, currentUser } from "./state/auth";
 import { mediaUnread } from "./state/notifications";
 import { formatDocumentTitle, pageTitleOverride } from "./state/pageTitle";
-import { loadSharedPreferences } from "./state/preferences";
+import { loadSharedPreferences, preferences } from "./state/preferences";
+import { applySavedThemeColors } from "./state/themeColors";
 import {
   sidebarMode,
   sidebarWidth,
@@ -47,6 +48,23 @@ watch(
   },
   { immediate: true },
 );
+// Lists, Home's data and other caches live in memory for the whole visit, and
+// signing out and in does not reload the page. When a different account signs
+// in, start over so nothing of the last account's library is shown.
+let lastSignedIn: string | null = null;
+watch(
+  () => currentUser.value?.id ?? null,
+  (id) => {
+    if (!id) return;
+    if (lastSignedIn && lastSignedIn !== id) window.location.reload();
+    lastSignedIn = id;
+  },
+  { immediate: true },
+);
+// saved colours replace the cached ones once preferences arrive, and follow changes
+watch(() => preferences.value.theme_colors, applySavedThemeColors, {
+  deep: true,
+});
 const sidebarShown = computed(
   () =>
     route.path !== "/login" &&
@@ -140,13 +158,13 @@ const KEPT_ALIVE = [
   max-width: 520px;
   padding: 32px;
   text-align: center;
-  border: 1px solid #2a2a2a;
+  border: 1px solid var(--ui-border);
   border-radius: 14px;
-  background: #1a1a1a;
+  background: var(--ui-surface);
 }
 
 .startup-error h1 {
-  color: #fff;
+  color: var(--ui-heading);
   margin: 0 0 12px;
 }
 
@@ -155,7 +173,7 @@ const KEPT_ALIVE = [
 }
 
 .startup-detail {
-  color: #fca5a5;
+  color: var(--ui-error-text);
   font-size: 12px;
   word-break: break-word;
 }
@@ -165,7 +183,7 @@ const KEPT_ALIVE = [
   border: 0;
   border-radius: 8px;
   padding: 10px 16px;
-  background: #d68a34;
+  background: var(--ui-accent);
   color: #111;
   font-weight: 700;
   cursor: pointer;
@@ -176,8 +194,8 @@ const KEPT_ALIVE = [
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #0d0d0d;
-  color: #999;
+  background: var(--ui-bg);
+  color: var(--ui-dim-3);
   font-family: system-ui, sans-serif;
 }
 

@@ -40,11 +40,11 @@ withDefaults(
 .settings-section h2 {
   margin: 0 0 16px;
   font-size: 1rem;
-  color: #fff;
+  color: var(--ui-heading);
 }
 .coming-soon {
-  background: #111;
-  border: 1px dashed #3a3a3a;
+  background: var(--ui-bg-2);
+  border: 1px dashed var(--ui-border-strong);
   border-radius: 10px;
   padding: 32px;
   text-align: center;
@@ -53,15 +53,15 @@ withDefaults(
   align-items: center;
 }
 .coming-soon-icon {
-  color: #3a3a3a;
+  color: var(--ui-border-strong);
   margin-bottom: 14px;
 }
 .soon-badge {
   display: inline-block;
   font-size: 11px;
   font-weight: 700;
-  color: #999;
-  background: rgba(255, 255, 255, 0.06);
+  color: var(--ui-dim-3);
+  background: color-mix(in srgb, var(--ui-wash-base) 6%, transparent);
   padding: 3px 10px;
   border-radius: 999px;
   text-transform: uppercase;
@@ -70,7 +70,7 @@ withDefaults(
 }
 .coming-soon p {
   margin: 0 0 16px;
-  color: #999;
+  color: var(--ui-dim-3);
   font-size: 0.85rem;
   line-height: 1.6;
   max-width: 440px;
@@ -85,15 +85,15 @@ withDefaults(
   text-align: left;
 }
 .planned-list li {
-  color: #ccc;
+  color: var(--ui-text-soft);
   font-size: 0.82rem;
-  background: rgba(255, 255, 255, 0.04);
+  background: color-mix(in srgb, var(--ui-wash-base) 4%, transparent);
   border-radius: 6px;
   padding: 8px 14px;
   min-width: 260px;
 }
 .planned-list li::before {
   content: "→ ";
-  color: #d68a34;
+  color: var(--ui-accent);
 }
 </style>

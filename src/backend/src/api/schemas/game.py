@@ -217,6 +217,12 @@ class GameUpdate(BaseModel):
         return value
 
 
+class GameBulkDelete(BaseModel):
+    """Move many of the caller's games to the trash at once."""
+
+    game_ids: list[UUID] = Field(min_length=1, max_length=500)
+
+
 class GameBulkUpdate(BaseModel):
     """Apply the same field values to many games at once. Deliberately a
     narrower field set than GameUpdate — title/folder_location/notes/

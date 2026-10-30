@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, onMounted, watch } from "vue";
 import { useRouter } from "vue-router";
 import CollectionTile from "../components/CollectionTile.vue";
 import GameTopBar from "../components/GameTopBar.vue";
 import CollectionIndexHead from "../components/CollectionIndexHead.vue";
 import type { SegmentOption } from "../components/SegmentedTabs.vue";
-import { fetchGames } from "../services/games";
+import { getGames } from "../services/games";
 import type { Game } from "../types/game";
 import {
   smartCollections,
@@ -25,12 +25,14 @@ import {
   deleteCollectionFully,
 } from "../utils/collectionEdit";
 import { useConfirm } from "../state/dialog";
+import { preferences } from "../state/preferences";
+import { autoCollectionNames } from "../utils/autoCollections";
 import { useCardOrder, kindOptions as kindCounts } from "../utils/useCardOrder";
 
 const confirm = useConfirm();
 
 type SortBy = "custom" | "name" | "count";
-type KindFilter = "all" | "manual" | "smart";
+type KindFilter = "all" | "manual" | "smart" | "auto";
 
 const router = useRouter();
 
@@ -106,7 +108,7 @@ function onCreate(payload: CollectionFormPayload) {
 async function loadGames() {
   loading.value = true;
   try {
-    games.value = await fetchGames();
+    games.value = await getGames();
   } catch (err) {
     error.value = err instanceof Error ? err.message : "Could not load games";
   } finally {
@@ -122,6 +124,8 @@ interface CollectionSummary {
   isSmart?: boolean;
   // kept by the app (Favorites): can't be edited or deleted
   isSystem?: boolean;
+  // made by a sync (a series, or where the games came from), not by you
+  isAuto?: boolean;
   description: string | null;
   pinned: boolean;
   position: number;
@@ -149,6 +153,14 @@ function detailsOf(name: string) {
   };
 }
 
+const autoNames = computed(() => autoCollectionNames(games.value));
+// "tab": automatic collections have their own tab; "mixed": they sit with yours;
+// "hidden": they are not shown
+const autoMode = computed(() => preferences.value.collections_auto ?? "tab");
+watch(autoMode, (mode) => {
+  if (mode !== "tab" && kindFilter.value === "auto") kindFilter.value = "all";
+});
+
 const collectionSummaries = computed<CollectionSummary[]>(() => {
   const map = new Map<string, Game[]>();
   for (const g of games.value) {
@@ -174,7 +186,12 @@ const collectionSummaries = computed<CollectionSummary[]>(() => {
             ...list.slice(pickedIndex + 1),
           ]
         : list;
-    return { name, games: orderedGames, ...detailsOf(name) };
+    return {
+      name,
+      games: orderedGames,
+      isAuto: autoNames.value.has(name),
+      ...detailsOf(name),
+    };
   });
   const smart = smartCollections.value.map((rule) => ({
     name: rule.name,
@@ -200,9 +217,21 @@ const collectionSummaries = computed<CollectionSummary[]>(() => {
   return [...manual, ...smart, ...system];
 });
 
+// the collections the current choice of tab and setting leaves in view
+const visibleSummaries = computed(() => {
+  const all = collectionSummaries.value;
+  if (autoMode.value === "mixed") return all;
+  if (autoMode.value === "tab" && kindFilter.value === "auto")
+    return all.filter((c) => c.isAuto);
+  return all.filter((c) => !c.isAuto);
+});
+const autoCount = computed(
+  () => collectionSummaries.value.filter((c) => c.isAuto).length,
+);
+
 const filteredCollections = computed(() => {
   const q = searchQuery.value.trim().toLowerCase();
-  let result = collectionSummaries.value;
+  let result = visibleSummaries.value;
   if (kindFilter.value === "smart") result = result.filter((c) => c.isSmart);
   if (kindFilter.value === "manual") result = result.filter((c) => !c.isSmart);
   if (q) {
@@ -303,12 +332,23 @@ async function deleteCollection(name: string) {
   await loadGames();
 }
 
-const smartCount = computed(
-  () => collectionSummaries.value.filter((c) => c.isSmart).length,
+// counts on the tabs are of yours, with the automatic ones on a tab of their own
+const mine = computed(() =>
+  autoMode.value === "mixed"
+    ? collectionSummaries.value
+    : collectionSummaries.value.filter((c) => !c.isAuto),
 );
-const kindOptions = computed<SegmentOption[]>(() =>
-  kindCounts(collectionSummaries.value.length, smartCount.value),
-);
+const smartCount = computed(() => mine.value.filter((c) => c.isSmart).length);
+const kindOptions = computed<SegmentOption[]>(() => {
+  const options = kindCounts(mine.value.length, smartCount.value);
+  if (autoMode.value === "tab" && autoCount.value > 0)
+    options.push({
+      value: "auto",
+      label: "Franchises",
+      count: autoCount.value,
+    });
+  return options;
+});
 const filtering = computed(
   () => searchQuery.value.trim() !== "" || kindFilter.value !== "all",
 );

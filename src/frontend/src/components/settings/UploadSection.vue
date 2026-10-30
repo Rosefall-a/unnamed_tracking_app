@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, nextTick } from "vue";
 import { fetchUploadLimits } from "../../services/settings";
-import { fetchGames } from "../../services/games";
+import { getGames } from "../../services/games";
 import type { Game } from "../../types/game";
 import UploadDropzone from "../UploadDropzone.vue";
 import {
@@ -38,7 +38,7 @@ onMounted(async () => {
 const games = ref<Game[]>([]);
 onMounted(async () => {
   try {
-    games.value = await fetchGames();
+    games.value = await getGames();
   } catch {
     // game picker just stays empty; assign still shows an error if attempted
   }
@@ -698,9 +698,9 @@ async function restoreItem(item: TrashedInboxItem) {
 .settings-section h2 {
   margin: 0 0 8px;
   padding-left: 12px;
-  border-left: 3px solid #d68a34;
+  border-left: 3px solid var(--ui-accent);
   font-size: 1rem;
-  color: #fff;
+  color: var(--ui-heading);
 }
 .settings-section h3 {
   margin: 0;
@@ -708,41 +708,41 @@ async function restoreItem(item: TrashedInboxItem) {
   align-items: center;
   gap: 8px;
   font-size: 0.9rem;
-  color: #fff;
+  color: var(--ui-heading);
 }
 .count-pill {
-  background: rgba(255, 255, 255, 0.08);
-  color: #999;
+  background: color-mix(in srgb, var(--ui-wash-base) 8%, transparent);
+  color: var(--ui-dim-3);
   font-size: 11px;
   font-weight: 700;
   padding: 2px 8px;
   border-radius: 999px;
 }
 .section-hint {
-  color: #999;
+  color: var(--ui-dim-3);
   font-size: 0.82rem;
   line-height: 1.6;
   margin: 0 0 16px;
 }
 .settings-divider {
   height: 1px;
-  background: #2a2a2a;
+  background: var(--ui-border);
   margin: 20px 0;
 }
 .form-error {
-  color: #fca5a5;
+  color: var(--ui-error-text);
   font-size: 13px;
-  background: rgba(220, 38, 38, 0.1);
-  border: 1px solid rgba(220, 38, 38, 0.3);
+  background: color-mix(in srgb, var(--ui-danger) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ui-danger) 30%, transparent);
   border-radius: 8px;
   padding: 8px 10px;
   margin-top: 10px;
 }
 .form-success {
-  color: #86efac;
+  color: var(--ui-good-text);
   font-size: 13px;
-  background: rgba(34, 197, 94, 0.1);
-  border: 1px solid rgba(34, 197, 94, 0.3);
+  background: color-mix(in srgb, var(--ui-success) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ui-success) 30%, transparent);
   border-radius: 8px;
   padding: 8px 10px;
   margin-top: 10px;
@@ -760,8 +760,8 @@ async function restoreItem(item: TrashedInboxItem) {
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
-  background: rgba(214, 138, 52, 0.06);
-  border: 1px solid rgba(214, 138, 52, 0.25);
+  background: color-mix(in srgb, var(--ui-accent) 6%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ui-accent) 25%, transparent);
   border-radius: 10px;
   padding: 10px 12px;
   margin-bottom: 14px;
@@ -769,7 +769,7 @@ async function restoreItem(item: TrashedInboxItem) {
 .assign-count {
   font-size: 0.82rem;
   font-weight: 700;
-  color: #d68a34;
+  color: var(--ui-accent);
   white-space: nowrap;
 }
 
@@ -785,10 +785,10 @@ async function restoreItem(item: TrashedInboxItem) {
   gap: 10px;
   width: 100%;
   box-sizing: border-box;
-  background: #111;
-  border: 1px solid #3a3a3a;
+  background: var(--ui-bg-2);
+  border: 1px solid var(--ui-border-strong);
   border-radius: 8px;
-  color: #fff;
+  color: var(--ui-heading);
   padding: 8px 12px;
   font: inherit;
   font-size: 0.84rem;
@@ -808,7 +808,7 @@ async function restoreItem(item: TrashedInboxItem) {
   flex-shrink: 0;
 }
 .game-picker-icon {
-  color: #777;
+  color: var(--ui-faint-2);
   flex-shrink: 0;
 }
 .game-picker-label {
@@ -819,7 +819,7 @@ async function restoreItem(item: TrashedInboxItem) {
   white-space: nowrap;
 }
 .game-picker-caret {
-  color: #777;
+  color: var(--ui-faint-2);
   flex-shrink: 0;
 }
 .game-picker-menu {
@@ -828,20 +828,21 @@ async function restoreItem(item: TrashedInboxItem) {
   left: 0;
   right: 0;
   min-width: 280px;
-  background: #1a1a1a;
-  border: 1px solid #333;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border-strong);
   border-radius: 10px;
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 16px 40px
+    color-mix(in srgb, var(--ui-scrim-base) 50%, transparent);
   z-index: 30;
   padding: 8px;
 }
 .game-picker-search {
   width: 100%;
   box-sizing: border-box;
-  background: #111;
-  border: 1px solid #333;
+  background: var(--ui-bg-2);
+  border: 1px solid var(--ui-border-strong);
   border-radius: 7px;
-  color: #fff;
+  color: var(--ui-heading);
   padding: 8px 10px;
   font: inherit;
   font-size: 0.82rem;
@@ -849,7 +850,7 @@ async function restoreItem(item: TrashedInboxItem) {
 }
 .game-picker-search:focus {
   outline: none;
-  border-color: #d68a34;
+  border-color: var(--ui-accent);
 }
 .game-picker-list {
   max-height: 260px;
@@ -870,10 +871,10 @@ async function restoreItem(item: TrashedInboxItem) {
   text-align: left;
 }
 .game-picker-option:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--ui-wash-base) 6%, transparent);
 }
 .game-picker-option.active {
-  background: rgba(214, 138, 52, 0.16);
+  background: var(--ui-accent-soft);
 }
 .game-picker-option-cover {
   width: 30px;
@@ -885,7 +886,7 @@ async function restoreItem(item: TrashedInboxItem) {
   flex-shrink: 0;
 }
 .game-picker-option-cover.placeholder {
-  background: #262626;
+  background: var(--ui-surface-3);
 }
 .game-picker-option-text {
   display: flex;
@@ -895,24 +896,24 @@ async function restoreItem(item: TrashedInboxItem) {
 }
 .game-picker-option-title {
   font-size: 0.84rem;
-  color: #eee;
+  color: var(--ui-text-soft);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .game-picker-option-platform {
   font-size: 0.7rem;
-  color: #777;
+  color: var(--ui-faint-2);
 }
 .game-picker-empty {
   margin: 0;
   padding: 10px 8px;
-  color: #777;
+  color: var(--ui-faint-2);
   font-size: 0.82rem;
 }
 
 .primary-button {
-  background: #d68a34;
+  background: var(--ui-accent);
   color: #111;
   border: none;
   border-radius: 8px;
@@ -936,26 +937,26 @@ async function restoreItem(item: TrashedInboxItem) {
   cursor: pointer;
 }
 .secondary-button {
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
+  background: color-mix(in srgb, var(--ui-wash-base) 8%, transparent);
+  color: var(--ui-heading);
 }
 .secondary-button:hover {
-  background: rgba(255, 255, 255, 0.14);
+  background: color-mix(in srgb, var(--ui-wash-base) 14%, transparent);
 }
 .danger-button {
-  background: rgba(220, 38, 38, 0.18);
-  color: #fca5a5;
+  background: color-mix(in srgb, var(--ui-danger) 18%, transparent);
+  color: var(--ui-error-text);
 }
 .danger-button:hover {
-  background: rgba(220, 38, 38, 0.28);
+  background: color-mix(in srgb, var(--ui-danger) 28%, transparent);
 }
 .danger-icon-button {
   display: flex;
   align-items: center;
   gap: 6px;
-  background: rgba(220, 38, 38, 0.12);
-  border: 1px solid rgba(220, 38, 38, 0.3);
-  color: #fca5a5;
+  background: color-mix(in srgb, var(--ui-danger) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ui-danger) 30%, transparent);
+  color: var(--ui-error-text);
   border-radius: 8px;
   padding: 8px 14px;
   font-weight: 600;
@@ -964,7 +965,7 @@ async function restoreItem(item: TrashedInboxItem) {
   white-space: nowrap;
 }
 .danger-icon-button:hover:not(:disabled) {
-  background: rgba(220, 38, 38, 0.2);
+  background: color-mix(in srgb, var(--ui-danger) 20%, transparent);
 }
 .danger-icon-button:disabled {
   opacity: 0.5;
@@ -974,9 +975,9 @@ async function restoreItem(item: TrashedInboxItem) {
   display: flex;
   align-items: center;
   gap: 6px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid #2a2a2a;
-  color: #ccc;
+  background: color-mix(in srgb, var(--ui-wash-base) 6%, transparent);
+  border: 1px solid var(--ui-border);
+  color: var(--ui-text-soft);
   border-radius: 8px;
   padding: 7px 12px;
   font: inherit;
@@ -985,8 +986,8 @@ async function restoreItem(item: TrashedInboxItem) {
   cursor: pointer;
 }
 .icon-text-button:hover:not(:disabled) {
-  border-color: #3a3a3a;
-  color: #fff;
+  border-color: var(--ui-border-strong);
+  color: var(--ui-heading);
 }
 .icon-text-button:disabled {
   opacity: 0.5;
@@ -997,7 +998,7 @@ async function restoreItem(item: TrashedInboxItem) {
   font-size: 0.76rem;
 }
 .empty-hint {
-  color: #777;
+  color: var(--ui-faint-2);
   font-size: 0.9rem;
 }
 .media-group {
@@ -1005,7 +1006,7 @@ async function restoreItem(item: TrashedInboxItem) {
 }
 .media-group-label {
   display: block;
-  color: #999;
+  color: var(--ui-dim-3);
   font-size: 0.78rem;
   text-transform: uppercase;
   letter-spacing: 0.03em;
@@ -1022,7 +1023,7 @@ async function restoreItem(item: TrashedInboxItem) {
   gap: 6px;
 }
 .media-date {
-  color: #777;
+  color: var(--ui-faint-2);
   font-size: 0.74rem;
   text-align: center;
 }
@@ -1033,7 +1034,7 @@ async function restoreItem(item: TrashedInboxItem) {
   overflow: hidden;
   cursor: pointer;
   border: 2px solid transparent;
-  background: #111;
+  background: var(--ui-bg-2);
   transition:
     border-color 0.15s ease,
     transform 0.15s ease;
@@ -1049,7 +1050,7 @@ async function restoreItem(item: TrashedInboxItem) {
   display: block;
 }
 .media-thumb.selected {
-  border-color: #d68a34;
+  border-color: var(--ui-accent);
 }
 .select-check {
   position: absolute;
@@ -1058,8 +1059,8 @@ async function restoreItem(item: TrashedInboxItem) {
   width: 24px;
   height: 24px;
   border-radius: 7px;
-  border: 2px solid rgba(255, 255, 255, 0.55);
-  background: rgba(0, 0, 0, 0.4);
+  border: 2px solid color-mix(in srgb, var(--ui-wash-base) 55%, transparent);
+  background: color-mix(in srgb, var(--ui-scrim-base) 40%, transparent);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1067,8 +1068,8 @@ async function restoreItem(item: TrashedInboxItem) {
   z-index: 1;
 }
 .select-check.checked {
-  background: #d68a34;
-  border-color: #d68a34;
+  background: var(--ui-accent);
+  border-color: var(--ui-accent);
 }
 .clip-badge {
   position: absolute;
@@ -1077,8 +1078,8 @@ async function restoreItem(item: TrashedInboxItem) {
   width: 26px;
   height: 26px;
   border-radius: 50%;
-  background: rgba(0, 0, 0, 0.6);
-  color: #fff;
+  background: color-mix(in srgb, var(--ui-scrim-base) 60%, transparent);
+  color: var(--ui-heading);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1091,20 +1092,20 @@ async function restoreItem(item: TrashedInboxItem) {
   height: 26px;
   border-radius: 50%;
   border: none;
-  background: rgba(0, 0, 0, 0.6);
-  color: #fff;
+  background: color-mix(in srgb, var(--ui-scrim-base) 60%, transparent);
+  color: var(--ui-heading);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 .remove-button:hover {
-  background: rgba(220, 38, 38, 0.75);
+  background: color-mix(in srgb, var(--ui-danger) 75%, transparent);
 }
 .trash-section {
   margin-top: 20px;
   padding-top: 16px;
-  border-top: 1px solid #2a2a2a;
+  border-top: 1px solid var(--ui-border);
 }
 .trash-toggle {
   display: flex;
@@ -1112,13 +1113,13 @@ async function restoreItem(item: TrashedInboxItem) {
   gap: 6px;
   background: none;
   border: none;
-  color: #999;
+  color: var(--ui-dim-3);
   font-size: 0.85rem;
   cursor: pointer;
   padding: 0;
 }
 .trash-toggle:hover {
-  color: #ccc;
+  color: var(--ui-text-soft);
 }
 .trash-toggle-caret {
   transition: transform 0.15s ease;
@@ -1139,46 +1140,47 @@ async function restoreItem(item: TrashedInboxItem) {
   align-items: center;
   gap: 10px;
   padding: 8px 12px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid #232323;
+  background: color-mix(in srgb, var(--ui-wash-base) 3%, transparent);
+  border: 1px solid var(--ui-surface-2);
   border-radius: 8px;
   font-size: 0.82rem;
 }
 .trash-name {
   flex: 1;
-  color: #ccc;
+  color: var(--ui-text-soft);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .trash-meta {
-  color: #777;
+  color: var(--ui-faint-2);
   font-size: 0.76rem;
 }
 .confirm-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.65);
+  background: color-mix(in srgb, var(--ui-scrim-base) 65%, transparent);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 60;
 }
 .confirm-dialog {
-  background: #1a1a1a;
-  border: 1px solid #2a2a2a;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
   border-radius: 12px;
   padding: 22px;
   width: 100%;
   max-width: 360px;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 24px 64px
+    color-mix(in srgb, var(--ui-scrim-base) 60%, transparent);
 }
 .confirm-dialog h3 {
   margin: 0 0 8px;
 }
 .confirm-dialog p {
   margin: 0 0 16px;
-  color: #aaa;
+  color: var(--ui-dim-3);
   font-size: 14px;
 }
 .confirm-actions {

@@ -102,17 +102,17 @@ function onBlur() {
   width: 100%;
   box-sizing: border-box;
   padding: 8px 12px;
-  border: 1px solid #2b2b2b;
+  border: 1px solid var(--ui-border);
   border-radius: 8px;
-  background: #151515;
-  color: #e5e5e5;
+  background: var(--ui-bg-2);
+  color: var(--ui-text-strong);
   font-size: 0.85rem;
 }
 .settings-search-input::placeholder {
-  color: #777;
+  color: var(--ui-faint-2);
 }
 .settings-search-input:focus {
-  border-color: #d68a34;
+  border-color: var(--ui-accent);
   outline: none;
 }
 .settings-search-results {
@@ -124,10 +124,11 @@ function onBlur() {
   margin: 0;
   padding: 4px;
   list-style: none;
-  border: 1px solid #2b2b2b;
+  border: 1px solid var(--ui-border);
   border-radius: 10px;
-  background: #1a1a1a;
-  box-shadow: 0 16px 32px rgba(0, 0, 0, 0.5);
+  background: var(--ui-surface);
+  box-shadow: 0 16px 32px
+    color-mix(in srgb, var(--ui-scrim-base) 50%, transparent);
 }
 .settings-search-results li {
   display: flex;
@@ -137,14 +138,14 @@ function onBlur() {
   padding: 8px 10px;
   border-radius: 6px;
   font-size: 0.85rem;
-  color: #e5e5e5;
+  color: var(--ui-text-strong);
   cursor: pointer;
 }
 .settings-search-results li.active {
-  background: rgba(214, 138, 52, 0.16);
+  background: var(--ui-accent-soft);
 }
 .settings-search-results li.none {
-  color: #888;
+  color: var(--ui-dim-2);
   cursor: default;
 }
 .result-group {
@@ -152,6 +153,6 @@ function onBlur() {
   font-size: 0.7rem;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: #777;
+  color: var(--ui-faint-2);
 }
 </style>

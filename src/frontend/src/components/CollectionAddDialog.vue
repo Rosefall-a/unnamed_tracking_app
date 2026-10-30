@@ -84,21 +84,21 @@ const emit = defineEmits<{
   border: none;
   border-radius: 8px;
   padding: 6px;
-  color: #ddd;
+  color: var(--ui-text-soft);
   text-align: left;
   font-family: inherit;
   cursor: pointer;
 }
 
 .add-row:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--ui-wash-base) 6%, transparent);
 }
 
 .add-thumb {
   width: 30px;
   height: 44px;
   border-radius: 4px;
-  background: #262626 center / cover;
+  background: var(--ui-surface-3) center / cover;
   flex-shrink: 0;
 }
 
@@ -112,13 +112,13 @@ const emit = defineEmits<{
 }
 
 .add-kind {
-  color: #666;
+  color: var(--ui-faint);
   font-size: 0.7rem;
   text-transform: uppercase;
 }
 
 .add-plus {
-  color: #d68a34;
+  color: var(--ui-accent);
   font-weight: 800;
   font-size: 1.1rem;
   width: 20px;

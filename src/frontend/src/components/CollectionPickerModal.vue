@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
-import { fetchGames, addGameToCollection } from "../services/games";
+import { getGames, addGameToCollection } from "../services/games";
+import { preferences } from "../state/preferences";
+import { autoCollectionNames } from "../utils/autoCollections";
 import type { Game } from "../types/game";
 
 const props = defineProps<{
@@ -20,9 +22,12 @@ const allNames = ref<string[]>([]);
 
 onMounted(async () => {
   try {
-    const games = await fetchGames();
+    const games = await getGames();
     const set = new Set<string>();
     games.forEach((g) => g.collections.forEach((c) => set.add(c)));
+    // the ones a sync made are left out unless they are set to sit with yours
+    if (preferences.value.collections_auto !== "mixed")
+      for (const name of autoCollectionNames(games)) set.delete(name);
     try {
       const raw = localStorage.getItem("manualCollections");
       const manual: string[] = raw ? JSON.parse(raw) : [];
@@ -144,22 +149,23 @@ function createAndAdd() {
 .picker-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.65);
+  background: color-mix(in srgb, var(--ui-scrim-base) 65%, transparent);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 70;
 }
 .picker-modal {
-  background: #1a1a1a;
-  border: 1px solid #2a2a2a;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
   border-radius: 12px;
   padding: 22px;
   width: 100%;
   max-width: 380px;
-  color: #fff;
+  color: var(--ui-heading);
   font-family: system-ui, sans-serif;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 24px 64px
+    color-mix(in srgb, var(--ui-scrim-base) 60%, transparent);
 }
 .picker-modal h3 {
   margin: 0 0 14px;
@@ -171,10 +177,10 @@ function createAndAdd() {
 .picker-input {
   width: 100%;
   box-sizing: border-box;
-  background: #111;
-  border: 1px solid #3a3a3a;
+  background: var(--ui-bg-2);
+  border: 1px solid var(--ui-border-strong);
   border-radius: 8px;
-  color: #fff;
+  color: var(--ui-heading);
   padding: 10px 12px;
   font: inherit;
   font-size: 14px;
@@ -182,10 +188,10 @@ function createAndAdd() {
 }
 .picker-input:focus {
   outline: none;
-  border-color: #d68a34;
+  border-color: var(--ui-accent);
 }
 .picker-error {
-  color: #fca5a5;
+  color: var(--ui-error-text);
   font-size: 13px;
   margin-bottom: 10px;
 }
@@ -200,7 +206,7 @@ function createAndAdd() {
 .picker-item {
   background: none;
   border: none;
-  color: #ddd;
+  color: var(--ui-text-soft);
   text-align: left;
   padding: 10px 12px;
   border-radius: 8px;
@@ -209,18 +215,18 @@ function createAndAdd() {
   transition: background 0.15s ease;
 }
 .picker-item:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.08);
+  background: color-mix(in srgb, var(--ui-wash-base) 8%, transparent);
 }
 .picker-item:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
 .picker-create {
-  color: #d68a34;
+  color: var(--ui-accent);
   font-weight: 600;
 }
 .picker-empty {
-  color: #777;
+  color: var(--ui-faint-2);
   font-size: 13px;
   margin: 0;
   padding: 6px 12px;
@@ -230,8 +236,8 @@ function createAndAdd() {
   justify-content: flex-end;
 }
 .secondary-button {
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
+  background: color-mix(in srgb, var(--ui-wash-base) 8%, transparent);
+  color: var(--ui-heading);
   border: none;
   border-radius: 8px;
   padding: 9px 18px;

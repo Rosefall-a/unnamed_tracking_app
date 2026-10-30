@@ -234,25 +234,25 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onEscape));
 /* The look is the media library's own quick-add, moved here unchanged so the
    Games library can use it too. */
 .modal-overlay {
-  --bg: #0d0d0d;
-  --surface: #1a1a1a;
-  --surface-2: #222222;
-  --border: #2b2b2b;
-  --border-soft: #202020;
-  --accent: #d68a34;
-  --accent-soft: rgba(214, 138, 52, 0.16);
-  --accent-line: rgba(214, 138, 52, 0.4);
-  --good: #6fbf73;
-  --good-soft: rgba(111, 191, 115, 0.16);
-  --hold: #7ba7d9;
-  --hold-soft: rgba(123, 167, 217, 0.16);
-  --dropped: #d96f6f;
-  --dropped-soft: rgba(217, 111, 111, 0.16);
+  --bg: var(--ui-bg);
+  --surface: var(--ui-surface);
+  --surface-2: var(--ui-surface-2);
+  --border: var(--ui-border);
+  --border-soft: var(--ui-border-soft);
+  --accent: var(--ui-accent);
+  --accent-soft: var(--ui-accent-soft);
+  --accent-line: var(--ui-accent-line);
+  --good: var(--ui-good);
+  --good-soft: color-mix(in srgb, var(--ui-good) 16%, transparent);
+  --hold: var(--ui-info);
+  --hold-soft: color-mix(in srgb, var(--ui-info) 16%, transparent);
+  --dropped: var(--ui-danger-muted);
+  --dropped-soft: color-mix(in srgb, var(--ui-danger-muted) 16%, transparent);
   --plan: #9d8cd9;
   --plan-soft: rgba(157, 140, 217, 0.16);
   --live: #e5484d;
-  --text: #f2f2f2;
-  --text-dim: #9c9c9c;
+  --text: var(--ui-text);
+  --text-dim: var(--ui-dim);
   --text-faint: #666;
   font-family: system-ui, sans-serif;
   color: var(--text);
@@ -270,13 +270,13 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onEscape));
   text-align: center;
 }
 .empty-state.error {
-  color: #e57373;
+  color: var(--ui-error);
 }
 .modal-overlay {
   position: fixed;
   inset: 0;
   z-index: var(--ui-z-modal);
-  background: rgba(0, 0, 0, 0.6);
+  background: color-mix(in srgb, var(--ui-scrim-base) 60%, transparent);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -289,7 +289,8 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onEscape));
   border: 1px solid var(--border);
   border-radius: var(--ui-radius-dialog);
   padding: 22px;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 24px 64px
+    color-mix(in srgb, var(--ui-scrim-base) 60%, transparent);
 }
 .modal-card h3 {
   margin: 0 0 4px;
@@ -322,7 +323,7 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onEscape));
 .btn-solid {
   background: var(--accent);
   border: none;
-  color: #14100a;
+  color: var(--ui-on-accent);
   border-radius: 8px;
   padding: 0 16px;
   height: 36px;
@@ -476,7 +477,8 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onEscape));
   background-repeat: no-repeat;
   background-position: center;
   background-color: var(--surface);
-  box-shadow: 0 8px 18px -6px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 8px 18px -6px
+    color-mix(in srgb, var(--ui-scrim-base) 60%, transparent);
 }
 .qa-art-initial {
   display: flex;
@@ -515,7 +517,7 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onEscape));
 .qa-add-btn {
   background: var(--accent);
   border: none;
-  color: #14100a;
+  color: var(--ui-on-accent);
   border-radius: 8px;
   padding: 0 18px;
   height: 40px;
@@ -546,7 +548,8 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onEscape));
   background-position: center;
   background-color: var(--surface);
   flex-shrink: 0;
-  box-shadow: 0 10px 22px -8px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 10px 22px -8px
+    color-mix(in srgb, var(--ui-scrim-base) 60%, transparent);
 }
 .qa-form-titles .qa-result-english {
   font-size: 1.05rem;

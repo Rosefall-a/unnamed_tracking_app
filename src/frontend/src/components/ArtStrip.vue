@@ -92,20 +92,20 @@ onBeforeUnmount(() => {
   width: 34px;
   height: 34px;
   margin-top: -17px;
-  border: 1px solid #2b2b2b;
+  border: 1px solid var(--ui-border);
   border-radius: 50%;
-  background: rgba(13, 13, 13, 0.88);
-  color: #f0f0f0;
+  background: color-mix(in srgb, var(--ui-bg) 88%, transparent);
+  color: var(--ui-text);
   font-size: 1.4rem;
   line-height: 1;
   cursor: pointer;
 }
 .strip-arrow:hover {
-  border-color: #d68a34;
-  color: #d68a34;
+  border-color: var(--ui-accent);
+  color: var(--ui-accent);
 }
 .strip-arrow:focus-visible {
-  outline: 2px solid #d68a34;
+  outline: 2px solid var(--ui-accent);
   outline-offset: 2px;
 }
 .strip-arrow.left {

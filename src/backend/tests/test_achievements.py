@@ -672,3 +672,55 @@ def test_no_playtime_leaves_a_backlog_game_alone():
     game = _game(GameStatus.BACKLOG)
     assert not library_sync._advance_status(game, 5, 0, 0)
     assert game.status == GameStatus.BACKLOG
+
+
+async def test_feed_lists_latest_and_rarest_unlocks_with_their_game(scratch_user):
+    def row(ext, name, unlocked, at, percent, hidden=False):
+        return {
+            "external_id": ext,
+            "name": name,
+            "description": "Secret detail" if hidden else "Detail",
+            "icon_url": None,
+            "unlocked": unlocked,
+            "unlocked_at": at,
+            "hidden": hidden,
+            "global_percent": percent,
+        }
+
+    game_id = await _game_with(
+        scratch_user,
+        "Steam",
+        [
+            row("a", "Old and common", True, 1_600_000_000, 80.0),
+            row("b", "New and rare", True, 1_700_000_000, 1.5),
+            row("c", "Still locked", False, None, 0.1),
+        ],
+    )
+    async with SessionLocal() as db:
+        feed = await games.get_achievements_feed(10, db, scratch_user)
+    assert [a["name"] for a in feed["recent"]] == ["New and rare", "Old and common"]
+    assert [a["name"] for a in feed["rarest"]] == ["New and rare", "Old and common"]
+    assert feed["recent"][0]["game_id"] == str(game_id)
+    assert feed["recent"][0]["game_title"] == "Hidden Test"
+
+
+async def test_feed_does_not_leak_a_hidden_description(scratch_user):
+    await _game_with(
+        scratch_user,
+        "Steam",
+        [
+            {
+                "external_id": "s",
+                "name": "Secret",
+                "description": "The spoiler",
+                "icon_url": None,
+                "unlocked": True,
+                "unlocked_at": 1_700_000_000,
+                "hidden": True,
+                "global_percent": 3.0,
+            }
+        ],
+    )
+    async with SessionLocal() as db:
+        feed = await games.get_achievements_feed(10, db, scratch_user)
+    assert feed["recent"][0]["description"] is None

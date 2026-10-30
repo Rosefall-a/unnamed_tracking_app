@@ -160,22 +160,22 @@ async function run(action: () => Promise<GameMatch>) {
   align-items: center;
   justify-content: center;
   padding: 16px;
-  background: rgba(0, 0, 0, 0.7);
+  background: color-mix(in srgb, var(--ui-scrim-base) 70%, transparent);
 }
 .dup-dialog {
   width: min(560px, 100%);
   max-height: 92vh;
   overflow-y: auto;
   padding: 24px;
-  border: 1px solid #2b2b2b;
+  border: 1px solid var(--ui-border);
   border-radius: 14px;
-  background: #1a1a1a;
-  color: #e5e5e5;
+  background: var(--ui-surface);
+  color: var(--ui-text-strong);
 }
 .dup-dialog h2 {
   margin: 0 0 6px;
   font-size: 1.15rem;
-  color: #fff;
+  color: var(--ui-heading);
 }
 .dup-lead {
   margin: 0 0 18px;
@@ -184,15 +184,15 @@ async function run(action: () => Promise<GameMatch>) {
   color: #b5b5b5;
 }
 .dup-lead strong {
-  color: #fff;
+  color: var(--ui-heading);
 }
 .dup-compare {
   display: grid;
   grid-template-columns: minmax(84px, 0.8fr) 1fr 1fr;
   align-items: center;
-  border: 1px solid #2b2b2b;
+  border: 1px solid var(--ui-border);
   border-radius: 10px;
-  background: #111;
+  background: var(--ui-bg-2);
   overflow: hidden;
 }
 .dup-head {
@@ -203,10 +203,10 @@ async function run(action: () => Promise<GameMatch>) {
   min-width: 0;
   padding: 14px 8px 12px;
   text-align: center;
-  border-bottom: 1px solid #2b2b2b;
+  border-bottom: 1px solid var(--ui-border);
 }
 .dup-corner {
-  border-bottom: 1px solid #2b2b2b;
+  border-bottom: 1px solid var(--ui-border);
   align-self: stretch;
 }
 .dup-tag {
@@ -214,42 +214,43 @@ async function run(action: () => Promise<GameMatch>) {
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: #d68a34;
+  color: var(--ui-accent);
 }
 .dup-cover {
   width: 60px;
   aspect-ratio: 2 / 3;
   border-radius: 6px;
-  background: #222 center / cover no-repeat;
-  box-shadow: 0 8px 18px -6px rgba(0, 0, 0, 0.6);
+  background: var(--ui-surface-2) center / cover no-repeat;
+  box-shadow: 0 8px 18px -6px
+    color-mix(in srgb, var(--ui-scrim-base) 60%, transparent);
 }
 .dup-title {
   max-width: 100%;
   font-size: 0.85rem;
   font-weight: 600;
-  color: #fff;
+  color: var(--ui-heading);
   overflow-wrap: anywhere;
 }
 .dup-label,
 .dup-value {
   padding: 9px 12px;
   font-size: 0.8rem;
-  border-bottom: 1px solid #1c1c1c;
+  border-bottom: 1px solid var(--ui-surface);
   align-self: stretch;
   display: flex;
   align-items: center;
 }
 .dup-label {
-  color: #8a8a8a;
+  color: var(--ui-dim-2);
 }
 .dup-value {
   justify-content: center;
   text-align: center;
-  color: #e5e5e5;
+  color: var(--ui-text-strong);
   font-variant-numeric: tabular-nums;
 }
 .dup-value.empty {
-  color: #4a4a4a;
+  color: var(--ui-border-hover);
 }
 .dup-compare > :nth-last-child(-n + 3) {
   border-bottom: 0;
@@ -273,28 +274,28 @@ async function run(action: () => Promise<GameMatch>) {
   align-items: center;
   gap: 8px;
   padding: 8px 14px;
-  border: 1px solid #2b2b2b;
+  border: 1px solid var(--ui-border);
   border-radius: 8px;
   font-size: 0.84rem;
   cursor: pointer;
 }
 .dup-choice label.on {
-  border-color: #d68a34;
-  background: rgba(214, 138, 52, 0.12);
+  border-color: var(--ui-accent);
+  background: color-mix(in srgb, var(--ui-accent) 12%, transparent);
 }
 .dup-choice input {
-  accent-color: #d68a34;
+  accent-color: var(--ui-accent);
 }
 .dup-note {
   margin: 12px 0 0;
   font-size: 0.78rem;
   line-height: 1.5;
-  color: #8a8a8a;
+  color: var(--ui-dim-2);
 }
 .dup-error {
   margin: 12px 0 0;
   font-size: 0.82rem;
-  color: #f87171;
+  color: var(--ui-danger-bright);
 }
 .dup-actions {
   display: flex;
@@ -314,24 +315,24 @@ async function run(action: () => Promise<GameMatch>) {
   margin-right: auto;
   border: 0;
   background: none;
-  color: #8a8a8a;
+  color: var(--ui-dim-2);
 }
 .dup-secondary {
-  border: 1px solid #3a3a3a;
+  border: 1px solid var(--ui-border-strong);
   background: transparent;
-  color: #e5e5e5;
+  color: var(--ui-text-strong);
 }
 .dup-primary {
-  border: 1px solid #d68a34;
-  background: #d68a34;
-  color: #0d0d0d;
+  border: 1px solid var(--ui-accent);
+  background: var(--ui-accent);
+  color: var(--ui-bg);
 }
 .dup-actions button:disabled {
   opacity: 0.6;
   cursor: default;
 }
 .dup-actions button:focus-visible {
-  outline: 2px solid #d68a34;
+  outline: 2px solid var(--ui-accent);
   outline-offset: 2px;
 }
 </style>

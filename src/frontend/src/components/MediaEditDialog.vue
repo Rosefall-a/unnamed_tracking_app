@@ -517,7 +517,7 @@ onBeforeUnmount(() => document.removeEventListener("keydown", onKey));
   justify-content: space-between;
   gap: 12px;
   padding: 18px 22px 14px;
-  border-bottom: 1px solid #262626;
+  border-bottom: 1px solid var(--ui-surface-3);
 }
 .med-head-text {
   min-width: 0;
@@ -532,7 +532,7 @@ onBeforeUnmount(() => document.removeEventListener("keydown", onKey));
 .med-head p {
   margin: 3px 0 0;
   font-size: 0.78rem;
-  color: #777;
+  color: var(--ui-faint-2);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -544,12 +544,12 @@ onBeforeUnmount(() => document.removeEventListener("keydown", onKey));
   border: none;
   border-radius: 8px;
   background: none;
-  color: #888;
+  color: var(--ui-dim-2);
   cursor: pointer;
 }
 .med-x:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
+  background: color-mix(in srgb, var(--ui-wash-base) 8%, transparent);
+  color: var(--ui-heading);
 }
 .med-body {
   flex: 1;
@@ -586,7 +586,7 @@ onBeforeUnmount(() => document.removeEventListener("keydown", onKey));
   margin: 14px;
 }
 .med-preview.doc {
-  background: rgba(214, 138, 52, 0.08);
+  background: color-mix(in srgb, var(--ui-accent) 8%, transparent);
   min-height: 150px;
 }
 .med-doc {
@@ -594,7 +594,7 @@ onBeforeUnmount(() => document.removeEventListener("keydown", onKey));
   flex-direction: column;
   align-items: center;
   gap: 8px;
-  color: #d68a34;
+  color: var(--ui-accent);
 }
 .med-doc strong {
   font-size: 0.82rem;
@@ -617,11 +617,11 @@ onBeforeUnmount(() => document.removeEventListener("keydown", onKey));
   gap: 12px;
 }
 .med-facts dt {
-  color: #777;
+  color: var(--ui-faint-2);
 }
 .med-facts dd {
   margin: 0;
-  color: #ddd;
+  color: var(--ui-text-soft);
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
@@ -642,7 +642,7 @@ onBeforeUnmount(() => document.removeEventListener("keydown", onKey));
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #d68a34;
+  color: var(--ui-accent);
 }
 .med-field {
   display: flex;
@@ -652,7 +652,7 @@ onBeforeUnmount(() => document.removeEventListener("keydown", onKey));
 .med-field > span {
   font-size: 0.74rem;
   font-weight: 700;
-  color: #9c9c9c;
+  color: var(--ui-dim);
 }
 .med-field input.ui-field,
 .med-field textarea {
@@ -673,14 +673,14 @@ onBeforeUnmount(() => document.removeEventListener("keydown", onKey));
 }
 .med-hint {
   font-size: 0.74rem;
-  color: #777;
+  color: var(--ui-faint-2);
 }
 .med-link {
   align-self: flex-start;
   background: none;
   border: none;
   padding: 0;
-  color: #d68a34;
+  color: var(--ui-accent);
   font: inherit;
   font-size: 0.78rem;
   font-weight: 700;
@@ -695,12 +695,12 @@ onBeforeUnmount(() => document.removeEventListener("keydown", onKey));
   align-items: flex-start;
   gap: 8px;
   font-size: 0.76rem;
-  color: #888;
+  color: var(--ui-dim-2);
   cursor: pointer;
 }
 .med-check input {
   margin-top: 2px;
-  accent-color: #d68a34;
+  accent-color: var(--ui-accent);
 }
 .med-tags {
   display: flex;
@@ -719,11 +719,11 @@ onBeforeUnmount(() => document.removeEventListener("keydown", onKey));
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  background: rgba(255, 255, 255, 0.09);
+  background: color-mix(in srgb, var(--ui-wash-base) 9%, transparent);
   border-radius: 999px;
   padding: 2px 4px 2px 10px;
   font-size: 0.76rem;
-  color: #ddd;
+  color: var(--ui-text-soft);
 }
 .med-tag button {
   width: 16px;
@@ -731,14 +731,14 @@ onBeforeUnmount(() => document.removeEventListener("keydown", onKey));
   border: none;
   border-radius: 50%;
   background: none;
-  color: #999;
+  color: var(--ui-dim-3);
   font-size: 0.6rem;
   cursor: pointer;
   padding: 0;
 }
 .med-tag button:hover {
-  background: rgba(255, 255, 255, 0.15);
-  color: #fff;
+  background: color-mix(in srgb, var(--ui-wash-base) 15%, transparent);
+  color: var(--ui-heading);
 }
 .med-tags input {
   flex: 1;
@@ -755,8 +755,8 @@ onBeforeUnmount(() => document.removeEventListener("keydown", onKey));
   align-items: center;
   gap: 8px;
   padding: 14px 22px;
-  border-top: 1px solid #262626;
-  background: var(--ui-popover, #171717);
+  border-top: 1px solid var(--ui-surface-3);
+  background: var(--ui-popover, var(--ui-popover));
 }
 .med-spacer {
   flex: 1;

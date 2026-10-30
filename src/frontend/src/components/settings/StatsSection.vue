@@ -2,7 +2,7 @@
 import { ref, computed, onMounted } from "vue";
 import { fetchStatsOverview } from "../../services/stats";
 import type { StatsOverview } from "../../services/stats";
-import { fetchGames } from "../../services/games";
+import { getGames } from "../../services/games";
 import type { Game } from "../../types/game";
 import SegmentedControl from "./SegmentedControl.vue";
 
@@ -28,7 +28,7 @@ onMounted(async () => {
 const libraryForBurnDown = ref<Game[]>([]);
 onMounted(async () => {
   try {
-    libraryForBurnDown.value = await fetchGames();
+    libraryForBurnDown.value = await getGames();
   } catch {
     libraryForBurnDown.value = [];
   }
@@ -466,21 +466,21 @@ const formatBreakdown = computed(() => stats.value?.format_breakdown ?? []);
 .settings-section h2 {
   margin: 0 0 8px;
   padding-left: 12px;
-  border-left: 3px solid #d68a34;
+  border-left: 3px solid var(--ui-accent);
   font-size: 1rem;
-  color: #fff;
+  color: var(--ui-heading);
 }
 .section-hint {
-  color: #999;
+  color: var(--ui-dim-3);
   font-size: 0.82rem;
   line-height: 1.6;
   margin: 0 0 20px;
 }
 .form-error {
-  color: #fca5a5;
+  color: var(--ui-error-text);
   font-size: 13px;
-  background: rgba(220, 38, 38, 0.1);
-  border: 1px solid rgba(220, 38, 38, 0.3);
+  background: color-mix(in srgb, var(--ui-danger) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ui-danger) 30%, transparent);
   border-radius: 8px;
   padding: 8px 10px;
 }
@@ -491,8 +491,8 @@ const formatBreakdown = computed(() => stats.value?.format_breakdown ?? []);
   margin-bottom: 28px;
 }
 .tile {
-  background: #111;
-  border: 1px solid #2a2a2a;
+  background: var(--ui-bg-2);
+  border: 1px solid var(--ui-border);
   border-radius: 10px;
   padding: 16px;
   display: flex;
@@ -503,8 +503,8 @@ const formatBreakdown = computed(() => stats.value?.format_breakdown ?? []);
   display: flex;
   align-items: center;
   gap: 18px;
-  background: rgba(214, 138, 52, 0.06);
-  border: 1px solid rgba(214, 138, 52, 0.25);
+  background: color-mix(in srgb, var(--ui-accent) 6%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ui-accent) 25%, transparent);
   border-radius: 10px;
   padding: 16px 20px;
   margin-bottom: 28px;
@@ -512,7 +512,7 @@ const formatBreakdown = computed(() => stats.value?.format_breakdown ?? []);
 .burn-down-count {
   font-size: 2.2rem;
   font-weight: 700;
-  color: #d68a34;
+  color: var(--ui-accent);
   flex-shrink: 0;
 }
 .burn-down-body {
@@ -521,22 +521,22 @@ const formatBreakdown = computed(() => stats.value?.format_breakdown ?? []);
   gap: 2px;
 }
 .burn-down-title {
-  color: #fff;
+  color: var(--ui-heading);
   font-size: 13.5px;
   font-weight: 600;
 }
 .burn-down-estimate {
-  color: #999;
+  color: var(--ui-dim-3);
   font-size: 12.5px;
 }
 .tile-value {
   font-size: 1.4rem;
   font-weight: 700;
-  color: #d68a34;
+  color: var(--ui-accent);
 }
 .tile-label {
   font-size: 0.78rem;
-  color: #999;
+  color: var(--ui-dim-3);
 }
 .breakdown-block {
   margin-bottom: 26px;
@@ -544,7 +544,7 @@ const formatBreakdown = computed(() => stats.value?.format_breakdown ?? []);
 .breakdown-block h3 {
   margin: 0 0 12px;
   font-size: 0.9rem;
-  color: #fff;
+  color: var(--ui-heading);
 }
 .breakdown-header {
   display: flex;
@@ -556,7 +556,7 @@ const formatBreakdown = computed(() => stats.value?.format_breakdown ?? []);
   margin: 0;
 }
 .empty-hint {
-  color: #777;
+  color: var(--ui-faint-2);
   font-size: 0.82rem;
 }
 .bar-chart {
@@ -578,10 +578,10 @@ const formatBreakdown = computed(() => stats.value?.format_breakdown ?? []);
   margin: -3px -6px;
 }
 .bar-row-link:hover {
-  background: rgba(214, 138, 52, 0.1);
+  background: color-mix(in srgb, var(--ui-accent) 10%, transparent);
 }
 .bar-row-link:hover .bar-label {
-  color: #d68a34;
+  color: var(--ui-accent);
 }
 .plain-list-link {
   display: flex;
@@ -591,7 +591,7 @@ const formatBreakdown = computed(() => stats.value?.format_breakdown ?? []);
   text-decoration: none;
 }
 .bar-label {
-  color: #ccc;
+  color: var(--ui-text-soft);
   font-size: 0.8rem;
   text-transform: capitalize;
   overflow: hidden;
@@ -599,19 +599,19 @@ const formatBreakdown = computed(() => stats.value?.format_breakdown ?? []);
   white-space: nowrap;
 }
 .bar-track {
-  background: #111;
+  background: var(--ui-bg-2);
   border-radius: 6px;
   height: 16px;
   overflow: hidden;
 }
 .bar-fill {
-  background: #d68a34;
+  background: var(--ui-accent);
   height: 100%;
   border-radius: 6px;
   transition: width 0.3s ease;
 }
 .bar-count {
-  color: #999;
+  color: var(--ui-dim-3);
   font-size: 0.78rem;
   text-align: right;
 }
@@ -630,8 +630,8 @@ const formatBreakdown = computed(() => stats.value?.format_breakdown ?? []);
   justify-content: space-between;
   gap: 12px;
   font-size: 0.82rem;
-  color: #ccc;
-  background: #111;
+  color: var(--ui-text-soft);
+  background: var(--ui-bg-2);
   border-radius: 6px;
   padding: 8px 12px;
 }
@@ -646,7 +646,7 @@ const formatBreakdown = computed(() => stats.value?.format_breakdown ?? []);
 }
 .ranked-value {
   flex-shrink: 0;
-  color: #d68a34;
+  color: var(--ui-accent);
   font-weight: 600;
 }
 </style>

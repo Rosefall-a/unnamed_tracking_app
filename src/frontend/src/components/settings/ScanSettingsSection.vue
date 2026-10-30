@@ -327,12 +327,12 @@ async function save() {
 .settings-section h2 {
   margin: 0 0 8px;
   padding-left: 12px;
-  border-left: 3px solid #d68a34;
+  border-left: 3px solid var(--ui-accent);
   font-size: 1rem;
-  color: #fff;
+  color: var(--ui-heading);
 }
 .section-hint {
-  color: #999;
+  color: var(--ui-dim-3);
   font-size: 0.82rem;
   line-height: 1.6;
   margin: 0 0 16px;
@@ -352,11 +352,11 @@ async function save() {
 .field-label {
   display: block;
   font-size: 0.85rem;
-  color: #ccc;
+  color: var(--ui-text-soft);
   margin-bottom: 4px;
 }
 .field-sublabel {
-  color: #777;
+  color: var(--ui-faint-2);
   font-size: 0.76rem;
   line-height: 1.5;
   margin: 0 0 12px;
@@ -373,11 +373,11 @@ async function save() {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: #111;
-  border: 1px solid #3a3a3a;
+  background: var(--ui-bg-2);
+  border: 1px solid var(--ui-border-strong);
   border-radius: 8px;
   padding: 10px 12px;
-  color: #fff;
+  color: var(--ui-heading);
   font-size: 0.85rem;
 }
 .provider-item-label {
@@ -386,7 +386,7 @@ async function save() {
   gap: 2px;
 }
 .provider-last-used {
-  color: #777;
+  color: var(--ui-faint-2);
   font-size: 0.7rem;
   font-weight: 400;
 }
@@ -395,10 +395,10 @@ async function save() {
   gap: 4px;
 }
 .provider-arrows button {
-  background: rgba(255, 255, 255, 0.08);
+  background: color-mix(in srgb, var(--ui-wash-base) 8%, transparent);
   border: none;
   border-radius: 6px;
-  color: #fff;
+  color: var(--ui-heading);
   width: 26px;
   height: 26px;
   cursor: pointer;
@@ -413,25 +413,25 @@ async function save() {
   gap: 10px;
 }
 .form-error {
-  color: #fca5a5;
+  color: var(--ui-error-text);
   font-size: 13px;
-  background: rgba(220, 38, 38, 0.1);
-  border: 1px solid rgba(220, 38, 38, 0.3);
+  background: color-mix(in srgb, var(--ui-danger) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ui-danger) 30%, transparent);
   border-radius: 8px;
   padding: 8px 10px;
   margin-bottom: 14px;
 }
 .form-success {
-  color: #86efac;
+  color: var(--ui-good-text);
   font-size: 13px;
-  background: rgba(34, 197, 94, 0.1);
-  border: 1px solid rgba(34, 197, 94, 0.3);
+  background: color-mix(in srgb, var(--ui-success) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ui-success) 30%, transparent);
   border-radius: 8px;
   padding: 8px 10px;
   margin-bottom: 14px;
 }
 .primary-button {
-  background: #d68a34;
+  background: var(--ui-accent);
   color: #111;
   border: none;
   border-radius: 8px;

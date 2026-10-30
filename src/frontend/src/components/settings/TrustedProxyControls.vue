@@ -120,10 +120,10 @@ onMounted(async () => {
 }
 
 .proxy-controls input {
-  background: #111;
-  border: 1px solid #3a3a3a;
+  background: var(--ui-bg-2);
+  border: 1px solid var(--ui-border-strong);
   border-radius: 8px;
-  color: #fff;
+  color: var(--ui-heading);
   padding: 10px;
   font: inherit;
 }
@@ -138,20 +138,20 @@ onMounted(async () => {
 }
 
 .proxy-controls button {
-  background: #252525;
-  color: #ddd;
-  border: 1px solid #3a3a3a;
+  background: var(--ui-surface-3);
+  color: var(--ui-text-soft);
+  border: 1px solid var(--ui-border-strong);
   border-radius: 8px;
   padding: 8px 10px;
   cursor: pointer;
 }
 
 .proxy-controls small {
-  color: #777;
+  color: var(--ui-faint-2);
   font-size: 11px;
 }
 
 .proxy-controls .error {
-  color: #fca5a5;
+  color: var(--ui-error-text);
 }
 </style>

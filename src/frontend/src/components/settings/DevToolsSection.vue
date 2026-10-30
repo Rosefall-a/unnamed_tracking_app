@@ -335,12 +335,12 @@ async function sendRequest() {
 .settings-section h2 {
   margin: 0 0 8px;
   padding-left: 12px;
-  border-left: 3px solid #d68a34;
+  border-left: 3px solid var(--ui-accent);
   font-size: 1rem;
-  color: #fff;
+  color: var(--ui-heading);
 }
 .hint {
-  color: #888;
+  color: var(--ui-dim-2);
   font-size: 0.85rem;
   line-height: 1.5;
   margin: 0 0 18px;
@@ -350,16 +350,16 @@ async function sendRequest() {
   flex-direction: column;
   gap: 6px;
   font-size: 0.85rem;
-  color: #ccc;
+  color: var(--ui-text-soft);
   margin-bottom: 12px;
 }
 .field select,
 .field input,
 .field textarea {
-  background: #111;
-  border: 1px solid #3a3a3a;
+  background: var(--ui-bg-2);
+  border: 1px solid var(--ui-border-strong);
   border-radius: 8px;
-  color: #fff;
+  color: var(--ui-heading);
   padding: 10px 12px;
   font: inherit;
   resize: vertical;
@@ -368,10 +368,10 @@ async function sendRequest() {
 .field input:focus,
 .field textarea:focus {
   outline: none;
-  border-color: #d68a34;
+  border-color: var(--ui-accent);
 }
 .primary-button {
-  background: #d68a34;
+  background: var(--ui-accent);
   color: #111;
   border: none;
   border-radius: 8px;
@@ -389,7 +389,7 @@ async function sendRequest() {
   border: none;
   padding: 0;
   margin-top: 12px;
-  color: #d68a34;
+  color: var(--ui-accent);
   font-size: 0.82rem;
   cursor: pointer;
 }
@@ -398,19 +398,19 @@ async function sendRequest() {
 }
 .form-error {
   margin-top: 12px;
-  color: #fca5a5;
+  color: var(--ui-error-text);
   font-size: 13px;
-  background: rgba(220, 38, 38, 0.1);
-  border: 1px solid rgba(220, 38, 38, 0.3);
+  background: color-mix(in srgb, var(--ui-danger) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ui-danger) 30%, transparent);
   border-radius: 8px;
   padding: 8px 10px;
 }
 .form-success {
   margin-top: 12px;
-  color: #86efac;
+  color: var(--ui-good-text);
   font-size: 13px;
-  background: rgba(34, 197, 94, 0.1);
-  border: 1px solid rgba(34, 197, 94, 0.3);
+  background: color-mix(in srgb, var(--ui-success) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ui-success) 30%, transparent);
   border-radius: 8px;
   padding: 8px 10px;
 }
@@ -426,16 +426,16 @@ async function sendRequest() {
   gap: 12px;
   font-size: 0.85rem;
   padding: 8px 12px;
-  background: #111;
-  border: 1px solid #2a2a2a;
+  background: var(--ui-bg-2);
+  border: 1px solid var(--ui-border);
   border-radius: 8px;
 }
 .info-row dt {
-  color: #888;
+  color: var(--ui-dim-2);
 }
 .info-row dd {
   margin: 0;
-  color: #eee;
+  color: var(--ui-text-soft);
   font-weight: 600;
   text-align: right;
 }
@@ -447,27 +447,27 @@ async function sendRequest() {
 .method-select {
   flex-shrink: 0;
   width: 100px;
-  background: #111;
-  border: 1px solid #3a3a3a;
+  background: var(--ui-bg-2);
+  border: 1px solid var(--ui-border-strong);
   border-radius: 8px;
-  color: #fff;
+  color: var(--ui-heading);
   padding: 10px 12px;
   font: inherit;
 }
 .path-input {
   flex: 1;
   min-width: 0;
-  background: #111;
-  border: 1px solid #3a3a3a;
+  background: var(--ui-bg-2);
+  border: 1px solid var(--ui-border-strong);
   border-radius: 8px;
-  color: #fff;
+  color: var(--ui-heading);
   padding: 10px 12px;
   font: inherit;
   font-family: ui-monospace, monospace;
 }
 .response {
   margin-top: 12px;
-  border: 1px solid #2a2a2a;
+  border: 1px solid var(--ui-border);
   border-radius: 8px;
   overflow: hidden;
 }
@@ -478,18 +478,18 @@ async function sendRequest() {
   font-family: ui-monospace, monospace;
 }
 .response-status.ok {
-  background: rgba(34, 197, 94, 0.12);
-  color: #86efac;
+  background: color-mix(in srgb, var(--ui-success) 12%, transparent);
+  color: var(--ui-good-text);
 }
 .response-status.err {
-  background: rgba(220, 38, 38, 0.12);
-  color: #fca5a5;
+  background: color-mix(in srgb, var(--ui-danger) 12%, transparent);
+  color: var(--ui-error-text);
 }
 .response-body {
   margin: 0;
   padding: 12px;
   background: #0c0c0c;
-  color: #ddd;
+  color: var(--ui-text-soft);
   font-family: ui-monospace, monospace;
   font-size: 0.78rem;
   line-height: 1.5;

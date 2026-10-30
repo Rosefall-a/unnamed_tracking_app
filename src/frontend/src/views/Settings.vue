@@ -6,6 +6,7 @@ import {
   onMounted,
   ref,
   watch,
+  defineAsyncComponent,
 } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { currentUser } from "../state/auth";
@@ -14,23 +15,58 @@ import SettingsNav from "../components/settings/SettingsNav.vue";
 import type { SettingsGroup } from "../components/settings/SettingsNav.vue";
 import SaveStatus from "../components/settings/SaveStatus.vue";
 import ProfileSection from "../components/settings/ProfileSection.vue";
-import InterfaceSection from "../components/settings/InterfaceSection.vue";
-import GamePageSection from "../components/settings/GamePageSection.vue";
-import AppearanceSection from "../components/settings/AppearanceSection.vue";
-import UploadSection from "../components/settings/UploadSection.vue";
-import LibrarySettings from "../components/settings/LibrarySettings.vue";
-import MetadataSettings from "../components/settings/MetadataSettings.vue";
-import AdminSettings from "../components/settings/AdminSettings.vue";
-import TasksSection from "../components/settings/TasksSection.vue";
-import ComingSoonSection from "../components/settings/ComingSoonSection.vue";
-import StatsSection from "../components/settings/StatsSection.vue";
-import ExportImportSection from "../components/settings/ExportImportSection.vue";
-import CalendarNotificationsSection from "../components/settings/CalendarNotificationsSection.vue";
-import KeyboardShortcutsSection from "../components/settings/KeyboardShortcutsSection.vue";
-import ConnectionsSection from "../components/settings/ConnectionsSection.vue";
-import AniListImportSection from "../components/settings/AniListImportSection.vue";
-import ApiKeysSection from "../components/settings/ApiKeysSection.vue";
-import PasswordPolicySection from "../components/settings/PasswordPolicySection.vue";
+// only the open section is downloaded
+const InterfaceSection = defineAsyncComponent(
+  () => import("../components/settings/InterfaceSection.vue"),
+);
+const GamePageSection = defineAsyncComponent(
+  () => import("../components/settings/GamePageSection.vue"),
+);
+const AppearanceSection = defineAsyncComponent(
+  () => import("../components/settings/AppearanceSection.vue"),
+);
+const UploadSection = defineAsyncComponent(
+  () => import("../components/settings/UploadSection.vue"),
+);
+const LibrarySettings = defineAsyncComponent(
+  () => import("../components/settings/LibrarySettings.vue"),
+);
+const MetadataSettings = defineAsyncComponent(
+  () => import("../components/settings/MetadataSettings.vue"),
+);
+const AdminSettings = defineAsyncComponent(
+  () => import("../components/settings/AdminSettings.vue"),
+);
+const TasksSection = defineAsyncComponent(
+  () => import("../components/settings/TasksSection.vue"),
+);
+const ComingSoonSection = defineAsyncComponent(
+  () => import("../components/settings/ComingSoonSection.vue"),
+);
+const StatsSection = defineAsyncComponent(
+  () => import("../components/settings/StatsSection.vue"),
+);
+const ExportImportSection = defineAsyncComponent(
+  () => import("../components/settings/ExportImportSection.vue"),
+);
+const CalendarNotificationsSection = defineAsyncComponent(
+  () => import("../components/settings/CalendarNotificationsSection.vue"),
+);
+const KeyboardShortcutsSection = defineAsyncComponent(
+  () => import("../components/settings/KeyboardShortcutsSection.vue"),
+);
+const ConnectionsSection = defineAsyncComponent(
+  () => import("../components/settings/ConnectionsSection.vue"),
+);
+const AniListImportSection = defineAsyncComponent(
+  () => import("../components/settings/AniListImportSection.vue"),
+);
+const ApiKeysSection = defineAsyncComponent(
+  () => import("../components/settings/ApiKeysSection.vue"),
+);
+const PasswordPolicySection = defineAsyncComponent(
+  () => import("../components/settings/PasswordPolicySection.vue"),
+);
 import AccountChip from "../components/AccountChip.vue";
 import SettingsSearch from "../components/settings/SettingsSearch.vue";
 import BackButton from "../components/BackButton.vue";
@@ -238,7 +274,7 @@ watch(activeSection, async () => {
 }
 .settings-layout {
   width: 100%;
-  color: #fff;
+  color: var(--ui-heading);
 }
 .settings-head {
   display: flex;
@@ -265,8 +301,8 @@ watch(activeSection, async () => {
   flex: 1;
   min-width: 0;
   scroll-margin-top: 64px;
-  background: #1a1a1a;
-  border: 1px solid #2a2a2a;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
   border-radius: 14px;
   padding: 32px;
 }

@@ -362,8 +362,8 @@ function daysLeft(purgeAt: number): number {
   font-size: 1.1rem;
 }
 .ga-count {
-  background: rgba(214, 138, 52, 0.16);
-  color: #d68a34;
+  background: var(--ui-accent-soft);
+  color: var(--ui-accent);
   font-size: 0.72rem;
   font-weight: 700;
   border-radius: 999px;
@@ -387,12 +387,12 @@ function daysLeft(purgeAt: number): number {
   color-scheme: dark;
 }
 .ga-select option {
-  background: #171717;
-  color: #f2f2f2;
+  background: var(--ui-popover);
+  color: var(--ui-text);
 }
 .ui-btn.on {
-  color: #d68a34;
-  border-color: rgba(214, 138, 52, 0.5);
+  color: var(--ui-accent);
+  border-color: color-mix(in srgb, var(--ui-accent) 50%, transparent);
 }
 .ga-bulk {
   display: flex;
@@ -401,14 +401,14 @@ function daysLeft(purgeAt: number): number {
   gap: 8px;
   margin-bottom: 16px;
   padding: 10px 12px;
-  background: #171717;
-  border: 1px solid rgba(214, 138, 52, 0.4);
+  background: var(--ui-popover);
+  border: 1px solid var(--ui-accent-line);
   border-radius: 12px;
 }
 .ga-bulk-count {
   font-size: 0.82rem;
   font-weight: 700;
-  color: #d68a34;
+  color: var(--ui-accent);
   margin-right: 4px;
 }
 .ga-bulk-sep {
@@ -429,14 +429,19 @@ function daysLeft(purgeAt: number): number {
 }
 .ga-skel {
   min-height: 150px;
-  border: 1px solid #262626;
+  border: 1px solid var(--ui-surface-3);
   border-radius: 12px;
-  background: linear-gradient(100deg, #181818 30%, #212121 50%, #181818 70%);
+  background: linear-gradient(
+    100deg,
+    var(--ui-popover) 30%,
+    var(--ui-surface-2) 50%,
+    var(--ui-popover) 70%
+  );
   background-size: 200% 100%;
   animation: shimmer 1.4s linear infinite;
 }
 .ga-hint {
-  color: #777;
+  color: var(--ui-faint-2);
   font-size: 14px;
 }
 .ga-body {
@@ -452,7 +457,7 @@ function daysLeft(purgeAt: number): number {
   font-size: 2rem;
   line-height: 1;
   font-weight: 300;
-  color: #d68a34;
+  color: var(--ui-accent);
 }
 .ga-add,
 .ga-empty {
@@ -463,10 +468,10 @@ function daysLeft(purgeAt: number): number {
   gap: 6px;
   padding: 20px;
   text-align: center;
-  background: rgba(255, 255, 255, 0.02);
-  border: 1.5px dashed #3a3a3a;
+  background: color-mix(in srgb, var(--ui-wash-base) 2%, transparent);
+  border: 1.5px dashed var(--ui-border-strong);
   border-radius: 12px;
-  color: #999;
+  color: var(--ui-dim-3);
   font-family: inherit;
   font-size: 0.8rem;
   cursor: pointer;
@@ -498,7 +503,7 @@ function daysLeft(purgeAt: number): number {
   flex-direction: column;
   gap: 5px;
   padding: 10px 12px 12px;
-  border-top: 1px dashed #2b2b2b;
+  border-top: 1px dashed var(--ui-border);
 }
 .ga-add-body strong {
   font-size: 0.84rem;
@@ -511,7 +516,7 @@ function daysLeft(purgeAt: number): number {
 }
 .ga-add strong,
 .ga-empty strong {
-  color: #f2f2f2;
+  color: var(--ui-text);
   font-size: 0.95rem;
 }
 .ga-empty .ga-plus {
@@ -519,12 +524,12 @@ function daysLeft(purgeAt: number): number {
 }
 .ga-add-sub {
   font-size: 0.74rem;
-  color: #777;
+  color: var(--ui-faint-2);
 }
 .ga-add:hover:not(:disabled),
 .ga-empty:hover:not(:disabled) {
-  border-color: #d68a34;
-  background: rgba(214, 138, 52, 0.06);
+  border-color: var(--ui-accent);
+  background: color-mix(in srgb, var(--ui-accent) 6%, transparent);
 }
 .ga-add:disabled,
 .ga-empty:disabled {
@@ -534,8 +539,8 @@ function daysLeft(purgeAt: number): number {
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  border: 2px solid #3a3a3a;
-  border-top-color: #d68a34;
+  border: 2px solid var(--ui-border-strong);
+  border-top-color: var(--ui-accent);
   animation: ga-rot 0.8s linear infinite;
 }
 @keyframes ga-rot {
@@ -547,7 +552,7 @@ function daysLeft(purgeAt: number): number {
   display: flex;
   align-items: center;
   gap: 12px;
-  color: #777;
+  color: var(--ui-faint-2);
   font-size: 0.85rem;
   padding: 24px 0;
 }
@@ -563,8 +568,8 @@ function daysLeft(purgeAt: number): number {
   display: flex;
   align-items: center;
   gap: 10px;
-  background: #151515;
-  border: 1px solid #262626;
+  background: var(--ui-bg-2);
+  border: 1px solid var(--ui-surface-3);
   border-radius: 8px;
   padding: 6px 10px;
   font-size: 0.8rem;
@@ -575,10 +580,10 @@ function daysLeft(purgeAt: number): number {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: #ccc;
+  color: var(--ui-text-soft);
 }
 .ga-trash-meta {
-  color: #777;
+  color: var(--ui-faint-2);
   font-size: 0.74rem;
 }
 .ga-drop {
@@ -590,13 +595,13 @@ function daysLeft(purgeAt: number): number {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  border: 2px dashed #d68a34;
+  border: 2px dashed var(--ui-accent);
   border-radius: 14px;
   background: rgba(20, 16, 10, 0.9);
   pointer-events: none;
 }
 .ga-drop strong {
-  color: #f2f2f2;
+  color: var(--ui-text);
   font-size: 1.05rem;
 }
 

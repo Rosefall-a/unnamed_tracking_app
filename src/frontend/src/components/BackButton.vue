@@ -56,11 +56,11 @@ const fixedLeft = computed(() => {
   height: 38px;
   flex-shrink: 0;
   border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px solid color-mix(in srgb, var(--ui-wash-base) 14%, transparent);
   background: rgba(20, 20, 20, 0.55);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
-  color: #fff;
+  color: var(--ui-heading);
   cursor: pointer;
   transition: background 0.15s ease;
 }

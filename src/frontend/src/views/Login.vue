@@ -249,7 +249,7 @@ function buttonStyle(provider: OidcLoginProvider) {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #121212;
+  background: var(--ui-bg-2);
   font-family: system-ui, sans-serif;
   position: relative;
   overflow: hidden;
@@ -261,7 +261,7 @@ function buttonStyle(provider: OidcLoginProvider) {
   height: 600px;
   background: radial-gradient(
     circle,
-    rgba(214, 138, 52, 0.18) 0%,
+    color-mix(in srgb, var(--ui-accent) 18%, transparent) 0%,
     transparent 70%
   );
   top: 50%;
@@ -275,10 +275,11 @@ function buttonStyle(provider: OidcLoginProvider) {
   max-width: 360px;
   background: rgba(26, 26, 26, 0.9);
   backdrop-filter: blur(12px);
-  border: 1px solid #2a2a2a;
+  border: 1px solid var(--ui-border);
   border-radius: 14px;
   padding: 32px;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 24px 64px
+    color-mix(in srgb, var(--ui-scrim-base) 50%, transparent);
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -294,12 +295,12 @@ function buttonStyle(provider: OidcLoginProvider) {
 }
 .login-brand h1 {
   margin: 0;
-  color: #fff;
+  color: var(--ui-heading);
   font-size: 1.4rem;
 }
 .login-subtitle {
   margin: -8px 0 4px;
-  color: #999;
+  color: var(--ui-dim-3);
   font-size: 13px;
   text-align: center;
 }
@@ -308,25 +309,25 @@ function buttonStyle(provider: OidcLoginProvider) {
   flex-direction: column;
   gap: 6px;
   font-size: 0.85rem;
-  color: #ccc;
+  color: var(--ui-text-soft);
 }
 .field input {
-  background: #111;
-  border: 1px solid #3a3a3a;
+  background: var(--ui-bg-2);
+  border: 1px solid var(--ui-border-strong);
   border-radius: 8px;
-  color: #fff;
+  color: var(--ui-heading);
   padding: 10px 12px;
   font: inherit;
 }
 .field input:focus {
   outline: none;
-  border-color: #d68a34;
+  border-color: var(--ui-accent);
 }
 .login-error {
-  color: #fca5a5;
+  color: var(--ui-error-text);
   font-size: 13px;
-  background: rgba(220, 38, 38, 0.1);
-  border: 1px solid rgba(220, 38, 38, 0.3);
+  background: color-mix(in srgb, var(--ui-danger) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ui-danger) 30%, transparent);
   border-radius: 8px;
   padding: 8px 10px;
 }
@@ -339,7 +340,7 @@ function buttonStyle(provider: OidcLoginProvider) {
   cursor: pointer;
 }
 .login-button {
-  background: #d68a34;
+  background: var(--ui-accent);
   color: #111;
 }
 .login-button:disabled,
@@ -348,9 +349,9 @@ function buttonStyle(provider: OidcLoginProvider) {
   cursor: not-allowed;
 }
 .oidc-button {
-  background: #2a2a2a;
-  color: #fff;
-  border: 1px solid #444;
+  background: var(--ui-border);
+  color: var(--ui-heading);
+  border: 1px solid var(--ui-border-hover);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -374,14 +375,14 @@ function buttonStyle(provider: OidcLoginProvider) {
   display: flex;
   align-items: center;
   gap: 10px;
-  color: #666;
+  color: var(--ui-faint);
   font-size: 12px;
 }
 .sso-divider::before,
 .sso-divider::after {
   content: "";
   height: 1px;
-  background: #333;
+  background: var(--ui-border-strong);
   flex: 1;
 }
 .sso-divider span {
@@ -399,31 +400,31 @@ function buttonStyle(provider: OidcLoginProvider) {
   height: 38px;
   border-radius: 10px;
   background: #242424;
-  border: 1px solid #3a3a3a;
+  border: 1px solid var(--ui-border-strong);
   display: grid;
   place-items: center;
-  color: #d68a34;
+  color: var(--ui-accent);
   font-size: 20px;
 }
 .sso-heading strong {
-  color: #fff;
+  color: var(--ui-heading);
   font-size: 15px;
 }
 .sso-heading p {
   margin: 3px 0 0;
-  color: #999;
+  color: var(--ui-dim-3);
   font-size: 12px;
 }
 .local-credentials {
   border-top: 1px solid #2f2f2f;
   padding-top: 14px;
-  color: #ccc;
+  color: var(--ui-text-soft);
 }
 .local-credentials summary {
   cursor: pointer;
   list-style: none;
   text-align: center;
-  color: #aaa;
+  color: var(--ui-dim-3);
   font-size: 13px;
   padding: 8px 0;
 }
@@ -434,7 +435,7 @@ function buttonStyle(provider: OidcLoginProvider) {
   content: "▸";
   display: inline-block;
   margin-right: 7px;
-  color: #d68a34;
+  color: var(--ui-accent);
   transition: transform 0.15s ease;
 }
 .local-credentials[open] summary::before {

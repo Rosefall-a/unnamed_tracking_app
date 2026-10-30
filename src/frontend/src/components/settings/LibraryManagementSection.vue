@@ -6,16 +6,15 @@ import {
   refreshGameAchievements,
   refreshGameMetadata,
   previewGameMetadataRefresh,
-  fetchGameTrash,
-  restoreGame,
 } from "../../services/games";
 import type {
   RefreshMetadataOptions,
   RefreshMetadataOutcome,
   RefreshMetadataResult,
   RefreshMetadataPreview,
-  TrashedGame,
 } from "../../services/games";
+import { fetchGameTrash, restoreGame } from "../../services/gameTrash";
+import type { TrashedGame } from "../../services/gameTrash";
 import type { Game } from "../../types/game";
 import ToggleButton from "./ToggleButton.vue";
 import {
@@ -613,19 +612,19 @@ async function restoreGameById(game: TrashedGame) {
 .settings-section h2 {
   margin: 0 0 8px;
   padding-left: 12px;
-  border-left: 3px solid #d68a34;
+  border-left: 3px solid var(--ui-accent);
   font-size: 1rem;
-  color: #fff;
+  color: var(--ui-heading);
 }
 .section-hint {
-  color: #999;
+  color: var(--ui-dim-3);
   font-size: 0.82rem;
   line-height: 1.6;
   margin: 0 0 16px;
 }
 .settings-divider {
   height: 1px;
-  background: #2a2a2a;
+  background: var(--ui-border);
   margin: 24px 0;
 }
 .refresh-options {
@@ -638,8 +637,8 @@ async function restoreGameById(game: TrashedGame) {
   color: #f0b458;
 }
 .secondary-button {
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
+  background: color-mix(in srgb, var(--ui-wash-base) 8%, transparent);
+  color: var(--ui-heading);
   border: none;
   border-radius: 8px;
   padding: 10px 18px;
@@ -647,17 +646,17 @@ async function restoreGameById(game: TrashedGame) {
   cursor: pointer;
 }
 .secondary-button:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.14);
+  background: color-mix(in srgb, var(--ui-wash-base) 14%, transparent);
 }
 .secondary-button:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
 .form-error {
-  color: #fca5a5;
+  color: var(--ui-error-text);
   font-size: 13px;
-  background: rgba(220, 38, 38, 0.1);
-  border: 1px solid rgba(220, 38, 38, 0.3);
+  background: color-mix(in srgb, var(--ui-danger) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ui-danger) 30%, transparent);
   border-radius: 8px;
   padding: 8px 10px;
   margin-top: 10px;
@@ -665,7 +664,7 @@ async function restoreGameById(game: TrashedGame) {
 .refresh-summary {
   margin-top: 14px;
   font-size: 0.82rem;
-  color: #ccc;
+  color: var(--ui-text-soft);
 }
 .refresh-summary p {
   margin: 0 0 8px;
@@ -679,35 +678,36 @@ async function restoreGameById(game: TrashedGame) {
   gap: 4px;
   max-height: 160px;
   overflow-y: auto;
-  color: #999;
+  color: var(--ui-dim-3);
   font-size: 0.78rem;
 }
 
 .confirm-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.65);
+  background: color-mix(in srgb, var(--ui-scrim-base) 65%, transparent);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 60;
 }
 .confirm-dialog {
-  background: #1a1a1a;
-  border: 1px solid #2a2a2a;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
   border-radius: 12px;
   padding: 22px;
   width: 100%;
   max-width: 360px;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 24px 64px
+    color-mix(in srgb, var(--ui-scrim-base) 60%, transparent);
 }
 .confirm-dialog h3 {
   margin: 0 0 8px;
-  color: #fff;
+  color: var(--ui-heading);
 }
 .confirm-dialog p {
   margin: 0 0 16px;
-  color: #aaa;
+  color: var(--ui-dim-3);
   font-size: 13.5px;
 }
 .confirm-actions {
@@ -732,26 +732,26 @@ async function restoreGameById(game: TrashedGame) {
   display: flex;
   justify-content: space-between;
   gap: 12px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid #232323;
+  background: color-mix(in srgb, var(--ui-wash-base) 3%, transparent);
+  border: 1px solid var(--ui-surface-2);
   border-radius: 8px;
   padding: 8px 10px;
   font-size: 12.5px;
 }
 .preview-change-title {
-  color: #fff;
+  color: var(--ui-heading);
   font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .preview-change-fields {
-  color: #d68a34;
+  color: var(--ui-accent);
   text-align: right;
   flex-shrink: 0;
 }
 .primary-button {
-  background: #d68a34;
+  background: var(--ui-accent);
   color: #111;
   border: none;
   border-radius: 8px;
@@ -764,7 +764,7 @@ async function restoreGameById(game: TrashedGame) {
   cursor: not-allowed;
 }
 .empty-hint {
-  color: #777;
+  color: var(--ui-faint-2);
   font-size: 0.82rem;
 }
 .trash-list {
@@ -780,20 +780,20 @@ async function restoreGameById(game: TrashedGame) {
   align-items: center;
   gap: 12px;
   padding: 8px 12px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid #232323;
+  background: color-mix(in srgb, var(--ui-wash-base) 3%, transparent);
+  border: 1px solid var(--ui-surface-2);
   border-radius: 8px;
   font-size: 0.82rem;
 }
 .trash-name {
   flex: 1;
-  color: #ccc;
+  color: var(--ui-text-soft);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .trash-meta {
-  color: #777;
+  color: var(--ui-faint-2);
   font-size: 0.76rem;
 }
 </style>

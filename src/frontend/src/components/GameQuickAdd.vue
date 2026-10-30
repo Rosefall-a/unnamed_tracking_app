@@ -258,7 +258,7 @@ async function add(result: GameResult) {
 }
 .qa-chip {
   padding: 1px 8px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px solid color-mix(in srgb, var(--ui-wash-base) 14%, transparent);
   border-radius: 999px;
   font-size: 0.68rem;
   font-weight: 600;

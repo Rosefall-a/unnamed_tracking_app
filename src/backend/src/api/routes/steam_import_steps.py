@@ -9,6 +9,7 @@ time it out, and a game that fails is left as it is instead of failing the rest.
 """
 
 import asyncio
+import logging
 from typing import Any
 from uuid import UUID
 
@@ -50,6 +51,7 @@ router = APIRouter(
 )
 
 _PLACEHOLDER = "Steam app "
+logger = logging.getLogger(__name__)
 
 
 class EnrichRequest(BaseModel):
@@ -175,6 +177,9 @@ async def import_wishlist(
             _add_source_tag_and_collection(game, "Steam")
             await db.flush()
             game_ids.append(str(game.id))
+        elif game.title.startswith(_PLACEHOLDER) and not game.locked_fields:
+            # added by an earlier import that stopped before naming it
+            game_ids.append(str(game.id))
     await db.commit()
     return {"enabled": True, "wishlisted": len(app_ids), "added": len(game_ids), "game_ids": game_ids}
 
@@ -203,7 +208,8 @@ async def enrich_games(
                 use_tags,
             )
             enriched += 1
-        except Exception:  # noqa: BLE001 - one game must not fail the others
+        except Exception:  # one game must not fail the others
+            logger.exception("Steam enrich failed for %s (app %s)", game.id, game.external_id)
             failed += 1
         await db.commit()
     # a wishlist game only gets its real name here, so this is when it can be

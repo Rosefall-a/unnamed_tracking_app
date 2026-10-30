@@ -12,6 +12,11 @@ export default defineConfig({
       // change events across the bind mount, so Vite's watcher never
       // fires without polling — HMR silently stops working otherwise.
       usePolling: true,
+      // the default 100ms poll kept a CPU core about a third busy while idle;
+      // half a second still feels instant after a save
+      interval: 500,
+      binaryInterval: 2000,
+      ignored: ["**/dist/**"],
     },
     proxy: {
       "/api": {

@@ -229,37 +229,37 @@ function submit() {
   flex-direction: column;
   gap: 3px;
   text-align: left;
-  background: #111;
-  border: 1px solid #333;
+  background: var(--ui-bg-2);
+  border: 1px solid var(--ui-border-strong);
   border-radius: 10px;
   padding: 10px 12px;
-  color: #ccc;
+  color: var(--ui-text-soft);
   font-family: inherit;
   cursor: pointer;
 }
 .kind-pick button strong {
   font-size: 0.86rem;
-  color: #fff;
+  color: var(--ui-heading);
 }
 .kind-pick button span {
   font-size: 0.72rem;
-  color: #9c9c9c;
+  color: var(--ui-dim);
 }
 .kind-pick button.active {
-  border-color: #d68a34;
-  background: rgba(214, 138, 52, 0.1);
+  border-color: var(--ui-accent);
+  background: color-mix(in srgb, var(--ui-accent) 10%, transparent);
 }
 .field {
   display: flex;
   flex-direction: column;
   gap: 6px;
   font-size: 0.82rem;
-  color: #ccc;
+  color: var(--ui-text-soft);
   margin-bottom: 14px;
   flex: 1;
 }
 .field small {
-  color: #666;
+  color: var(--ui-faint);
   font-size: 0.72rem;
 }
 .row {
@@ -279,7 +279,7 @@ function submit() {
   align-items: center;
   gap: 8px;
   font-size: 0.82rem;
-  color: #ccc;
+  color: var(--ui-text-soft);
   margin-bottom: 14px;
 }
 </style>

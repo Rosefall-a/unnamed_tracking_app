@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from "vue";
 import { useRouter } from "vue-router";
-import { fetchGames, searchNotes } from "../services/games";
+import { getGames, searchNotes } from "../services/games";
 import type { NoteSearchHit } from "../services/games";
 import type { Game } from "../types/game";
 import { isCommandPaletteOpen } from "../state/commandPalette";
@@ -23,7 +23,7 @@ const loaded = ref(false);
 async function ensureLoaded() {
   if (loaded.value) return;
   try {
-    gamesCache = await fetchGames();
+    gamesCache = await getGames();
   } catch {
     gamesCache = gamesCache ?? [];
   } finally {
@@ -287,7 +287,7 @@ const KIND_ICON: Record<Result["kind"], string> = {
 .palette-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.55);
+  background: color-mix(in srgb, var(--ui-scrim-base) 55%, transparent);
   display: flex;
   align-items: flex-start;
   justify-content: center;
@@ -297,10 +297,11 @@ const KIND_ICON: Record<Result["kind"], string> = {
 .palette {
   width: 560px;
   max-width: calc(100vw - 40px);
-  background: #1a1a1a;
-  border: 1px solid #2a2a2a;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
   border-radius: 12px;
-  box-shadow: 0 32px 80px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 32px 80px
+    color-mix(in srgb, var(--ui-scrim-base) 60%, transparent);
   overflow: hidden;
 }
 .palette-input {
@@ -308,8 +309,8 @@ const KIND_ICON: Record<Result["kind"], string> = {
   box-sizing: border-box;
   background: none;
   border: none;
-  border-bottom: 1px solid #2a2a2a;
-  color: #fff;
+  border-bottom: 1px solid var(--ui-border);
+  color: var(--ui-heading);
   padding: 16px 18px;
   font: inherit;
   font-size: 15px;
@@ -319,7 +320,7 @@ const KIND_ICON: Record<Result["kind"], string> = {
 }
 .palette-loading,
 .palette-empty {
-  color: #777;
+  color: var(--ui-faint-2);
   font-size: 13px;
   padding: 20px 18px;
 }
@@ -335,7 +336,7 @@ const KIND_ICON: Record<Result["kind"], string> = {
   width: 100%;
   background: none;
   border: none;
-  color: #eee;
+  color: var(--ui-text-soft);
   text-align: left;
   padding: 9px 10px;
   border-radius: 8px;
@@ -343,8 +344,8 @@ const KIND_ICON: Record<Result["kind"], string> = {
   font-size: 13.5px;
 }
 .palette-item.active {
-  background: rgba(214, 138, 52, 0.16);
-  color: #fff;
+  background: var(--ui-accent-soft);
+  color: var(--ui-heading);
 }
 .palette-item-icon {
   font-size: 14px;
@@ -359,29 +360,29 @@ const KIND_ICON: Record<Result["kind"], string> = {
   text-overflow: ellipsis;
 }
 .palette-item-sub {
-  color: #999;
+  color: var(--ui-dim-3);
   font-size: 11px;
   text-transform: capitalize;
   flex-shrink: 0;
 }
 .palette-item.active .palette-item-sub {
-  color: #d68a34;
+  color: var(--ui-accent);
 }
 .palette-footer {
   display: flex;
   gap: 16px;
   padding: 10px 16px;
-  border-top: 1px solid #2a2a2a;
-  color: #666;
+  border-top: 1px solid var(--ui-border);
+  color: var(--ui-faint);
   font-size: 11px;
 }
 .palette-footer kbd {
-  background: #111;
-  border: 1px solid #3a3a3a;
+  background: var(--ui-bg-2);
+  border: 1px solid var(--ui-border-strong);
   border-radius: 4px;
   padding: 1px 5px;
   font-family: ui-monospace, monospace;
-  color: #999;
+  color: var(--ui-dim-3);
   margin-right: 4px;
 }
 </style>

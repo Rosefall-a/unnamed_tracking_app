@@ -105,7 +105,7 @@ function normalizeStatus(raw: string): GameStatus {
   return raw.toLowerCase().replace(/_/g, " ") as GameStatus;
 }
 // inverse of normalizeStatus, 'on hold' -> 'ON_HOLD'
-function denormalizeStatus(status: GameStatus): string {
+export function denormalizeStatus(status: GameStatus): string {
   return status.toUpperCase().replace(/ /g, "_");
 }
 
@@ -206,6 +206,7 @@ export function mapBackendGame(raw: BackendGame): Game {
 // library already fetched and refresh quietly behind it.
 const gameCache = createEntityCache<Game>();
 export const peekGame = gameCache.peek;
+export const forgetGame = gameCache.remove;
 // Every game, if a full list has been fetched this visit, so the library can
 // draw at once and refresh behind it.
 export const peekAllGames = (): Game[] | null =>
@@ -229,31 +230,86 @@ function rememberGame(game: Game): Game {
 // comes back short, otherwise only the first 50 (the endpoint's default)
 // ever reached the library view once a synced library grew past that.
 const GAMES_PAGE_SIZE = 200;
+// How long a fetched list is trusted by getGames(). Edits made in this tab
+// update the cache directly; this only bounds changes made elsewhere (another
+// tab, a sync on the server) that nothing here was told about.
+const GAMES_LIST_MAX_AGE_MS = 30_000;
 
+let listFetchedAt = 0;
+let listInFlight: Promise<Game[]> | null = null;
+
+/** The next getGames() downloads again. Call after anything that changes many
+ * games on the server at once (bulk edit, an import, a library sync). */
+export function invalidateGameList(): void {
+  listFetchedAt = 0;
+}
+
+async function fetchGamePage(skip: number): Promise<Response> {
+  const response = await fetch(
+    `/api/game/list?skip=${skip}&limit=${GAMES_PAGE_SIZE}`,
+    { credentials: "include" },
+  );
+  if (!response.ok) {
+    throw new Error(
+      `Could not fetch games: ${response.status} ${response.statusText}`,
+    );
+  }
+  return response;
+}
+
+async function downloadGames(): Promise<Game[]> {
+  const first = await fetchGamePage(0);
+  const all: BackendGame[] = await first.json();
+  const total = Number(first.headers?.get("X-Total-Count"));
+  if (Number.isFinite(total) && total > all.length) {
+    // the total is known, so the remaining pages are fetched side by side
+    const skips: number[] = [];
+    for (let skip = GAMES_PAGE_SIZE; skip < total; skip += GAMES_PAGE_SIZE)
+      skips.push(skip);
+    const pages = await Promise.all(
+      skips.map(async (skip) => (await fetchGamePage(skip)).json()),
+    );
+    for (const page of pages as BackendGame[][]) all.push(...page);
+  } else if (all.length === GAMES_PAGE_SIZE) {
+    // an older backend without the header: page through until one is short
+    let skip = GAMES_PAGE_SIZE;
+    while (true) {
+      const page: BackendGame[] = await (await fetchGamePage(skip)).json();
+      all.push(...page);
+      if (page.length < GAMES_PAGE_SIZE) break;
+      skip += GAMES_PAGE_SIZE;
+    }
+  }
+  const games = all.map(mapBackendGame).map(rememberGame);
+  // a game deleted or merged away elsewhere must not linger in the cache
+  const live = new Set(games.map((g) => g.id));
+  for (const cached of gameCache.all())
+    if (!live.has(cached.id)) gameCache.remove(cached.id);
+  gameCache.markListLoaded();
+  listFetchedAt = Date.now();
+  return games;
+}
+
+/** Always downloads the full list (sharing one download between callers that
+ * ask at the same moment). Use getGames() unless it must be fresh. */
 export async function fetchGames(): Promise<Game[]> {
   if (import.meta.env.VITE_USE_MOCK_DATA === "true") {
     return mockGames;
   }
-  const all: BackendGame[] = [];
-  let skip = 0;
-  while (true) {
-    const response = await fetch(
-      `/api/game/list?skip=${skip}&limit=${GAMES_PAGE_SIZE}`,
-      { credentials: "include" },
-    );
-    if (!response.ok) {
-      throw new Error(
-        `Could not fetch games: ${response.status} ${response.statusText}`,
-      );
-    }
-    const page: BackendGame[] = await response.json();
-    all.push(...page);
-    if (page.length < GAMES_PAGE_SIZE) break;
-    skip += GAMES_PAGE_SIZE;
+  if (!listInFlight) {
+    listInFlight = downloadGames().finally(() => {
+      listInFlight = null;
+    });
   }
-  const games = all.map(mapBackendGame).map(rememberGame);
-  gameCache.markListLoaded();
-  return games;
+  return listInFlight;
+}
+
+/** The full list, reusing one fetched in the last 30 seconds. */
+export async function getGames(): Promise<Game[]> {
+  const cached = peekAllGames();
+  if (cached && Date.now() - listFetchedAt < GAMES_LIST_MAX_AGE_MS)
+    return cached;
+  return fetchGames();
 }
 
 interface BackendAchievement {
@@ -822,7 +878,7 @@ export async function createGame(input: NewGameInput): Promise<Game> {
   if (!response.ok) throw await failedRequest(response);
 
   const raw: BackendGame = await response.json();
-  return mapBackendGame(raw);
+  return rememberGame(mapBackendGame(raw));
 }
 export async function updateGame(
   id: string,
@@ -936,7 +992,7 @@ export async function updateGame(
   if (!response.ok) throw await failedRequest(response);
 
   const raw: BackendGame = await response.json();
-  return mapBackendGame(raw);
+  return rememberGame(mapBackendGame(raw));
 }
 
 export interface GameNoteListResponse {
@@ -1609,7 +1665,7 @@ export async function patchGame(
     body: JSON.stringify(body),
   });
   if (!response.ok) throw await failedRequest(response);
-  return mapBackendGame((await response.json()) as BackendGame);
+  return rememberGame(mapBackendGame((await response.json()) as BackendGame));
 }
 
 export async function attachGameAssetFromUrl(
@@ -1669,7 +1725,7 @@ export async function setRatings(
   });
   if (!response.ok) throw await failedRequest(response);
   const raw: BackendGame = await response.json();
-  return mapBackendGame(raw);
+  return rememberGame(mapBackendGame(raw));
 }
 
 export async function setFavorite(
@@ -1698,7 +1754,7 @@ export async function setFavorite(
   }
 
   const raw: BackendGame = await response.json();
-  return mapBackendGame(raw);
+  return rememberGame(mapBackendGame(raw));
 }
 
 export async function setResumeNote(
@@ -1727,7 +1783,7 @@ export async function setResumeNote(
   }
 
   const raw: BackendGame = await response.json();
-  return mapBackendGame(raw);
+  return rememberGame(mapBackendGame(raw));
 }
 
 export async function setPlaytimeSeconds(
@@ -1763,7 +1819,7 @@ export async function setPlaytimeSeconds(
   }
 
   const raw: BackendGame = await response.json();
-  return mapBackendGame(raw);
+  return rememberGame(mapBackendGame(raw));
 }
 
 export async function setStatus(
@@ -1792,70 +1848,12 @@ export async function setStatus(
   }
 
   const raw: BackendGame = await response.json();
-  return mapBackendGame(raw);
+  return rememberGame(mapBackendGame(raw));
 }
 
 // Deliberately narrower than NewGameInput/GameUpdate, title, folder,
 // notes, playtime, purchase info, and ratings are per-game by nature and
 // excluded so a bulk edit can't stamp one game's specifics onto many others.
-export interface BulkEditFields {
-  status?: GameStatus;
-  favorite?: boolean;
-  developer?: string | null;
-  publisher?: string | null;
-  series?: string | null;
-  ageRating?: string | null;
-  platform?: string | null;
-  priority?: string | null;
-  tags?: string[];
-  features?: string[];
-}
-
-export async function bulkUpdateGames(
-  gameIds: string[],
-  fields: BulkEditFields,
-): Promise<number> {
-  const payload: Record<string, unknown> = { game_ids: gameIds };
-  if (fields.status !== undefined)
-    payload.status = denormalizeStatus(fields.status);
-  if (fields.favorite !== undefined) payload.favorite = fields.favorite;
-  if (fields.developer !== undefined) payload.developer = fields.developer;
-  if (fields.publisher !== undefined) payload.publisher = fields.publisher;
-  if (fields.series !== undefined) payload.series = fields.series;
-  if (fields.ageRating !== undefined) payload.age_rating = fields.ageRating;
-  if (fields.platform !== undefined) payload.platform = fields.platform;
-  if (fields.priority !== undefined) payload.priority = fields.priority;
-  if (fields.tags !== undefined) payload.tags = fields.tags;
-  if (fields.features !== undefined) payload.features = fields.features;
-
-  if (import.meta.env.VITE_USE_MOCK_DATA === "true") {
-    let count = 0;
-    for (const game of mockGames) {
-      if (!gameIds.includes(game.id)) continue;
-      if (fields.status !== undefined) game.status = fields.status;
-      if (fields.favorite !== undefined) game.favorite = fields.favorite;
-      if (fields.developer !== undefined) game.developer = fields.developer;
-      if (fields.publisher !== undefined) game.publisher = fields.publisher;
-      if (fields.series !== undefined) game.series = fields.series;
-      if (fields.ageRating !== undefined) game.ageRating = fields.ageRating;
-      if (fields.tags !== undefined) game.tags = fields.tags;
-      if (fields.features !== undefined) game.features = fields.features;
-      count++;
-    }
-    return count;
-  }
-
-  const response = await fetch("/api/game/bulk-update", {
-    method: "PATCH",
-    credentials: "include",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  if (!response.ok) throw await failedRequest(response);
-  const result: { updated: number } = await response.json();
-  return result.updated;
-}
-
 // PATCHes `collections` alone rather than the whole game through updateGame,
 // so adding/removing a collection can't overwrite an edit made elsewhere in
 // the meantime.
@@ -1871,7 +1869,7 @@ async function patchCollections(
   });
   if (!response.ok) throw await failedRequest(response);
   const raw: BackendGame = await response.json();
-  return mapBackendGame(raw);
+  return rememberGame(mapBackendGame(raw));
 }
 
 export async function addGameToCollection(
@@ -1934,36 +1932,5 @@ export async function deleteGame(gameId: string): Promise<void> {
       `Could not delete game ${gameId}: ${response.status} ${response.statusText} ${message}`,
     );
   }
-}
-
-// deleteGame is a soft-delete (see the backend route), restorable for 7
-// days via these, same pattern as game archives/inbox media
-export interface TrashedGame {
-  id: string;
-  title: string;
-  deleted_at: number;
-  purge_at: number;
-}
-
-export async function fetchGameTrash(): Promise<TrashedGame[]> {
-  if (import.meta.env.VITE_USE_MOCK_DATA === "true") return [];
-  const response = await fetch("/api/game/trash", { credentials: "include" });
-  if (!response.ok)
-    throw new Error(
-      `Could not fetch game trash: ${response.status} ${response.statusText}`,
-    );
-  return await response.json();
-}
-
-export async function restoreGame(gameId: string): Promise<void> {
-  const response = await fetch(`/api/game/${gameId}/restore`, {
-    method: "POST",
-    credentials: "include",
-  });
-  if (!response.ok) {
-    const message = await response.text();
-    throw new Error(
-      `Could not restore game: ${response.status} ${response.statusText} ${message}`,
-    );
-  }
+  gameCache.remove(gameId);
 }

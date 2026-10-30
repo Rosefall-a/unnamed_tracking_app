@@ -67,7 +67,7 @@ defineEmits<{ "update:modelValue": ["view" | "upload"] }>();
   border: none;
   border-radius: 8px;
   padding: 9px 12px;
-  color: #999;
+  color: var(--ui-dim-3);
   font-size: 0.85rem;
   font-weight: 600;
   text-align: left;
@@ -77,11 +77,11 @@ defineEmits<{ "update:modelValue": ["view" | "upload"] }>();
     color 0.15s ease;
 }
 .vu-item:hover {
-  background: rgba(255, 255, 255, 0.06);
-  color: #fff;
+  background: color-mix(in srgb, var(--ui-wash-base) 6%, transparent);
+  color: var(--ui-heading);
 }
 .vu-item.active {
-  background: rgba(214, 138, 52, 0.16);
-  color: #d68a34;
+  background: var(--ui-accent-soft);
+  color: var(--ui-accent);
 }
 </style>

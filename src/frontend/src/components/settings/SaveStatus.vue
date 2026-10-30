@@ -31,9 +31,9 @@ const label = computed(() => {
   border-radius: 999px;
   font-size: 12.5px;
   font-weight: 600;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid #2a2a2a;
-  color: #aaa;
+  background: color-mix(in srgb, var(--ui-wash-base) 5%, transparent);
+  border: 1px solid var(--ui-border);
+  color: var(--ui-dim-3);
 }
 .dot {
   width: 7px;
@@ -42,21 +42,21 @@ const label = computed(() => {
   background: #888;
 }
 .save-status.saving .dot {
-  background: #d68a34;
+  background: var(--ui-accent);
   animation: pulse 1s ease-in-out infinite;
 }
 .save-status.saved {
-  color: #86efac;
+  color: var(--ui-good-text);
 }
 .save-status.saved .dot {
-  background: #4ade80;
+  background: var(--ui-success-bright);
 }
 .save-status.error {
-  color: #fca5a5;
-  border-color: rgba(220, 38, 38, 0.35);
+  color: var(--ui-error-text);
+  border-color: color-mix(in srgb, var(--ui-danger) 35%, transparent);
 }
 .save-status.error .dot {
-  background: #f87171;
+  background: var(--ui-danger-bright);
 }
 @keyframes pulse {
   50% {

@@ -1811,25 +1811,25 @@ defineExpose({ openQuickAdd });
 /* Ported 1:1 from the "Library Layouts" design mockup — same tokens,
    same component shapes. */
 .lib-root {
-  --bg: #0d0d0d;
-  --surface: #1a1a1a;
-  --surface-2: #222222;
-  --border: #2b2b2b;
-  --border-soft: #202020;
-  --accent: #d68a34;
-  --accent-soft: rgba(214, 138, 52, 0.16);
-  --accent-line: rgba(214, 138, 52, 0.4);
-  --good: #6fbf73;
-  --good-soft: rgba(111, 191, 115, 0.16);
-  --hold: #7ba7d9;
-  --hold-soft: rgba(123, 167, 217, 0.16);
-  --dropped: #d96f6f;
-  --dropped-soft: rgba(217, 111, 111, 0.16);
+  --bg: var(--ui-bg);
+  --surface: var(--ui-surface);
+  --surface-2: var(--ui-surface-2);
+  --border: var(--ui-border);
+  --border-soft: var(--ui-border-soft);
+  --accent: var(--ui-accent);
+  --accent-soft: var(--ui-accent-soft);
+  --accent-line: var(--ui-accent-line);
+  --good: var(--ui-good);
+  --good-soft: color-mix(in srgb, var(--ui-good) 16%, transparent);
+  --hold: var(--ui-info);
+  --hold-soft: color-mix(in srgb, var(--ui-info) 16%, transparent);
+  --dropped: var(--ui-danger-muted);
+  --dropped-soft: color-mix(in srgb, var(--ui-danger-muted) 16%, transparent);
   --plan: #9d8cd9;
   --plan-soft: rgba(157, 140, 217, 0.16);
   --live: #e5484d;
-  --text: #f2f2f2;
-  --text-dim: #9c9c9c;
+  --text: var(--ui-text);
+  --text-dim: var(--ui-dim);
   --text-faint: #666;
   min-height: 100vh;
   background: var(--bg);
@@ -1867,7 +1867,7 @@ defineExpose({ openQuickAdd });
 .add-btn {
   background: var(--accent);
   border: none;
-  color: #14100a;
+  color: var(--ui-on-accent);
   border-radius: 8px;
   padding: 0 18px;
   height: 38px;
@@ -2002,7 +2002,7 @@ defineExpose({ openQuickAdd });
 }
 .filter-btn .count {
   background: var(--accent);
-  color: #14100a;
+  color: var(--ui-on-accent);
   border-radius: 999px;
   font-size: 0.66rem;
   font-weight: 800;
@@ -2029,10 +2029,10 @@ defineExpose({ openQuickAdd });
 }
 .card-size-button:hover {
   color: var(--text);
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--ui-wash-base) 6%, transparent);
 }
 .card-size-button.active {
-  color: #14100a;
+  color: var(--ui-on-accent);
   background: var(--accent);
 }
 .filter-panel {
@@ -2159,7 +2159,7 @@ defineExpose({ openQuickAdd });
   text-align: center;
 }
 .empty-state.error {
-  color: #e57373;
+  color: var(--ui-error);
 }
 
 /* Solid-fill chips, same visual language as the app's own active-tab
@@ -2357,7 +2357,7 @@ defineExpose({ openQuickAdd });
 }
 .plus-btn:hover {
   background: var(--accent);
-  color: #14100a;
+  color: var(--ui-on-accent);
 }
 .plus-btn:disabled {
   opacity: 0.3;
@@ -2398,7 +2398,7 @@ defineExpose({ openQuickAdd });
   height: 26px;
   border-radius: 7px;
   background: rgba(10, 10, 10, 0.8);
-  border: 1.5px solid rgba(255, 255, 255, 0.45);
+  border: 1.5px solid color-mix(in srgb, var(--ui-wash-base) 45%, transparent);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2414,7 +2414,7 @@ defineExpose({ openQuickAdd });
 .select-checkbox.checked {
   background: var(--accent);
   border-color: var(--accent);
-  color: #14100a;
+  color: var(--ui-on-accent);
 }
 
 /* LIST */
@@ -2505,11 +2505,12 @@ defineExpose({ openQuickAdd });
   border-radius: 999px;
   background: var(--border-soft);
   overflow: hidden;
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.3);
+  box-shadow: inset 0 1px 2px
+    color-mix(in srgb, var(--ui-scrim-base) 30%, transparent);
 }
 .list-progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, var(--accent), #e8a552);
+  background: linear-gradient(90deg, var(--accent), var(--ui-accent-bright));
   border-radius: 999px;
 }
 .list-progress-label {
@@ -2599,7 +2600,8 @@ defineExpose({ openQuickAdd });
 }
 .shelf-card:hover .shelf-art-wrap {
   border-color: var(--border);
-  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 14px 30px
+    color-mix(in srgb, var(--ui-scrim-base) 45%, transparent);
 }
 /* Actions ride on the poster and only appear while the card is hovered
    or has keyboard focus, like the Games cards. */
@@ -2613,7 +2615,11 @@ defineExpose({ openQuickAdd });
   justify-content: flex-end;
   gap: 6px;
   padding: 26px 8px 8px;
-  background: linear-gradient(to top, rgba(0, 0, 0, 0.65), transparent);
+  background: linear-gradient(
+    to top,
+    color-mix(in srgb, var(--ui-scrim-base) 65%, transparent),
+    transparent
+  );
   opacity: 0;
   transform: translateY(6px);
   transition:
@@ -2632,11 +2638,11 @@ defineExpose({ openQuickAdd });
   height: 28px;
   padding: 0;
   border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.16);
+  border: 1px solid color-mix(in srgb, var(--ui-wash-base) 16%, transparent);
   background: rgba(20, 20, 20, 0.6);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
-  color: #fff;
+  color: var(--ui-heading);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2899,7 +2905,7 @@ defineExpose({ openQuickAdd });
   position: fixed;
   inset: 0;
   z-index: var(--ui-z-modal);
-  background: rgba(0, 0, 0, 0.6);
+  background: color-mix(in srgb, var(--ui-scrim-base) 60%, transparent);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2912,7 +2918,8 @@ defineExpose({ openQuickAdd });
   border: 1px solid var(--border);
   border-radius: var(--ui-radius-dialog);
   padding: 22px;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 24px 64px
+    color-mix(in srgb, var(--ui-scrim-base) 60%, transparent);
 }
 .modal-card h3 {
   margin: 0 0 4px;
@@ -2961,7 +2968,7 @@ defineExpose({ openQuickAdd });
 .btn-solid {
   background: var(--accent);
   border: none;
-  color: #14100a;
+  color: var(--ui-on-accent);
   border-radius: 8px;
   padding: 0 16px;
   height: 36px;
@@ -3035,7 +3042,8 @@ defineExpose({ openQuickAdd });
   background-position: center;
   background-color: var(--surface-2);
   flex-shrink: 0;
-  box-shadow: 0 12px 26px -10px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 12px 26px -10px
+    color-mix(in srgb, var(--ui-scrim-base) 60%, transparent);
 }
 .finish-body {
   flex: 1;

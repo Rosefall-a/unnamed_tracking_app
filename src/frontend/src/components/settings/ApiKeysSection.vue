@@ -183,7 +183,7 @@ onMounted(loadKeys);
 
 <style scoped>
 .section {
-  color: #fff;
+  color: var(--ui-heading);
 }
 
 .section-header {
@@ -202,17 +202,17 @@ h3 {
 
 p {
   margin: 0;
-  color: rgba(255, 255, 255, 0.68);
+  color: color-mix(in srgb, var(--ui-wash-base) 68%, transparent);
   line-height: 1.5;
 }
 
 .notice {
   margin-bottom: 24px;
   padding: 12px 14px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid color-mix(in srgb, var(--ui-wash-base) 10%, transparent);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.035);
-  color: rgba(255, 255, 255, 0.75);
+  background: color-mix(in srgb, var(--ui-wash-base) 3.5%, transparent);
+  color: color-mix(in srgb, var(--ui-wash-base) 75%, transparent);
   font-size: 0.9rem;
 }
 
@@ -238,8 +238,8 @@ input {
   padding: 10px 12px;
   border: 1px solid #383838;
   border-radius: 7px;
-  background: #111;
-  color: #fff;
+  background: var(--ui-bg-2);
+  color: var(--ui-heading);
   font: inherit;
 }
 
@@ -271,8 +271,8 @@ button:disabled {
 
 .secondary {
   margin-top: 12px;
-  background: rgba(255, 255, 255, 0.1);
-  color: #fff;
+  background: color-mix(in srgb, var(--ui-wash-base) 10%, transparent);
+  color: var(--ui-heading);
 }
 
 .danger {
@@ -284,9 +284,9 @@ button:disabled {
 .created-key {
   margin-bottom: 32px;
   padding: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px solid color-mix(in srgb, var(--ui-wash-base) 14%, transparent);
   border-radius: 9px;
-  background: rgba(255, 255, 255, 0.04);
+  background: color-mix(in srgb, var(--ui-wash-base) 4%, transparent);
 }
 
 .created-key :deep(.password-input-field) {
@@ -307,8 +307,8 @@ code {
   overflow-x: auto;
   padding: 12px;
   border-radius: 6px;
-  background: #0d0d0d;
-  color: #fff;
+  background: var(--ui-bg);
+  color: var(--ui-heading);
   font:
     0.85rem/1.5 ui-monospace,
     SFMono-Regular,
@@ -331,7 +331,7 @@ code {
 }
 
 .key-list {
-  border-top: 1px solid #2a2a2a;
+  border-top: 1px solid var(--ui-border);
 }
 
 .key-row {
@@ -340,7 +340,7 @@ code {
   justify-content: space-between;
   gap: 16px;
   padding: 14px 0;
-  border-bottom: 1px solid #2a2a2a;
+  border-bottom: 1px solid var(--ui-border);
 }
 
 .key-row strong,
@@ -350,7 +350,7 @@ code {
 
 .key-row span {
   margin-top: 4px;
-  color: rgba(255, 255, 255, 0.5);
+  color: color-mix(in srgb, var(--ui-wash-base) 50%, transparent);
   font-size: 0.82rem;
 }
 

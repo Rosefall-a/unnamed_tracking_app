@@ -348,6 +348,16 @@ def get_app_details(app_id: int, country: str = "us", currency: str = "USD") -> 
     """
     params: dict[str, str | int] = {"appids": app_id, "cc": country, "l": "en"}
     resp = SESSION.get(f"{BASE_URL}/appdetails", params=params, timeout=10)
+    # The store allows roughly 200 of these per five minutes, which a big
+    # import passes. Wait briefly and try again; waits stay short so one batch
+    # request never runs long, and a game still refused is retried by the
+    # next import (see helpers/steam_bare_games.py).
+    for wait in (5, 15):
+        if resp.status_code not in (429, 503):
+            break
+        retry_after = resp.headers.get("Retry-After", "")
+        time.sleep(min(int(retry_after), 15) if retry_after.isdigit() else wait)
+        resp = SESSION.get(f"{BASE_URL}/appdetails", params=params, timeout=10)
     resp.raise_for_status()
     payload = resp.json()
 

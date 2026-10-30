@@ -15,6 +15,7 @@ that flow yet.
 from __future__ import annotations
 
 import asyncio
+import logging
 import re
 import time
 from datetime import UTC, date, datetime
@@ -54,10 +55,11 @@ from src.features.metadata.games.steam_achievements import (
     SteamAchievementData,
     fetch_steam_achievements,
 )
-from src.features.metadata.games.steam_grid_db import SteamGridDBClient
 from src.helpers.game_art_download import download_asset as _download_asset
+from src.helpers.game_art_download import steamgriddb_key_art_url as _fetch_key_art_from_steamgriddb
 from src.helpers.game_art_download import steam_cdn_art_urls as _steam_cdn_art_urls
 from src.helpers.library_games import LibraryIndex
+from src.helpers.steam_bare_games import bare_steam_game_ids
 from src.helpers.library_games import get_or_create_game as _get_or_create_game
 from src.helpers.library_games import unique_folder_location as _unique_folder_location  # noqa: F401
 from src.helpers.save_game_asset import AssetKind
@@ -81,6 +83,8 @@ def _normalize_title(title: str) -> str:
     return _TITLE_NOISE.sub("", title).strip().lower()
 
 
+logger = logging.getLogger(__name__)
+
 _SYNC_CONCURRENCY = 5
 # the games.title column holds 150 characters; a longer name from a provider would
 # fail the insert, and with it the whole import
@@ -102,27 +106,6 @@ def _is_junk_title(title: str) -> bool:
     return bool(_JUNK_TITLE_PATTERN.search(title))
 
 
-async def _fetch_key_art_from_steamgriddb(app_id: int, api_key: str | None) -> str | None:
-    """SteamGridDB's "grids" are the portrait (~2:3) shape key_art actually
-    needs — Steam's storefront API has no portrait art at all (header/
-    capsule images are all wide), so using one of those as a key_art
-    fallback (an earlier version of this function did, briefly) just
-    force-crops a landscape image into a portrait slot and produces a
-    mangled cover. Looked up by Steam appid, same as the rest of this
-    function — no title-matching ambiguity. No-ops without a key."""
-    if not api_key:
-        return None
-    try:
-        client = SteamGridDBClient(api_key)
-        sgdb_game = await asyncio.to_thread(client.get_game_by_steam_appid, app_id)
-        if not sgdb_game or not sgdb_game.get("id"):
-            return None
-        images = await asyncio.to_thread(client.get_game_images, sgdb_game["id"], "grids")
-    except Exception:
-        return None
-    return images[0].url if images else None
-
-
 async def _enrich_steam_game_by_appid(
     game: Game, app_id: int, user: User, igdb_client_id: str | None, igdb_client_secret: str | None,
     use_user_tags: bool = True,
@@ -135,7 +118,8 @@ async def _enrich_steam_game_by_appid(
     by that exact id. Best-effort, like `_enrich_new_game`."""
     try:
         details = await asyncio.to_thread(steam.get_app_details, app_id)
-    except Exception:
+    except Exception:  # best-effort, the art below still runs
+        logger.warning("Steam store details for app %s failed", app_id, exc_info=True)
         details = None
     if details:
         if game.title.startswith("Steam app ") and details.get("name"):
@@ -779,7 +763,13 @@ async def sync_steam_library(
         "achievements_unavailable": unreadable,
         # the new games still to be enriched (store details, tags, artwork), which
         # is slow, so the app asks for it in batches: see steam_import_steps.py
-        "enrich_game_ids": [str(g.id) for g, _ in newly_created],
+        # plus any an earlier import never finished
+        "enrich_game_ids": list(
+            dict.fromkeys(
+                [str(g.id) for g, _ in newly_created]
+                + await bare_steam_game_ids(db, current_user.id)
+            )
+        ),
         # with achievements=later: every synced game, to read achievements for,
         # and the ones whose status still depends on them (new or just bought)
         "achievement_game_ids": [str(i) for i in touched_ids] if achievements == "later" else [],

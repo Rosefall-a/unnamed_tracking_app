@@ -30,10 +30,10 @@ import AccountChip from "./AccountChip.vue";
   box-sizing: border-box;
   min-height: 68px;
   padding: 10px 244px 10px 64px;
-  background: rgba(13, 13, 13, 0.94);
+  background: color-mix(in srgb, var(--ui-bg) 94%, transparent);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
-  border-bottom: 1px solid #202020;
+  border-bottom: 1px solid var(--ui-border-soft);
 }
 .topbar-left {
   display: flex;

@@ -43,12 +43,12 @@ function met(key: string): boolean {
 </template>
 <style scoped>
 .password-requirements {
-  color: #999;
+  color: var(--ui-dim-3);
   font-size: 12px;
   line-height: 1.5;
 }
 .requirements-title {
-  color: #bbb;
+  color: var(--ui-dim-3);
   font-weight: 600;
 }
 ul {
@@ -60,7 +60,7 @@ li {
   color: #dca1a1;
 }
 li.met {
-  color: #86efac;
+  color: var(--ui-good-text);
 }
 li span {
   display: inline-block;

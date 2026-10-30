@@ -582,19 +582,19 @@ async function onFileSelected(e: Event) {
 .settings-section h2 {
   margin: 0 0 8px;
   padding-left: 12px;
-  border-left: 3px solid #d68a34;
+  border-left: 3px solid var(--ui-accent);
   font-size: 1rem;
-  color: #fff;
+  color: var(--ui-heading);
 }
 .section-hint {
-  color: #999;
+  color: var(--ui-dim-3);
   font-size: 0.82rem;
   line-height: 1.6;
   margin: 0 0 20px;
 }
 .tile {
-  background: #111;
-  border: 1px solid #2a2a2a;
+  background: var(--ui-bg-2);
+  border: 1px solid var(--ui-border);
   border-radius: 10px;
   padding: 18px 20px;
   margin-bottom: 16px;
@@ -602,26 +602,26 @@ async function onFileSelected(e: Event) {
 .tile h3 {
   margin: 0 0 6px;
   font-size: 0.9rem;
-  color: #fff;
+  color: var(--ui-heading);
 }
 .tile-desc {
-  color: #999;
+  color: var(--ui-dim-3);
   font-size: 0.8rem;
   line-height: 1.5;
   margin: 0 0 14px;
 }
 .backup-status-tile {
-  border-color: rgba(214, 138, 52, 0.3);
-  background: rgba(214, 138, 52, 0.04);
+  border-color: color-mix(in srgb, var(--ui-accent) 30%, transparent);
+  background: color-mix(in srgb, var(--ui-accent) 4%, transparent);
 }
 .backup-status-line {
   margin: 0;
-  color: #d68a34;
+  color: var(--ui-accent);
   font-size: 0.78rem;
   font-weight: 600;
 }
 .primary-button {
-  background: #d68a34;
+  background: var(--ui-accent);
   color: #111;
   border: none;
   border-radius: 8px;
@@ -634,8 +634,8 @@ async function onFileSelected(e: Event) {
   cursor: not-allowed;
 }
 .secondary-button {
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
+  background: color-mix(in srgb, var(--ui-wash-base) 8%, transparent);
+  color: var(--ui-heading);
   border: none;
   border-radius: 8px;
   padding: 10px 16px;
@@ -660,19 +660,19 @@ async function onFileSelected(e: Event) {
   margin-bottom: 12px;
 }
 .form-error {
-  color: #fca5a5;
+  color: var(--ui-error-text);
   font-size: 13px;
-  background: rgba(220, 38, 38, 0.1);
-  border: 1px solid rgba(220, 38, 38, 0.3);
+  background: color-mix(in srgb, var(--ui-danger) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ui-danger) 30%, transparent);
   border-radius: 8px;
   padding: 8px 10px;
   margin-bottom: 12px;
 }
 .form-success {
-  color: #86efac;
+  color: var(--ui-good-text);
   font-size: 13px;
-  background: rgba(34, 197, 94, 0.1);
-  border: 1px solid rgba(34, 197, 94, 0.3);
+  background: color-mix(in srgb, var(--ui-success) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ui-success) 30%, transparent);
   border-radius: 8px;
   padding: 8px 10px;
   margin-bottom: 12px;
@@ -680,7 +680,7 @@ async function onFileSelected(e: Event) {
 .import-errors {
   margin: 8px 0 0;
   padding-left: 18px;
-  color: #fca5a5;
+  color: var(--ui-error-text);
   font-size: 12px;
 }
 .mal-source {
@@ -703,12 +703,12 @@ async function onFileSelected(e: Event) {
   padding: 0;
   max-height: 360px;
   overflow-y: auto;
-  border: 1px solid #2a2a2a;
+  border: 1px solid var(--ui-border);
   border-radius: 8px;
 }
 .mal-list > li {
   padding: 10px 12px;
-  border-bottom: 1px solid #1f1f1f;
+  border-bottom: 1px solid var(--ui-border-soft);
 }
 .mal-list > li:last-child {
   border-bottom: none;
@@ -718,7 +718,7 @@ async function onFileSelected(e: Event) {
   align-items: center;
   gap: 10px;
   cursor: pointer;
-  color: #fff;
+  color: var(--ui-heading);
   font-size: 0.85rem;
 }
 .mal-title {
@@ -729,21 +729,21 @@ async function onFileSelected(e: Event) {
   white-space: nowrap;
 }
 .mal-choice {
-  color: #d68a34;
+  color: var(--ui-accent);
   font-size: 0.75rem;
 }
 .mal-diffs {
   list-style: none;
   margin: 6px 0 0 26px;
   padding: 0;
-  color: #999;
+  color: var(--ui-dim-3);
   font-size: 0.75rem;
   line-height: 1.5;
 }
 .mal-details {
   display: flex;
   gap: 8px;
-  color: #999;
+  color: var(--ui-dim-3);
   font-size: 0.8rem;
   line-height: 1.5;
 }

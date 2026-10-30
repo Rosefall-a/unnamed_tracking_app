@@ -29,7 +29,7 @@ from sqlalchemy import delete, select
 from src.api.routes import achievement_icons, default_game_assets, games, media_images
 from src.core.auth import get_current_user
 from src.database.models.achievement import Achievement
-from src.database.models.game import Game
+from src.database.models.game import Game, GameLink
 from src.database.models.user import User
 from src.database.session import SessionLocal
 from src.features.metadata.games import steam, steam_tags
@@ -532,3 +532,160 @@ async def test_an_unreadable_answer_keeps_what_is_stored(account) -> None:
     assert target.name[:20] in " ".join(again.json()["achievements_unavailable"]) or again.json()["achievements_unavailable"]
     after = sum(1 for r in (await _stored(account))[target.app_id][1] if r.unlocked)
     assert after == before, f"{target.name}: {before} unlocked became {after} after Steam failed to answer"
+
+
+async def test_an_import_stopped_partway_is_finished_by_the_next_one(account) -> None:
+    """The page closed after the first enrich batch: the rest kept only their
+    names (wishlist games their "Steam app 123" placeholder). Running the
+    import again fills every one of them in."""
+    patched = await account.client.patch("/api/preferences", json={"steam_import_wishlist": True})
+    assert patched.status_code == 200, patched.text
+    first = (await account.client.post("/api/library-sync/steam?achievements=later")).json()
+    await account.client.post("/api/library-sync/steam/wishlist")
+    step = await account.client.post(
+        "/api/library-sync/steam/enrich", json={"game_ids": first["enrich_game_ids"][:5]}
+    )
+    assert step.status_code == 200, step.text
+    bare = [g for g, _ in (await _stored(account)).values() if not g.description]
+    assert len(bare) > 10, "the interrupted import should have left games bare"
+
+    await _import_like_the_app(account)
+
+    problems = []
+    with_page = {g.app_id for g in [*account.world, *account.wishlist] if g.has_store_page}
+    for app_id, (game, _) in (await _stored(account)).items():
+        if app_id in with_page and not game.description:
+            problems.append(f"{game.title!r}: still no description")
+        if game.title.startswith("Steam app ") and app_id in with_page:
+            problems.append(f"{app_id}: still named {game.title!r}")
+    assert not problems, "\n".join(problems)
+
+
+async def test_a_rerun_never_overwrites_a_game_someone_edited(account) -> None:
+    first = (await account.client.post("/api/library-sync/steam?achievements=later")).json()
+    target_id = first["enrich_game_ids"][0]
+    edited = await account.client.patch(
+        f"/api/game/update/{target_id}", json={"developer": "My own note", "tags": ["Mine"]}
+    )
+    assert edited.status_code == 200, edited.text
+    again = (await account.client.post("/api/library-sync/steam?achievements=later")).json()
+    assert target_id not in again["enrich_game_ids"]
+
+
+async def test_store_details_refused_for_a_while_are_still_read(account, monkeypatch) -> None:
+    refusals = {"left": 2}
+    real = account.fake.session_get
+
+    def busy_store(url: str, params: dict | None = None, **kw: Any) -> FakeResponse:
+        if "appdetails" in url and refusals["left"] > 0:
+            refusals["left"] -= 1
+            return FakeResponse(429, text="Too Many Requests", ctype="text/html")
+        return real(url, params, **kw)
+
+    monkeypatch.setattr(steam.SESSION, "get", busy_store)
+    target = next(g for g in account.world if g.has_store_page)
+    details = steam.get_app_details(target.app_id)
+    assert details and details["name"] == target.name
+
+
+async def test_refresh_metadata_uses_the_steam_app_id(account) -> None:
+    patched = await account.client.patch("/api/preferences", json={"steam_import_wishlist": True})
+    assert patched.status_code == 200, patched.text
+    await account.client.post("/api/library-sync/steam?achievements=later")
+    await account.client.post("/api/library-sync/steam/wishlist")  # names never filled in
+    stored = await _stored(account)
+    placeholder = stored[account.wishlist[0].app_id][0]
+    assert placeholder.title.startswith("Steam app ")
+    named = next(g for g in account.world if g.has_store_page)
+    renamed = stored[named.app_id][0]
+    await account.client.patch(f"/api/game/update/{renamed.id}", json={"title": "My Skyrim"})
+
+    body = {"update_text": True, "fill_missing_art": True}
+    first = (await account.client.post(f"/api/game/{placeholder.id}/metadata/refresh", json=body)).json()
+    second = (await account.client.post(f"/api/game/{renamed.id}/metadata/refresh", json=body)).json()
+    assert first["status"] == "updated" and first["provider"] == "Steam", first
+    assert second["status"] == "updated", second
+
+    after = await _stored(account)
+    assert after[account.wishlist[0].app_id][0].title == account.wishlist[0].name
+    assert after[account.wishlist[0].app_id][0].description
+    assert after[named.app_id][0].title == "My Skyrim"
+    # game_links has no ON DELETE CASCADE, so the user cleanup would fail on them
+    async with SessionLocal() as db:
+        await db.execute(delete(GameLink).where(GameLink.game_id.in_([placeholder.id, renamed.id])))
+        await db.commit()
+
+async def _wait_for_server_import(client: httpx.AsyncClient) -> dict:
+    for _ in range(3000):
+        job = (await client.get("/api/library-sync/import/status")).json()
+        if not job["running"]:
+            return job
+        await asyncio.sleep(0.05)
+    raise AssertionError("the server import never finished")
+
+
+async def test_the_server_runs_the_whole_import_without_the_app(account) -> None:
+    """The app only starts the import; every step after that (achievements,
+    wishlist, store details and artwork) happens on the server, so a closed
+    page cannot leave games bare."""
+    patched = await account.client.patch("/api/preferences", json={"steam_import_wishlist": True})
+    assert patched.status_code == 200, patched.text
+    started = (await account.client.post("/api/library-sync/import/steam")).json()
+    assert started["running"] and started["provider"] == "steam"
+    again = (await account.client.post("/api/library-sync/import/steam")).json()
+    assert again["started_at"] == started["started_at"], "a second import was started"
+
+    job = await _wait_for_server_import(account.client)
+    assert job["error"] is None, job["error"]
+    assert job["result"]["games_added"] == len(account.world)
+    assert job["result"]["wishlist_added"] == len(account.wishlist)
+
+    problems = []
+    with_page = {g.app_id for g in [*account.world, *account.wishlist] if g.has_store_page}
+    with_art = {g.app_id for g in account.world if g.has_art}
+    for app_id, (game, rows) in (await _stored(account)).items():
+        if app_id in with_page and not game.description:
+            problems.append(f"{game.title!r}: no description")
+        if game.title.startswith("Steam app ") and app_id in with_page:
+            problems.append(f"{app_id}: still named {game.title!r}")
+        folder = account.tmp / str(account.user_id) / "games" / game.folder_location
+        if app_id in with_art and not (folder / "key_art.png").is_file():
+            problems.append(f"{game.title!r}: no cover")
+    assert not problems, "; ".join(problems)
+
+async def test_a_game_without_steam_cover_art_gets_one_from_steamgriddb(account, monkeypatch) -> None:
+    """Steam has no portrait cover for some games; with a SteamGridDB key the
+    import takes the cover from there instead (helpers/game_art_download.py)."""
+    from src.helpers import game_art_download
+
+    asked: list[int] = []
+
+    class FakeGrid:
+        def __init__(self, api_key: str) -> None:
+            assert api_key == "sgdb-key"
+
+        def get_game_by_steam_appid(self, app_id: int) -> dict:
+            asked.append(app_id)
+            return {"id": app_id}
+
+        def get_game_images(self, game_id: int, kind: str) -> list:
+            assert kind == "grids"
+            return [SimpleNamespace(url=f"{CDN}/steam/apps/{game_id}/header.jpg")]
+
+    monkeypatch.setattr(game_art_download, "SteamGridDBClient", FakeGrid)
+    async with SessionLocal() as db:
+        user = await db.get(User, account.user_id)
+        user.steamgriddb_api_key = "sgdb-key"
+        await db.commit()
+
+    await _import_like_the_app(account)
+
+    no_art = [g for g in account.world if not g.has_art and g.has_store_page]
+    assert no_art, "the account needs a game without Steam cover art"
+    stored = await _stored(account)
+    for fake_game in no_art:
+        game = stored[fake_game.app_id][0]
+        folder = account.tmp / str(account.user_id) / "games" / game.folder_location
+        assert (folder / "key_art.png").is_file(), f"{game.title!r}: no cover from SteamGridDB"
+    with_art = {g.app_id for g in account.world if g.has_art}
+    assert not with_art & set(asked), "SteamGridDB was asked for a game Steam already has art for"

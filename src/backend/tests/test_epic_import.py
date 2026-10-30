@@ -4,6 +4,7 @@ games, DLC and engine assets, playtime, catalog details and artwork. Nothing
 here talks to the internet."""
 
 import io
+import asyncio
 import json
 import uuid
 from types import SimpleNamespace
@@ -473,3 +474,16 @@ async def test_a_game_added_by_hand_keeps_its_playtime(acc) -> None:
     game = (await _games(acc))[unplayed["catalogItemId"]]
     assert game.playtime_seconds == 5400
     assert game.status == GameStatus.PLAYING
+
+async def test_the_server_runs_the_whole_epic_import(acc) -> None:
+    assert (await _connect(acc)).status_code == 200
+    started = await acc.client.post("/api/library-sync/import/epic")
+    assert started.status_code == 200, started.text
+    for _ in range(3000):
+        job = (await acc.client.get("/api/library-sync/import/status")).json()
+        if not job["running"]:
+            break
+        await asyncio.sleep(0.05)
+    assert job["error"] is None, job["error"]
+    assert job["result"]["games_added"] == 30
+    assert len(await _games(acc)) == 30

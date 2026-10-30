@@ -86,7 +86,7 @@ function cancel() {
   position: fixed;
   inset: 0;
   z-index: var(--ui-z-dialog);
-  background: rgba(0, 0, 0, 0.6);
+  background: color-mix(in srgb, var(--ui-scrim-base) 60%, transparent);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -95,13 +95,14 @@ function cancel() {
 .dialog {
   width: 100%;
   max-width: 380px;
-  background: #171717;
-  border: 1px solid #2b2b2b;
+  background: var(--ui-popover);
+  border: 1px solid var(--ui-border);
   border-radius: 14px;
   padding: 22px;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 24px 64px
+    color-mix(in srgb, var(--ui-scrim-base) 60%, transparent);
   font-family: system-ui, sans-serif;
-  color: #f2f2f2;
+  color: var(--ui-text);
 }
 .dialog-title {
   margin: 0 0 8px;
@@ -117,17 +118,17 @@ function cancel() {
   width: 100%;
   box-sizing: border-box;
   margin-bottom: 16px;
-  background: #0d0d0d;
-  border: 1px solid #3a3a3a;
+  background: var(--ui-bg);
+  border: 1px solid var(--ui-border-strong);
   border-radius: 8px;
-  color: #fff;
+  color: var(--ui-heading);
   padding: 9px 12px;
   font: inherit;
   font-size: 0.86rem;
 }
 .dialog-input:focus {
   outline: none;
-  border-color: #d68a34;
+  border-color: var(--ui-accent);
 }
 .dialog-actions {
   display: flex;
@@ -136,8 +137,8 @@ function cancel() {
 }
 .dialog-cancel {
   background: none;
-  border: 1px solid #2b2b2b;
-  color: #9c9c9c;
+  border: 1px solid var(--ui-border);
+  color: var(--ui-dim);
   border-radius: 8px;
   padding: 8px 14px;
   font-family: inherit;
@@ -146,12 +147,12 @@ function cancel() {
   cursor: pointer;
 }
 .dialog-cancel:hover {
-  border-color: #3a3a3a;
-  color: #ccc;
+  border-color: var(--ui-border-strong);
+  color: var(--ui-text-soft);
 }
 .dialog-accept {
-  background: #d68a34;
-  color: #0d0d0d;
+  background: var(--ui-accent);
+  color: var(--ui-bg);
   border: none;
   border-radius: 8px;
   padding: 8px 14px;
@@ -161,7 +162,7 @@ function cancel() {
   cursor: pointer;
 }
 .dialog-accept.danger {
-  background: #dc2626;
-  color: #fff;
+  background: var(--ui-danger);
+  color: var(--ui-heading);
 }
 </style>

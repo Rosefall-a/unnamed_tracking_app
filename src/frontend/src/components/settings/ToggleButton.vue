@@ -46,7 +46,7 @@ const emit = defineEmits<{
   margin-bottom: 14px;
   cursor: pointer;
   text-align: left;
-  color: #ccc;
+  color: var(--ui-text-soft);
   font: inherit;
   font-size: 0.82rem;
   line-height: 1.5;
@@ -60,12 +60,12 @@ const emit = defineEmits<{
   width: 34px;
   height: 20px;
   border-radius: 999px;
-  background: #3a3a3a;
+  background: var(--ui-border-strong);
   position: relative;
   transition: background 0.15s ease;
 }
 .toggle-button.on .toggle-track {
-  background: #d68a34;
+  background: var(--ui-accent);
 }
 .toggle-knob {
   position: absolute;
@@ -86,10 +86,10 @@ const emit = defineEmits<{
 .toggle-reason {
   display: block;
   margin-top: 2px;
-  color: #8a8a8a;
+  color: var(--ui-dim-2);
   font-size: 0.74rem;
 }
 .toggle-label :deep(strong) {
-  color: #fff;
+  color: var(--ui-heading);
 }
 </style>

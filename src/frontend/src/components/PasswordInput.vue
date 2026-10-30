@@ -90,17 +90,17 @@ const hideLabel = computed(() => `Hide ${secretLabel.value}`);
   width: 100%;
   min-width: 0;
   box-sizing: border-box;
-  background: #111;
-  border: 1px solid #3a3a3a;
+  background: var(--ui-bg-2);
+  border: 1px solid var(--ui-border-strong);
   border-radius: 8px;
-  color: #fff;
+  color: var(--ui-heading);
   padding: 10px 44px 10px 12px;
   font: inherit;
 }
 
 .password-input-field:focus {
   outline: none;
-  border-color: #d68a34;
+  border-color: var(--ui-accent);
 }
 
 .password-input-field:disabled {
@@ -125,17 +125,17 @@ const hideLabel = computed(() => `Hide ${secretLabel.value}`);
   border: 0;
   border-radius: 6px;
   background: transparent;
-  color: #777;
+  color: var(--ui-faint-2);
   cursor: pointer;
 }
 
 .visibility-button:hover:not(:disabled) {
-  color: #d68a34;
-  background: rgba(255, 255, 255, 0.06);
+  color: var(--ui-accent);
+  background: color-mix(in srgb, var(--ui-wash-base) 6%, transparent);
 }
 
 .visibility-button:focus-visible {
-  outline: 2px solid #d68a34;
+  outline: 2px solid var(--ui-accent);
   outline-offset: 1px;
 }
 

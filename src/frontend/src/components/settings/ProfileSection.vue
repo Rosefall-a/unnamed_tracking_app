@@ -229,9 +229,9 @@ async function onAvatarFileChange(e: Event) {
 .settings-section h2 {
   margin: 0 0 16px;
   padding-left: 12px;
-  border-left: 3px solid #d68a34;
+  border-left: 3px solid var(--ui-accent);
   font-size: 1rem;
-  color: #fff;
+  color: var(--ui-heading);
 }
 .avatar-row {
   display: flex;
@@ -248,7 +248,7 @@ async function onAvatarFileChange(e: Event) {
   flex-shrink: 0;
 }
 .avatar-fallback {
-  background: #d68a34;
+  background: var(--ui-accent);
   color: #111;
   display: flex;
   align-items: center;
@@ -263,17 +263,17 @@ async function onAvatarFileChange(e: Event) {
   min-width: 0;
 }
 .avatar-name {
-  color: #fff;
+  color: var(--ui-heading);
   font-size: 1.05rem;
   font-weight: 700;
 }
 .avatar-email {
-  color: #888;
+  color: var(--ui-dim-2);
   font-size: 0.82rem;
   margin-bottom: 4px;
 }
 .upload-label {
-  color: #d68a34;
+  color: var(--ui-accent);
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
@@ -282,7 +282,7 @@ async function onAvatarFileChange(e: Event) {
   text-decoration: underline;
 }
 .mock-note {
-  color: #777;
+  color: var(--ui-faint-2);
   font-size: 13px;
   margin: 0;
 }
@@ -296,38 +296,38 @@ form {
   flex-direction: column;
   gap: 6px;
   font-size: 0.85rem;
-  color: #ccc;
+  color: var(--ui-text-soft);
 }
 .field input {
-  background: #111;
-  border: 1px solid #3a3a3a;
+  background: var(--ui-bg-2);
+  border: 1px solid var(--ui-border-strong);
   border-radius: 8px;
-  color: #fff;
+  color: var(--ui-heading);
   padding: 10px 12px;
   font: inherit;
 }
 .field input:focus {
   outline: none;
-  border-color: #d68a34;
+  border-color: var(--ui-accent);
 }
 .form-error {
-  color: #fca5a5;
+  color: var(--ui-error-text);
   font-size: 13px;
-  background: rgba(220, 38, 38, 0.1);
-  border: 1px solid rgba(220, 38, 38, 0.3);
+  background: color-mix(in srgb, var(--ui-danger) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ui-danger) 30%, transparent);
   border-radius: 8px;
   padding: 8px 10px;
 }
 .form-success {
-  color: #86efac;
+  color: var(--ui-good-text);
   font-size: 13px;
-  background: rgba(34, 197, 94, 0.1);
-  border: 1px solid rgba(34, 197, 94, 0.3);
+  background: color-mix(in srgb, var(--ui-success) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ui-success) 30%, transparent);
   border-radius: 8px;
   padding: 8px 10px;
 }
 .primary-button {
-  background: #d68a34;
+  background: var(--ui-accent);
   color: #111;
   border: none;
   border-radius: 8px;

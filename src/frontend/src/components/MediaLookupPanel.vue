@@ -206,14 +206,14 @@ onBeforeUnmount(() => {
 <style scoped>
 /* fixed colours, the same as the form it opens over */
 .ml {
-  --surface: #1a1a1a;
-  --surface-2: #222222;
-  --border: #2b2b2b;
-  --border-soft: #202020;
-  --accent: #d68a34;
-  --accent-line: rgba(214, 138, 52, 0.4);
-  --text: #f2f2f2;
-  --text-dim: #9c9c9c;
+  --surface: var(--ui-surface);
+  --surface-2: var(--ui-surface-2);
+  --border: var(--ui-border);
+  --border-soft: var(--ui-border-soft);
+  --accent: var(--ui-accent);
+  --accent-line: var(--ui-accent-line);
+  --text: var(--ui-text);
+  --text-dim: var(--ui-dim);
   --text-faint: #666;
   position: absolute;
   inset: 0 0 0 auto;
@@ -221,9 +221,10 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   width: min(420px, 100%);
-  background: var(--ui-popover, #161616);
+  background: var(--ui-popover, var(--ui-popover));
   border-left: 1px solid var(--border);
-  box-shadow: -12px 0 32px rgba(0, 0, 0, 0.45);
+  box-shadow: -12px 0 32px
+    color-mix(in srgb, var(--ui-scrim-base) 45%, transparent);
   color: var(--text);
 }
 .ml * {
@@ -315,7 +316,7 @@ onBeforeUnmount(() => {
 .ml-btn.solid {
   background: var(--accent);
   border-color: var(--accent);
-  color: #1a1206;
+  color: var(--ui-on-accent);
 }
 .ml-btn.solid:disabled {
   opacity: 0.6;

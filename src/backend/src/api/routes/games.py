@@ -3,14 +3,16 @@
 
 import asyncio
 import io
+import logging
 import os
 import re
 import time
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from decimal import Decimal
 from enum import Enum
 from pathlib import Path
-from typing import Literal, cast
+from typing import Any, Literal, cast
 from urllib.parse import urlparse
 from uuid import UUID
 
@@ -39,6 +41,7 @@ from src.api.routes.settings import (
     get_or_create_scan_settings,
 )
 from src.api.schemas.game import (
+    GameBulkDelete,
     GameBulkUpdate,
     GameCreate,
     GameFieldChangeRead,
@@ -63,13 +66,19 @@ from src.database.models.user import User
 from src.database.models.user_scan_settings import UserScanSettings
 from src.database.session import get_db
 from src.features.metadata.locked_fields import apply_updates_with_locking
-from src.features.metadata.games import wiseoldman
+from src.features.metadata.games import steam, wiseoldman
 from src.core.preferences import load_preferences
-from src.features.metadata.games.search import find_art_options, search_game_metadata
+from src.features.metadata.games.search import (
+    _apply_steam_user_tags,
+    _steam_result,
+    find_art_options,
+    search_game_metadata,
+)
 from src.features.metadata.search_utils import cached_search
 from src.features.trash.game_trash import move_game_to_trash, restore_game_from_trash
 from src.features.trash.media_trash import move_media_file_to_trash, restore_media_file_from_trash
 from src.features.trash.sweep import RETENTION_SECONDS
+from src.helpers.game_art_download import steam_cdn_art_urls
 from src.helpers.remote_images import RemoteImageError, download_image
 from src.helpers.media import MediaKind, classify_media, list_media, media_subdir, save_media_bytes
 from src.helpers.media_dates import detect_date, detect_from_stored
@@ -88,6 +97,7 @@ router = APIRouter(
 )
 
 _DATA_ROOT = Path("/data/users")
+logger = logging.getLogger(__name__)
 _NOTE_NAME_PATTERN = re.compile(r"^[^\x00-\x1f\x7f/\\]+$")
 _LEADING_ARTICLE = re.compile(r"^(a|an|the)\s+", flags=re.IGNORECASE)
 
@@ -477,6 +487,51 @@ async def get_achievements_summary(
     return {
         str(game_id): {"total": total, "unlocked": unlocked or 0}
         for game_id, total, unlocked in rows
+    }
+
+
+def _feed_row(achievement: Achievement, game: Game) -> dict:
+    return {
+        "id": str(achievement.id),
+        "game_id": str(game.id),
+        "game_title": game.title,
+        "name": achievement.name,
+        "description": achievement.description if not achievement.hidden else None,
+        "icon_url": f"/api/achievement-icon/{achievement.id}"
+        if achievement.icon_url and achievement.icon_url.startswith(("http://", "https://"))
+        else achievement.icon_url,
+        "unlocked_at": achievement.unlocked_at,
+        "global_percent": achievement.global_percent,
+    }
+
+
+@router.get("/achievements-feed")
+async def get_achievements_feed(
+    limit: int = Query(default=12, ge=1, le=50),
+    db: AsyncSession = _DB_DEPENDENCY,
+    current_user: User = _CURRENT_USER_DEPENDENCY,
+) -> dict[str, list[dict]]:
+    """What the Home page's achievement widgets show: the latest unlocks and the
+    rarest ones, across every game, each with the game it belongs to. Only reads
+    what a sync already stored."""
+    base = (
+        select(Achievement, Game)
+        .join(Game, Game.id == Achievement.game_id)
+        .where(Game.user_id == current_user.id, Game.deleted_at.is_(None), Achievement.unlocked)
+    )
+    recent = await db.execute(
+        base.where(Achievement.unlocked_at.is_not(None))
+        .order_by(Achievement.unlocked_at.desc())
+        .limit(limit)
+    )
+    rarest = await db.execute(
+        base.where(Achievement.global_percent.is_not(None))
+        .order_by(Achievement.global_percent.asc(), Achievement.unlocked_at.desc())
+        .limit(limit)
+    )
+    return {
+        "recent": [_feed_row(a, g) for a, g in recent.all()],
+        "rarest": [_feed_row(a, g) for a, g in rarest.all()],
     }
 
 
@@ -2170,6 +2225,7 @@ async def create_game(
 
 @router.get("/list", response_model=list[GameRead])
 async def list_games(
+    response: Response,
     db: AsyncSession = _DB_DEPENDENCY,
     current_user: User = _CURRENT_USER_DEPENDENCY,
     status_filter: GameStatus | None = _NONE_QUERY_STATUS,
@@ -2187,6 +2243,11 @@ async def list_games(
         stmt = stmt.where(Game.favorite == favorite)
     if search:
         stmt = stmt.where(Game.title.ilike(f"%{search}%"))
+
+    # lets a client fetch the remaining pages side by side instead of one
+    # after another
+    total = await db.scalar(select(func.count()).select_from(stmt.subquery()))
+    response.headers["X-Total-Count"] = str(total or 0)
 
     stmt = stmt.order_by(Game.sort_title).offset(skip).limit(limit)
 
@@ -2296,11 +2357,19 @@ async def update_game(
         new_links = updates.pop("links") or []
         game.links = [GameLink(label=link["label"], url=link["url"]) for link in new_links]
 
+    played_before = (game.playtime_seconds, game.status)
     _record_field_changes(game, updates, db)
     apply_updates_with_locking(game, updates, frozenset(_GAME_METADATA_FIELDS))
 
     for field, value in updates.items():
         setattr(game, field, value)
+    # Logging more playtime, or starting to play, is playing it now. A library
+    # sync sets this from the store's own date; without this a game tracked by
+    # hand never counted as played (Home's "this week", the Continue order).
+    if game.playtime_seconds > played_before[0] or (
+        game.status == GameStatus.PLAYING and played_before[1] != GameStatus.PLAYING
+    ):
+        game.last_played_at = int(time.time())
 
     # Keep sort_title in sync if title changed but sort_title wasn't explicitly
     # set, or was cleared (a blank sorting name means "sort by the title")
@@ -2365,28 +2434,44 @@ def _metadata_value_is_present(value: object) -> bool:
     return value is not None and value != "" and value != []
 
 
-@router.post("/{game_id}/metadata/refresh")
-async def refresh_game_metadata(
-    game_id: UUID,
-    payload: MetadataRefreshRequest,
-    db: AsyncSession = _DB_DEPENDENCY,
-    current_user: User = _CURRENT_USER_DEPENDENCY,
-) -> dict:
-    """Preview or apply a metadata-provider refresh for one game.
+# what a wishlist game is called until Steam tells us its name
+_STEAM_PLACEHOLDER_TITLE = "Steam app "
 
-    Provider lookup uses the same configured game metadata registry as the
-    existing search flow. Applying is server-side so authorization, locks,
-    history, artwork protection, and stale-editor detection cannot be bypassed
-    by a client replaying a provider result.
-    """
-    # the rollback below expires current_user, and reading it afterwards would
-    # need a lazy load that an async session cannot do
-    user_id = current_user.id
-    game = await _get_game_or_404(game_id, db, user_id)
-    scan_settings = await get_or_create_scan_settings(user_id, db)
-    preferences = _scan_settings_to_preferences(scan_settings)
-    app_integrations = resolve_integrations(await get_or_create_app_integration_settings(db))
 
+async def _steam_refresh_match(
+    game: Game, use_player_tags: bool
+) -> tuple[dict[str, Any] | None, list[str]] | None:
+    """The refresh result for a Steam game, read by its app id. None when the
+    game has no Steam app id, so the caller falls back to a title search."""
+    if game.source != "Steam" or not (game.external_id or "").isdigit():
+        return None
+    app_id = int(game.external_id or "")
+    try:
+        details = await asyncio.to_thread(steam.get_app_details, app_id)
+    except Exception as exc:  # noqa: BLE001 - reported to the person, not raised
+        logger.warning("Steam store details for app %s failed: %s", app_id, exc)
+        return None, [f"Steam: the store details could not be read ({exc})"]
+    if not details:
+        return None, ["Steam: this app has no store page any more"]
+    match = _steam_result({"id": app_id}, details)
+    if not game.title.startswith(_STEAM_PLACEHOLDER_TITLE):
+        # the name someone gave the game stays; only the placeholder is replaced
+        match["title"] = None
+    await asyncio.to_thread(_apply_steam_user_tags, [match], use_player_tags)
+    art = steam_cdn_art_urls(app_id)
+    match["key_art_url"] = art["key_art"]
+    match["banner_url"] = art["banner"]
+    return match, []
+
+
+async def _search_refresh_match(
+    game: Game,
+    current_user: User,
+    preferences: dict[str, Any],
+    app_integrations: Any,
+    scan_settings: Any,
+) -> tuple[dict[str, Any] | None, list[str]]:
+    """The refresh result found by searching the providers for the game's title."""
     try:
         result = await asyncio.to_thread(
             search_game_metadata,
@@ -2424,6 +2509,43 @@ async def refresh_game_metadata(
         ),
         None,
     )
+    return match, provider_errors
+
+
+@router.post("/{game_id}/metadata/refresh")
+async def refresh_game_metadata(
+    game_id: UUID,
+    payload: MetadataRefreshRequest,
+    db: AsyncSession = _DB_DEPENDENCY,
+    current_user: User = _CURRENT_USER_DEPENDENCY,
+) -> dict:
+    """Preview or apply a metadata-provider refresh for one game.
+
+    Provider lookup uses the same configured game metadata registry as the
+    existing search flow. Applying is server-side so authorization, locks,
+    history, artwork protection, and stale-editor detection cannot be bypassed
+    by a client replaying a provider result.
+    """
+    # the rollback below expires current_user, and reading it afterwards would
+    # need a lazy load that an async session cannot do
+    user_id = current_user.id
+    game = await _get_game_or_404(game_id, db, user_id)
+    scan_settings = await get_or_create_scan_settings(user_id, db)
+    preferences = _scan_settings_to_preferences(scan_settings)
+    app_integrations = resolve_integrations(await get_or_create_app_integration_settings(db))
+
+    # A Steam game already knows its exact app id, so ask Steam for that game
+    # instead of searching by title: a wishlist game still named "Steam app
+    # 123", or a name with a trademark sign, never matches a title search.
+    steam_match = await _steam_refresh_match(
+        game, (await load_preferences(db, user_id))["steam_user_tags"]
+    )
+    match, provider_errors = steam_match or (None, [])
+    if match is None:
+        match, search_errors = await _search_refresh_match(
+            game, current_user, preferences, app_integrations, scan_settings
+        )
+        provider_errors = [*provider_errors, *search_errors]
     if match is None:
         await db.commit()
         return {
@@ -2651,12 +2773,49 @@ async def delete_game(
     folder), so it gets the same protection as game archives instead of
     the instant, permanent delete it had before."""
     game = await _get_game_or_404(game_id, db, current_user.id)
-    if game.folder_location:
-        move_game_to_trash(
-            _DATA_ROOT / str(game.user_id) / "games" / game.folder_location, _DATA_ROOT, game_id
-        )
-    game.deleted_at = int(time.time())
+    await _soft_delete_games([game], db)
+
+
+async def _soft_delete_games(games: Sequence[Game], db: AsyncSession) -> None:
+    """Mark the games deleted, then move their folders to the trash.
+
+    Rows first, folders after: if a move fails partway, that game's files
+    stay where they were (restore copes with that) instead of sitting in the
+    trash while the game still shows as live with its files gone."""
+    deleted_at = int(time.time())
+    folders = []
+    for game in games:
+        game.deleted_at = deleted_at
+        if game.folder_location:
+            folders.append(
+                (_DATA_ROOT / str(game.user_id) / "games" / game.folder_location, game.id)
+            )
     await db.commit()
+    for folder, game_id in folders:
+        try:
+            move_game_to_trash(folder, _DATA_ROOT, game_id)
+        except OSError:
+            logger.exception("Could not move %s to the trash; left in place", folder)
+
+
+@router.post("/bulk-delete")
+async def bulk_delete_games(
+    payload: GameBulkDelete,
+    db: AsyncSession = _DB_DEPENDENCY,
+    current_user: User = _CURRENT_USER_DEPENDENCY,
+) -> dict[str, int]:
+    """Soft-delete many games in one request, the same way as delete_game.
+    Ids that are not the caller's, or already in the trash, are skipped."""
+    result = await db.execute(
+        select(Game).where(
+            Game.user_id == current_user.id,
+            Game.id.in_(payload.game_ids),
+            Game.deleted_at.is_(None),
+        )
+    )
+    games = result.scalars().all()
+    await _soft_delete_games(games, db)
+    return {"deleted": len(games)}
 
 
 @router.get("/trash")

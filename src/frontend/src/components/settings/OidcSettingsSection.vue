@@ -429,11 +429,11 @@ async function save() {
 
 .section h2 {
   margin: 0;
-  color: #fff;
+  color: var(--ui-heading);
 }
 
 .hint {
-  color: #999;
+  color: var(--ui-dim-3);
   font-size: 13px;
   line-height: 1.5;
 }
@@ -443,7 +443,7 @@ async function save() {
   border: 1px solid #2f2f2f;
   border-radius: 10px;
   padding: 16px;
-  background: #151515;
+  background: var(--ui-bg-2);
 }
 
 .login-panel {
@@ -456,10 +456,10 @@ async function save() {
 .login-panel select,
 .grid input,
 .grid select {
-  background: #111;
-  border: 1px solid #3a3a3a;
+  background: var(--ui-bg-2);
+  border: 1px solid var(--ui-border-strong);
   border-radius: 8px;
-  color: #fff;
+  color: var(--ui-heading);
   padding: 10px;
   font: inherit;
 }
@@ -473,7 +473,7 @@ async function save() {
 
 .providers-header h3 {
   margin: 0;
-  color: #fff;
+  color: var(--ui-heading);
 }
 
 .providers-header .hint {
@@ -482,7 +482,7 @@ async function save() {
 
 .providers-header button,
 button {
-  background: #d68a34;
+  background: var(--ui-accent);
   border: 0;
   border-radius: 8px;
   padding: 10px 14px;
@@ -516,12 +516,12 @@ button {
 
 .provider-card-head small {
   display: block;
-  color: #777;
+  color: var(--ui-faint-2);
   margin-top: 3px;
 }
 
 .drag-handle {
-  color: #777;
+  color: var(--ui-faint-2);
   font-size: 20px;
   cursor: grab;
 }
@@ -537,9 +537,9 @@ button {
 }
 
 .move {
-  background: #252525;
-  border: 1px solid #3a3a3a;
-  color: #ddd;
+  background: var(--ui-surface-3);
+  border: 1px solid var(--ui-border-strong);
+  color: var(--ui-text-soft);
   padding: 7px 10px;
 }
 
@@ -551,7 +551,7 @@ button {
 .remove {
   background: transparent !important;
   border: 1px solid #633 !important;
-  color: #fca5a5 !important;
+  color: var(--ui-error-text) !important;
 }
 
 .grid {
@@ -564,7 +564,7 @@ button {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  color: #ccc;
+  color: var(--ui-text-soft);
   font-size: 13px;
 }
 
@@ -582,8 +582,8 @@ button {
   width: 48px;
   height: 40px;
   padding: 3px;
-  background: #111;
-  border: 1px solid #3a3a3a;
+  background: var(--ui-bg-2);
+  border: 1px solid var(--ui-border-strong);
   border-radius: 8px;
   cursor: pointer;
 }
@@ -593,20 +593,20 @@ button {
 }
 
 .generated-input {
-  background: #202020 !important;
-  color: #777 !important;
-  border-color: #333 !important;
+  background: var(--ui-border-soft) !important;
+  color: var(--ui-faint-2) !important;
+  border-color: var(--ui-border-strong) !important;
   cursor: not-allowed;
 }
 
 .generated-label {
-  color: #777;
+  color: var(--ui-faint-2);
   font-weight: 400;
   margin-left: 6px;
 }
 
 .field-hint {
-  color: #666;
+  color: var(--ui-faint);
   font-size: 11px;
   line-height: 1.4;
 }
@@ -616,7 +616,7 @@ button {
   gap: 18px;
   flex-wrap: wrap;
   margin-top: 14px;
-  color: #bbb;
+  color: var(--ui-dim-3);
   font-size: 13px;
 }
 
@@ -627,49 +627,49 @@ button {
 }
 
 .provider-options input {
-  accent-color: #d68a34;
+  accent-color: var(--ui-accent);
 }
 
 .autostart {
   margin-top: 14px;
   padding: 12px;
-  border: 1px solid #333;
+  border: 1px solid var(--ui-border-strong);
   border-radius: 8px;
-  background: #111;
+  background: var(--ui-bg-2);
   display: flex;
   flex-direction: column;
   gap: 5px;
-  color: #ccc;
+  color: var(--ui-text-soft);
   font-size: 12px;
 }
 
 .autostart strong {
-  color: #fff;
+  color: var(--ui-heading);
 }
 
 .autostart code {
-  color: #d68a34;
+  color: var(--ui-accent);
   overflow-wrap: anywhere;
 }
 
 .autostart small {
-  color: #777;
+  color: var(--ui-faint-2);
 }
 
 .empty {
-  border: 1px dashed #3a3a3a;
+  border: 1px dashed var(--ui-border-strong);
   border-radius: 10px;
   padding: 24px;
-  color: #888;
+  color: var(--ui-dim-2);
   text-align: center;
 }
 
 .error {
-  color: #fca5a5;
+  color: var(--ui-error-text);
 }
 
 .success {
-  color: #86efac;
+  color: var(--ui-good-text);
 }
 
 button:disabled {

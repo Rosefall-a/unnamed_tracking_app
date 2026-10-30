@@ -1,1255 +1,886 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, nextTick } from "vue";
-import GameCard from "../components/GameCard.vue";
-import GameFormModal from "../components/GameFormModal.vue";
-import { fetchGames, deleteGame } from "../services/games";
-import CollectionPickerModal from "../components/CollectionPickerModal.vue";
-import RandomGamePicker from "../components/RandomGamePicker.vue";
+// Home is pages of widgets on a grid. This view holds the page tabs, the
+// Customize mode (a working copy of the layout that is only saved on Done), and
+// the side panel that shows either the widget gallery, one widget's settings, or
+// the page options. The widgets themselves live in components/home.
+import {
+  computed,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  provide,
+  ref,
+} from "vue";
 import AccountChip from "../components/AccountChip.vue";
-import type { Game } from "../types/game";
-import { currentUser } from "../state/auth";
-import { fetchWeeklyDigest } from "../services/stats";
-import type { WeeklyDigest } from "../services/stats";
+import HomeGrid from "../components/home/HomeGrid.vue";
+import LayoutsPanel from "../components/home/LayoutsPanel.vue";
+import WidgetDrawer from "../components/home/WidgetDrawer.vue";
+import WidgetSettings from "../components/home/WidgetSettings.vue";
+import {
+  addWidget,
+  allWidgetIds,
+  defaultLayout,
+  moveWidget,
+  settle,
+} from "../home/layout";
+import type {
+  HomeLayout,
+  HomePage,
+  PageBackdrop,
+  PageGap,
+  WidgetInstance,
+} from "../home/layout";
+import { definitionOf } from "../home/registry";
+import {
+  flushPending,
+  saveError,
+  saveLayout,
+  savedLayout,
+  startDraft,
+  updateWidgetSettings,
+} from "../home/store";
+import { UPDATE_WIDGET } from "../home/context";
+import { useConfirm } from "../state/dialog";
+import { useNow } from "../home/clock";
+import {
+  hasLoadedBefore,
+  lastRefreshed,
+  markLoaded,
+  refreshHome,
+  refreshing,
+} from "../home/data";
+import { onBeforeRouteLeave } from "vue-router";
 
-const games = ref<Game[]>([]);
-const loading = ref(true);
-const error = ref<string | null>(null);
+const draft = ref<HomeLayout | null>(null);
+const editing = computed(() => draft.value !== null);
+const layout = computed(() => draft.value ?? savedLayout.value);
 
-const showFormModal = ref(false);
-const editingGame = ref<Game | null>(null);
-
-const deletingGame = ref<Game | null>(null);
-const deleting = ref(false);
-const deleteError = ref<string | null>(null);
-
-const totalGames = computed(() => games.value.length);
-const favoriteCount = computed(
-  () => games.value.filter((g) => g.favorite).length,
+const pageId = ref<string>(layout.value.pages[0].id);
+const page = computed<HomePage>(
+  () =>
+    layout.value.pages.find((p) => p.id === pageId.value) ??
+    layout.value.pages[0],
 );
 
-// opens the filtered picker (#33) rather than jumping to any game at all,
-// finished and wishlisted ones included
-const showRandomPicker = ref(false);
-function pickRandomGame() {
-  if (!games.value.length) return;
-  showRandomPicker.value = true;
+// controls on a widget change its settings straight away, saved as you go
+provide(UPDATE_WIDGET, (id, settings, variant) =>
+  updateWidgetSettings(id, settings, variant),
+);
+
+type Panel = "add" | "page" | "layouts" | { settings: string } | null;
+const panel = ref<Panel>(null);
+const saving = ref(false);
+const confirmReset = ref(false);
+
+function startEditing() {
+  draft.value = startDraft();
+  panel.value = null;
+}
+function cancel() {
+  draft.value = null;
+  panel.value = null;
+  confirmReset.value = false;
+  if (!layout.value.pages.some((p) => p.id === pageId.value))
+    pageId.value = layout.value.pages[0].id;
+}
+async function done() {
+  if (!draft.value) return;
+  saving.value = true;
+  const ok = await saveLayout(draft.value);
+  saving.value = false;
+  if (ok) {
+    draft.value = null;
+    panel.value = null;
+  }
+}
+function reset() {
+  if (!confirmReset.value) {
+    confirmReset.value = true;
+    return;
+  }
+  draft.value = defaultLayout();
+  pageId.value = draft.value.pages[0].id;
+  confirmReset.value = false;
 }
 
-// same overlapping-call guard as GameLibrary.vue's loadGames, this is
-// re-triggered from many places (save, delete, collection changes) that
-// can overlap, and a slower earlier call could otherwise overwrite a newer one
-let loadGamesToken = 0;
+function mutatePage(change: (p: HomePage) => void) {
+  if (!draft.value) return;
+  const target = draft.value.pages.find((p) => p.id === pageId.value);
+  if (target) change(target);
+}
+function setWidgets(widgets: WidgetInstance[]) {
+  mutatePage((p) => (p.widgets = widgets));
+}
+// closes the gaps: everything slides up until it meets something
+function tidy() {
+  mutatePage((p) => (p.widgets = settle(p.widgets)));
+}
+function removeWidget(id: string) {
+  mutatePage((p) => (p.widgets = p.widgets.filter((w) => w.id !== id)));
+  if (typeof panel.value === "object" && panel.value?.settings === id)
+    panel.value = null;
+}
 
-async function loadGames() {
-  const token = ++loadGamesToken;
-  loading.value = true;
-  try {
-    const fetched = await fetchGames();
-    if (token !== loadGamesToken) return;
-    games.value = fetched;
-  } catch (err) {
-    if (token !== loadGamesToken) return;
-    error.value = err instanceof Error ? err.message : "Could not load games";
-  } finally {
-    if (token === loadGamesToken) {
-      loading.value = false;
-      await nextTick();
-      updateAllShelfArrows();
+async function addFromGallery(
+  type: string,
+  variant: string | null,
+  settings: Record<string, unknown>,
+  size: { w: number; h: number },
+) {
+  if (!definitionOf(type)) return;
+  let newId = "";
+  const taken = draft.value ? allWidgetIds(draft.value) : [];
+  mutatePage((p) => {
+    p.widgets = addWidget(p.widgets, type, size, settings, variant, taken);
+    newId = p.widgets[p.widgets.length - 1].id;
+  });
+  await nextTick();
+  document
+    .querySelector(`[data-widget="${newId}"]`)
+    ?.scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
+const settingsTarget = computed(() => {
+  const p = panel.value;
+  if (!p || typeof p !== "object") return null;
+  const widget = page.value.widgets.find((w) => w.id === p.settings);
+  const def = widget ? definitionOf(widget.type) : undefined;
+  return widget && def ? { widget, def } : null;
+});
+function resizeWidget(w: number, h: number) {
+  const target = settingsTarget.value?.widget;
+  if (!target) return;
+  setWidgets(
+    moveWidget(page.value.widgets, target.id, {
+      x: target.x,
+      y: target.y,
+      w,
+      h,
+    }),
+  );
+}
+function changeWidget(
+  settings: Record<string, unknown>,
+  variant: string | null,
+) {
+  const id = settingsTarget.value?.widget.id;
+  mutatePage((p) => {
+    const w = p.widgets.find((item) => item.id === id);
+    if (w) {
+      w.settings = settings;
+      w.variant = variant;
     }
-  }
+  });
 }
 
-// toggles each arrow's visibility based on whether its shelf can actually
-// scroll further that direction, no point showing a left arrow at scrollLeft 0
-function updateShelfArrows(shelf: HTMLElement) {
-  const wrap = shelf.closest(".shelf-wrap");
-  if (!wrap) return;
-  const left = wrap.querySelector(".shelf-arrow.left");
-  const right = wrap.querySelector(".shelf-arrow.right");
-  const maxScroll = shelf.scrollWidth - shelf.clientWidth;
-  left?.classList.toggle("can-scroll", shelf.scrollLeft > 4);
-  right?.classList.toggle("can-scroll", shelf.scrollLeft < maxScroll - 4);
+function addPage() {
+  if (!draft.value || draft.value.pages.length >= 8) return;
+  let n = draft.value.pages.length + 1;
+  while (draft.value.pages.some((p) => p.id === `page-${n}`)) n += 1;
+  draft.value.pages.push({
+    id: `page-${n}`,
+    name: `Page ${draft.value.pages.length + 1}`,
+    options: { gap: "cozy", backdrop: "glow" },
+    widgets: [],
+  });
+  pageId.value = `page-${n}`;
+  panel.value = "page";
+}
+const confirm = useConfirm();
+async function deletePage() {
+  if (!draft.value || draft.value.pages.length < 2) return;
+  const count = page.value.widgets.length;
+  if (
+    count &&
+    !(await confirm({
+      title: "Delete page",
+      message: `Delete "${page.value.name}" and its ${count} widget${count === 1 ? "" : "s"}? Anything written in them, such as a note, goes with it once you press Done.`,
+      confirmLabel: "Delete page",
+      danger: true,
+    }))
+  )
+    return;
+  draft.value.pages = draft.value.pages.filter((p) => p.id !== pageId.value);
+  pageId.value = draft.value.pages[0].id;
+  panel.value = null;
+}
+function addStarterPage(added: HomePage) {
+  if (!draft.value || draft.value.pages.length >= 8) return;
+  draft.value.pages.push(added);
+  pageId.value = added.id;
+}
+// an earlier version or a file takes the place of the working copy; Cancel still
+// brings back what was saved, Done keeps it
+async function replaceDraft(next: HomeLayout, what: string) {
+  if (
+    !(await confirm({
+      title: "Replace this layout",
+      message: `Show ${what} instead of the layout you are editing? Nothing is saved until you press Done, and Cancel brings back the saved one.`,
+      confirmLabel: "Replace",
+    }))
+  )
+    return;
+  draft.value = next;
+  pageId.value = next.pages[0].id;
+}
+function renamePage(name: string) {
+  mutatePage((p) => (p.name = name));
+}
+function setGap(gap: PageGap) {
+  mutatePage((p) => (p.options.gap = gap));
+}
+function setBackdrop(backdrop: PageBackdrop) {
+  mutatePage((p) => (p.options.backdrop = backdrop));
 }
 
-function updateAllShelfArrows() {
-  document.querySelectorAll<HTMLElement>(".shelf").forEach(updateShelfArrows);
+function onKey(e: KeyboardEvent) {
+  if (e.key === "Escape" && panel.value) panel.value = null;
 }
 
-window.addEventListener("resize", updateAllShelfArrows);
-onUnmounted(() => window.removeEventListener("resize", updateAllShelfArrows));
-
-onMounted(loadGames);
-
-function openEditModal(game: Game) {
-  editingGame.value = game;
-  showFormModal.value = true;
-}
-
-async function onGameSaved() {
-  showFormModal.value = false;
-  editingGame.value = null;
-  await loadGames();
-}
-
-function requestDelete(game: Game) {
-  deletingGame.value = game;
-  deleteError.value = null;
-}
-
-function onDeleteFromModal(gameId: string) {
-  const game = games.value.find((g) => g.id === gameId);
-  showFormModal.value = false;
-  editingGame.value = null;
-  if (game) requestDelete(game);
-}
-
-async function confirmDelete() {
-  if (!deletingGame.value) return;
-  deleting.value = true;
-  deleteError.value = null;
-  try {
-    await deleteGame(deletingGame.value.id);
-    deletingGame.value = null;
-    await loadGames();
-  } catch (err) {
-    deleteError.value =
-      err instanceof Error ? err.message : "Could not delete game";
-  } finally {
-    deleting.value = false;
-  }
-}
-
-const collectionPickerGame = ref<Game | null>(null);
-
-function handleAddToCollection(game: Game) {
-  collectionPickerGame.value = game;
-}
-
-async function onCollectionAdded() {
-  await loadGames();
-}
-
-const SHELF_CAP = 20;
-
-// most-recently-played first, this is the shelf you land on, so it should
-// lead with whatever you were actually just doing, not insertion order
-const playingGames = computed(() =>
-  [...games.value]
-    .filter((g) => g.status === "playing")
-    .sort((a, b) => (b.lastPlayedAt ?? "").localeCompare(a.lastPlayedAt ?? ""))
-    .slice(0, SHELF_CAP),
+// Edits are kept until Done, so leaving with some should not lose them silently,
+// and a change made from a widget's own controls is saved as the page is left.
+const dirty = computed(
+  () =>
+    draft.value !== null &&
+    JSON.stringify(draft.value) !== JSON.stringify(savedLayout.value),
 );
-
-const recentlyAdded = computed(() =>
-  [...games.value]
-    .filter((g) => g.dateAdded)
-    .sort((a, b) => (b.dateAdded! > a.dateAdded! ? 1 : -1))
-    .slice(0, SHELF_CAP),
+function warnLeaving(e: BeforeUnloadEvent) {
+  if (dirty.value) e.preventDefault();
+}
+function onHide() {
+  if (document.visibilityState === "hidden") flushPending();
+}
+onBeforeRouteLeave(
+  () =>
+    !dirty.value ||
+    window.confirm(
+      "You have changes to Home that are not saved. Leave anyway?",
+    ),
 );
-
-const collectionGroups = computed(() => {
-  const map = new Map<string, Game[]>();
-  for (const g of games.value) {
-    for (const c of g.collections) {
-      if (!map.has(c)) map.set(c, []);
-      map.get(c)!.push(g);
-    }
-  }
-  return Array.from(map.entries()).map(([name, list]) => ({
-    name,
-    games: list.slice(0, SHELF_CAP),
-  }));
+// Home's data is shared for the whole visit; coming back to the page loads it
+// again, so a change made elsewhere (a status, a new title) shows here
+if (hasLoadedBefore()) void refreshHome();
+onMounted(() => {
+  markLoaded();
+  window.addEventListener("keydown", onKey);
+  window.addEventListener("beforeunload", warnLeaving);
+  document.addEventListener("visibilitychange", onHide);
+});
+onBeforeUnmount(() => {
+  window.removeEventListener("keydown", onKey);
+  window.removeEventListener("beforeunload", warnLeaving);
+  document.removeEventListener("visibilitychange", onHide);
+  flushPending();
 });
 
-const collectionsCount = computed(() => collectionGroups.value.length);
+const now = useNow();
+const refreshTitle = computed(() => {
+  if (refreshing.value) return "Updating…";
+  if (!lastRefreshed.value) return "Refresh";
+  const minutes = Math.floor((now.value - lastRefreshed.value) / 60_000);
+  if (minutes < 1) return "Updated just now. Refresh";
+  if (minutes < 60) return `Updated ${minutes} min ago. Refresh`;
+  return `Updated ${Math.floor(minutes / 60)} h ago. Refresh`;
+});
 
-// which shelves show, and in what order, persisted per browser. Reordering
-// isn't exposed (drag-and-drop has no precedent in this codebase, and
-// re-doing it as up/down arrows for a handful of shelves felt like more
-// chrome than it was worth); show/hide covers the actual complaint, which
-// is a Home Hub cluttered with collection shelves nobody wants to see here
-const HIDDEN_SHELVES_KEY = "homeHubHiddenShelves";
-function loadHiddenShelves(): Set<string> {
-  try {
-    const raw = localStorage.getItem(HIDDEN_SHELVES_KEY);
-    return new Set(raw ? (JSON.parse(raw) as string[]) : []);
-  } catch {
-    return new Set();
-  }
+function retrySave() {
+  void saveLayout(savedLayout.value);
 }
-const hiddenShelves = ref<Set<string>>(loadHiddenShelves());
-function toggleShelfVisibility(id: string) {
-  const next = new Set(hiddenShelves.value);
-  if (next.has(id)) next.delete(id);
-  else next.add(id);
-  hiddenShelves.value = next;
-  try {
-    localStorage.setItem(HIDDEN_SHELVES_KEY, JSON.stringify([...next]));
-  } catch {
-    // worst case the customization just doesn't persist, not worth failing over
-  }
-}
-const showShelfCustomizer = ref(false);
-const shelfChoices = computed(() => [
-  { id: "continue-playing", label: "Continue Playing" },
-  { id: "recently-added", label: "Recently Added" },
-  ...collectionGroups.value.map((g) => ({
-    id: "collection:" + g.name,
-    label: g.name,
-  })),
-]);
 
-// a small, dismissible nudge toward a few features that are easy to miss
-// entirely on a fresh install, gone for good once dismissed, not
-// re-shown just because every item happens to get checked off later
-const CHECKLIST_DISMISSED_KEY = "homeHubChecklistDismissed";
-const checklistDismissed = ref(
-  localStorage.getItem(CHECKLIST_DISMISSED_KEY) === "true",
-);
-function dismissChecklist() {
-  checklistDismissed.value = true;
+// one-time welcome, shown on a first visit
+const WELCOME_KEY = "seenWelcomeTour";
+const showWelcome = ref(localStorage.getItem(WELCOME_KEY) !== "true");
+function dismissWelcome() {
+  showWelcome.value = false;
   try {
-    localStorage.setItem(CHECKLIST_DISMISSED_KEY, "true");
+    localStorage.setItem(WELCOME_KEY, "true");
   } catch {
-    // worst case it just shows again next visit, not worth failing over
+    // it just shows again next time
   }
 }
-const onboardingSteps = computed(() => [
+const TOUR = [
   {
-    done: games.value.some((g) => g.source),
-    label: "Connect a library",
-    hint: "Steam, Epic Games or PlayStation: Settings → Metadata",
-    to: "/settings?section=sources",
+    title: "Make Home yours",
+    body: "Press Customize to add, move and resize widgets, or to set up extra pages.",
   },
-  {
-    done: games.value.some((g) => g.favorite),
-    label: "Favorite a game",
-    hint: "The heart icon on any card",
-    to: "/games",
-  },
-]);
-const showChecklist = computed(
-  () => !checklistDismissed.value && onboardingSteps.value.some((s) => !s.done),
-);
-
-// one-time welcome tour, a plain feature summary rather than positioned
-// coach-marks pointing at live elements (this app has no such overlay
-// system, and building one just for a first-run pass felt disproportionate)
-const WELCOME_TOUR_KEY = "seenWelcomeTour";
-const showWelcomeTour = ref(localStorage.getItem(WELCOME_TOUR_KEY) !== "true");
-function dismissWelcomeTour() {
-  showWelcomeTour.value = false;
-  try {
-    localStorage.setItem(WELCOME_TOUR_KEY, "true");
-  } catch {
-    // worst case it shows again next visit, not worth failing over
-  }
-}
-const TOUR_STEPS = [
   {
     title: "Find anything fast",
-    body: "Press Ctrl/Cmd+K anywhere to jump straight to a game, collection, or Settings section.",
+    body: "Press Ctrl or Cmd and K anywhere to jump to a title, a collection or a setting.",
   },
   {
-    title: "Filter and save combos",
-    body: "Games has status, platform, genre, and advanced filters, save a combination as a preset to reuse it later.",
-  },
-  {
-    title: "Collections",
-    body: "Group games however you like, in any order, open a collection and hit Reorder to arrange it.",
-  },
-  {
-    title: "Press ? anytime",
-    body: "Shows every keyboard shortcut this app supports.",
+    title: "Press ? any time",
+    body: "It lists every keyboard shortcut.",
   },
 ];
-
-// --- "this week" recap: playtime data has no history (just a running
-// total + lastPlayedAt), so "minutes logged this week" isn't derivable,
-// this counts what actually is: games touched, achievements unlocked,
-// and metadata edited/refreshed ------
-const weeklyDigestSetting = ref(
-  localStorage.getItem("weeklyDigestEnabled") !== "false",
-);
-const weeklyDigest = ref<WeeklyDigest | null>(null);
-onMounted(async () => {
-  if (!weeklyDigestSetting.value) return;
-  try {
-    weeklyDigest.value = await fetchWeeklyDigest();
-  } catch {
-    weeklyDigest.value = null;
-  }
-});
-const gamesPlayedThisWeek = computed(() => {
-  const weekAgo = Date.now() - 7 * 86_400_000;
-  return games.value.filter(
-    (g) => g.lastPlayedAt && new Date(g.lastPlayedAt).getTime() >= weekAgo,
-  ).length;
-});
-const achievementsUnlockedThisWeek = computed(
-  () => weeklyDigest.value?.achievements_unlocked ?? 0,
-);
-const metadataChangesThisWeek = computed(
-  () => weeklyDigest.value?.metadata_changes ?? 0,
-);
-const showWeeklyRecap = computed(
-  () =>
-    weeklyDigestSetting.value &&
-    (gamesPlayedThisWeek.value > 0 ||
-      achievementsUnlockedThisWeek.value > 0 ||
-      metadataChangesThisWeek.value > 0),
-);
-
-// backlog games sitting untouched a while, added 90+ days ago, never
-// played, still marked backlog. No dedicated "revisit date" field exists,
-// so this is a heuristic rather than something the user explicitly set.
-const staleBacklogGames = computed(() => {
-  const cutoff = Date.now() - 90 * 86_400_000;
-  return games.value.filter(
-    (g) =>
-      g.status === "backlog" &&
-      !g.lastPlayedAt &&
-      g.dateAdded &&
-      new Date(g.dateAdded).getTime() < cutoff,
-  );
-});
-
-// "on this day", games added in a previous year, on today's month/day.
-// Uses dateAdded (the one date every game reliably has) rather than
-// lastPlayedAt, which is often null.
-const onThisDayGames = computed(() => {
-  const now = new Date();
-  return games.value
-    .filter((g) => {
-      if (!g.dateAdded) return false;
-      const d = new Date(g.dateAdded);
-      return (
-        d.getMonth() === now.getMonth() &&
-        d.getDate() === now.getDate() &&
-        d.getFullYear() < now.getFullYear()
-      );
-    })
-    .map((g) => ({
-      game: g,
-      yearsAgo: now.getFullYear() - new Date(g.dateAdded!).getFullYear(),
-    }));
-});
-
-function scrollShelf(e: MouseEvent, dir: 1 | -1) {
-  const row = (e.currentTarget as HTMLElement).closest(".row");
-  const shelf = row?.querySelector(".shelf") as HTMLElement | null;
-  if (!shelf) return;
-  shelf.scrollBy({ left: dir * shelf.clientWidth * 0.9, behavior: "smooth" });
-}
 </script>
 
 <template>
-  <main class="home">
+  <main
+    class="home"
+    :class="{
+      glow: page.options.backdrop === 'glow',
+      editing,
+      shifted: panel !== null && panel !== 'add' && editing,
+    }"
+  >
     <AccountChip fixed />
 
-    <div
-      v-if="showWelcomeTour"
-      class="tour-backdrop"
-      @click.self="dismissWelcomeTour"
-    >
-      <div class="tour-dialog">
+    <div v-if="showWelcome" class="tour-backdrop" @click.self="dismissWelcome">
+      <div
+        class="tour-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Welcome"
+      >
         <h2>Welcome to your library</h2>
         <p class="tour-intro">
-          A quick tour of what's here, this won't show again.
+          A quick look at what is here. This will not show again.
         </p>
         <div class="tour-steps">
-          <div v-for="step in TOUR_STEPS" :key="step.title" class="tour-step">
+          <div v-for="step in TOUR" :key="step.title">
             <h3>{{ step.title }}</h3>
             <p>{{ step.body }}</p>
           </div>
         </div>
-        <button type="button" class="tour-dismiss" @click="dismissWelcomeTour">
+        <button type="button" class="solid" @click="dismissWelcome">
           Let's go
         </button>
       </div>
     </div>
 
     <div class="content">
-      <div class="home-header">
-        <div>
-          <p class="eyebrow">Welcome back, {{ currentUser?.username }}</p>
-          <h1>Your Library</h1>
-        </div>
-        <div class="home-header-actions">
-          <div v-if="showWeeklyRecap" class="weekly-recap">
-            <span class="weekly-recap-label">This week</span>
-            <span v-if="gamesPlayedThisWeek" class="weekly-recap-item"
-              >{{ gamesPlayedThisWeek }} game{{
-                gamesPlayedThisWeek === 1 ? "" : "s"
-              }}
-              played</span
-            >
-            <span v-if="achievementsUnlockedThisWeek" class="weekly-recap-item"
-              >{{ achievementsUnlockedThisWeek }} achievement{{
-                achievementsUnlockedThisWeek === 1 ? "" : "s"
-              }}
-              unlocked</span
-            >
-            <span v-if="metadataChangesThisWeek" class="weekly-recap-item"
-              >{{ metadataChangesThisWeek }} metadata change{{
-                metadataChangesThisWeek === 1 ? "" : "s"
-              }}</span
-            >
-          </div>
-          <div class="shelf-customizer-wrap">
-            <button
-              type="button"
-              class="customize-button"
-              @click="showShelfCustomizer = !showShelfCustomizer"
-            >
-              Customize shelves
-            </button>
-            <div v-if="showShelfCustomizer" class="shelf-customizer-dropdown">
-              <label
-                v-for="choice in shelfChoices"
-                :key="choice.id"
-                class="shelf-choice"
-              >
-                <input
-                  type="checkbox"
-                  :checked="!hiddenShelves.has(choice.id)"
-                  @change="toggleShelfVisibility(choice.id)"
-                />
-                <span>{{ choice.label }}</span>
-              </label>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="stats-strip">
-        <div class="stat-card">
-          <span class="stat-value">{{ totalGames }}</span>
-          <span class="stat-label">Games</span>
-        </div>
-        <div class="stat-card">
-          <span class="stat-value">{{ favoriteCount }}</span>
-          <span class="stat-label">Favorites</span>
-        </div>
-        <div class="stat-card">
-          <span class="stat-value">{{ collectionsCount }}</span>
-          <span class="stat-label">Collections</span>
-        </div>
-      </div>
-
-      <div v-if="showChecklist" class="onboarding-checklist">
-        <div class="onboarding-header">
-          <span>Get the most out of your library</span>
+      <!-- page tabs and the Customize button: on the greeting's line when there is
+           one page, so they take no space of their own and nothing moves when you
+           start editing -->
+      <div class="top" :class="{ inline: layout.pages.length > 1 }">
+        <nav
+          v-if="layout.pages.length > 1 || editing"
+          class="tabs"
+          aria-label="Home pages"
+        >
+          <button
+            v-for="p in layout.pages"
+            :key="p.id"
+            type="button"
+            class="tab"
+            :class="{ on: p.id === page.id }"
+            @click="pageId = p.id"
+          >
+            {{ p.name }}
+          </button>
+          <button
+            v-if="editing && layout.pages.length < 8"
+            type="button"
+            class="tab add"
+            @click="addPage"
+          >
+            + Page
+          </button>
+        </nav>
+        <span v-if="!editing" class="top-actions">
           <button
             type="button"
-            class="onboarding-dismiss"
-            title="Dismiss"
-            @click="dismissChecklist"
+            class="ghost square"
+            :disabled="refreshing"
+            :title="refreshTitle"
+            :aria-label="refreshTitle"
+            @click="refreshHome"
           >
-            ✕
+            <svg
+              :class="{ spin: refreshing }"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+              <polyline points="21 3 21 9 15 9" />
+            </svg>
           </button>
-        </div>
-        <router-link
-          v-for="step in onboardingSteps"
-          :key="step.label"
-          :to="step.to"
-          class="onboarding-step"
-          :class="{ done: step.done }"
-        >
-          <span class="onboarding-check">{{ step.done ? "✓" : "" }}</span>
-          <span class="onboarding-text">
-            <span class="onboarding-label">{{ step.label }}</span>
-            <span class="onboarding-hint">{{ step.hint }}</span>
-          </span>
-        </router-link>
+          <button type="button" class="ghost customize" @click="startEditing">
+            Customize
+          </button>
+        </span>
       </div>
 
-      <section class="widgets-row">
+      <!-- the editing tools float at the bottom, so they are always in reach and
+           never push the page around -->
+      <div
+        v-if="editing"
+        class="toolbar"
+        :class="{ aside: panel !== null && panel !== 'add' }"
+        role="toolbar"
+        aria-label="Edit Home"
+      >
+        <span v-if="saveError" class="err">{{ saveError }}</span>
+        <span v-else-if="dirty" class="unsaved">Unsaved changes</span>
+        <button type="button" class="ghost" @click="panel = 'add'">
+          Add widget
+        </button>
         <button
           type="button"
-          class="widget-card random-widget"
-          @click="pickRandomGame"
+          class="ghost"
+          title="Close the gaps between widgets"
+          @click="tidy"
         >
-          <svg
-            class="widget-icon"
-            viewBox="0 0 24 24"
-            width="22"
-            height="22"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <rect x="3" y="3" width="18" height="18" rx="4" />
-            <circle
-              cx="8.5"
-              cy="8.5"
-              r="1.2"
-              fill="currentColor"
-              stroke="none"
-            />
-            <circle
-              cx="15.5"
-              cy="8.5"
-              r="1.2"
-              fill="currentColor"
-              stroke="none"
-            />
-            <circle
-              cx="8.5"
-              cy="15.5"
-              r="1.2"
-              fill="currentColor"
-              stroke="none"
-            />
-            <circle
-              cx="15.5"
-              cy="15.5"
-              r="1.2"
-              fill="currentColor"
-              stroke="none"
-            />
-            <circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none" />
-          </svg>
-          <div>
-            <span class="widget-title">Pick something random</span>
-            <span class="widget-subtitle">Can't decide? Let us choose.</span>
-          </div>
+          Tidy up
         </button>
-
-        <router-link
-          v-if="staleBacklogGames.length"
-          to="/games?status=backlog"
-          class="widget-card backlog-widget"
+        <button type="button" class="ghost" @click="panel = 'page'">
+          Page options
+        </button>
+        <button type="button" class="ghost" @click="panel = 'layouts'">
+          Layouts
+        </button>
+        <button
+          type="button"
+          class="ghost"
+          :class="{ warn: confirmReset }"
+          @click="reset"
         >
-          <svg
-            class="widget-icon"
-            viewBox="0 0 24 24"
-            width="22"
-            height="22"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
+          {{ confirmReset ? "Click again to reset" : "Reset" }}
+        </button>
+        <button type="button" class="ghost" @click="cancel">Cancel</button>
+        <button type="button" class="solid" :disabled="saving" @click="done">
+          {{ saving ? "Saving" : "Done" }}
+        </button>
+      </div>
+
+      <p v-if="saveError && !editing" class="notice" role="alert">
+        Your last change to Home was not saved: {{ saveError }}
+        <button type="button" @click="retrySave">Try again</button>
+      </p>
+
+      <HomeGrid
+        :page="page"
+        :editing="editing"
+        @update:widgets="setWidgets"
+        @settings="(id) => (panel = { settings: id })"
+        @remove="removeWidget"
+      />
+
+      <p v-if="!page.widgets.length" class="blank">
+        <strong>This page is empty</strong>
+        <span v-if="editing">Press Add widget to put something on it.</span>
+        <span v-else>Press Customize, then Add widget.</span>
+      </p>
+    </div>
+
+    <aside
+      v-if="panel !== null && editing"
+      class="side"
+      :class="{ wide: panel === 'add' }"
+    >
+      <WidgetDrawer
+        v-if="panel === 'add'"
+        @add="addFromGallery"
+        @close="panel = null"
+      />
+      <WidgetSettings
+        v-else-if="settingsTarget"
+        :key="settingsTarget.widget.id"
+        :def="settingsTarget.def"
+        :settings="settingsTarget.widget.settings"
+        :variant="settingsTarget.widget.variant"
+        :w="settingsTarget.widget.w"
+        :h="settingsTarget.widget.h"
+        @change="changeWidget"
+        @resize="resizeWidget"
+        @remove="removeWidget(settingsTarget.widget.id)"
+        @close="panel = null"
+      />
+      <LayoutsPanel
+        v-else-if="panel === 'layouts' && draft"
+        :layout="draft"
+        @add-page="addStarterPage"
+        @replace="replaceDraft"
+        @close="panel = null"
+      />
+      <div v-else-if="panel === 'page'" class="pageopts">
+        <header>
+          <h3>Page options</h3>
+          <button
+            type="button"
+            class="x"
+            aria-label="Close"
+            @click="panel = null"
           >
-            <rect x="4" y="4" width="16" height="16" rx="2" />
-            <path d="M8 2v4M16 2v4" />
-          </svg>
-          <div>
-            <span class="widget-title"
-              >{{ staleBacklogGames.length }} backlog
-              {{ staleBacklogGames.length === 1 ? "game" : "games" }} waiting a
-              while</span
+            &#10005;
+          </button>
+        </header>
+        <div class="fields">
+          <label class="field">
+            <span class="label">Name</span>
+            <input
+              type="text"
+              maxlength="40"
+              :value="page.name"
+              @input="
+                renamePage(($event.target as HTMLInputElement).value || 'Home')
+              "
+            />
+          </label>
+          <label class="field">
+            <span class="label">Space between widgets</span>
+            <select
+              :value="page.options.gap"
+              @change="
+                setGap(($event.target as HTMLSelectElement).value as PageGap)
+              "
             >
-            <span class="widget-subtitle"
-              >Added 90+ days ago, never played, {{ staleBacklogGames[0].title
-              }}{{
-                staleBacklogGames.length > 1
-                  ? ` +${staleBacklogGames.length - 1} more`
-                  : ""
-              }}</span
+              <option value="tight">Tight</option>
+              <option value="cozy">Cozy</option>
+              <option value="roomy">Roomy</option>
+            </select>
+          </label>
+          <label class="field">
+            <span class="label">Background</span>
+            <select
+              :value="page.options.backdrop"
+              @change="
+                setBackdrop(
+                  ($event.target as HTMLSelectElement).value as PageBackdrop,
+                )
+              "
             >
-          </div>
-        </router-link>
-
-        <router-link
-          v-if="onThisDayGames.length"
-          :to="`/games/${onThisDayGames[0].game.id}`"
-          class="widget-card on-this-day-widget"
-        >
-          <svg
-            class="widget-icon"
-            viewBox="0 0 24 24"
-            width="22"
-            height="22"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
+              <option value="glow">Soft glow</option>
+              <option value="none">Plain</option>
+            </select>
+          </label>
+          <button
+            v-if="layout.pages.length > 1"
+            type="button"
+            class="ghost danger"
+            @click="deletePage"
           >
-            <rect x="3" y="4" width="18" height="17" rx="2" />
-            <line x1="3" y1="9" x2="21" y2="9" />
-            <line x1="8" y1="2" x2="8" y2="6" />
-            <line x1="16" y1="2" x2="16" y2="6" />
-          </svg>
-          <div>
-            <span class="widget-title">On this day</span>
-            <span
-              class="widget-subtitle"
-              v-for="entry in onThisDayGames.slice(0, 2)"
-              :key="entry.game.id"
-            >
-              Added {{ entry.game.title }} {{ entry.yearsAgo }} year{{
-                entry.yearsAgo === 1 ? "" : "s"
-              }}
-              ago
-            </span>
-          </div>
-        </router-link>
-      </section>
-
-      <p v-if="loading">Loading…</p>
-      <p v-else-if="error" class="error">{{ error }}</p>
-
-      <template v-else>
-        <section v-if="!hiddenShelves.has('continue-playing')" class="row">
-          <div class="row-header">
-            <router-link to="/games?status=playing" class="row-title">
-              <svg
-                class="row-icon"
-                viewBox="0 0 24 24"
-                width="18"
-                height="18"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <rect x="2" y="6" width="20" height="12" rx="6" />
-                <line x1="7" y1="12" x2="11" y2="12" />
-                <line x1="9" y1="10" x2="9" y2="14" />
-                <circle
-                  cx="16"
-                  cy="10.5"
-                  r="1"
-                  fill="currentColor"
-                  stroke="none"
-                />
-                <circle
-                  cx="18"
-                  cy="13"
-                  r="1"
-                  fill="currentColor"
-                  stroke="none"
-                />
-              </svg>
-              <h2>Continue Playing</h2>
-              <span class="row-count">{{ playingGames.length }}</span>
-            </router-link>
-          </div>
-          <div v-if="playingGames.length" class="shelf-wrap">
-            <button
-              type="button"
-              class="shelf-arrow left"
-              @click="scrollShelf($event, -1)"
-              aria-label="Scroll left"
-            >
-              ‹
-            </button>
-            <div
-              class="shelf"
-              @scroll="updateShelfArrows($event.target as HTMLElement)"
-            >
-              <GameCard
-                v-for="game in playingGames"
-                :key="game.id"
-                :game="game"
-                @edit="openEditModal"
-                @add-to-collection="handleAddToCollection"
-              />
-            </div>
-            <button
-              type="button"
-              class="shelf-arrow right"
-              @click="scrollShelf($event, 1)"
-              aria-label="Scroll right"
-            >
-              ›
-            </button>
-          </div>
-          <p v-else class="empty-row">Nothing in progress right now.</p>
-        </section>
-
-        <section v-if="!hiddenShelves.has('recently-added')" class="row">
-          <div class="row-header">
-            <router-link to="/games?sort=recent" class="row-title">
-              <svg
-                class="row-icon"
-                viewBox="0 0 24 24"
-                width="18"
-                height="18"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <circle cx="12" cy="12" r="9" />
-                <polyline points="12 7 12 12 15.5 14" />
-              </svg>
-              <h2>Recently Added</h2>
-              <span class="row-count">{{ recentlyAdded.length }}</span>
-            </router-link>
-          </div>
-          <div v-if="recentlyAdded.length" class="shelf-wrap">
-            <button
-              type="button"
-              class="shelf-arrow left"
-              @click="scrollShelf($event, -1)"
-              aria-label="Scroll left"
-            >
-              ‹
-            </button>
-            <div
-              class="shelf"
-              @scroll="updateShelfArrows($event.target as HTMLElement)"
-            >
-              <GameCard
-                v-for="game in recentlyAdded"
-                :key="game.id"
-                :game="game"
-                @edit="openEditModal"
-                @add-to-collection="handleAddToCollection"
-              />
-            </div>
-            <button
-              type="button"
-              class="shelf-arrow right"
-              @click="scrollShelf($event, 1)"
-              aria-label="Scroll right"
-            >
-              ›
-            </button>
-          </div>
-          <p v-else class="empty-row">No games added yet.</p>
-        </section>
-
-        <section
-          v-for="group in collectionGroups.filter(
-            (g) => !hiddenShelves.has('collection:' + g.name),
-          )"
-          :key="group.name"
-          class="row"
-        >
-          <div class="row-header">
-            <router-link
-              :to="`/games/collections/${encodeURIComponent(group.name)}`"
-              class="row-title"
-            >
-              <svg
-                class="row-icon"
-                viewBox="0 0 24 24"
-                width="18"
-                height="18"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <path
-                  d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"
-                />
-              </svg>
-              <h2>{{ group.name }}</h2>
-              <span class="row-count">{{ group.games.length }}</span>
-            </router-link>
-          </div>
-          <div class="shelf-wrap">
-            <button
-              type="button"
-              class="shelf-arrow left"
-              @click="scrollShelf($event, -1)"
-              aria-label="Scroll left"
-            >
-              ‹
-            </button>
-            <div
-              class="shelf"
-              @scroll="updateShelfArrows($event.target as HTMLElement)"
-            >
-              <GameCard
-                v-for="game in group.games"
-                :key="game.id"
-                :game="game"
-                @edit="openEditModal"
-                @add-to-collection="handleAddToCollection"
-              />
-            </div>
-            <button
-              type="button"
-              class="shelf-arrow right"
-              @click="scrollShelf($event, 1)"
-              aria-label="Scroll right"
-            >
-              ›
-            </button>
-          </div>
-        </section>
-        <p v-if="!collectionGroups.length" class="empty-row">
-          No collections yet: use a card's collection button to start one.
-        </p>
-      </template>
-
-      <GameFormModal
-        v-if="showFormModal"
-        :game="editingGame"
-        @close="showFormModal = false"
-        @saved="onGameSaved"
-        @delete="onDeleteFromModal"
-      />
-
-      <CollectionPickerModal
-        v-if="collectionPickerGame"
-        :game="collectionPickerGame"
-        @close="collectionPickerGame = null"
-        @added="onCollectionAdded"
-      />
-
-      <RandomGamePicker
-        v-if="showRandomPicker"
-        :games="games"
-        @close="showRandomPicker = false"
-      />
-
-      <div
-        v-if="deletingGame"
-        class="confirm-backdrop"
-        @click.self="deletingGame = null"
-      >
-        <div class="confirm-dialog">
-          <h3>Delete {{ deletingGame.title }}?</h3>
-          <p>This can't be undone.</p>
-          <div v-if="deleteError" class="confirm-error">{{ deleteError }}</div>
-          <div class="confirm-actions">
-            <button
-              type="button"
-              class="secondary-button"
-              @click="deletingGame = null"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              class="danger-button"
-              :disabled="deleting"
-              @click="confirmDelete"
-            >
-              {{ deleting ? "Deleting…" : "Delete" }}
-            </button>
-          </div>
+            Delete this page
+          </button>
         </div>
       </div>
-    </div>
+    </aside>
   </main>
 </template>
 
 <style scoped>
 .home {
   position: relative;
-  padding: 84px 24px 24px;
-  font-family: system-ui, sans-serif;
-  background: #0d0d0d;
   min-height: 100vh;
-  color: #fff;
-  overflow: hidden;
+  padding: 76px var(--ui-edge-right) 40px var(--ui-edge-left);
+  background: var(--ui-bg);
+  color: var(--ui-text);
+  font-family: system-ui, sans-serif;
+  transition: padding-right 0.2s;
 }
-.home::before {
+.home.editing {
+  /* room under the last widget for the floating tools */
+  padding-bottom: 120px;
+}
+.home.glow::before {
   content: "";
   position: fixed;
-  top: -100px;
-  left: -100px;
-  width: 500px;
-  height: 500px;
+  top: -120px;
+  left: -120px;
+  width: 620px;
+  height: 620px;
   background: radial-gradient(
     circle,
-    rgba(214, 138, 52, 0.08) 0%,
+    color-mix(in srgb, var(--ui-accent) 9%, transparent) 0%,
     transparent 70%
   );
-  z-index: 0;
   pointer-events: none;
+}
+@media (min-width: 1200px) {
+  .home.shifted {
+    padding-right: 504px;
+  }
 }
 .content {
   position: relative;
-  z-index: 1;
 }
-.home-header {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 16px;
-  margin-bottom: 28px;
-}
-.home-header-actions {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.weekly-recap {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid #232323;
-  border-radius: 999px;
-  padding: 8px 16px;
-  font-size: 12.5px;
-}
-.weekly-recap-label {
-  color: #777;
-  text-transform: uppercase;
-  font-size: 10.5px;
-  letter-spacing: 0.04em;
-  font-weight: 700;
-}
-.weekly-recap-item {
-  color: #d68a34;
-  font-weight: 600;
-}
-.shelf-customizer-wrap {
-  position: relative;
-}
-.customize-button {
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid #2a2a2a;
-  color: #ccc;
-  border-radius: 8px;
-  padding: 9px 14px;
-  font-size: 12.5px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.customize-button:hover {
-  border-color: #3a3a3a;
-  color: #fff;
-}
-.shelf-customizer-dropdown {
-  position: absolute;
-  top: calc(100% + 6px);
-  right: 0;
-  width: 220px;
-  background: #1a1a1a;
-  border: 1px solid #2a2a2a;
-  border-radius: 8px;
-  padding: 10px 12px;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
-  z-index: 20;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.shelf-choice {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: #eee;
-  font-size: 13px;
-  padding: 5px 2px;
-  cursor: pointer;
-}
-.shelf-choice input {
-  accent-color: #d68a34;
-}
-.eyebrow {
-  margin: 0 0 4px;
-  color: #d68a34;
-  font-size: 13px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-.home-header h1 {
-  margin: 0;
-  font-size: 1.7rem;
-  font-weight: 800;
-  color: #fff;
-}
-.stats-strip {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 14px;
-  margin-bottom: 24px;
-}
-.stat-card {
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid #232323;
-  border-radius: 10px;
-  padding: 10px 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 80px;
-  transition:
-    transform 0.15s ease,
-    border-color 0.15s ease;
-}
-.stat-card:hover {
-  transform: translateY(-2px);
-  border-color: #3a3a3a;
-}
-.stat-value {
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: #d68a34;
-}
-.stat-label {
-  font-size: 12px;
-  color: #999;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-.widgets-row {
-  display: flex;
-  gap: 14px;
-  margin-bottom: 32px;
-}
-.onboarding-checklist {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px 20px;
-  background: rgba(214, 138, 52, 0.06);
-  border: 1px solid rgba(214, 138, 52, 0.25);
-  border-radius: 12px;
-  padding: 12px 18px;
-  margin-bottom: 20px;
-}
-.onboarding-header {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  color: #d68a34;
-  font-size: 12.5px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  flex-basis: 100%;
-}
-.onboarding-dismiss {
-  margin-left: auto;
-  background: none;
-  border: none;
-  color: #a3703c;
-  cursor: pointer;
-  font-size: 12px;
-  min-width: 28px;
-  min-height: 28px;
-  margin-top: -5px;
-  margin-bottom: -5px;
-  padding: 2px 4px;
-}
-.onboarding-dismiss:hover {
-  color: #d68a34;
-}
-.onboarding-step {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  text-decoration: none;
-  color: inherit;
-  padding: 6px 0;
-}
-.onboarding-check {
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  border: 1px solid #555;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 10px;
-  color: #4ade80;
-  flex-shrink: 0;
-}
-.onboarding-step.done .onboarding-check {
-  border-color: #4ade80;
-}
-.onboarding-text {
-  display: flex;
-  flex-direction: column;
-}
-.onboarding-label {
-  font-size: 13px;
-  color: #eee;
-}
-.onboarding-step.done .onboarding-label {
-  color: #888;
-  text-decoration: line-through;
-}
-.onboarding-hint {
-  font-size: 11px;
-  color: #777;
-}
-.widget-card {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid #232323;
-  border-radius: 12px;
-  padding: 14px 18px;
-  flex: 1;
-  max-width: 280px;
-  text-align: left;
-  cursor: pointer;
-  transition:
-    background 0.15s ease,
-    border-color 0.15s ease,
-    transform 0.15s ease;
-}
-.random-widget:hover {
-  background: rgba(255, 255, 255, 0.06);
-  border-color: #3a3a3a;
-  transform: translateY(-2px);
-}
-.backlog-widget,
-.on-this-day-widget {
-  max-width: 340px;
-  text-decoration: none;
-  color: inherit;
-}
-.on-this-day-widget:hover {
-  background: rgba(255, 255, 255, 0.06);
-  border-color: #3a3a3a;
-  transform: translateY(-2px);
-}
-.widget-icon {
-  color: #d68a34;
-  flex-shrink: 0;
-}
-.widget-title {
-  display: block;
-  color: #fff;
-  font-weight: 600;
-  font-size: 14px;
-}
-.widget-subtitle {
-  display: block;
-  color: #888;
-  font-size: 12px;
-  margin-top: 2px;
-}
-.row {
-  margin-bottom: 32px;
-}
-.row-header {
-  display: flex;
-  align-items: center;
-  margin-bottom: 14px;
-}
-.row-title {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding-left: 12px;
-  border-left: 3px solid #d68a34;
-  text-decoration: none;
-  cursor: pointer;
-}
-.row-title:hover h2 {
-  color: #d68a34;
-}
-.row-title h2 {
-  margin: 0;
-  font-size: 1.1rem;
-  color: #fff;
-  transition: color 0.15s ease;
-}
-.row-icon {
-  color: #d68a34;
-  flex-shrink: 0;
-}
-.row-count {
-  background: rgba(255, 255, 255, 0.06);
-  color: #999;
-  font-size: 12px;
-  font-weight: 600;
-  padding: 3px 10px;
-  border-radius: 999px;
-}
-.shelf-wrap {
-  position: relative;
-}
-.shelf {
-  display: flex;
-  gap: 16px;
-  overflow-x: auto;
-  scroll-behavior: smooth;
-  padding: 20px 16px 28px;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
-.shelf::-webkit-scrollbar {
-  display: none;
-}
-.shelf-arrow {
+.top {
   position: absolute;
   top: 0;
-  bottom: 28px;
-  width: 40px;
-  border: none;
-  background: linear-gradient(to right, rgba(10, 10, 10, 0.85), transparent);
-  color: #fff;
-  font-size: 26px;
-  line-height: 1;
-  cursor: pointer;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.15s ease;
-  z-index: 20;
+  right: 0;
+  z-index: 25;
   display: flex;
   align-items: center;
+  gap: 10px;
+}
+.top.inline {
+  position: static;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.unsaved {
+  color: var(--ui-accent);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+.toolbar {
+  position: fixed;
+  bottom: 18px;
+  left: 50%;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
   justify-content: center;
+  gap: 8px;
+  max-width: calc(100vw - 24px);
+  padding: 8px 10px;
+  border: 1px solid var(--ui-border-strong);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--ui-popover) 94%, transparent);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 16px 40px
+    color-mix(in srgb, var(--ui-scrim-base) 55%, transparent);
+  transform: translateX(-50%);
 }
-.shelf-arrow.right {
-  left: auto;
-  right: 0;
-  background: linear-gradient(to left, rgba(10, 10, 10, 0.85), transparent);
+@media (min-width: 1200px) {
+  /* centred on the part of the page the side panel leaves free */
+  .toolbar.aside {
+    left: calc((100% - 480px) / 2);
+  }
 }
-.shelf-arrow.left {
-  left: 0;
+.notice {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 14px;
+  padding: 8px 12px;
+  border: 1px solid color-mix(in srgb, var(--ui-danger) 50%, transparent);
+  border-radius: var(--ui-radius-control);
+  background: color-mix(in srgb, var(--ui-danger) 12%, transparent);
+  color: var(--ui-error-text);
+  font-size: 0.84rem;
 }
-.shelf-wrap:hover .shelf-arrow.can-scroll {
-  opacity: 1;
-  pointer-events: auto;
+.notice button {
+  padding: 4px 10px;
+  border: 1px solid currentColor;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
 }
-.shelf-arrow:hover {
-  color: #d68a34;
+.tabs {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 10px;
+  background: var(--ui-surface);
 }
-.empty-row {
-  color: #777;
-  font-size: 14px;
+.tab {
+  padding: 7px 16px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--ui-dim);
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.tab:hover {
+  color: var(--ui-text);
+}
+.tab.on {
+  background: var(--ui-accent);
+  color: var(--ui-on-accent);
+}
+.tab.add {
+  color: var(--ui-faint);
+}
+.ghost,
+.solid {
+  height: 36px;
+  padding: 0 14px;
+  border-radius: var(--ui-radius-control);
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.ghost {
+  border: 1px solid var(--ui-border);
+  background: transparent;
+  color: var(--ui-dim);
+}
+.ghost:hover {
+  border-color: var(--ui-accent-line);
+  color: var(--ui-text);
+}
+.ghost.warn,
+.ghost.danger {
+  border-color: color-mix(in srgb, var(--ui-danger) 60%, transparent);
+  color: var(--ui-error-text);
+}
+.solid {
+  border: 1px solid var(--ui-accent);
+  background: var(--ui-accent);
+  color: var(--ui-on-accent);
+}
+.solid:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+.solid:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.customize {
+  opacity: 0.9;
+}
+.top-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ghost.square {
+  display: inline-grid;
+  place-items: center;
+  width: 36px;
+  padding: 0;
+}
+.ghost.square svg {
+  width: 16px;
+  height: 16px;
+}
+.ghost.square:disabled {
+  cursor: default;
+}
+.spin {
+  animation: spin 0.9s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.err {
+  color: var(--ui-error-text);
+  font-size: 0.8rem;
+}
+.blank {
+  display: grid;
+  place-content: center;
+  gap: 4px;
+  min-height: 220px;
   margin: 0;
+  border: 1px dashed var(--ui-border);
+  border-radius: var(--ui-radius-card);
+  color: var(--ui-dim);
+  font-size: 0.88rem;
+  text-align: center;
 }
-.error {
-  color: #f87171;
+.blank strong {
+  color: var(--ui-text);
+  font-size: 1rem;
 }
-.tour-backdrop,
-.confirm-backdrop {
+.side {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: var(--ui-z-drawer);
+  width: min(480px, 100vw);
+  background: var(--ui-popover);
+  border-left: 1px solid var(--ui-border);
+  box-shadow: -18px 0 40px
+    color-mix(in srgb, var(--ui-scrim-base) 35%, transparent);
+}
+.side.wide {
+  width: min(820px, 100vw);
+}
+.pageopts header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid var(--ui-border-soft);
+}
+.pageopts h3 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+.x {
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--ui-dim);
+  cursor: pointer;
+}
+.x:hover {
+  background: var(--ui-surface-2);
+  color: var(--ui-text);
+}
+.fields {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 18px 20px;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.label {
+  color: var(--ui-dim);
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.field input,
+.field select {
+  padding: 9px 11px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
+  background: var(--ui-bg-2);
+  color: var(--ui-text);
+  font: inherit;
+  font-size: 0.88rem;
+}
+.field input:focus,
+.field select:focus {
+  outline: none;
+  border-color: var(--ui-accent);
+}
+.tour-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.65);
+  z-index: var(--ui-z-modal);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 60;
+  padding: 16px;
+  background: color-mix(in srgb, var(--ui-scrim-base) 65%, transparent);
 }
 .tour-dialog {
-  background: #1a1a1a;
-  border: 1px solid #2a2a2a;
-  border-radius: 14px;
-  padding: 28px;
   width: 100%;
   max-width: 460px;
   max-height: 85vh;
   overflow-y: auto;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+  padding: 28px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-dialog);
+  background: var(--ui-surface);
   box-sizing: border-box;
 }
 .tour-dialog h2 {
   margin: 0 0 4px;
-  color: #fff;
   font-size: 1.3rem;
 }
 .tour-intro {
-  color: #999;
-  font-size: 13px;
   margin: 0 0 20px;
+  color: var(--ui-dim);
+  font-size: 0.85rem;
 }
 .tour-steps {
   display: flex;
@@ -1257,72 +888,23 @@ function scrollShelf(e: MouseEvent, dir: 1 | -1) {
   gap: 14px;
   margin-bottom: 22px;
 }
-.tour-step h3 {
-  margin: 0 0 3px;
-  color: #d68a34;
-  font-size: 13.5px;
+.tour-steps h3 {
+  margin: 0 0 2px;
+  font-size: 0.95rem;
+  color: var(--ui-accent);
 }
-.tour-step p {
+.tour-steps p {
   margin: 0;
-  color: #ccc;
-  font-size: 13px;
-  line-height: 1.5;
+  color: var(--ui-dim);
+  font-size: 0.86rem;
+  line-height: 1.45;
 }
-.tour-dismiss {
-  width: 100%;
-  background: #d68a34;
-  color: #111;
-  border: none;
-  border-radius: 8px;
-  padding: 12px;
-  font-weight: 700;
-  cursor: pointer;
-}
-.confirm-dialog {
-  background: #1a1a1a;
-  border: 1px solid #2a2a2a;
-  border-radius: 12px;
-  padding: 22px;
-  width: 100%;
-  max-width: 360px;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
-}
-.confirm-dialog h3 {
-  margin: 0 0 8px;
-}
-.confirm-dialog p {
-  margin: 0 0 16px;
-  color: #aaa;
-  font-size: 14px;
-}
-.confirm-error {
-  color: #fca5a5;
-  font-size: 13px;
-  margin-bottom: 12px;
-}
-.confirm-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-}
-.secondary-button,
-.danger-button {
-  border: none;
-  border-radius: 8px;
-  padding: 10px 18px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.secondary-button {
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
-}
-.danger-button {
-  background: #dc2626;
-  color: #fff;
-}
-.danger-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+@media (max-width: 760px) {
+  .home {
+    padding: 76px 16px 32px;
+  }
+  .top-actions {
+    display: none;
+  }
 }
 </style>

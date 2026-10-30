@@ -1042,8 +1042,8 @@ const episodic = computed<EpisodicStats | null>(() => {
   gap: 16px;
 }
 .stats-panel {
-  background: #1a1a1a;
-  border: 1px solid #202020;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border-soft);
   border-radius: 12px;
   padding: 18px 20px;
   min-width: 0;
@@ -1069,12 +1069,12 @@ const episodic = computed<EpisodicStats | null>(() => {
   bottom: 1px;
   width: 3px;
   border-radius: 999px;
-  background: #d68a34;
+  background: var(--ui-accent);
 }
 .note {
   margin: 12px 0 0;
   font-size: 0.78rem;
-  color: #9c9c9c;
+  color: var(--ui-dim);
 }
 .note.warn {
   margin: 0 0 16px;
@@ -1084,7 +1084,7 @@ const episodic = computed<EpisodicStats | null>(() => {
   margin: 0 0 12px;
 }
 .dim {
-  color: #666;
+  color: var(--ui-faint);
   font-size: 0.74rem;
 }
 .plain-list {
@@ -1106,7 +1106,7 @@ const episodic = computed<EpisodicStats | null>(() => {
   background: none;
   border: none;
   padding: 0;
-  color: #ddd;
+  color: var(--ui-text-soft);
   font: inherit;
   text-align: left;
   cursor: pointer;
@@ -1115,7 +1115,7 @@ const episodic = computed<EpisodicStats | null>(() => {
   white-space: nowrap;
 }
 .plain-list button:hover {
-  color: #d68a34;
+  color: var(--ui-accent);
 }
 .progress-list {
   display: grid;
@@ -1137,14 +1137,14 @@ const episodic = computed<EpisodicStats | null>(() => {
   min-width: 0;
 }
 .progress-row:hover {
-  background: rgba(255, 255, 255, 0.04);
+  background: color-mix(in srgb, var(--ui-wash-base) 4%, transparent);
 }
 .progress-art {
   width: 34px;
   height: 50px;
   border-radius: 5px;
   flex-shrink: 0;
-  background: #222 center / cover;
+  background: var(--ui-surface-2) center / cover;
 }
 .progress-main {
   flex: 1;
@@ -1163,18 +1163,18 @@ const episodic = computed<EpisodicStats | null>(() => {
 .progress-track {
   height: 6px;
   border-radius: 999px;
-  background: #222;
+  background: var(--ui-surface-2);
   overflow: hidden;
 }
 .progress-fill {
   display: block;
   height: 100%;
   border-radius: 999px;
-  background: linear-gradient(90deg, #d68a34, #e8a552);
+  background: linear-gradient(90deg, var(--ui-accent), var(--ui-accent-bright));
 }
 .progress-count {
   font-size: 0.78rem;
-  color: #9c9c9c;
+  color: var(--ui-dim);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }

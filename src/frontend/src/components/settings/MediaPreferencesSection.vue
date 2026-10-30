@@ -171,23 +171,23 @@ const listSortOptions = [
 .settings-section h2 {
   margin: 0 0 8px;
   padding-left: 12px;
-  border-left: 3px solid #d68a34;
+  border-left: 3px solid var(--ui-accent);
   font-size: 1rem;
-  color: #fff;
+  color: var(--ui-heading);
 }
 .section-hint {
-  color: #9c9c9c;
+  color: var(--ui-dim);
   font-size: 0.82rem;
   line-height: 1.6;
   margin: 0 0 14px;
 }
 .saved {
-  color: #6fbf73;
+  color: var(--ui-good);
   margin-left: 8px;
   font-weight: 700;
 }
 .error {
-  color: #e57373;
+  color: var(--ui-error);
   font-size: 0.82rem;
 }
 .field {
@@ -196,10 +196,10 @@ const listSortOptions = [
   gap: 8px;
   margin: 14px 0;
   font-size: 0.82rem;
-  color: #ccc;
+  color: var(--ui-text-soft);
 }
 .field small {
-  color: #666;
+  color: var(--ui-faint);
 }
 .settings-section :deep(.toggle-button) {
   margin: 12px 0;

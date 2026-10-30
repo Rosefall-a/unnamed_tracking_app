@@ -169,19 +169,19 @@ function formatTime(epochSeconds: number | null): string {
 .settings-section h2 {
   margin: 0 0 8px;
   padding-left: 12px;
-  border-left: 3px solid #d68a34;
+  border-left: 3px solid var(--ui-accent);
   font-size: 1rem;
-  color: #fff;
+  color: var(--ui-heading);
 }
 .section-hint {
-  color: #999;
+  color: var(--ui-dim-3);
   font-size: 0.82rem;
   line-height: 1.6;
   margin: 0 0 20px;
 }
 .tile {
-  background: #111;
-  border: 1px solid #2a2a2a;
+  background: var(--ui-bg-2);
+  border: 1px solid var(--ui-border);
   border-radius: 10px;
   padding: 18px 20px;
   margin-bottom: 16px;
@@ -196,43 +196,43 @@ function formatTime(epochSeconds: number | null): string {
 .tile-head h3 {
   margin: 0;
   font-size: 0.9rem;
-  color: #fff;
+  color: var(--ui-heading);
 }
 .status-badge {
   font-size: 0.7rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: #999;
-  background: rgba(255, 255, 255, 0.06);
+  color: var(--ui-dim-3);
+  background: color-mix(in srgb, var(--ui-wash-base) 6%, transparent);
   padding: 3px 10px;
   border-radius: 999px;
   white-space: nowrap;
 }
 .status-badge.on {
-  color: #6fbf73;
-  background: rgba(111, 191, 115, 0.14);
+  color: var(--ui-good);
+  background: color-mix(in srgb, var(--ui-good) 14%, transparent);
 }
 .tile-desc {
-  color: #999;
+  color: var(--ui-dim-3);
   font-size: 0.8rem;
   line-height: 1.5;
   margin: 0 0 12px;
 }
 .last-run {
-  color: #777;
+  color: var(--ui-faint-2);
   font-size: 0.76rem;
   margin: 0 0 14px;
 }
 .form-error {
-  color: #f87171;
+  color: var(--ui-danger-bright);
   font-size: 0.8rem;
   margin: 0 0 12px;
 }
 .secondary-button {
-  background: #1a1a1a;
-  border: 1px solid #2b2b2b;
-  color: #ccc;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  color: var(--ui-text-soft);
   border-radius: 8px;
   padding: 9px 16px;
   font-weight: 600;
@@ -255,20 +255,20 @@ function formatTime(epochSeconds: number | null): string {
   align-items: center;
   gap: 8px;
   font-size: 0.85rem;
-  color: #e5e5e5;
+  color: var(--ui-text-strong);
 }
 .job-every {
   display: flex;
   align-items: center;
   gap: 8px;
   font-size: 0.85rem;
-  color: #e5e5e5;
+  color: var(--ui-text-strong);
 }
 .job-amount {
   width: 72px;
-  background: #1a1a1a;
-  color: #e5e5e5;
-  border: 1px solid #2a2a2a;
+  background: var(--ui-surface);
+  color: var(--ui-text-strong);
+  border: 1px solid var(--ui-border);
   border-radius: 8px;
   padding: 7px 10px;
   font-size: 0.82rem;
@@ -277,9 +277,9 @@ function formatTime(epochSeconds: number | null): string {
   opacity: 0.5;
 }
 .job-interval {
-  background: #1a1a1a;
-  color: #e5e5e5;
-  border: 1px solid #2a2a2a;
+  background: var(--ui-surface);
+  color: var(--ui-text-strong);
+  border: 1px solid var(--ui-border);
   border-radius: 8px;
   padding: 7px 10px;
   font-size: 0.82rem;

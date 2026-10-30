@@ -1,6 +1,8 @@
 // Pairs of library entries that may be the same game: one the person made and one a
 // Steam sync created. The server never merges them on its own.
 
+import { invalidateGameList } from "./games";
+
 export type MatchStatus = "pending" | "kept_both" | "merged";
 export type Prefer = "mine" | "steam";
 
@@ -140,6 +142,7 @@ export async function mergeMatch(
   id: string,
   prefer: Prefer,
 ): Promise<GameMatch> {
+  invalidateGameList();
   return mapMatch(
     await request<BackendMatch>(`/${id}/merge`, "merge these games", {
       prefer,

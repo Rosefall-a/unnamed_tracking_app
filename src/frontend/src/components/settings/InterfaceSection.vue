@@ -3,6 +3,8 @@ import { ref, watch } from "vue";
 import SegmentedControl from "./SegmentedControl.vue";
 import ToggleButton from "./ToggleButton.vue";
 import { sidebarMode } from "../../state/sidebarMode";
+import { preferences } from "../../state/preferences";
+import { queuePreferences } from "../../services/preferences";
 import type { SidebarMode } from "../../state/sidebarMode";
 
 type ViewMode = "cards" | "list" | "detail";
@@ -41,6 +43,26 @@ const sidebarModeOptions = [
   { value: "pinned", label: "Pinned open" },
   { value: "rail", label: "Icon rail" },
 ];
+
+const autoOptions = [
+  { value: "tab", label: "Own tab" },
+  { value: "mixed", label: "With mine" },
+  { value: "hidden", label: "Hidden" },
+];
+const autoError = ref<string | null>(null);
+async function setAuto(value: string) {
+  const mode = value as "tab" | "mixed" | "hidden";
+  const before = preferences.value.collections_auto;
+  preferences.value = { ...preferences.value, collections_auto: mode };
+  try {
+    await queuePreferences({ collections_auto: mode });
+    autoError.value = null;
+  } catch (e) {
+    preferences.value = { ...preferences.value, collections_auto: before };
+    autoError.value =
+      e instanceof Error ? e.message : "Could not save that choice.";
+  }
+}
 
 watch(defaultViewMode, (mode) =>
   localStorage.setItem("gameLibraryViewMode", mode),
@@ -100,6 +122,23 @@ watch(highContrastMode, (enabled) => {
       </span>
     </div>
 
+    <div class="field">
+      <span>Franchise collections</span>
+      <SegmentedControl
+        :model-value="preferences.collections_auto"
+        :options="autoOptions"
+        @update:model-value="setAuto"
+      />
+      <span class="field-hint">
+        Syncing a library files each game into a collection for its series and
+        one for where it came from. <strong>Own tab</strong>: they get a
+        Franchises tab on Collections and stay out of your own list.
+        <strong>With mine</strong>: they are listed with your own.
+        <strong>Hidden</strong>: they are not shown at all.
+      </span>
+      <span v-if="autoError" class="field-hint error">{{ autoError }}</span>
+    </div>
+
     <ToggleButton v-model="compactMode" label="Compact mode">
       <strong>Compact mode</strong>: tighter spacing across the app
     </ToggleButton>
@@ -120,12 +159,12 @@ watch(highContrastMode, (enabled) => {
 .settings-section h2 {
   margin: 0 0 8px;
   padding-left: 12px;
-  border-left: 3px solid #d68a34;
+  border-left: 3px solid var(--ui-accent);
   font-size: 1rem;
-  color: #fff;
+  color: var(--ui-heading);
 }
 .section-hint {
-  color: #999;
+  color: var(--ui-dim-3);
   font-size: 0.82rem;
   line-height: 1.6;
   margin: 0 0 16px;
@@ -135,12 +174,15 @@ watch(highContrastMode, (enabled) => {
   flex-direction: column;
   gap: 8px;
   font-size: 0.85rem;
-  color: #ccc;
+  color: var(--ui-text-soft);
   margin-bottom: 18px;
 }
 .field-hint {
-  color: #888;
+  color: var(--ui-dim-2);
   font-size: 0.78rem;
   line-height: 1.5;
+}
+.field-hint.error {
+  color: var(--ui-error-text);
 }
 </style>

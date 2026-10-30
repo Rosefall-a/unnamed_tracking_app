@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { animeFormatLabel, isAnimeMovie } from "../utils/animeFormat";
 import { formatDisplayDate } from "../utils/dates";
 import { mediaPriority, priorityLabel } from "../utils/priority";
 import { localMediaImage } from "../utils/mediaImages";
@@ -163,9 +164,19 @@ function onDeleted() {
 const firstAirYear = computed(() =>
   show.value?.firstAirDate ? show.value.firstAirDate.slice(0, 4) : null,
 );
+// "Movie", "OVA" and so on for something that is not a TV series with seasons
+const formatBadge = computed(() =>
+  show.value && show.value.seasons.length <= 1
+    ? animeFormatLabel(show.value.format)
+    : null,
+);
 const episodeRuntimeLabel = computed(() => {
   const minutes = show.value?.episodeRuntimeMinutes;
-  return minutes ? `${minutes}m episodes` : null;
+  if (!minutes) return null;
+  // a film has one running time, not episodes
+  return isAnimeMovie(show.value?.format)
+    ? `${minutes} min`
+    : `${minutes}m episodes`;
 });
 const nativeTitleLine = computed(() => {
   if (!show.value) return "";
@@ -927,14 +938,16 @@ async function onRatingChange(value: number | null) {
       :badges="[
         ...(firstAirYear ? [{ text: firstAirYear }] : []),
         ...(episodeRuntimeLabel ? [{ text: episodeRuntimeLabel }] : []),
-        ...(show.seasons.length
-          ? [
-              {
-                text: `${show.seasons.length} season${show.seasons.length === 1 ? '' : 's'}`,
-                tone: 'good' as const,
-              },
-            ]
-          : []),
+        ...(formatBadge
+          ? [{ text: formatBadge, tone: 'good' as const }]
+          : show.seasons.length
+            ? [
+                {
+                  text: `${show.seasons.length} season${show.seasons.length === 1 ? '' : 's'}`,
+                  tone: 'good' as const,
+                },
+              ]
+            : []),
       ]"
       bright-native-title
       @status-change="onStatusChange"
@@ -1259,13 +1272,14 @@ async function onRatingChange(value: number | null) {
   margin: -8px 0 14px;
   font-size: 0.9rem;
   color: #b0b0b0;
-  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.6);
+  text-shadow: 0 2px 12px
+    color-mix(in srgb, var(--ui-scrim-base) 60%, transparent);
 }
 
 .seasons-section {
   margin-top: 28px;
   padding-top: 20px;
-  border-top: 1px solid #202020;
+  border-top: 1px solid var(--ui-border-soft);
 }
 
 .seasons-heading {
@@ -1275,14 +1289,14 @@ async function onRatingChange(value: number | null) {
   margin: 0 0 14px;
   font-size: 0.9rem;
   font-weight: 800;
-  color: #f2f2f2;
+  color: var(--ui-text);
 }
 
 .seasons-count {
   font-size: 0.72rem;
   font-weight: 700;
-  color: #999;
-  background: rgba(255, 255, 255, 0.06);
+  color: var(--ui-dim-3);
+  background: color-mix(in srgb, var(--ui-wash-base) 6%, transparent);
   padding: 2px 9px;
   border-radius: 999px;
 }
@@ -1317,7 +1331,7 @@ async function onRatingChange(value: number | null) {
   width: 100%;
   aspect-ratio: 2 / 3;
   border-radius: 8px;
-  background-color: #1c1c1c;
+  background-color: var(--ui-surface);
   background-size: cover;
   background-repeat: no-repeat;
   background-origin: border-box;
@@ -1332,11 +1346,11 @@ async function onRatingChange(value: number | null) {
 
 .season-card:not(:disabled):hover .season-poster {
   transform: translateY(-3px);
-  border-color: rgba(214, 138, 52, 0.5);
+  border-color: color-mix(in srgb, var(--ui-accent) 50%, transparent);
 }
 
 .season-card.current .season-poster {
-  border: 2px solid #d68a34;
+  border: 2px solid var(--ui-accent);
 }
 
 .season-card.missing .season-poster {
@@ -1361,19 +1375,19 @@ async function onRatingChange(value: number | null) {
 }
 
 .season-flag.now {
-  background: #d68a34;
-  color: #14100a;
+  background: var(--ui-accent);
+  color: var(--ui-on-accent);
 }
 
 .season-flag.add {
   background: rgba(20, 20, 20, 0.85);
-  color: #ddd;
+  color: var(--ui-text-soft);
 }
 
 .season-title {
   font-size: 0.78rem;
   font-weight: 700;
-  color: #f2f2f2;
+  color: var(--ui-text);
   line-height: 1.25;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -1383,7 +1397,7 @@ async function onRatingChange(value: number | null) {
 
 .season-meta {
   font-size: 0.68rem;
-  color: #8a8a8a;
+  color: var(--ui-dim-2);
 }
 
 .pill {
@@ -1399,23 +1413,23 @@ async function onRatingChange(value: number | null) {
 }
 
 .pill.watching {
-  background: rgba(214, 138, 52, 0.16);
-  color: #d68a34;
+  background: var(--ui-accent-soft);
+  color: var(--ui-accent);
 }
 
 .pill.completed {
-  background: rgba(111, 191, 115, 0.16);
-  color: #6fbf73;
+  background: color-mix(in srgb, var(--ui-good) 16%, transparent);
+  color: var(--ui-good);
 }
 
 .pill.hold {
-  background: rgba(123, 167, 217, 0.16);
-  color: #7ba7d9;
+  background: color-mix(in srgb, var(--ui-info) 16%, transparent);
+  color: var(--ui-info);
 }
 
 .pill.dropped {
-  background: rgba(217, 111, 111, 0.16);
-  color: #d96f6f;
+  background: color-mix(in srgb, var(--ui-danger-muted) 16%, transparent);
+  color: var(--ui-danger-muted);
 }
 
 .pill.plan {
@@ -1424,14 +1438,14 @@ async function onRatingChange(value: number | null) {
 }
 
 .error-text {
-  color: #e57373;
+  color: var(--ui-error);
   font-size: 0.85rem;
   margin: 0 0 12px;
 }
 
 .episodes-total {
   font-size: 0.8rem;
-  color: #d68a34;
+  color: var(--ui-accent);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
@@ -1445,9 +1459,9 @@ async function onRatingChange(value: number | null) {
 .airing-ctl {
   height: 30px;
   box-sizing: border-box;
-  background: #1a1a1a;
-  border: 1px solid #2b2b2b;
-  color: #ccc;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  color: var(--ui-text-soft);
   border-radius: 7px;
   padding: 0 12px;
   font-family: inherit;
@@ -1457,8 +1471,8 @@ async function onRatingChange(value: number | null) {
 }
 
 .airing-ctl:hover:not(:disabled) {
-  border-color: rgba(214, 138, 52, 0.4);
-  color: #d68a34;
+  border-color: var(--ui-accent-line);
+  color: var(--ui-accent);
 }
 
 .airing-ctl:disabled {
@@ -1467,9 +1481,9 @@ async function onRatingChange(value: number | null) {
 }
 
 .next-episode-banner {
-  background: rgba(214, 138, 52, 0.12);
-  border: 1px solid rgba(214, 138, 52, 0.35);
-  color: #d68a34;
+  background: color-mix(in srgb, var(--ui-accent) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ui-accent) 35%, transparent);
+  color: var(--ui-accent);
   border-radius: 999px;
   padding: 4px 12px;
   font-size: 0.76rem;
@@ -1482,7 +1496,7 @@ async function onRatingChange(value: number | null) {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: #666;
+  color: var(--ui-faint);
 }
 
 .season-divider:first-child {
@@ -1494,7 +1508,7 @@ async function onRatingChange(value: number | null) {
 }
 
 .poster-card-sm:hover .poster-card-sm-art {
-  border-color: rgba(214, 138, 52, 0.5);
+  border-color: color-mix(in srgb, var(--ui-accent) 50%, transparent);
 }
 
 .poster-card-sm-tag {
@@ -1503,7 +1517,7 @@ async function onRatingChange(value: number | null) {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.03em;
-  color: #d68a34;
+  color: var(--ui-accent);
 }
 
 .format-filter {
@@ -1516,28 +1530,28 @@ async function onRatingChange(value: number | null) {
 
 .format-filter-label {
   font-size: 0.76rem;
-  color: #777;
+  color: var(--ui-faint-2);
 }
 
 .format-chip {
   font-size: 0.72rem;
   font-weight: 600;
-  color: #d68a34;
-  background: rgba(214, 138, 52, 0.14);
-  border: 1px solid rgba(214, 138, 52, 0.35);
+  color: var(--ui-accent);
+  background: color-mix(in srgb, var(--ui-accent) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ui-accent) 35%, transparent);
   border-radius: 999px;
   padding: 4px 12px;
   cursor: pointer;
 }
 
 .format-chip:hover {
-  background: rgba(214, 138, 52, 0.22);
+  background: color-mix(in srgb, var(--ui-accent) 22%, transparent);
 }
 
 .format-chip.off {
-  color: #666;
+  color: var(--ui-faint);
   background: transparent;
-  border-color: #2a2a2a;
+  border-color: var(--ui-border);
   text-decoration: line-through;
 }
 </style>

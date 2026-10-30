@@ -156,7 +156,7 @@ async function save() {
   gap: 16px;
 }
 .hint {
-  color: #999;
+  color: var(--ui-dim-3);
   font-size: 13px;
   line-height: 1.5;
 }
@@ -169,54 +169,54 @@ async function save() {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  color: #ccc;
+  color: var(--ui-text-soft);
   font-size: 13px;
 }
 .grid input {
-  background: #111;
-  border: 1px solid #3a3a3a;
+  background: var(--ui-bg-2);
+  border: 1px solid var(--ui-border-strong);
   border-radius: 8px;
-  color: #fff;
+  color: var(--ui-heading);
   padding: 10px;
   font: inherit;
 }
 .grid input:focus {
   outline: none;
-  border-color: #d68a34;
+  border-color: var(--ui-accent);
 }
 h2 {
   margin: 0;
-  color: #fff;
+  color: var(--ui-heading);
 }
 .proxy-section {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  border-top: 1px solid #333;
+  border-top: 1px solid var(--ui-border-strong);
   padding-top: 18px;
 }
 .proxy-section h3 {
   margin: 0;
-  color: #fff;
+  color: var(--ui-heading);
 }
 .proxy-section label {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  color: #ccc;
+  color: var(--ui-text-soft);
   font-size: 13px;
 }
 .proxy-section label input {
-  background: #111;
-  border: 1px solid #3a3a3a;
+  background: var(--ui-bg-2);
+  border: 1px solid var(--ui-border-strong);
   border-radius: 8px;
-  color: #fff;
+  color: var(--ui-heading);
   padding: 10px;
   font: inherit;
 }
 button {
   align-self: flex-start;
-  background: #d68a34;
+  background: var(--ui-accent);
   border: 0;
   border-radius: 8px;
   padding: 10px 14px;
@@ -227,10 +227,10 @@ button:disabled {
   opacity: 0.6;
 }
 .error {
-  color: #fca5a5;
+  color: var(--ui-error-text);
 }
 .success {
-  color: #86efac;
+  color: var(--ui-good-text);
 }
 @media (max-width: 760px) {
   .grid {
