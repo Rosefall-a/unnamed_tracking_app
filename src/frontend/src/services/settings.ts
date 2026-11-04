@@ -519,3 +519,149 @@ export async function runJobNow(id: string): Promise<void> {
   if (!response.ok)
     throw new Error(`Could not start the job: ${response.status}`);
 }
+
+// Settings > Administration > Backups (see backend api/routes/backups.py).
+export interface BackupFile {
+  name: string;
+  createdAt: number;
+  size: number;
+  items: number | null;
+  tables: number | null;
+}
+export interface BackupOverview {
+  enabled: boolean;
+  intervalMinutes: number;
+  minIntervalMinutes: number;
+  maxIntervalMinutes: number;
+  keep: number;
+  maxKeep: number;
+  lastRunAt: number | null;
+  lastResult: Record<string, number | string | boolean | null>;
+  running: boolean;
+  folder: string;
+  backups: BackupFile[];
+}
+export interface Leftover {
+  kind: "game_trash" | "account_files" | "deleted_account";
+  name: string;
+  label: string;
+  bytes: number;
+  modifiedAt: number;
+}
+interface BackendBackupFile {
+  name: string;
+  created_at: number;
+  size: number;
+  items: number | null;
+  tables: number | null;
+}
+interface BackendBackupOverview {
+  enabled: boolean;
+  interval_minutes: number;
+  min_interval_minutes: number;
+  max_interval_minutes: number;
+  keep: number;
+  max_keep: number;
+  last_run_at: number | null;
+  last_result: Record<string, number | string | boolean | null>;
+  running: boolean;
+  folder: string;
+  backups?: BackendBackupFile[];
+}
+function mapBackupFile(f: BackendBackupFile): BackupFile {
+  return {
+    name: f.name,
+    createdAt: f.created_at,
+    size: f.size,
+    items: f.items,
+    tables: f.tables ?? null,
+  };
+}
+function mapBackupOverview(b: BackendBackupOverview): BackupOverview {
+  return {
+    enabled: b.enabled,
+    intervalMinutes: b.interval_minutes,
+    minIntervalMinutes: b.min_interval_minutes,
+    maxIntervalMinutes: b.max_interval_minutes,
+    keep: b.keep,
+    maxKeep: b.max_keep,
+    lastRunAt: b.last_run_at,
+    lastResult: b.last_result,
+    running: b.running,
+    folder: b.folder,
+    backups: (b.backups ?? []).map(mapBackupFile),
+  };
+}
+async function backupError(response: Response, fallback: string) {
+  const body = await response.json().catch(() => null);
+  return new Error(body?.detail ?? `${fallback}: ${response.status}`);
+}
+export async function fetchBackups(): Promise<BackupOverview> {
+  const response = await fetch("/api/settings/backups", {
+    credentials: "include",
+  });
+  if (!response.ok) throw await backupError(response, "Could not load backups");
+  return mapBackupOverview(await response.json());
+}
+export async function updateBackupSettings(changes: {
+  enabled?: boolean;
+  intervalMinutes?: number;
+  keep?: number;
+}): Promise<BackupOverview> {
+  const response = await fetch("/api/settings/backups", {
+    method: "PUT",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      enabled: changes.enabled,
+      interval_minutes: changes.intervalMinutes,
+      keep: changes.keep,
+    }),
+  });
+  if (!response.ok) throw await backupError(response, "Could not save");
+  return mapBackupOverview(await response.json());
+}
+export async function runBackupsNow(): Promise<boolean> {
+  const response = await fetch("/api/settings/backups/run", {
+    method: "POST",
+    credentials: "include",
+  });
+  if (!response.ok)
+    throw await backupError(response, "Could not start a backup");
+  return (await response.json()).started as boolean;
+}
+export function backupDownloadUrl(name: string): string {
+  return `/api/settings/backups/database/${encodeURIComponent(name)}`;
+}
+export async function deleteBackup(name: string): Promise<void> {
+  const response = await fetch(backupDownloadUrl(name), {
+    method: "DELETE",
+    credentials: "include",
+  });
+  if (!response.ok)
+    throw await backupError(response, "Could not delete the backup");
+}
+export async function fetchLeftovers(): Promise<Leftover[]> {
+  const response = await fetch("/api/settings/backups/leftovers", {
+    credentials: "include",
+  });
+  if (!response.ok)
+    throw await backupError(response, "Could not load leftover files");
+  return (
+    (await response.json()) as {
+      kind: Leftover["kind"];
+      name: string;
+      label: string;
+      bytes: number;
+      modified_at: number;
+    }[]
+  ).map((l) => ({ ...l, modifiedAt: l.modified_at }));
+}
+export async function deleteLeftover(item: Leftover): Promise<void> {
+  const response = await fetch(
+    `/api/settings/backups/leftovers/${item.kind}/${encodeURIComponent(item.name)}`,
+    { method: "DELETE", credentials: "include" },
+  );
+  if (!response.ok)
+    throw await backupError(response, "Could not delete the files");
+}

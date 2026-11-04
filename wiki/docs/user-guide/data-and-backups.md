@@ -4,17 +4,19 @@ Unnamed Tracking App stores library records in PostgreSQL and larger user files 
 
 ## Automatic backups
 
-The application runs an in-process automatic backup loop. It runs once at startup and then every 24 hours.
-
-Automatic backups are per-user JSON snapshots containing games, movies, TV shows and anime.
-
-Up to **7** automatic backups are retained for each user:
+The application backs up the whole PostgreSQL database: every account, library, note, achievement, setting and link. By default it does this once a day and keeps the newest **7** backups. An admin can change both, turn backups off, run one now, download one or delete one under **Settings > Administration > Backups**.
 
 ```text
-/data/backups/<user-id>/
+/data/backups/database/
 ```
 
-These are a rolling safety net, not a complete deployment backup.
+Each backup is checked after it is written, before any older one is removed. If a backup fails, nothing is removed, the reason shows on that page, and automatic backups try again an hour later. To restore one, stop the application and run:
+
+```bash
+docker exec -i <db container> pg_restore --clean --if-exists -U <user> -d <database> < database-<time>.dump
+```
+
+Covers, screenshots, clips and saves are not inside these backups, and the backups are stored on the same disk as the application. Copy `/data` somewhere else as well to protect against losing that disk.
 
 ## Library export
 

@@ -139,6 +139,7 @@ const SECTION_ALIASES: Record<string, { section: string; tab?: string }> = {
   scan: { section: "metadata", tab: "scan" },
   "media-refresh": { section: "metadata", tab: "refresh" },
   users: { section: "admin", tab: "users" },
+  backups: { section: "admin", tab: "backups" },
   oidc: { section: "admin", tab: "sso" },
   "server-integrations": { section: "admin", tab: "integrations" },
 };
@@ -172,7 +173,10 @@ watch(activeSection, (section) => {
   const current =
     typeof route.query.section === "string" ? route.query.section : "profile";
   if (current === section) return;
-  void router.replace({ query: { ...route.query, section } });
+  // the tab belongs to the section being left
+  const rest = { ...route.query };
+  delete rest.tab;
+  void router.replace({ query: { ...rest, section } });
 });
 
 const card = ref<HTMLElement | null>(null);

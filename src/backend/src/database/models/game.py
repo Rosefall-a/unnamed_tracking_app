@@ -419,7 +419,7 @@ class GameLink(Base):
 
     game_id: Mapped[UUID] = mapped_column(
         PG_UUID(as_uuid=True),
-        ForeignKey("games.id"),
+        ForeignKey("games.id", ondelete="CASCADE"),
         nullable=False,
     )
 
