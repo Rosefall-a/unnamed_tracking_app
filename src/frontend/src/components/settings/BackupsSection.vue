@@ -292,7 +292,9 @@ function formatBytes(bytes: number): string {
             class="unit"
             :disabled="!overview.enabled"
             aria-label="Unit of time"
-            @change="changeUnit(($event.target as HTMLSelectElement).value as Unit)"
+            @change="
+              changeUnit(($event.target as HTMLSelectElement).value as Unit)
+            "
           >
             <option value="hours">
               {{ draft.amount === 1 ? "hour" : "hours" }}
