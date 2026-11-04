@@ -174,7 +174,8 @@ watch(activeSection, (section) => {
     typeof route.query.section === "string" ? route.query.section : "profile";
   if (current === section) return;
   // the tab belongs to the section being left
-  const { tab: _tab, ...rest } = route.query;
+  const rest = { ...route.query };
+  delete rest.tab;
   void router.replace({ query: { ...rest, section } });
 });
 
