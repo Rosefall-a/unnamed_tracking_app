@@ -13,6 +13,23 @@ KINDS = [
 
 
 @pytest.mark.parametrize(("kind", "payload"), KINDS)
+async def test_a_status_tab_keeps_the_counts_of_the_other_tabs(
+    flow, kind: str, payload: dict
+) -> None:
+    api = f"/api/{kind}"
+    for title, row_status in (("Finished One", "WATCHED"), ("Planned One", "WATCHLIST")):
+        created = await flow.client.post(
+            f"{api}/create", json={**payload, "title": title, "status": row_status}
+        )
+        assert created.status_code == 201, created.text
+
+    tab = (await flow.client.get(f"{api}/list", params={"status_bucket": "plan"})).json()
+    assert [r["title"] for r in tab["items"]] == ["Planned One"]
+    assert tab["total"] == 1
+    assert tab["status_counts"] == {"WATCHED": 1, "WATCHLIST": 1}
+
+
+@pytest.mark.parametrize(("kind", "payload"), KINDS)
 async def test_list_trash_restore_and_purge(flow, kind: str, payload: dict) -> None:
     api = f"/api/{kind}"
     created = await flow.client.post(f"{api}/create", json=payload)

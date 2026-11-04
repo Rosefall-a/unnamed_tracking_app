@@ -41,6 +41,7 @@ from src.core.integrations import resolve_integrations
 from src.database.models.achievement import Achievement
 from src.database.models.game import Game, GameStatus
 from src.database.models.user import User
+from src.database.models.user_scan_settings import UserScanSettings
 from src.database.session import get_db
 from src.features.game_matches import find_matches
 from src.features.metadata.games import steam, steam_tags
@@ -55,9 +56,10 @@ from src.features.metadata.games.steam_achievements import (
     SteamAchievementData,
     fetch_steam_achievements,
 )
+from src.features.metadata.games.time_to_beat import TimesLookup, fill_times
 from src.helpers.game_art_download import download_asset as _download_asset
-from src.helpers.game_art_download import steamgriddb_key_art_url as _fetch_key_art_from_steamgriddb
-from src.helpers.game_art_download import steam_cdn_art_urls as _steam_cdn_art_urls
+from src.helpers.game_art_download import fill_art as _fill_art
+from src.helpers.game_art_download import wanted_art as _wanted_art
 from src.helpers.library_games import LibraryIndex
 from src.helpers.steam_bare_games import bare_steam_game_ids
 from src.helpers.library_games import get_or_create_game as _get_or_create_game
@@ -109,6 +111,8 @@ def _is_junk_title(title: str) -> bool:
 async def _enrich_steam_game_by_appid(
     game: Game, app_id: int, user: User, igdb_client_id: str | None, igdb_client_secret: str | None,
     use_user_tags: bool = True,
+    scan_settings: UserScanSettings | None = None,
+    times: TimesLookup | None = None,
 ) -> None:
     """Steam-sourced games already carry an authoritative Steam appid from
     the account's real owned-games list — no text matching needed at all,
@@ -168,22 +172,19 @@ async def _enrich_steam_game_by_appid(
         game.series = series
         _add_to_series_collection(game, series)
 
-    saved: dict[AssetKind, bool] = {}
-    for asset_kind, url in _steam_cdn_art_urls(app_id).items():
-        saved[asset_kind] = await _download_asset(url, game.id, asset_kind)
-
-    # not every app has the "library" style art Steam generates for newer
-    # titles (older/free/niche games often don't). header_image is wide
-    # (~460x215) — a fine banner fallback, but forcing it into key_art's
-    # portrait (~2:3) slot crops it into something unrecognizable, so
-    # key_art falls back to SteamGridDB's actual portrait grids instead.
-    header_image = (details or {}).get("header_image")
-    if not saved.get("key_art"):
-        sgdb_key_art = await _fetch_key_art_from_steamgriddb(app_id, user.steamgriddb_api_key)
-        if sgdb_key_art:
-            await _download_asset(sgdb_key_art, game.id, "key_art")
-    if header_image and not saved.get("banner"):
-        await _download_asset(header_image, game.id, "banner")
+    is_named = not game.title.startswith("Steam app ")
+    await _fill_art(
+        game.id,
+        _wanted_art(game, scan_settings),
+        app_id,
+        game.title if is_named else None,
+        user.steamgriddb_api_key,
+        (details or {}).get("header_image"),
+    )
+    if is_named and (scan_settings is None or scan_settings.save_time_to_beat):
+        await fill_times(game, times or TimesLookup(igdb_client_id, igdb_client_secret))
+    if details and (times is None or times.hltb_error is None):
+        game.details_checked_at = int(time.time())
 
 
 def _infer_status(

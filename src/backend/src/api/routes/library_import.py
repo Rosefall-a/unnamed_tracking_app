@@ -22,11 +22,13 @@ from typing import Any, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import select
 
 from src.api.routes import epic_import, library_sync, steam_import_steps
 from src.core.auth import get_current_user
 from src.database.models.user import User
 from src.database.session import SessionLocal
+from src.features.metadata.games.repair import repair_user_games
 
 router = APIRouter(
     prefix="/api/library-sync/import",
@@ -133,7 +135,47 @@ async def _import_steam(user_id: UUID, job: ImportJob) -> dict[str, Any]:
             logger.exception("Steam enrich batch failed")
             enrich_failed += len(chunk)
     result["enrich_failed"] = enrich_failed
+
+    # games from earlier imports that are still missing a name, art or a play time
+    try:
+        repaired = await repair_user_games(
+            user_id, lambda done, total: _progress(job, "Filling in what is missing", done, total)
+        )
+        result["repaired"] = asdict(repaired)
+    except Exception:  # the import itself is done; the next one tries these again
+        logger.exception("Filling in missing game details failed")
     return result
+
+
+async def run_scheduled_steam_imports() -> dict[str, Any]:
+    """The same import someone can start by hand, for everyone with a Steam
+    account saved. One at a time: each is many requests to Steam."""
+    async with SessionLocal() as db:
+        user_ids = list(
+            await db.scalars(
+                select(User.id).where(
+                    User.is_active.is_(True),
+                    User.steam_id.is_not(None),
+                    User.steam_api_key.is_not(None),
+                )
+            )
+        )
+    out = {"accounts": 0, "games_added": 0, "failed": 0, "skipped": 0}
+    for user_id in user_ids:
+        running = _jobs.get(user_id)
+        if running and running.running:
+            out["skipped"] += 1
+            continue
+        job = ImportJob(provider="steam")
+        _jobs[user_id] = job
+        await _run(user_id, "steam", job)
+        if job.error:
+            logger.warning("Scheduled Steam import failed for %s: %s", user_id, job.error)
+            out["failed"] += 1
+        else:
+            out["accounts"] += 1
+            out["games_added"] += int(job.result.get("games_added") or 0)
+    return out
 
 
 async def _import_epic(user_id: UUID, job: ImportJob) -> dict[str, Any]:

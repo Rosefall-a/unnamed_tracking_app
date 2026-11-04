@@ -192,6 +192,8 @@ class Game(Base):
         Numeric(6, 1),
         nullable=True,
     )
+    # when features/metadata/games/repair.py last looked for what this game is missing
+    details_checked_at: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
 
     # eager (selectin, not the default lazy) — unlike every other
     # relationship on this model, GameRead serializes `links` straight into

@@ -28,7 +28,10 @@ from src.api.routes.library_sync import (
     _infer_status,
     _replace_achievements,
 )
-from src.api.routes.settings import get_or_create_app_integration_settings
+from src.api.routes.settings import (
+    get_or_create_app_integration_settings,
+    get_or_create_scan_settings,
+)
 from src.core.auth import get_current_user
 from src.core.integrations import resolve_integrations
 from src.core.preferences import load_preferences
@@ -41,6 +44,7 @@ from src.features.metadata.games.steam_achievements import (
     SteamAchievementData,
     fetch_steam_achievements,
 )
+from src.features.metadata.games.time_to_beat import TimesLookup
 from src.helpers.library_games import LibraryIndex
 from src.helpers.steam_achievement_rows import steam_achievement_rows
 
@@ -195,6 +199,8 @@ async def enrich_games(
     games = await _steam_games(db, current_user, body.game_ids)
     integrations = resolve_integrations(await get_or_create_app_integration_settings(db))
     use_tags = (await load_preferences(db, current_user.id))["steam_user_tags"]
+    scan_settings = await get_or_create_scan_settings(current_user.id, db)
+    times = TimesLookup(integrations.igdb_client_id, integrations.igdb_client_secret)
     enriched = failed = 0
     for game in games:
         try:
@@ -206,6 +212,8 @@ async def enrich_games(
                 integrations.igdb_client_id,
                 integrations.igdb_client_secret,
                 use_tags,
+                scan_settings,
+                times,
             )
             enriched += 1
         except Exception:  # one game must not fail the others

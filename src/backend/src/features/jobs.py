@@ -124,7 +124,99 @@ async def _run_airing(force: bool) -> None:
         _airing_running = False
 
 
+def _summarize_steam_import(r: dict[str, Any]) -> str:
+    if r.get("crashed"):
+        return "Last run failed"
+    added = r.get("games_added") or 0
+    parts = [f"{r.get('accounts') or 0} account{'' if r.get('accounts') == 1 else 's'} imported", f"{added} new game{'' if added == 1 else 's'}"]
+    if r.get("failed"):
+        parts.append(f"{r['failed']} failed")
+    return ", ".join(parts)
+
+
+_steam_import_running = False
+
+
+def _steam_import_is_running() -> bool:
+    return _steam_import_running
+
+
+def _start_steam_import(_mode: str) -> dict[str, Any]:
+    global _steam_import_running
+    if not _steam_import_running:
+        _steam_import_running = True
+        asyncio.get_running_loop().create_task(_run_steam_import())
+    return {"running": True}
+
+
+async def _run_steam_import() -> None:
+    global _steam_import_running
+    # imported here: the route modules are loaded after this one
+    from src.api.routes.library_import import run_scheduled_steam_imports
+
+    try:
+        await record_run("steam_import", await run_scheduled_steam_imports())
+    except Exception:
+        logger.exception("The scheduled Steam import failed")
+        try:
+            await record_run("steam_import", {"crashed": True})
+        except Exception:
+            logger.exception("The Steam import's failed run could not be recorded")
+    finally:
+        _steam_import_running = False
+
+
+def _summarize_game_repair(r: dict[str, Any]) -> str:
+    if r.get("crashed"):
+        return "Last run failed"
+    parts = [
+        f"{r.get('checked') or 0} checked",
+        f"{r.get('names') or 0} named",
+        f"{r.get('art') or 0} images added",
+        f"{r.get('times') or 0} play times added",
+    ]
+    if r.get("failed"):
+        parts.append(f"{r['failed']} failed")
+    if r.get("hltb_error"):
+        parts.append("HowLongToBeat did not answer, those games are tried again next run")
+    return ", ".join(parts)
+
+
+_game_repair_running = False
+
+
+def _game_repair_is_running() -> bool:
+    return _game_repair_running
+
+
+def _start_game_repair(_mode: str) -> dict[str, Any]:
+    global _game_repair_running
+    if not _game_repair_running:
+        _game_repair_running = True
+        asyncio.get_running_loop().create_task(_run_game_repair())
+    return {"running": True}
+
+
+async def _run_game_repair() -> None:
+    global _game_repair_running
+    # imported here: it reads settings from the route modules, loaded after this one
+    from src.features.metadata.games.repair import repair_all_games
+
+    try:
+        await record_run("game_repair", await repair_all_games())
+    except Exception:
+        logger.exception("Filling in missing game details failed")
+        try:
+            await record_run("game_repair", {"crashed": True})
+        except Exception:
+            logger.exception("The game repair's failed run could not be recorded")
+    finally:
+        _game_repair_running = False
+
+
 JOBS: dict[str, JobSpec] = {
+    "steam_import": JobSpec("steam_import", "Steam library import", "Imports new games, playtime and achievements from every saved Steam account, then fills in what is missing.", 60, 30 * 24 * 60, 24 * 60, False, _start_steam_import, _steam_import_is_running, _summarize_steam_import),
+    "game_repair": JobSpec("game_repair", "Fill in missing game details", "Finds missing names, artwork and play times without a full reimport. Only adds what is missing, never replaces anything.", 60, 30 * 24 * 60, 24 * 60, False, _start_game_repair, _game_repair_is_running, _summarize_game_repair),
     "airing_check": JobSpec("airing_check", "Airing episode check", "Checks airing titles for newly aired episodes.", 5, 24 * 60, 30, True, _start_airing, _airing_is_running, _summarize_airing, "all"),
     "sequel_check": JobSpec("sequel_check", "New season check", "Checks finished anime for newly listed seasons, and optionally films and specials, and creates a notification for each.", 60, 30 * 24 * 60, 24 * 60, False, _start_sequels, _sequels_is_running, _summarize_sequels),
     "media_refresh": JobSpec("media_refresh", "Media refresh", "Fills missing episode metadata and corrects outdated media data.", 60, 30 * 24 * 60, 24 * 60, False, refresh_job.start, refresh_job.is_running, _summarize_refresh),
