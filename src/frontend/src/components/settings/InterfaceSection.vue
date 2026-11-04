@@ -5,7 +5,9 @@ import ToggleButton from "./ToggleButton.vue";
 import { sidebarMode } from "../../state/sidebarMode";
 import { preferences } from "../../state/preferences";
 import { queuePreferences } from "../../services/preferences";
+import type { TimeToBeatStyle } from "../../services/preferences";
 import type { SidebarMode } from "../../state/sidebarMode";
+import { TIME_TO_BEAT_STYLES } from "../../utils/timeToBeat";
 
 type ViewMode = "cards" | "list" | "detail";
 type SortBy =
@@ -60,6 +62,21 @@ async function setAuto(value: string) {
   } catch (e) {
     preferences.value = { ...preferences.value, collections_auto: before };
     autoError.value =
+      e instanceof Error ? e.message : "Could not save that choice.";
+  }
+}
+
+const timeError = ref<string | null>(null);
+async function setTimeStyle(value: string) {
+  const style = value as TimeToBeatStyle;
+  const before = preferences.value.time_to_beat_style;
+  preferences.value = { ...preferences.value, time_to_beat_style: style };
+  try {
+    await queuePreferences({ time_to_beat_style: style });
+    timeError.value = null;
+  } catch (e) {
+    preferences.value = { ...preferences.value, time_to_beat_style: before };
+    timeError.value =
       e instanceof Error ? e.message : "Could not save that choice.";
   }
 }
@@ -137,6 +154,21 @@ watch(highContrastMode, (enabled) => {
         <strong>Hidden</strong>: they are not shown at all.
       </span>
       <span v-if="autoError" class="field-hint error">{{ autoError }}</span>
+    </div>
+
+    <div class="field">
+      <span>Time to beat</span>
+      <SegmentedControl
+        :model-value="preferences.time_to_beat_style"
+        :options="TIME_TO_BEAT_STYLES"
+        @update:model-value="setTimeStyle"
+      />
+      <span class="field-hint">
+        The time you go by: shown on game pages and used for the Time to beat
+        sort, the random picker, Home widgets and backlog hours. A game without
+        this time counts as unknown. Its page still lists every time it has.
+      </span>
+      <span v-if="timeError" class="field-hint error">{{ timeError }}</span>
     </div>
 
     <ToggleButton v-model="compactMode" label="Compact mode">

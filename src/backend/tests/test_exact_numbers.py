@@ -818,6 +818,33 @@ def test_game_stats_are_exact_and_report_what_is_missing():
     assert stats["seconds_by_source"] == [{"name": "Steam", "seconds": 32 * 3600}]
 
 
+def test_backlog_hours_add_the_chosen_figure_and_never_swap_in_another():
+    from src.core.preferences import DEFAULTS, validate_preference
+    from src.features.game_stats import game_stats
+
+    both = _G("Both", status="BACKLOG", time_to_beat_hours=10, time_to_beat_completionist_hours=40)
+    main_only = _G(
+        "Main only", status="BACKLOG", time_to_beat_hours=5, time_to_beat_completionist_hours=None
+    )
+    now = datetime(2026, 9, 19)
+
+    assert game_stats([both, main_only], {}, now)["backlog"] == {
+        "count": 2,
+        "hours": 15.0,
+        "without_estimate": 0,
+    }
+    assert game_stats([both, main_only], {}, now, "completionist")["backlog"] == {
+        "count": 2,
+        "hours": 40.0,
+        "without_estimate": 1,
+    }
+
+    assert DEFAULTS["time_to_beat_style"] == "main"
+    assert validate_preference("time_to_beat_style", "completionist") == "completionist"
+    with pytest.raises(ValueError):
+        validate_preference("time_to_beat_style", "speedrun")
+
+
 def test_game_stats_with_no_games_say_nothing_instead_of_zero_averages():
     from src.features.game_stats import game_stats
 

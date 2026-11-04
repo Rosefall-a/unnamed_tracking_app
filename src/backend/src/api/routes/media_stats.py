@@ -391,7 +391,7 @@ def _movie_section(movies: list[Movie], rewatch_logs: int) -> dict[str, Any]:
 
 
 async def _games_section(
-    db: AsyncSession, user_id: Any, include_plan: bool = True
+    db: AsyncSession, user_id: Any, include_plan: bool = True, time_style: str = "main"
 ) -> dict[str, Any]:
     games = list(
         (await db.execute(select(Game).where(Game.user_id == user_id, Game.deleted_at.is_(None))))
@@ -461,7 +461,7 @@ async def _games_section(
         "top_rated": _top_rated(games, kind="game"),
         "added_per_month": _added_per_month(games),
         "spent": [{"currency": k, "amount": v} for k, v in sorted(spent.items())],
-        "insights": game_stats(games, per_game, datetime.now()),
+        "insights": game_stats(games, per_game, datetime.now(), time_style),
     }
 
 
@@ -691,7 +691,7 @@ async def get_media_stats(
     in_progress.sort(key=lambda r: r["updated_at"], reverse=True)
     for r in in_progress:
         r.pop("updated_at")
-    games_section = await _games_section(db, uid, include_plan)
+    games_section = await _games_section(db, uid, include_plan, str(prefs["time_to_beat_style"]))
     playing = list(
         (
             await db.execute(

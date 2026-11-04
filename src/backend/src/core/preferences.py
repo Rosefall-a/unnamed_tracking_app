@@ -57,6 +57,8 @@ DEFAULTS: dict[str, Any] = {
     # games the sync grouped by franchise or by where they came from: shown on
     # their own tab of Collections, mixed in with the user's own, or not at all
     "collections_auto": "tab",
+    # which HowLongToBeat figure sorting, length limits and totals go by
+    "time_to_beat_style": "main",
 }
 
 _CHOICES: dict[str, tuple[Any, ...]] = {
@@ -68,6 +70,7 @@ _CHOICES: dict[str, tuple[Any, ...]] = {
     "lists_default_sort": ("custom", "name", "count", "recent"),
     "title_language": ("english", "romaji", "native"),
     "collections_auto": ("tab", "mixed", "hidden"),
+    "time_to_beat_style": ("main", "extras", "completionist", "all"),
 }
 
 _SET_CHOICES: dict[str, tuple[str, ...]] = {

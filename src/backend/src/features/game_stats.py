@@ -46,12 +46,22 @@ def _counted(games: list[Any], field: str, n: int = 8) -> list[dict[str, Any]]:
     return [{"name": k, "count": v} for k, v in counts.most_common(n)]
 
 
+_TIME_FIELDS = {
+    "main": "time_to_beat_hours",
+    "extras": "time_to_beat_extras_hours",
+    "completionist": "time_to_beat_completionist_hours",
+    "all": "time_to_beat_all_hours",
+}
+
+
 def game_stats(
     games: list[Any],
     achievements: dict[Any, tuple[int, int]],
     now: datetime,
+    time_style: str = "main",
 ) -> dict[str, Any]:
-    """`achievements` maps a game id to (unlocked, total)."""
+    """`achievements` maps a game id to (unlocked, total). `time_style` is the
+    time_to_beat_style preference, the figure backlog hours add up."""
     owned = [g for g in games if _status(g) != "WISHLIST"]
     played = [g for g in owned if g.playtime_seconds]
     unplayed = [g for g in owned if not g.playtime_seconds]
@@ -78,7 +88,8 @@ def game_stats(
     )
 
     backlog = [g for g in games if _status(g) == "BACKLOG"]
-    with_estimate = [g for g in backlog if g.time_to_beat_hours is not None]
+    time_field = _TIME_FIELDS.get(time_style, _TIME_FIELDS["main"])
+    with_estimate = [g for g in backlog if getattr(g, time_field) is not None]
 
     priced: dict[str, list[float]] = {}
     for g in played:
@@ -145,7 +156,7 @@ def game_stats(
         "seconds_by_series": _seconds_by(games, "series"),
         "backlog": {
             "count": len(backlog),
-            "hours": round(sum(float(g.time_to_beat_hours) for g in with_estimate), 1),
+            "hours": round(sum(float(getattr(g, time_field)) for g in with_estimate), 1),
             "without_estimate": len(backlog) - len(with_estimate),
         },
         "cost_per_hour": cost_per_hour,
