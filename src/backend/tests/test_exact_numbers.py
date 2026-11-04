@@ -1904,14 +1904,16 @@ async def test_the_airing_check_starts_on_and_the_refresh_off_and_intervals_stay
     async with SessionLocal() as db:
         # the live schedules are put back afterwards
         saved = [
-            (r.job_id, r.enabled, r.interval_minutes, r.last_run_at, r.last_result)
+            (r.job_id, r.enabled, r.interval_minutes, r.last_run_at, r.last_result, r.options)
             for r in (await db.execute(select(JobSetting))).scalars()
         ]
         try:
             await db.execute(delete(JobSetting))
             await db.commit()
 
-            airing, seasons, refresh = await list_jobs(db)
+            airing, seasons, refresh, steam_import, game_repair = await list_jobs(db)
+            # both make many requests to other sites, so they are asked for too
+            assert steam_import["enabled"] is False and game_repair["enabled"] is False
             assert (
                 airing["id"] == "airing_check" and airing["enabled"] is True
             )  # new episodes appear by themselves
@@ -1941,7 +1943,7 @@ async def test_the_airing_check_starts_on_and_the_refresh_off_and_intervals_stay
             assert missing.value.status_code == 404
         finally:
             await db.execute(delete(JobSetting))
-            for job_id, enabled, minutes, last_run_at, last_result in saved:
+            for job_id, enabled, minutes, last_run_at, last_result, options in saved:
                 db.add(
                     JobSetting(
                         job_id=job_id,
@@ -1949,6 +1951,7 @@ async def test_the_airing_check_starts_on_and_the_refresh_off_and_intervals_stay
                         interval_minutes=minutes,
                         last_run_at=last_run_at,
                         last_result=last_result,
+                        options=options,
                     )
                 )
             await db.commit()

@@ -32,8 +32,9 @@ from src.database.models.achievement import Achievement
 from src.database.models.game import Game, GameLink
 from src.database.models.user import User
 from src.database.session import SessionLocal
-from src.features.metadata.games import steam, steam_tags
-from src.helpers import image_prefetch, remote_images, save_game_asset
+from src.features.metadata.games import repair, steam, steam_tags
+from src.features.metadata.games.hltb import HLTBClient
+from src.helpers import game_art_download, image_prefetch, remote_images, save_game_asset
 from src.main import app
 
 STEAM_ID = "76561198012345678"
@@ -257,6 +258,9 @@ class FakeSteam:
     # image CDN (requests.get)
     def get(self, url: str, **_kw: Any) -> FakeResponse:
         self.calls.append(url)
+        if "IStoreBrowseService/GetItems" in url:
+            # no hashed addresses in this account: every image is at the fixed ones
+            return FakeResponse(data={"response": {"store_items": []}})
         match = re.search(r"/steam/apps/(\d+)/(library_600x900\.jpg|library_hero\.jpg|logo\.png|header\.jpg)", url)
         if match:
             game = self.by_id.get(int(match.group(1)))
@@ -287,8 +291,11 @@ async def account(tmp_path, monkeypatch):
     monkeypatch.setattr(steam, "_COMMUNITY_MIN_GAP", 0.0)
     monkeypatch.setattr(steam.time, "sleep", lambda _seconds: None)
     monkeypatch.setattr(steam_tags, "_STORE_MIN_GAP", 0.0)
+    monkeypatch.setattr(HLTBClient, "find_times", lambda _s, _title, exact=False: {})
+    monkeypatch.setattr(repair, "GAP_SECONDS", 0)
     monkeypatch.setattr(remote_images, "is_public_host", lambda _host: True)
-    for module, name in ((save_game_asset, "DATA_ROOT"), (default_game_assets, "_DATA_ROOT"),
+    for module, name in ((save_game_asset, "DATA_ROOT"), (game_art_download, "DATA_ROOT"),
+                         (default_game_assets, "_DATA_ROOT"),
                          (games, "_DATA_ROOT"), (media_images, "_DATA_ROOT"),
                          (image_prefetch, "MEDIA_ROOT")):
         monkeypatch.setattr(module, name, tmp_path)
@@ -656,8 +663,6 @@ async def test_the_server_runs_the_whole_import_without_the_app(account) -> None
 async def test_a_game_without_steam_cover_art_gets_one_from_steamgriddb(account, monkeypatch) -> None:
     """Steam has no portrait cover for some games; with a SteamGridDB key the
     import takes the cover from there instead (helpers/game_art_download.py)."""
-    from src.helpers import game_art_download
-
     asked: list[int] = []
 
     class FakeGrid:
@@ -665,11 +670,12 @@ async def test_a_game_without_steam_cover_art_gets_one_from_steamgriddb(account,
             assert api_key == "sgdb-key"
 
         def get_game_by_steam_appid(self, app_id: int) -> dict:
-            asked.append(app_id)
             return {"id": app_id}
 
         def get_game_images(self, game_id: int, kind: str) -> list:
-            assert kind == "grids"
+            if kind != "grids":
+                return []
+            asked.append(game_id)
             return [SimpleNamespace(url=f"{CDN}/steam/apps/{game_id}/header.jpg")]
 
     monkeypatch.setattr(game_art_download, "SteamGridDBClient", FakeGrid)

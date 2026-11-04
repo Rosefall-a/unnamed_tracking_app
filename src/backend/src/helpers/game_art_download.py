@@ -162,7 +162,7 @@ class _ArtSources:
             images = await asyncio.to_thread(
                 self._client.get_game_images, self._sgdb_id, _SGDB_IMAGE_TYPES[kind]
             )
-        except (SteamGridDBError, requests.RequestException, ValueError):
+        except Exception:  # best-effort: one odd answer must not fail a whole import
             return []
         return [image.url for image in images[:3] if image.url]
 

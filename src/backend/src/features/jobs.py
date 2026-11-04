@@ -215,11 +215,11 @@ async def _run_game_repair() -> None:
 
 
 JOBS: dict[str, JobSpec] = {
-    "steam_import": JobSpec("steam_import", "Steam library import", "Imports new games, playtime and achievements from every saved Steam account, then fills in what is missing.", 60, 30 * 24 * 60, 24 * 60, False, _start_steam_import, _steam_import_is_running, _summarize_steam_import),
-    "game_repair": JobSpec("game_repair", "Fill in missing game details", "Finds missing names, artwork and play times without a full reimport. Only adds what is missing, never replaces anything.", 60, 30 * 24 * 60, 24 * 60, False, _start_game_repair, _game_repair_is_running, _summarize_game_repair),
     "airing_check": JobSpec("airing_check", "Airing episode check", "Checks airing titles for newly aired episodes.", 5, 24 * 60, 30, True, _start_airing, _airing_is_running, _summarize_airing, "all"),
     "sequel_check": JobSpec("sequel_check", "New season check", "Checks finished anime for newly listed seasons, and optionally films and specials, and creates a notification for each.", 60, 30 * 24 * 60, 24 * 60, False, _start_sequels, _sequels_is_running, _summarize_sequels),
     "media_refresh": JobSpec("media_refresh", "Media refresh", "Fills missing episode metadata and corrects outdated media data.", 60, 30 * 24 * 60, 24 * 60, False, refresh_job.start, refresh_job.is_running, _summarize_refresh),
+    "steam_import": JobSpec("steam_import", "Steam library import", "Imports new games, playtime and achievements from every saved Steam account, then fills in what is missing.", 60, 30 * 24 * 60, 24 * 60, False, _start_steam_import, _steam_import_is_running, _summarize_steam_import),
+    "game_repair": JobSpec("game_repair", "Fill in missing game details", "Finds missing names, artwork and play times without a full reimport. Only adds what is missing, never replaces anything.", 60, 30 * 24 * 60, 24 * 60, False, _start_game_repair, _game_repair_is_running, _summarize_game_repair),
 }
 
 
