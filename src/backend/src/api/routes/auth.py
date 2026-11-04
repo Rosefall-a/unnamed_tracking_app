@@ -4,7 +4,6 @@ import asyncio
 import secrets
 import shutil
 import time
-from pathlib import Path
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
@@ -34,6 +33,7 @@ from src.database.models.auth import UserApiKey, UserSession
 from src.database.models.user import User
 from src.database.models.app_integration_settings import AppIntegrationSettings
 from src.database.session import get_db
+from src.features.backup import snapshot
 from src.features.metadata.games.psn import PSNClient, PSNError
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -483,7 +483,16 @@ async def delete_user(
             status_code=status.HTTP_400_BAD_REQUEST, detail="You cannot delete your own account."
         )
 
+    label = "".join(c if c.isalnum() or c in "-_" else "_" for c in user.username)
     await db.delete(user)
     await db.commit()
-    shutil.rmtree(Path("/data/user") / str(user_id), ignore_errors=True)
+    # their files are set aside, not erased, and their backups stay where they
+    # are: an admin deletes both by hand in Settings > Admin > Backups
+    stamp = int(time.time())
+    for root in snapshot.USER_FILE_ROOTS:
+        folder = root / str(user_id)
+        if folder.is_dir():
+            dest = snapshot.DELETED_ACCOUNTS_ROOT / f"{label}-{user_id}-{stamp}" / root.name
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(folder), str(dest))
     return {"status": "deleted", "user_id": str(user_id)}

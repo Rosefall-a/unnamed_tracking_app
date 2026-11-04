@@ -291,20 +291,28 @@ async function onFileSelected(e: Event) {
 
     <div v-if="backupStatus" class="tile backup-status-tile">
       <h3>Automatic backups</h3>
-      <p class="tile-desc">
-        A library snapshot is saved every
-        {{ backupStatus.interval_hours }} hours on this server. The last
-        {{ backupStatus.backups_kept }} are kept. These backups cannot be
-        downloaded here. Use Export for a file you can keep.
+      <p v-if="backupStatus.enabled" class="tile-desc">
+        The server's whole database, your library, notes and achievements
+        included, is backed up every {{ backupStatus.interval_hours }} hours.
+        <template v-if="backupStatus.backups_kept > 0">
+          The last {{ backupStatus.backups_kept }} are kept.
+        </template>
+        <template v-else>Every backup is kept.</template>
+        Only an admin can delete them. Use Export for a file you can keep
+        yourself.
+      </p>
+      <p v-else class="tile-desc">
+        Automatic backups are turned off on this server. Ask an admin to turn
+        them on, and use Export for a file you can keep yourself.
       </p>
       <p class="backup-status-line">
         <span v-if="backupStatus.last_backup_at">
           Last backup {{ formatBackupDate(backupStatus.last_backup_at) }} ·
           {{ backupStatus.backup_count }} kept
         </span>
-        <span v-else
+        <span v-else-if="backupStatus.enabled"
           >No backup yet. The first backup is saved within
-          {{ backupStatus.interval_hours }} hours of the server starting.</span
+          {{ backupStatus.interval_hours }} hours.</span
         >
       </p>
     </div>

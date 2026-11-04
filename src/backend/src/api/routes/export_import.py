@@ -26,11 +26,7 @@ from src.database.models.movies import Movie
 from src.database.models.tv_show import TVShow
 from src.database.models.user import User
 from src.database.session import get_db
-from src.features.backup.scheduler import (
-    _BACKUP_ROOT,
-    BACKUP_INTERVAL_SECONDS,
-    BACKUPS_TO_KEEP_PER_USER,
-)
+from src.features.backup import scheduler, snapshot
 from src.helpers.save_game_asset import create_game_folder
 
 router = APIRouter(prefix="/api", tags=["export"], dependencies=[Depends(get_current_user)])
@@ -108,28 +104,23 @@ async def export_library(
 class BackupStatus(BaseModel):
     enabled: bool = True
     interval_hours: int
+    # 0 means every backup is kept
     backups_kept: int
     last_backup_at: int | None
     backup_count: int
 
 
 @router.get("/export/backup-status", response_model=BackupStatus)
-async def backup_status(current_user: User = Depends(get_current_user)) -> BackupStatus:
-    user_dir = _BACKUP_ROOT / str(current_user.id)
-    files = sorted(user_dir.glob("backup-*.json"), reverse=True) if user_dir.is_dir() else []
-    last_at = None
-    if files:
-        # filenames are "backup-<epoch>.json", reading the timestamp back
-        # out of the name avoids a second stat() call for the same info
-        try:
-            last_at = int(files[0].stem.split("-")[1])
-        except (IndexError, ValueError):
-            last_at = int(files[0].stat().st_mtime)
+async def backup_status(db: AsyncSession = Depends(get_db)) -> BackupStatus:
+    row = await scheduler.get_setting(db)
+    await db.commit()
+    backups = snapshot.list_backups(snapshot.DATABASE_DIR)
     return BackupStatus(
-        interval_hours=BACKUP_INTERVAL_SECONDS // 3600,
-        backups_kept=BACKUPS_TO_KEEP_PER_USER,
-        last_backup_at=last_at,
-        backup_count=len(files),
+        enabled=row.enabled,
+        interval_hours=max(1, row.interval_minutes // 60),
+        backups_kept=scheduler.keep_count(row),
+        last_backup_at=backups[0].created_at if backups else None,
+        backup_count=len(backups),
     )
 
 

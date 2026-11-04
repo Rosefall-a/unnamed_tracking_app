@@ -24,6 +24,8 @@ class JobSetting(Base):
     )
     last_run_at: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     last_result: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    # settings only one job has, e.g. how many backups the backup job keeps
+    options: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     updated_at: Mapped[int] = mapped_column(
         BigInteger,
         nullable=False,

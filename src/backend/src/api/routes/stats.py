@@ -18,13 +18,13 @@ from src.database.session import get_db
 
 router = APIRouter(prefix="/api/stats", tags=["stats"], dependencies=[Depends(get_current_user)])
 
-_DATA_ROOT = Path("/data/games")
+_DATA_ROOT = Path("/data/users")
 
 
-def _folder_size_bytes(folder_location: str | None) -> int:
+def _folder_size_bytes(user_id: object, folder_location: str | None) -> int:
     if not folder_location:
         return 0
-    game_dir = _DATA_ROOT / folder_location
+    game_dir = _DATA_ROOT / str(user_id) / "games" / folder_location
     if not game_dir.is_dir():
         return 0
     total = 0
@@ -128,7 +128,7 @@ async def get_stats_overview(
 
     folder_locations = [row[0] for row in folders_result.all()]
     storage_used_bytes = await asyncio.gather(
-        *(asyncio.to_thread(_folder_size_bytes, folder) for folder in folder_locations)
+        *(asyncio.to_thread(_folder_size_bytes, current_user.id, folder) for folder in folder_locations)
     )
 
     return {

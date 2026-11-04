@@ -13,8 +13,18 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV PATH="/opt/java/bin:${PATH}"
 WORKDIR /app
 
+# The Postgres client comes from the Postgres apt repository so pg_dump matches
+# the database (postgres:18 in compose.yaml); an older pg_dump refuses to back
+# up a newer server, and backups depend on it.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    nginx curl gcc postgresql-client unzip ca-certificates gettext-base openssl \
+    nginx curl gcc unzip ca-certificates gettext-base openssl \
+    && install -d /usr/share/postgresql-common/pgdg \
+    && curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+       https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+    && . /etc/os-release \
+    && echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main" \
+       > /etc/apt/sources.list.d/pgdg.list \
+    && apt-get update && apt-get install -y --no-install-recommends postgresql-client-18 \
     && rm -rf /var/lib/apt/lists/*
 
 COPY src/backend/requirements.txt /app/

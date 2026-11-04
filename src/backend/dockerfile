@@ -2,12 +2,21 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-# Install system dependencies
+# Install system dependencies. The Postgres client comes from the Postgres
+# apt repository so pg_dump matches the database (postgres:18 in compose.yaml);
+# an older pg_dump refuses to back up a newer server.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
-    postgresql-client \
     curl \
     unzip \
+    ca-certificates \
+    && install -d /usr/share/postgresql-common/pgdg \
+    && curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+       https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+    && . /etc/os-release \
+    && echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main" \
+       > /etc/apt/sources.list.d/pgdg.list \
+    && apt-get update && apt-get install -y --no-install-recommends postgresql-client-18 \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements and install Python dependencies
@@ -23,7 +32,8 @@ COPY alembic.ini /app/alembic.ini
 
 # Copy and prepare the entrypoint script
 COPY entrypoint.sh .
-RUN chmod +x entrypoint.sh
+# a Windows checkout can give the script CRLF line endings, which stop it running
+RUN sed -i 's/\r$//' entrypoint.sh && chmod +x entrypoint.sh
 
 # Expose port
 EXPOSE 8000

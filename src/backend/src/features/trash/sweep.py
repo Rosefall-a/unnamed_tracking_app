@@ -31,10 +31,23 @@ from src.features.trash.media_trash import purge_media_file
 
 logger = logging.getLogger(__name__)
 
-_DATA_ROOT = Path("/data/games")
+# same roots the routes write to (games.py, media.py); the sweep used to look
+# in the old shared /data/games layout, so it dropped expired rows but never
+# found their files, which stayed on disk with nothing pointing at them
+_DATA_ROOT = Path("/data/users")
 _USER_DATA_ROOT = Path("/data/user")
 RETENTION_SECONDS = 7 * 24 * 60 * 60
 SWEEP_INTERVAL_SECONDS = 6 * 60 * 60
+# the sweep deletes for good, so after a start or an update it waits long
+# enough for the backup loop (which runs straight away when one is due) to
+# finish first
+SWEEP_START_DELAY_SECONDS = 15 * 60
+
+
+def _game_dir(game: Game) -> Path:
+    return _DATA_ROOT / str(game.user_id) / "games" / (game.folder_location or "")
+
+
 
 
 async def purge_expired_trash() -> dict[str, int]:
@@ -50,9 +63,7 @@ async def purge_expired_trash() -> dict[str, int]:
         )
         for archive in archive_result.scalars().all():
             if archive.game and archive.game.folder_location:
-                purge_archive_trash(
-                    _DATA_ROOT / archive.game.folder_location, archive.kind, archive.id
-                )
+                purge_archive_trash(_game_dir(archive.game), archive.kind, archive.id)
             await db.delete(archive)  # cascades to remaining versions
             purged_archives += 1
         await db.commit()
@@ -74,9 +85,7 @@ async def purge_expired_trash() -> dict[str, int]:
             ):
                 trashed_file = (
                     trash_files_dir(
-                        _DATA_ROOT / version_archive.game.folder_location,
-                        version_archive.kind,
-                        version_archive.id,
+                        _game_dir(version_archive.game), version_archive.kind, version_archive.id
                     )
                     / version.filename
                 )
@@ -111,8 +120,7 @@ async def purge_expired_trash() -> dict[str, int]:
         purged_media_items = 0
         for media_item in media_result.scalars().all():
             if media_item.game and media_item.game.folder_location:
-                media_game_dir = _DATA_ROOT / media_item.game.folder_location
-                purge_media_file(media_item.filename, media_game_dir, media_item.kind)
+                purge_media_file(media_item.filename, _game_dir(media_item.game), media_item.kind)
             await db.delete(media_item)
             purged_media_items += 1
         await db.commit()
@@ -128,8 +136,7 @@ async def purge_expired_trash() -> dict[str, int]:
             # a direct lookup is simpler than adding one just for this
             file_item_game = await db.get(Game, file_item.game_id)
             if file_item_game and file_item_game.folder_location:
-                file_item_game_dir = _DATA_ROOT / file_item_game.folder_location
-                purge_media_file(file_item.filename, file_item_game_dir, file_item.kind)
+                purge_media_file(file_item.filename, _game_dir(file_item_game), file_item.kind)
             await db.delete(file_item)
             purged_file_items += 1
         await db.commit()
@@ -247,6 +254,7 @@ async def purge_expired_media_trash() -> int:
 
 
 async def run_sweep_loop() -> None:
+    await asyncio.sleep(SWEEP_START_DELAY_SECONDS)
     while True:
         try:
             await purge_expired_trash()
