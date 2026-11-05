@@ -4,12 +4,20 @@ do not get in the way."""
 
 import uuid
 
+import pytest
 from sqlalchemy import delete
 
 from src.database.models.game import Game
 from src.database.models.user import User
 from src.database.session import SessionLocal
+from src.helpers import game_info_file, save_game_asset
 from tests.test_game_files_flow import flow  # noqa: F401  (the fixture)
+
+
+@pytest.fixture(autouse=True)
+def data_folder(tmp_path, monkeypatch):
+    for module in (save_game_asset, game_info_file):
+        monkeypatch.setattr(module, "DATA_ROOT", tmp_path)
 
 
 def _game(title: str = "Hades", **fields) -> dict:
