@@ -574,9 +574,16 @@ class AniListClient:
                 time.sleep(min(delay, _MAX_BACKOFF_SECONDS))
                 continue
             if response.status_code >= 400:
-                raise AniListError(
-                    f"AniList request failed ({response.status_code}): {response.text[:200]}"
-                )
+                # a private or misspelled username comes back here as an error
+                # with a message of its own, not worth showing the raw response
+                try:
+                    errors = response.json().get("errors") or []
+                    said = "; ".join(str(e.get("message")) for e in errors if e.get("message"))
+                except (ValueError, AttributeError):
+                    said = ""
+                if said:
+                    raise AniListError(f"AniList said: {said}.")
+                raise AniListError(f"AniList request failed ({response.status_code}).")
             try:
                 payload = response.json()
             except ValueError as exc:

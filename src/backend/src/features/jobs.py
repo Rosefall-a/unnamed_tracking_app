@@ -172,9 +172,14 @@ def _summarize_game_repair(r: dict[str, Any]) -> str:
     parts = [
         f"{r.get('checked') or 0} checked",
         f"{r.get('names') or 0} named",
+        f"{r.get('details') or 0} with details added",
         f"{r.get('art') or 0} images added",
         f"{r.get('times') or 0} play times added",
     ]
+    if r.get("covers"):
+        parts.append(f"{r['covers']} poor covers replaced")
+    if r.get("folders"):
+        parts.append(f"{r['folders']} folders renamed")
     if r.get("failed"):
         parts.append(f"{r['failed']} failed")
     if r.get("hltb_error"):

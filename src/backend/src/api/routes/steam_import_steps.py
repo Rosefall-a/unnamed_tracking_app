@@ -45,7 +45,8 @@ from src.features.metadata.games.steam_achievements import (
     fetch_steam_achievements,
 )
 from src.features.metadata.games.time_to_beat import TimesLookup
-from src.helpers.library_games import LibraryIndex
+from src.helpers.game_info_file import write_game_info
+from src.helpers.library_games import LibraryIndex, name_folder_after_title
 from src.helpers.steam_achievement_rows import steam_achievement_rows
 
 router = APIRouter(
@@ -220,6 +221,8 @@ async def enrich_games(
             logger.exception("Steam enrich failed for %s (app %s)", game.id, game.external_id)
             failed += 1
         await db.commit()
+        await name_folder_after_title(db, game)
+        write_game_info(game)
     # a wishlist game only gets its real name here, so this is when it can be
     # recognised as one the person already added by hand
     await find_matches(db, current_user.id)

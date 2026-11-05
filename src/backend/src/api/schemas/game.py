@@ -39,6 +39,8 @@ class GameBase(BaseModel):
     collections: list[str] = Field(default_factory=list)
     links: list[GameLinkSchema] = Field(default_factory=list)
     source: str | None = Field(default=None, max_length=50)
+    # the store's own id for it, so a restored game is still that store's game
+    external_id: str | None = Field(default=None, max_length=64)
     platform: str | None = Field(default=None, max_length=50)
     region: str | None = Field(default=None, max_length=50)
     language: str | None = Field(default=None, max_length=50)

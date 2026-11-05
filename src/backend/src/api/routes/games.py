@@ -79,6 +79,7 @@ from src.features.metadata.search_utils import cached_search
 from src.features.trash.game_trash import move_game_to_trash, restore_game_from_trash
 from src.features.trash.media_trash import move_media_file_to_trash, restore_media_file_from_trash
 from src.features.trash.sweep import RETENTION_SECONDS
+from src.helpers.game_info_file import write_game_info
 from src.helpers.game_art_download import steam_cdn_art_urls, steam_store_art_urls
 from src.helpers.remote_images import RemoteImageError, download_image
 from src.helpers.media import MediaKind, classify_media, list_media, media_subdir, save_media_bytes
@@ -2221,6 +2222,7 @@ async def create_game(
         raise _duplicate_folder_error(payload.folder_location) from exc
 
     create_game_folder(game.user_id, game.folder_location)
+    write_game_info(game)
     return game
 
 
@@ -2395,6 +2397,7 @@ async def update_game(
             renamed_to.rename(renamed_from)  # the name was not kept, so the folder goes back
         raise _duplicate_folder_error(game.folder_location) from exc
 
+    write_game_info(game)
     return game
 
 

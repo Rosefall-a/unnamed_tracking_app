@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import time
+from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -31,7 +32,10 @@ from src.api.routes.library_sync import (
     _get_or_create_game,
     _infer_status,
 )
-from src.api.routes.settings import get_or_create_app_integration_settings
+from src.api.routes.settings import (
+    get_or_create_app_integration_settings,
+    get_or_create_scan_settings,
+)
 from src.core.auth import get_current_user
 from src.core.crypto import decrypt_secret, encrypt_secret
 from src.core.integrations import resolve_integrations
@@ -145,15 +149,16 @@ async def _session(db: AsyncSession, user: User) -> epic.EpicSession:
     return session
 
 
-def _apply_catalog(game: Game, item: dict) -> None:
-    """A new game's details from its Epic catalog entry."""
+def _apply_catalog(game: Game, item: dict, scan_settings: Any) -> None:
+    """A new game's details from its Epic catalog entry, as far as the person's
+    settings say to save them."""
     description = item.get("longDescription") or item.get("description")
-    if description:
+    if description and scan_settings.save_description:
         game.description = description
-    if item.get("developer"):
+    if item.get("developer") and scan_settings.save_developer:
         game.developer = str(item["developer"])[:200]
     seller = (item.get("seller") or {}).get("name")
-    if seller:
+    if seller and scan_settings.save_publisher:
         game.publisher = str(seller)[:200]
 
 
@@ -169,6 +174,7 @@ async def sync_epic_library(
     back set, call again with `after=<next>`; the last step flags imported
     games that have left the library."""
     session = await _session(db, current_user)
+    scan_settings = await get_or_create_scan_settings(current_user.id, db)
     client = epic.EpicClient()
     try:
         records = await asyncio.to_thread(client.get_library_items, session.access_token)
@@ -229,7 +235,7 @@ async def sync_epic_library(
             matched.append(game)
             continue
         game.playtime_seconds = seconds or 0
-        _apply_catalog(game, item)
+        _apply_catalog(game, item, scan_settings)
         _apply_status(game, _infer_status(playtime_seconds=game.playtime_seconds))
         _add_source_tag_and_collection(game, SOURCE)
         added.append((game, item))
@@ -237,7 +243,7 @@ async def sync_epic_library(
             break
     # the artwork is saved by looking the game up in its own session
     await db.commit()
-    await _add_art_and_series(db, added)
+    await _add_art_and_series(db, added, scan_settings)
 
     remaining = [i for i in pending if last is not None and i > last]
     flagged = 0
@@ -261,7 +267,9 @@ async def sync_epic_library(
     }
 
 
-async def _add_art_and_series(db: AsyncSession, added: list[tuple[Game, dict]]) -> None:
+async def _add_art_and_series(
+    db: AsyncSession, added: list[tuple[Game, dict]], scan_settings: Any
+) -> None:
     """Artwork from the catalog and the series from IGDB, for new games.
     Best-effort: a picture that fails to download is just left out."""
     integrations = resolve_integrations(await get_or_create_app_integration_settings(db))
@@ -270,9 +278,14 @@ async def _add_art_and_series(db: AsyncSession, added: list[tuple[Game, dict]]) 
     async def _one(game: Game, item: dict) -> None:
         async with semaphore:
             for kind, url in epic.art_urls(item).items():
-                await download_asset(url, game.id, kind)
-            series = await _fetch_series_from_igdb(
-                game.title, integrations.igdb_client_id, integrations.igdb_client_secret
+                if getattr(scan_settings, f"save_{kind}", True):
+                    await download_asset(url, game.id, kind)
+            series = (
+                await _fetch_series_from_igdb(
+                    game.title, integrations.igdb_client_id, integrations.igdb_client_secret
+                )
+                if scan_settings.save_series
+                else None
             )
             if series and not game.series:
                 game.series = series

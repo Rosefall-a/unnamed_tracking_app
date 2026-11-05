@@ -3,6 +3,7 @@ its own: matched by the provider's id when it has one, else by title."""
 
 from __future__ import annotations
 
+import logging
 import re
 from collections.abc import Iterator
 from dataclasses import dataclass, field
@@ -12,8 +13,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database.models.game import FOLDER_NAME_MAX_LENGTH, Game, GameStatus
-from src.helpers.save_game_asset import create_game_folder
+from src.helpers.save_game_asset import DATA_ROOT, create_game_folder
 
+logger = logging.getLogger(__name__)
+
+PLACEHOLDER_TITLE = "Steam app "
+_PLACEHOLDER_FOLDER = re.compile(r"^Steam-app-\d+(-\d+)?$")
 _SLUG_INVALID = re.compile(r"[^A-Za-z0-9_-]+")
 
 
@@ -41,6 +46,43 @@ async def unique_folder_location(db: AsyncSession, user_id: UUID, title: str) ->
         if await db.scalar(taken.where(Game.folder_location == candidate)) is None:
             return candidate
     raise AssertionError("unreachable")
+
+
+def has_placeholder_folder(game: Game) -> bool:
+    """A game that now has its real name but still sits in the folder its
+    wishlist placeholder gave it."""
+    return bool(
+        _PLACEHOLDER_FOLDER.match(game.folder_location or "")
+        and not game.title.startswith(PLACEHOLDER_TITLE)
+    )
+
+
+async def name_folder_after_title(db: AsyncSession, game: Game) -> bool:
+    """Moves a placeholder folder to one named after the game and commits, so
+    the library can be browsed on disk. Whatever is already at the new name is
+    never overwritten, and if the database refuses the name the folder goes
+    back. Returns whether it moved."""
+    if not has_placeholder_folder(game):
+        return False
+    games_root = DATA_ROOT / str(game.user_id) / "games"
+    old_name = game.folder_location
+    new_name = await unique_folder_location(db, game.user_id, game.title)
+    old_dir, new_dir = games_root / old_name, games_root / new_name
+    if new_dir.exists():
+        return False
+    moved = old_dir.is_dir()
+    try:
+        if moved:
+            old_dir.rename(new_dir)
+        game.folder_location = new_name
+        await db.commit()
+    except Exception:
+        logger.exception("Could not move the folder of game %s", game.id)
+        await db.rollback()
+        if moved and new_dir.is_dir() and not old_dir.exists():
+            new_dir.rename(old_dir)
+        return False
+    return True
 
 
 @dataclass
@@ -144,7 +186,13 @@ async def get_or_create_game(
     else:
         existing = await _find(db, user_id, title, source, external_id)
     if existing:
-        if existing.title != title:
+        # A wishlist import only knows "Steam app N", which must never replace a
+        # real name, and a name the person chose (locked) stays theirs.
+        if (
+            existing.title != title
+            and not title.startswith(PLACEHOLDER_TITLE)
+            and "title" not in (existing.locked_fields or [])
+        ):
             if index is not None:
                 index.retitle(existing, title)
             existing.title = title

@@ -2,11 +2,14 @@
 Steam really uses, never saves another game's play time, and tries again when a
 site did not answer."""
 
+import json
 import time
 import uuid
+from io import BytesIO
 from types import SimpleNamespace
 
 import pytest
+from PIL import Image
 from sqlalchemy import delete, select
 
 from src.api.routes import library_import
@@ -17,7 +20,9 @@ from src.features import jobs
 from src.features.metadata.games import repair, time_to_beat
 from src.features.metadata.games.hltb import HLTBClient, HLTBError
 from src.features.metadata.games.igdb import IGDBClient
+from src.database.models.media_item import MediaItem
 from src.helpers import game_art_download as art
+from src.helpers import game_info_file, library_games, save_game_asset
 
 _MAIN = {"time_to_beat_hours": 9.5}
 
@@ -95,7 +100,7 @@ def test_store_art_is_empty_when_steam_does_not_answer(monkeypatch) -> None:
 @pytest.fixture
 def art_sources(monkeypatch):
     tried = []
-    state = SimpleNamespace(tried=tried, works=set())
+    state = SimpleNamespace(tried=tried, works=set(), dimensions={})
 
     async def download(url, _game_id, _kind):
         tried.append(url)
@@ -108,22 +113,132 @@ def art_sources(monkeypatch):
         def get_game_by_steam_appid(self, _app_id):
             return {"id": 5}
 
-        def get_game_images(self, _game_id, image_type):
-            return [SimpleNamespace(url=f"sgdb-{image_type}")]
+        def get_game_images(self, _game_id, image_type, dimensions=None):
+            state.dimensions[image_type] = dimensions
+            return [SimpleNamespace(url=f"sgdb-{image_type}", score=None)]
 
     monkeypatch.setattr(art, "download_asset", download)
     monkeypatch.setattr(art, "SteamGridDBClient", Client)
-    monkeypatch.setattr(
-        art, "steam_store_art_urls", lambda _a: {"key_art": "store-cover", "icon": "steam-icon"}
-    )
+    monkeypatch.setattr(art, "steam_store_art", lambda _a: (state.store, state.generated))
+    state.store = {"key_art": "store-cover", "icon": "steam-icon"}
+    state.generated = None
     return state
 
 
-async def test_a_cover_falls_back_from_the_fixed_address_to_the_store(art_sources) -> None:
+async def test_a_cover_comes_from_the_makers_upload_first(art_sources) -> None:
     art_sources.works = {"store-cover"}
     assert await art.fill_art(uuid.uuid4(), ["key_art"], 7, "Game", "key") == ["key_art"]
-    assert art_sources.tried[-1] == "store-cover"
-    assert len(art_sources.tried) == 2
+    assert art_sources.tried == ["store-cover"]
+
+
+async def test_real_covers_come_before_steams_old_copy_and_generated_image(
+    art_sources, monkeypatch
+) -> None:
+    class Igdb:
+        def __init__(self, **_keys):
+            pass
+
+        def search(self, _title, _limit):
+            return [
+                {"name": "Other Game", "cover_url": "https://igdb/other/t_cover_big/a.jpg"},
+                {"name": "Game", "cover_url": "https://igdb/t_cover_big/a.jpg"},
+            ]
+
+    monkeypatch.setattr(art, "IGDBClient", Igdb)
+    art_sources.store = {}
+    art_sources.generated = "generated-portrait"
+    await art.fill_art(uuid.uuid4(), ["key_art"], 7, "Game", "key", None, ("id", "secret"))
+    assert art_sources.tried == [
+        "sgdb-grids",
+        "https://igdb/t_cover_big_2x/a.jpg",
+        art.steam_cdn_art_urls(7)["key_art"],
+        "generated-portrait",
+    ]
+    assert art_sources.dimensions["grids"] == "600x900,660x930"
+
+
+def _picture(colour, size=(600, 900)) -> bytes:
+    buffer = BytesIO()
+    Image.new("RGB", size, colour).save(buffer, format="PNG")
+    return buffer.getvalue()
+
+
+def test_steam_portrait_png_is_not_treated_as_real_art(monkeypatch) -> None:
+    assets = {"asset_url_format": "steam/apps/7/${FILENAME}", "library_capsule": "portrait.png"}
+
+    class Reply:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"response": {"store_items": [{"assets": assets}]}}
+
+    monkeypatch.setattr(art.requests, "get", lambda *_a, **_k: Reply())
+    urls, generated = art.steam_store_art(7)
+    assert "key_art" not in urls
+    assert generated.endswith("steam/apps/7/portrait.png")
+
+
+async def test_a_wide_image_is_never_saved_as_a_cover(monkeypatch) -> None:
+    saved = []
+
+    async def save(*args):
+        saved.append(args)
+
+    monkeypatch.setattr(art, "save_game_asset", save)
+    monkeypatch.setattr(art, "download_image", lambda _url: _picture("red", (920, 430)))
+    assert not await art.download_asset("wide", uuid.uuid4(), "key_art")
+    assert await art.download_asset("wide", uuid.uuid4(), "banner")
+    monkeypatch.setattr(art, "download_image", lambda _url: _picture("red"))
+    assert await art.download_asset("tall", uuid.uuid4(), "key_art")
+    assert len(saved) == 2
+
+
+@pytest.fixture
+def poor_cover(tmp_path, monkeypatch):
+    """A game with a saved cover, and a Steam whose old fixed copy is black."""
+    monkeypatch.setattr(art, "DATA_ROOT", tmp_path)
+    game = SimpleNamespace(
+        id=uuid.uuid4(), user_id=uuid.uuid4(), folder_location="Game", locked_fields=[]
+    )
+    folder = tmp_path / str(game.user_id) / "games" / "Game"
+    folder.mkdir(parents=True)
+    state = SimpleNamespace(game=game, cover=folder / "key_art.png", saved=[])
+    monkeypatch.setattr(art, "steam_store_art", lambda _a: ({"key_art": "real-cover"}, None))
+    monkeypatch.setattr(art, "download_image", lambda _url: _picture("black", (300, 450)))
+
+    async def download(url, _game_id, _kind):
+        state.saved.append(url)
+        return True
+
+    monkeypatch.setattr(art, "download_asset", download)
+    return state
+
+
+async def test_steams_old_copy_is_replaced_by_the_real_cover(poor_cover) -> None:
+    poor_cover.cover.write_bytes(_picture("black"))
+    assert await art.replace_poor_cover(poor_cover.game, 7, "Game", None)
+    assert poor_cover.saved == ["real-cover"]
+
+
+async def test_a_cover_someone_chose_is_never_replaced(poor_cover) -> None:
+    poor_cover.cover.write_bytes(_picture("red"))
+    assert not await art.replace_poor_cover(poor_cover.game, 7, "Game", None)
+    assert poor_cover.saved == []
+
+
+async def test_a_locked_cover_is_never_replaced(poor_cover) -> None:
+    poor_cover.cover.write_bytes(_picture("black"))
+    poor_cover.game.locked_fields = ["key_art"]
+    assert not await art.replace_poor_cover(poor_cover.game, 7, "Game", None)
+    assert poor_cover.saved == []
+
+
+async def test_no_cover_is_replaced_when_steam_does_not_answer(poor_cover, monkeypatch) -> None:
+    monkeypatch.setattr(art, "steam_store_art", lambda _a: ({}, None))
+    poor_cover.cover.write_bytes(_picture("black"))
+    assert not await art.replace_poor_cover(poor_cover.game, 7, "Game", None)
+    assert poor_cover.saved == []
 
 
 async def test_an_icon_prefers_steamgriddb_over_steams_tiny_one(art_sources) -> None:
@@ -154,8 +269,18 @@ def _settings(**overrides):
     values = {
         f"save_{field}": True
         for field in (
-            "description", "developer", "publisher", "age_rating", "tags", "features",
-            "release_date", "time_to_beat", "key_art", "banner", "logo", "icon",
+            "description",
+            "developer",
+            "publisher",
+            "age_rating",
+            "tags",
+            "features",
+            "release_date",
+            "time_to_beat",
+            "key_art",
+            "banner",
+            "logo",
+            "icon",
         )
     }
     return SimpleNamespace(**{**values, **overrides})
@@ -174,9 +299,16 @@ def test_wanted_art_leaves_existing_locked_and_unwanted_alone(tmp_path, monkeypa
 
 @pytest.fixture
 async def library(tmp_path, monkeypatch):
-    monkeypatch.setattr(art, "DATA_ROOT", tmp_path)
+    for module in (art, repair, library_games, game_info_file, save_game_asset):
+        monkeypatch.setattr(module, "DATA_ROOT", tmp_path)
     monkeypatch.setattr(repair, "GAP_SECONDS", 0)
     saved_art = []
+
+    async def no_series(*_a, **_k):
+        return None
+
+    monkeypatch.setattr(repair, "_fetch_series_from_igdb", no_series)
+    monkeypatch.setattr(repair, "search_game_metadata", lambda *_a, **_k: {"results": []})
 
     async def fill(_game_id, kinds, *_a, **_k):
         saved_art.extend(kinds)
@@ -208,7 +340,13 @@ async def library(tmp_path, monkeypatch):
 
     async def add(**fields):
         name = uuid.uuid4().hex[:12]
-        values = {"title": name, "sort_title": name, "folder_location": name, "source": "Steam", **fields}
+        values = {
+            "title": name,
+            "sort_title": name,
+            "folder_location": name,
+            "source": "Steam",
+            **fields,
+        }
         async with SessionLocal() as db:
             game = Game(user_id=user_id, **values)
             db.add(game)
@@ -219,7 +357,7 @@ async def library(tmp_path, monkeypatch):
         async with SessionLocal() as db:
             return await db.get(Game, game_id)
 
-    yield SimpleNamespace(user_id=user_id, add=add, read=read, saved_art=saved_art)
+    yield SimpleNamespace(user_id=user_id, add=add, read=read, saved_art=saved_art, root=tmp_path)
     async with SessionLocal() as db:
         await db.execute(delete(User).where(User.id == user_id))
         await db.commit()
@@ -272,10 +410,14 @@ async def test_howlongtobeat_being_down_loses_nothing_and_is_tried_again(
     monkeypatch.setattr(
         time_to_beat, "settings", SimpleNamespace(IGDB_CLIENT_ID=None, IGDB_CLIENT_SECRET=None)
     )
-    monkeypatch.setattr(repair, "resolve_integrations", lambda _row: SimpleNamespace(
-        igdb_client_id=None, igdb_client_secret=None
-    ))
-    kept = await library.add(external_id="7", developer="Dev", description="d", time_to_beat_all_hours=3)
+    monkeypatch.setattr(
+        repair,
+        "resolve_integrations",
+        lambda _row: SimpleNamespace(igdb_client_id=None, igdb_client_secret=None),
+    )
+    kept = await library.add(
+        external_id="7", developer="Dev", description="d", time_to_beat_all_hours=3
+    )
     result = await repair.repair_user_games(library.user_id)
     game = await library.read(kept)
     assert result.hltb_error == "blocked"
@@ -383,3 +525,237 @@ def test_a_summary_says_when_howlongtobeat_did_not_answer() -> None:
     )
     assert "3 checked" in text
     assert "HowLongToBeat did not answer" in text
+
+
+async def test_a_wishlist_import_never_puts_the_placeholder_name_back(library) -> None:
+    game_id = await library.add(title="Real Name", sort_title="real name", external_id="7")
+    async with SessionLocal() as db:
+        game, created = await library_games.get_or_create_game(
+            db, library.user_id, "Steam app 7", "Steam", external_id="7"
+        )
+        await db.commit()
+    assert not created and game.id == game_id
+    assert (await library.read(game_id)).title == "Real Name"
+
+
+async def test_a_sync_follows_a_new_store_name_unless_the_name_is_locked(library) -> None:
+    free = await library.add(title="Old", external_id="7")
+    mine = await library.add(title="My Name", external_id="8", locked_fields=["title"])
+    async with SessionLocal() as db:
+        for app_id, title in (("7", "New"), ("8", "Store Name")):
+            await library_games.get_or_create_game(
+                db, library.user_id, title, "Steam", external_id=app_id
+            )
+        await db.commit()
+    assert (await library.read(free)).title == "New"
+    assert (await library.read(mine)).title == "My Name"
+
+
+async def test_an_import_saves_only_what_the_settings_and_locks_allow(library, monkeypatch) -> None:
+    from src.api.routes import library_sync
+
+    async def fill(*_a, **_k):
+        return []
+
+    async def no_series(*_a, **_k):
+        return None
+
+    monkeypatch.setattr(library_sync, "_fill_art", fill)
+    monkeypatch.setattr(library_sync, "_fetch_series_from_igdb", no_series)
+    monkeypatch.setattr(
+        library_sync.steam,
+        "get_app_details",
+        lambda _app: {
+            "name": "Real Name",
+            "about_the_game": "From the store",
+            "developers": ["Store Dev"],
+            "publishers": ["Store Pub"],
+            "genres": [{"description": "Action"}],
+        },
+    )
+    game = SimpleNamespace(
+        id=uuid.uuid4(),
+        title="Steam app 7",
+        sort_title="",
+        locked_fields=["publisher"],
+        description=None,
+        developer=None,
+        publisher="Mine",
+        tags=["Steam"],
+        features=[],
+        series=None,
+        age_rating=None,
+        release_date=None,
+        details_checked_at=None,
+        folder_location="",
+        user_id=library.user_id,
+        time_to_beat_hours=None,
+    )
+    user = SimpleNamespace(steamgriddb_api_key=None)
+    settings = _settings(
+        save_description=False,
+        save_tags=False,
+        save_time_to_beat=False,
+        save_series=True,
+        save_developer=True,
+        save_publisher=True,
+        save_features=True,
+        save_age_rating=True,
+        save_release_date=True,
+    )
+    await library_sync._enrich_steam_game_by_appid(game, 7, user, None, None, False, settings)
+    assert game.title == "Real Name"
+    assert game.developer == "Store Dev"
+    assert game.description is None, "turned off in Settings"
+    assert game.tags == ["Steam"], "turned off in Settings"
+    assert game.publisher == "Mine", "locked"
+
+
+async def test_the_folder_moves_with_everything_in_it_once_the_game_has_a_name(library) -> None:
+    game_id = await library.add(title="Steam app 7", external_id="7", folder_location="Steam-app-7")
+    old = library.root / str(library.user_id) / "games" / "Steam-app-7"
+    (old / "screenshots").mkdir(parents=True)
+    (old / "screenshots" / "mine.png").write_bytes(b"shot")
+    await repair.repair_user_games(library.user_id)
+    game = await library.read(game_id)
+    assert game.folder_location == "Real-Name"
+    new = library.root / str(library.user_id) / "games" / "Real-Name"
+    assert (new / "screenshots" / "mine.png").read_bytes() == b"shot"
+    assert not old.exists()
+    assert json.loads((new / "game.json").read_text(encoding="utf-8"))["title"] == "Real Name"
+
+
+async def test_a_folder_already_at_the_new_name_is_never_overwritten(library) -> None:
+    game_id = await library.add(title="Hades", external_id="7", folder_location="Steam-app-7")
+    games = library.root / str(library.user_id) / "games"
+    (games / "Steam-app-7").mkdir(parents=True)
+    (games / "Hades").mkdir()
+    (games / "Hades" / "keep.txt").write_text("keep")
+    async with SessionLocal() as db:
+        game = await db.get(Game, game_id)
+        assert not await library_games.name_folder_after_title(db, game)
+    assert (await library.read(game_id)).folder_location == "Steam-app-7"
+    assert (games / "Hades" / "keep.txt").read_text() == "keep"
+
+
+async def test_a_game_only_missing_details_is_repaired(library, monkeypatch) -> None:
+    now = int(time.time())
+    game_id = await library.add(
+        title="Named", external_id="7", time_to_beat_hours=2, tags=["Steam"]
+    )
+    game = await library.read(game_id)
+    folder = library.root / str(library.user_id) / "games" / game.folder_location
+    folder.mkdir(parents=True, exist_ok=True)
+    for kind in ("key_art", "banner", "logo", "icon"):
+        (folder / f"{kind}.png").write_bytes(b"x")
+    assert repair.needs_repair(game, _settings(), now)
+    monkeypatch.setattr(
+        repair.steam,
+        "get_app_details",
+        lambda _app: {
+            "name": "Other",
+            "developers": ["Dev"],
+            "genres": [{"description": "Action"}],
+        },
+    )
+    await repair.repair_user_games(library.user_id)
+    game = await library.read(game_id)
+    assert game.title == "Named", "only a placeholder name is replaced"
+    assert game.developer == "Dev"
+    assert set(game.tags) == {"Action", "Steam"}
+
+
+async def test_a_game_not_from_steam_only_takes_details_from_its_exact_name(
+    library, monkeypatch
+) -> None:
+    exact = await library.add(title="Celeste", source="Epic Games")
+    near = await library.add(title="Hades", source="Epic Games")
+    monkeypatch.setattr(
+        repair,
+        "search_game_metadata",
+        lambda title, *_a, **_k: {
+            "results": [
+                {
+                    "title": "Celeste" if title == "Celeste" else "Hades II",
+                    "developer": "Found",
+                    "description": "Found",
+                }
+            ]
+        },
+    )
+    await repair.repair_user_games(library.user_id)
+    assert (await library.read(exact)).developer == "Found"
+    assert (await library.read(near)).developer is None
+
+
+async def test_force_includes_games_checked_recently(library) -> None:
+    now = int(time.time())
+    game_id = await library.add(external_id="7", details_checked_at=now - 60)
+    game = await library.read(game_id)
+    assert not repair.needs_repair(game, _settings(), now)
+    assert repair.needs_repair(game, _settings(), now, force=True)
+
+
+async def test_the_scan_counts_problems_and_changes_nothing(library) -> None:
+    game_id = await library.add(title="Steam app 7", external_id="7", folder_location="Steam-app-7")
+    async with SessionLocal() as db:
+        db.add(MediaItem(game_id=game_id, kind="screenshot", filename="gone.png", tags=[]))
+        await db.commit()
+    row = next(p for p in await repair.scan_libraries() if p["user_id"] == str(library.user_id))
+    assert row["games"] == 1 and row["to_fix"] == 1
+    assert row["problems"]["placeholder_name"] == 1
+    assert row["problems"]["no_key_art"] == 1
+    assert row["problems"]["missing_media"] == 1
+    assert row["problems"]["no_info_file"] == 1
+    assert (await library.read(game_id)).title == "Steam app 7"
+    listed = await repair.games_with_problem(library.user_id, "missing_media")
+    assert [g["id"] for g in listed] == [str(game_id)]
+
+
+async def test_one_game_can_be_fixed_and_a_missing_one_says_so(library) -> None:
+    game_id = await library.add(
+        title="Steam app 7", external_id="7", details_checked_at=int(time.time())
+    )
+    result = await repair.repair_single_game(game_id)
+    assert result.names == 1
+    assert (await library.read(game_id)).title == "Real Name"
+    assert await repair.repair_single_game(uuid.uuid4()) is None
+
+
+async def test_the_server_steamgriddb_key_is_used_without_a_personal_one(monkeypatch) -> None:
+    keys = []
+
+    class Sources:
+        def __init__(self, _app, _title, key, _header, _igdb):
+            keys.append(key)
+
+    monkeypatch.setattr(art, "_ArtSources", Sources)
+    monkeypatch.setattr(art.settings, "STEAMGRIDDB_API_KEY", "server-key")
+    await art.fill_art(uuid.uuid4(), [], 7, "Game", None)
+    await art.fill_art(uuid.uuid4(), [], 7, "Game", "my-key")
+    assert keys == ["server-key", "my-key"]
+
+
+def test_only_admins_reach_the_repair_routes() -> None:
+    from src.api.routes.game_repair import router
+    from src.core.auth import get_current_admin
+
+    assert any(d.dependency is get_current_admin for d in router.dependencies)
+
+
+def test_the_info_file_is_replaced_whole(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(game_info_file, "DATA_ROOT", tmp_path)
+    monkeypatch.setattr(save_game_asset, "DATA_ROOT", tmp_path)
+    game = Game(
+        user_id=uuid.uuid4(),
+        title="Café",
+        folder_location="Cafe",
+        tags=["A"],
+        features=[],
+        collections=[],
+    )
+    assert game_info_file.write_game_info(game)
+    assert game_info_file.write_game_info(game)
+    folder = tmp_path / str(game.user_id) / "games" / "Cafe"
+    assert [p.name for p in folder.iterdir() if p.is_file()] == ["game.json"]
+    assert json.loads((folder / "game.json").read_text(encoding="utf-8"))["title"] == "Café"

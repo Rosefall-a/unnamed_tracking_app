@@ -119,20 +119,31 @@ async def _enrich_steam_game_by_appid(
     which is exactly what made the generic search-based `_enrich_new_game`
     occasionally attach one game's data/art to a different, similarly-named
     game. Pulls straight from Steam's own storefront API + CDN, both keyed
-    by that exact id. Best-effort, like `_enrich_new_game`."""
+    by that exact id. Best-effort, like `_enrich_new_game`. A field the person
+    locked, or chose in Settings not to save, is left as it is."""
+
+    def wanted(field: str, setting: str) -> bool:
+        return field not in (game.locked_fields or []) and (
+            scan_settings is None or getattr(scan_settings, setting)
+        )
+
     try:
         details = await asyncio.to_thread(steam.get_app_details, app_id)
     except Exception:  # best-effort, the art below still runs
         logger.warning("Steam store details for app %s failed", app_id, exc_info=True)
         details = None
     if details:
-        if game.title.startswith("Steam app ") and details.get("name"):
+        if (
+            game.title.startswith("Steam app ")
+            and details.get("name")
+            and "title" not in (game.locked_fields or [])
+        ):
             # a wishlisted game is saved under a placeholder until now
             game.title = details["name"][:_MAX_TITLE]
             game.sort_title = game.title.lower()
-        if details.get("developers"):
+        if details.get("developers") and wanted("developer", "save_developer"):
             game.developer = ", ".join(details["developers"])
-        if details.get("publishers"):
+        if details.get("publishers") and wanted("publisher", "save_publisher"):
             game.publisher = ", ".join(details["publishers"])
         # "About This Game" (rich HTML, the dev's full writeup) over the
         # plain-text short_description blurb meant for search-result lists
@@ -143,23 +154,24 @@ async def _enrich_steam_game_by_appid(
             or details.get("detailed_description")
             or details.get("short_description")
         )
-        if description:
+        if description and wanted("description", "save_description"):
             game.description = description
-        genres = details.get("genres") or []
-        tags = [g["description"] for g in genres if g.get("description")]
-        if use_user_tags:
-            tags = await asyncio.to_thread(steam_tags.tags_with_player_votes, app_id, tags)
-        if tags:
-            game.tags = tags
+        if wanted("tags", "save_tags"):
+            genres = details.get("genres") or []
+            tags = [g["description"] for g in genres if g.get("description")]
+            if use_user_tags:
+                tags = await asyncio.to_thread(steam_tags.tags_with_player_votes, app_id, tags)
+            if tags:
+                game.tags = tags
         categories = details.get("categories") or []
         features = [c["description"] for c in categories if c.get("description")]
-        if features:
+        if features and wanted("features", "save_features"):
             game.features = features
         required_age = details.get("required_age")
-        if required_age:
+        if required_age and wanted("age_rating", "save_age_rating"):
             game.age_rating = f"{required_age}+"
         release = (details.get("release_date") or {}).get("date")
-        if release:
+        if release and wanted("release_date", "save_release_date"):
             for fmt in ("%b %d, %Y", "%d %b, %Y", "%Y"):
                 try:
                     game.release_date = datetime.strptime(release, fmt).date()
@@ -167,10 +179,11 @@ async def _enrich_steam_game_by_appid(
                 except ValueError:
                     continue
 
-    series = await _fetch_series_from_igdb(game.title, igdb_client_id, igdb_client_secret)
-    if series:
-        game.series = series
-        _add_to_series_collection(game, series)
+    if wanted("series", "save_series"):
+        series = await _fetch_series_from_igdb(game.title, igdb_client_id, igdb_client_secret)
+        if series:
+            game.series = series
+            _add_to_series_collection(game, series)
 
     is_named = not game.title.startswith("Steam app ")
     await _fill_art(
@@ -180,6 +193,7 @@ async def _enrich_steam_game_by_appid(
         game.title if is_named else None,
         user.steamgriddb_api_key,
         (details or {}).get("header_image"),
+        (igdb_client_id, igdb_client_secret),
     )
     if is_named and (scan_settings is None or scan_settings.save_time_to_beat):
         await fill_times(game, times or TimesLookup(igdb_client_id, igdb_client_secret))

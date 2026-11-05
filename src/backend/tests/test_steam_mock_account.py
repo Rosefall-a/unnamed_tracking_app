@@ -26,7 +26,7 @@ import requests
 from PIL import Image
 from sqlalchemy import delete, select
 
-from src.api.routes import achievement_icons, default_game_assets, games, media_images
+from src.api.routes import achievement_icons, default_game_assets, games, library_sync, media_images
 from src.core.auth import get_current_user
 from src.database.models.achievement import Achievement
 from src.database.models.game import Game, GameLink
@@ -34,7 +34,14 @@ from src.database.models.user import User
 from src.database.session import SessionLocal
 from src.features.metadata.games import repair, steam, steam_tags
 from src.features.metadata.games.hltb import HLTBClient
-from src.helpers import game_art_download, image_prefetch, remote_images, save_game_asset
+from src.helpers import (
+    game_art_download,
+    game_info_file,
+    image_prefetch,
+    library_games,
+    remote_images,
+    save_game_asset,
+)
 from src.main import app
 
 STEAM_ID = "76561198012345678"
@@ -256,11 +263,19 @@ class FakeSteam:
                             ctype="text/xml")
 
     # image CDN (requests.get)
-    def get(self, url: str, **_kw: Any) -> FakeResponse:
+    def get(self, url: str, **kw: Any) -> FakeResponse:
         self.calls.append(url)
         if "IStoreBrowseService/GetItems" in url:
-            # no hashed addresses in this account: every image is at the fixed ones
-            return FakeResponse(data={"response": {"store_items": []}})
+            # the store lists a real portrait only for a game that has one
+            app_id = json.loads(kw["params"]["input_json"])["ids"][0]["appid"]
+            game = self.by_id.get(app_id)
+            if game is None or not game.has_art:
+                return FakeResponse(data={"response": {"store_items": []}})
+            assets = {
+                "asset_url_format": f"steam/apps/{app_id}/${{FILENAME}}",
+                "library_capsule_2x": "library_600x900.jpg",
+            }
+            return FakeResponse(data={"response": {"store_items": [{"assets": assets}]}})
         match = re.search(r"/steam/apps/(\d+)/(library_600x900\.jpg|library_hero\.jpg|logo\.png|header\.jpg)", url)
         if match:
             game = self.by_id.get(int(match.group(1)))
@@ -272,10 +287,23 @@ class FakeSteam:
             width, height, fmt = sizes[kind]
             body, ctype = _image(width, height, fmt, game.app_id)
             return FakeResponse(content=body, ctype=ctype)
+        if "/sgdb-cover/" in url:
+            body, ctype = _image(600, 900, "JPEG", 1)
+            return FakeResponse(content=body, ctype=ctype)
         if "/steamcommunity/public/images/apps/" in url:
             body, ctype = _image(64, 64, "JPEG", int(hashlib.md5(url.encode()).hexdigest()[:6], 16))
             return FakeResponse(content=body, ctype=ctype)
         raise AssertionError(f"unexpected image request: {url}")
+
+
+class _NoIgdb:
+    """Keeps a machine that has IGDB keys saved off the real site."""
+
+    def __init__(self, **_keys: Any) -> None:
+        pass
+
+    def search(self, _title: str, _limit: int) -> list[dict[str, Any]]:
+        return []
 
 
 # ---------------------------------------------------------------- the harness
@@ -293,8 +321,17 @@ async def account(tmp_path, monkeypatch):
     monkeypatch.setattr(steam_tags, "_STORE_MIN_GAP", 0.0)
     monkeypatch.setattr(HLTBClient, "find_times", lambda _s, _title, exact=False: {})
     monkeypatch.setattr(repair, "GAP_SECONDS", 0)
+
+    async def no_series(*_a, **_k):
+        return None
+
+    monkeypatch.setattr(repair, "_fetch_series_from_igdb", no_series)
+    monkeypatch.setattr(game_art_download, "IGDBClient", _NoIgdb)
+    monkeypatch.setattr(library_sync, "_fetch_series_from_igdb", no_series)
     monkeypatch.setattr(remote_images, "is_public_host", lambda _host: True)
     for module, name in ((save_game_asset, "DATA_ROOT"), (game_art_download, "DATA_ROOT"),
+                         (repair, "DATA_ROOT"), (library_games, "DATA_ROOT"),
+                         (game_info_file, "DATA_ROOT"),
                          (default_game_assets, "_DATA_ROOT"),
                          (games, "_DATA_ROOT"), (media_images, "_DATA_ROOT"),
                          (image_prefetch, "MEDIA_ROOT")):
@@ -672,11 +709,12 @@ async def test_a_game_without_steam_cover_art_gets_one_from_steamgriddb(account,
         def get_game_by_steam_appid(self, app_id: int) -> dict:
             return {"id": app_id}
 
-        def get_game_images(self, game_id: int, kind: str) -> list:
+        def get_game_images(self, game_id: int, kind: str, dimensions: str | None = None) -> list:
             if kind != "grids":
                 return []
             asked.append(game_id)
-            return [SimpleNamespace(url=f"{CDN}/steam/apps/{game_id}/header.jpg")]
+            assert dimensions, "a cover asks for portrait sizes only"
+            return [SimpleNamespace(url=f"{CDN}/sgdb-cover/{game_id}.jpg", score=1)]
 
     monkeypatch.setattr(game_art_download, "SteamGridDBClient", FakeGrid)
     async with SessionLocal() as db:

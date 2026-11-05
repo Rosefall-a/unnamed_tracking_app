@@ -140,6 +140,7 @@ const SECTION_ALIASES: Record<string, { section: string; tab?: string }> = {
   "media-refresh": { section: "metadata", tab: "refresh" },
   users: { section: "admin", tab: "users" },
   backups: { section: "admin", tab: "backups" },
+  repair: { section: "admin", tab: "repair" },
   oidc: { section: "admin", tab: "sso" },
   "server-integrations": { section: "admin", tab: "integrations" },
 };
