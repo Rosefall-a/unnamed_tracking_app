@@ -16,12 +16,23 @@ _BROWSER_AGENT = (
 _SITE = "https://howlongtobeat.com"
 
 # the site's four figures, in seconds, and the game field each one fills
-_TIME_FIELDS = {
+TIME_FIELDS = {
     "time_to_beat_hours": "comp_main",  # main story
     "time_to_beat_extras_hours": "comp_plus",  # main story and extras
     "time_to_beat_completionist_hours": "comp_100",  # everything, 100%
     "time_to_beat_all_hours": "comp_all",  # average over all play styles
 }
+# the same game under a store's name for one of its bundles
+_EDITION = re.compile(
+    r"\b(complete|definitive|deluxe|ultimate|enhanced|gold|standard|anniversary"
+    r"|game of the year|goty)( edition)?\s*$",
+    re.IGNORECASE,
+)
+
+
+def _same_game_key(title: Any) -> str:
+    text = _EDITION.sub("", str(title or ""))
+    return "".join(ch.lower() for ch in text if ch.isalnum())
 
 
 def _hours(seconds: Any) -> float | None:
@@ -147,26 +158,32 @@ class HLTBClient:
                 {
                     "id": entry.get("game_id"),
                     "title": entry.get("game_name"),
-                    **{field: _hours(entry.get(key)) for field, key in _TIME_FIELDS.items()},
+                    **{field: _hours(entry.get(key)) for field, key in TIME_FIELDS.items()},
                 }
             )
         return results
 
-    def find_times(self, title: str) -> dict[str, float]:
-        """Every figure the site has for the entry whose name is the title, else for the
-        first entry that has any (the site lists the best match first). Keys are the
-        game field names; a figure the site has no data for is left out."""
+    def find_times(self, title: str, exact: bool = False) -> dict[str, float]:
+        """Every figure the site has for the entry whose name is the title, else (unless
+        `exact`) for the first entry that has any (the site lists the best match first).
+        Keys are the game field names; a figure the site has no data for is left out."""
         squash = lambda s: "".join(ch.lower() for ch in str(s or "") if ch.isalnum())  # noqa: E731
         found = [
             r
-            for r in self.search(title, limit=5)
-            if any(r.get(field) is not None for field in _TIME_FIELDS)
+            for r in self.search(_EDITION.sub("", title).strip() if exact else title, limit=5)
+            if any(r.get(field) is not None for field in TIME_FIELDS)
         ]
         chosen = next((r for r in found if squash(r.get("title")) == squash(title)), None)
-        chosen = chosen or (found[0] if found else None)
+        if exact:
+            wanted = _same_game_key(title)
+            chosen = chosen or next(
+                (r for r in found if _same_game_key(r.get("title")) == wanted), None
+            )
+        elif chosen is None and found:
+            chosen = found[0]
         if chosen is None:
             return {}
-        return {field: chosen[field] for field in _TIME_FIELDS if chosen.get(field) is not None}
+        return {field: chosen[field] for field in TIME_FIELDS if chosen.get(field) is not None}
 
     def find_time_to_beat(self, title: str) -> float | None:
         """Hours for the main story alone."""

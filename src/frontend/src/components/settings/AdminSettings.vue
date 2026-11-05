@@ -8,6 +8,7 @@ import ServerIntegrationsSection from "./ServerIntegrationsSection.vue";
 import LimitsSection from "./LimitsSection.vue";
 import DevToolsSection from "./DevToolsSection.vue";
 import BackupsSection from "./BackupsSection.vue";
+import RepairSection from "./RepairSection.vue";
 
 const props = defineProps<{ initialTab?: string }>();
 
@@ -16,6 +17,7 @@ const props = defineProps<{ initialTab?: string }>();
 const TABS = [
   { id: "users", label: "Users" },
   { id: "backups", label: "Backups" },
+  { id: "repair", label: "Repair" },
   { id: "sso", label: "Single sign-on" },
   { id: "integrations", label: "Integrations" },
   { id: "limits", label: "Limits" },
@@ -46,6 +48,7 @@ watch(
     <SettingsTabs v-model="tab" :tabs="TABS" />
     <AdminSection v-if="tab === 'users'" />
     <BackupsSection v-else-if="tab === 'backups'" />
+    <RepairSection v-else-if="tab === 'repair'" />
     <OidcSettingsSection v-else-if="tab === 'sso'" />
     <ServerIntegrationsSection v-else-if="tab === 'integrations'" />
     <LimitsSection v-else-if="tab === 'limits'" />

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { usePageTitle } from "../state/pageTitle";
 import { formatDisplayDate } from "../utils/dates";
+import { chosenHours, chosenTimeLabel } from "../utils/timeToBeat";
 import { activePriority, isFinished, priorityLabel } from "../utils/priority";
 import {
   computed,
@@ -1233,9 +1234,10 @@ const overviewFacts = computed(() => {
       ? { label: "Playtime", value: formatPlaytime(minutes) }
       : { label: "Playtime", value: "–", muted: true },
   );
-  // how long the story takes, next to how long you have spent
-  if (g.timeToBeatHours)
-    facts.push({ label: "Main story", value: `${g.timeToBeatHours}h` });
+  // how long it takes, next to how long you have spent
+  const timeToBeat = chosenHours(g);
+  if (timeToBeat)
+    facts.push({ label: chosenTimeLabel(), value: `${timeToBeat}h` });
   if (g.achievementTotal > 0 && achievementsOn.value)
     facts.push({
       label: "Achievements",

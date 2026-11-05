@@ -22,9 +22,14 @@ const banners = ref<string[]>([]);
 const loading = ref(true);
 const note = ref<string | null>(null);
 
-// SteamGridDB keeps a small JPEG of every grid beside the full PNG
+// SteamGridDB keeps a small copy of every grid beside the full image, usually a
+// JPEG. Some are PNGs, so a thumbnail that is not there falls back to the image.
 function thumb(url: string): string {
   return url.replace("/grid/", "/thumb/").replace(/\.\w+$/, ".jpg");
+}
+function useFullImage(event: Event, url: string) {
+  const image = event.target as HTMLImageElement;
+  if (image.src !== url) image.src = url;
 }
 
 onMounted(async () => {
@@ -83,7 +88,12 @@ onMounted(async () => {
         :class="{ chosen: cover === url }"
         @click="cover = url"
       >
-        <img :src="thumb(url)" alt="Cover option" loading="lazy" />
+        <img
+          :src="thumb(url)"
+          alt="Cover option"
+          loading="lazy"
+          @error="useFullImage($event, url)"
+        />
         <span v-if="cover === url" class="art-check">&#10003;</span>
       </button>
     </ArtStrip>

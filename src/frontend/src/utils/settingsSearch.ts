@@ -137,6 +137,14 @@ export const SETTINGS_INDEX: SettingsEntry[] = [
     adminOnly: true,
   },
   {
+    id: "repair",
+    label: "Repair libraries",
+    group: "System",
+    keywords:
+      "fix missing cover art icon banner names details steam app play time",
+    adminOnly: true,
+  },
+  {
     id: "oidc",
     label: "Single sign-on",
     group: "System",

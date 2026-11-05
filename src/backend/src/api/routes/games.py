@@ -74,11 +74,13 @@ from src.features.metadata.games.search import (
     find_art_options,
     search_game_metadata,
 )
+from src.features.metadata.games.time_to_beat import TimesLookup
 from src.features.metadata.search_utils import cached_search
 from src.features.trash.game_trash import move_game_to_trash, restore_game_from_trash
 from src.features.trash.media_trash import move_media_file_to_trash, restore_media_file_from_trash
 from src.features.trash.sweep import RETENTION_SECONDS
-from src.helpers.game_art_download import steam_cdn_art_urls
+from src.helpers.game_info_file import write_game_info
+from src.helpers.game_art_download import steam_cdn_art_urls, steam_store_art_urls
 from src.helpers.remote_images import RemoteImageError, download_image
 from src.helpers.media import MediaKind, classify_media, list_media, media_subdir, save_media_bytes
 from src.helpers.media_dates import detect_date, detect_from_stored
@@ -2220,6 +2222,7 @@ async def create_game(
         raise _duplicate_folder_error(payload.folder_location) from exc
 
     create_game_folder(game.user_id, game.folder_location)
+    write_game_info(game)
     return game
 
 
@@ -2394,6 +2397,7 @@ async def update_game(
             renamed_to.rename(renamed_from)  # the name was not kept, so the folder goes back
         raise _duplicate_folder_error(game.folder_location) from exc
 
+    write_game_info(game)
     return game
 
 
@@ -2439,7 +2443,7 @@ _STEAM_PLACEHOLDER_TITLE = "Steam app "
 
 
 async def _steam_refresh_match(
-    game: Game, use_player_tags: bool
+    game: Game, use_player_tags: bool, times: TimesLookup
 ) -> tuple[dict[str, Any] | None, list[str]] | None:
     """The refresh result for a Steam game, read by its app id. None when the
     game has no Steam app id, so the caller falls back to a title search."""
@@ -2454,11 +2458,17 @@ async def _steam_refresh_match(
     if not details:
         return None, ["Steam: this app has no store page any more"]
     match = _steam_result({"id": app_id}, details)
-    if not game.title.startswith(_STEAM_PLACEHOLDER_TITLE):
+    known_name = game.title
+    if game.title.startswith(_STEAM_PLACEHOLDER_TITLE):
+        known_name = match["title"]
+    else:
         # the name someone gave the game stays; only the placeholder is replaced
         match["title"] = None
     await asyncio.to_thread(_apply_steam_user_tags, [match], use_player_tags)
-    art = steam_cdn_art_urls(app_id)
+    if known_name:
+        match.update(await asyncio.to_thread(times.find, known_name))
+    # a newer game's art is only at the address the store itself gives
+    art = {**steam_cdn_art_urls(app_id), **await asyncio.to_thread(steam_store_art_urls, app_id)}
     match["key_art_url"] = art["key_art"]
     match["banner_url"] = art["banner"]
     return match, []
@@ -2538,7 +2548,9 @@ async def refresh_game_metadata(
     # instead of searching by title: a wishlist game still named "Steam app
     # 123", or a name with a trademark sign, never matches a title search.
     steam_match = await _steam_refresh_match(
-        game, (await load_preferences(db, user_id))["steam_user_tags"]
+        game,
+        (await load_preferences(db, user_id))["steam_user_tags"],
+        TimesLookup(app_integrations.igdb_client_id, app_integrations.igdb_client_secret),
     )
     match, provider_errors = steam_match or (None, [])
     if match is None:

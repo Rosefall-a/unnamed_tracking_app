@@ -818,6 +818,33 @@ def test_game_stats_are_exact_and_report_what_is_missing():
     assert stats["seconds_by_source"] == [{"name": "Steam", "seconds": 32 * 3600}]
 
 
+def test_backlog_hours_add_the_chosen_figure_and_never_swap_in_another():
+    from src.core.preferences import DEFAULTS, validate_preference
+    from src.features.game_stats import game_stats
+
+    both = _G("Both", status="BACKLOG", time_to_beat_hours=10, time_to_beat_completionist_hours=40)
+    main_only = _G(
+        "Main only", status="BACKLOG", time_to_beat_hours=5, time_to_beat_completionist_hours=None
+    )
+    now = datetime(2026, 9, 19)
+
+    assert game_stats([both, main_only], {}, now)["backlog"] == {
+        "count": 2,
+        "hours": 15.0,
+        "without_estimate": 0,
+    }
+    assert game_stats([both, main_only], {}, now, "completionist")["backlog"] == {
+        "count": 2,
+        "hours": 40.0,
+        "without_estimate": 1,
+    }
+
+    assert DEFAULTS["time_to_beat_style"] == "main"
+    assert validate_preference("time_to_beat_style", "completionist") == "completionist"
+    with pytest.raises(ValueError):
+        validate_preference("time_to_beat_style", "speedrun")
+
+
 def test_game_stats_with_no_games_say_nothing_instead_of_zero_averages():
     from src.features.game_stats import game_stats
 
@@ -1904,14 +1931,16 @@ async def test_the_airing_check_starts_on_and_the_refresh_off_and_intervals_stay
     async with SessionLocal() as db:
         # the live schedules are put back afterwards
         saved = [
-            (r.job_id, r.enabled, r.interval_minutes, r.last_run_at, r.last_result)
+            (r.job_id, r.enabled, r.interval_minutes, r.last_run_at, r.last_result, r.options)
             for r in (await db.execute(select(JobSetting))).scalars()
         ]
         try:
             await db.execute(delete(JobSetting))
             await db.commit()
 
-            airing, seasons, refresh = await list_jobs(db)
+            airing, seasons, refresh, steam_import, game_repair = await list_jobs(db)
+            # both make many requests to other sites, so they are asked for too
+            assert steam_import["enabled"] is False and game_repair["enabled"] is False
             assert (
                 airing["id"] == "airing_check" and airing["enabled"] is True
             )  # new episodes appear by themselves
@@ -1941,7 +1970,7 @@ async def test_the_airing_check_starts_on_and_the_refresh_off_and_intervals_stay
             assert missing.value.status_code == 404
         finally:
             await db.execute(delete(JobSetting))
-            for job_id, enabled, minutes, last_run_at, last_result in saved:
+            for job_id, enabled, minutes, last_run_at, last_result, options in saved:
                 db.add(
                     JobSetting(
                         job_id=job_id,
@@ -1949,6 +1978,7 @@ async def test_the_airing_check_starts_on_and_the_refresh_off_and_intervals_stay
                         interval_minutes=minutes,
                         last_run_at=last_run_at,
                         last_result=last_result,
+                        options=options,
                     )
                 )
             await db.commit()

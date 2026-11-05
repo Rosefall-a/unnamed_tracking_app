@@ -41,6 +41,7 @@ from src.core.integrations import resolve_integrations
 from src.database.models.achievement import Achievement
 from src.database.models.game import Game, GameStatus
 from src.database.models.user import User
+from src.database.models.user_scan_settings import UserScanSettings
 from src.database.session import get_db
 from src.features.game_matches import find_matches
 from src.features.metadata.games import steam, steam_tags
@@ -55,9 +56,10 @@ from src.features.metadata.games.steam_achievements import (
     SteamAchievementData,
     fetch_steam_achievements,
 )
+from src.features.metadata.games.time_to_beat import TimesLookup, fill_times
 from src.helpers.game_art_download import download_asset as _download_asset
-from src.helpers.game_art_download import steamgriddb_key_art_url as _fetch_key_art_from_steamgriddb
-from src.helpers.game_art_download import steam_cdn_art_urls as _steam_cdn_art_urls
+from src.helpers.game_art_download import fill_art as _fill_art
+from src.helpers.game_art_download import wanted_art as _wanted_art
 from src.helpers.library_games import LibraryIndex
 from src.helpers.steam_bare_games import bare_steam_game_ids
 from src.helpers.library_games import get_or_create_game as _get_or_create_game
@@ -109,26 +111,39 @@ def _is_junk_title(title: str) -> bool:
 async def _enrich_steam_game_by_appid(
     game: Game, app_id: int, user: User, igdb_client_id: str | None, igdb_client_secret: str | None,
     use_user_tags: bool = True,
+    scan_settings: UserScanSettings | None = None,
+    times: TimesLookup | None = None,
 ) -> None:
     """Steam-sourced games already carry an authoritative Steam appid from
     the account's real owned-games list — no text matching needed at all,
     which is exactly what made the generic search-based `_enrich_new_game`
     occasionally attach one game's data/art to a different, similarly-named
     game. Pulls straight from Steam's own storefront API + CDN, both keyed
-    by that exact id. Best-effort, like `_enrich_new_game`."""
+    by that exact id. Best-effort, like `_enrich_new_game`. A field the person
+    locked, or chose in Settings not to save, is left as it is."""
+
+    def wanted(field: str, setting: str) -> bool:
+        return field not in (game.locked_fields or []) and (
+            scan_settings is None or getattr(scan_settings, setting)
+        )
+
     try:
         details = await asyncio.to_thread(steam.get_app_details, app_id)
     except Exception:  # best-effort, the art below still runs
         logger.warning("Steam store details for app %s failed", app_id, exc_info=True)
         details = None
     if details:
-        if game.title.startswith("Steam app ") and details.get("name"):
+        if (
+            game.title.startswith("Steam app ")
+            and details.get("name")
+            and "title" not in (game.locked_fields or [])
+        ):
             # a wishlisted game is saved under a placeholder until now
             game.title = details["name"][:_MAX_TITLE]
             game.sort_title = game.title.lower()
-        if details.get("developers"):
+        if details.get("developers") and wanted("developer", "save_developer"):
             game.developer = ", ".join(details["developers"])
-        if details.get("publishers"):
+        if details.get("publishers") and wanted("publisher", "save_publisher"):
             game.publisher = ", ".join(details["publishers"])
         # "About This Game" (rich HTML, the dev's full writeup) over the
         # plain-text short_description blurb meant for search-result lists
@@ -139,23 +154,24 @@ async def _enrich_steam_game_by_appid(
             or details.get("detailed_description")
             or details.get("short_description")
         )
-        if description:
+        if description and wanted("description", "save_description"):
             game.description = description
-        genres = details.get("genres") or []
-        tags = [g["description"] for g in genres if g.get("description")]
-        if use_user_tags:
-            tags = await asyncio.to_thread(steam_tags.tags_with_player_votes, app_id, tags)
-        if tags:
-            game.tags = tags
+        if wanted("tags", "save_tags"):
+            genres = details.get("genres") or []
+            tags = [g["description"] for g in genres if g.get("description")]
+            if use_user_tags:
+                tags = await asyncio.to_thread(steam_tags.tags_with_player_votes, app_id, tags)
+            if tags:
+                game.tags = tags
         categories = details.get("categories") or []
         features = [c["description"] for c in categories if c.get("description")]
-        if features:
+        if features and wanted("features", "save_features"):
             game.features = features
         required_age = details.get("required_age")
-        if required_age:
+        if required_age and wanted("age_rating", "save_age_rating"):
             game.age_rating = f"{required_age}+"
         release = (details.get("release_date") or {}).get("date")
-        if release:
+        if release and wanted("release_date", "save_release_date"):
             for fmt in ("%b %d, %Y", "%d %b, %Y", "%Y"):
                 try:
                     game.release_date = datetime.strptime(release, fmt).date()
@@ -163,27 +179,26 @@ async def _enrich_steam_game_by_appid(
                 except ValueError:
                     continue
 
-    series = await _fetch_series_from_igdb(game.title, igdb_client_id, igdb_client_secret)
-    if series:
-        game.series = series
-        _add_to_series_collection(game, series)
+    if wanted("series", "save_series"):
+        series = await _fetch_series_from_igdb(game.title, igdb_client_id, igdb_client_secret)
+        if series:
+            game.series = series
+            _add_to_series_collection(game, series)
 
-    saved: dict[AssetKind, bool] = {}
-    for asset_kind, url in _steam_cdn_art_urls(app_id).items():
-        saved[asset_kind] = await _download_asset(url, game.id, asset_kind)
-
-    # not every app has the "library" style art Steam generates for newer
-    # titles (older/free/niche games often don't). header_image is wide
-    # (~460x215) — a fine banner fallback, but forcing it into key_art's
-    # portrait (~2:3) slot crops it into something unrecognizable, so
-    # key_art falls back to SteamGridDB's actual portrait grids instead.
-    header_image = (details or {}).get("header_image")
-    if not saved.get("key_art"):
-        sgdb_key_art = await _fetch_key_art_from_steamgriddb(app_id, user.steamgriddb_api_key)
-        if sgdb_key_art:
-            await _download_asset(sgdb_key_art, game.id, "key_art")
-    if header_image and not saved.get("banner"):
-        await _download_asset(header_image, game.id, "banner")
+    is_named = not game.title.startswith("Steam app ")
+    await _fill_art(
+        game.id,
+        _wanted_art(game, scan_settings),
+        app_id,
+        game.title if is_named else None,
+        user.steamgriddb_api_key,
+        (details or {}).get("header_image"),
+        (igdb_client_id, igdb_client_secret),
+    )
+    if is_named and (scan_settings is None or scan_settings.save_time_to_beat):
+        await fill_times(game, times or TimesLookup(igdb_client_id, igdb_client_secret))
+    if details and (times is None or times.hltb_error is None):
+        game.details_checked_at = int(time.time())
 
 
 def _infer_status(
