@@ -12,6 +12,8 @@ const UNIT_MINUTES: Record<Unit, number> = {
 
 const jobs = ref<CleanupJob[]>([]);
 const jobError = ref<string | null>(null);
+// a problem with one job shows on that job
+const jobErrors = ref<Record<string, string>>({});
 // what is typed in each job's "every" fields, kept apart from what is saved
 const drafts = ref<Record<string, { amount: number; unit: Unit }>>({});
 
@@ -40,41 +42,58 @@ async function changeJob(
   job: CleanupJob,
   changes: { enabled?: boolean; intervalMinutes?: number },
 ) {
-  jobError.value = null;
+  jobErrors.value = { ...jobErrors.value, [job.id]: "" };
   try {
     const saved = await updateJob(job.id, changes);
     jobs.value = jobs.value.map((j) => (j.id === saved.id ? saved : j));
+    drafts.value = {
+      ...drafts.value,
+      [saved.id]: split(saved.intervalMinutes),
+    };
   } catch (err) {
-    jobError.value = err instanceof Error ? err.message : "Could not save";
+    jobErrors.value = {
+      ...jobErrors.value,
+      [job.id]: err instanceof Error ? err.message : "Could not save",
+    };
   }
-  resetDrafts();
+}
+function draftMinutes(job: CleanupJob): number {
+  const draft = drafts.value[job.id];
+  return Math.round(draft.amount * UNIT_MINUTES[draft.unit]);
+}
+function draftChanged(job: CleanupJob): boolean {
+  return draftMinutes(job) !== job.intervalMinutes;
 }
 function saveInterval(job: CleanupJob) {
-  const draft = drafts.value[job.id];
-  const minutes = Math.round(draft.amount * UNIT_MINUTES[draft.unit]);
+  const minutes = draftMinutes(job);
   if (
     !Number.isFinite(minutes) ||
     minutes < job.minIntervalMinutes ||
     minutes > job.maxIntervalMinutes
   ) {
-    jobError.value = `Interval must be between ${describe(job.minIntervalMinutes)} and ${describe(job.maxIntervalMinutes)}.`;
-    resetDrafts();
+    // what was typed stays, so it can be corrected
+    jobErrors.value = {
+      ...jobErrors.value,
+      [job.id]: `Choose between ${describe(job.minIntervalMinutes)} and ${describe(job.maxIntervalMinutes)}.`,
+    };
     return;
   }
-  if (minutes !== job.intervalMinutes)
-    void changeJob(job, { intervalMinutes: minutes });
+  void changeJob(job, { intervalMinutes: minutes });
 }
 function describe(minutes: number): string {
   const { amount, unit } = split(minutes);
   return `${amount} ${amount === 1 ? unit.slice(0, -1) : unit}`;
 }
 async function runNow(job: CleanupJob) {
-  jobError.value = null;
+  jobErrors.value = { ...jobErrors.value, [job.id]: "" };
   try {
     await runJobNow(job.id);
-    await loadJobs();
+    jobs.value = await fetchJobs();
   } catch (err) {
-    jobError.value = err instanceof Error ? err.message : "Could not start";
+    jobErrors.value = {
+      ...jobErrors.value,
+      [job.id]: err instanceof Error ? err.message : "Could not start",
+    };
   }
 }
 onMounted(loadJobs);
@@ -95,7 +114,7 @@ function formatTime(epochSeconds: number | null): string {
     <h2>Tasks</h2>
     <p class="section-hint">
       Recurring jobs run by the app's scheduler. Each job can be turned off and
-      given its own schedule.
+      given its own schedule. Run now works whether or not the schedule is on.
     </p>
 
     <div v-if="jobError" class="form-error">{{ jobError }}</div>
@@ -129,20 +148,26 @@ function formatTime(epochSeconds: number | null): string {
             class="job-amount"
             :disabled="!job.enabled"
             :aria-label="`How often ${job.name} runs`"
-            @change="saveInterval(job)"
           />
           <select
             v-model="drafts[job.id].unit"
             class="job-interval"
             :disabled="!job.enabled"
             aria-label="Unit of time"
-            @change="saveInterval(job)"
           >
             <option value="minutes">minutes</option>
             <option value="hours">hours</option>
             <option value="days">days</option>
           </select>
         </label>
+        <button
+          v-if="drafts[job.id] && job.enabled && draftChanged(job)"
+          type="button"
+          class="secondary-button"
+          @click="saveInterval(job)"
+        >
+          Save
+        </button>
         <button
           type="button"
           class="secondary-button"
@@ -152,14 +177,16 @@ function formatTime(epochSeconds: number | null): string {
           {{ job.running ? "Running…" : "Run now" }}
         </button>
       </div>
+      <div v-if="jobErrors[job.id]" class="form-error">
+        {{ jobErrors[job.id] }}
+      </div>
       <p class="last-run">
         Last run: {{ formatTime(job.lastRunAt) }}
         <template v-if="job.lastSummary"> · {{ job.lastSummary }}</template>
       </p>
       <p class="tile-desc job-note">
-        Interval: {{ describe(job.minIntervalMinutes) }} to
-        {{ describe(job.maxIntervalMinutes) }}. Run now works whether or not the
-        schedule is on.
+        Allowed: every {{ describe(job.minIntervalMinutes) }} to
+        {{ describe(job.maxIntervalMinutes) }}.
       </p>
     </div>
   </section>

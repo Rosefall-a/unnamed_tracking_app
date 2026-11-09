@@ -6,6 +6,7 @@ import {
 } from "../../services/settings";
 import type { MediaRefreshProgress } from "../../services/settings";
 import { fillMovieDetails } from "../../services/movies";
+import { fetchAppIntegrations } from "../../services/settings";
 
 const progress = ref<MediaRefreshProgress | null>(null);
 const error = ref<string | null>(null);
@@ -55,6 +56,16 @@ async function run(mode: "needed" | "all") {
 const movieFilling = ref(false);
 const movieResult = ref<string | null>(null);
 const movieError = ref<string | null>(null);
+// null until known; someone who cannot read the server's keys keeps the button
+const movieProviders = ref<boolean | null>(null);
+onMounted(async () => {
+  try {
+    const keys = await fetchAppIntegrations();
+    movieProviders.value = keys.tmdb_configured || keys.omdb_configured;
+  } catch {
+    movieProviders.value = null;
+  }
+});
 
 async function fillMovies() {
   movieFilling.value = true;
@@ -214,13 +225,16 @@ function formatTime(epochSeconds: number): string {
         length, and the director, genres and so on. Anything you wrote or locked
         is never changed.
       </p>
+      <p v-if="movieProviders === false" class="tile-desc">
+        Needs a TMDB or OMDb key, added under Settings, Metadata.
+      </p>
       <div v-if="movieError" class="form-error">{{ movieError }}</div>
       <p v-if="movieResult" class="refresh-note">{{ movieResult }}</p>
       <div class="tile-footer">
         <button
           type="button"
           class="primary-button"
-          :disabled="movieFilling"
+          :disabled="movieFilling || movieProviders === false"
           @click="fillMovies"
         >
           {{ movieFilling ? "Filling in…" : "Fill in missing movie details" }}

@@ -216,8 +216,8 @@ async function sendRequest() {
     <section class="settings-section">
       <h2>Regenerate notifications</h2>
       <p class="hint">
-        Runs the same real-data check the bell's poll triggers, right now —
-        useful right after editing an air date or release date instead of
+        Runs the same real-data check the bell's poll triggers, right now.
+        Useful right after editing an air date or release date instead of
         waiting for the next poll.
       </p>
 

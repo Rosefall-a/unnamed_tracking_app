@@ -21,7 +21,8 @@ from src.helpers.save_game_asset import ASSET_FILENAMES, DATA_ROOT, AssetKind, s
 _ART_KINDS: tuple[AssetKind, ...] = ("key_art", "banner", "logo", "icon")
 _STORE_ITEMS_URL = "https://api.steampowered.com/IStoreBrowseService/GetItems/v1/"
 _STORE_ASSET_HOST = "https://shared.akamai.steamstatic.com/store_item_assets/"
-_COMMUNITY_ICON_HOST = "https://cdn.akamai.steamstatic.com/steamcommunity/public/images/apps"
+# the old steamcommunity/public path only has older files; this one has them all
+_COMMUNITY_ICON_HOST = "https://shared.akamai.steamstatic.com/community_assets/images/apps"
 _SGDB_COVER_SIZES = "600x900,660x930"
 # a cover is 2:3 (0.67); a square or wide image is not used for one
 _MOST_COVER_WIDTH = 0.85

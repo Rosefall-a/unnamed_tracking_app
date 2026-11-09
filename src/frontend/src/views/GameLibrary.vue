@@ -40,6 +40,7 @@ import SegmentedTabs from "../components/SegmentedTabs.vue";
 import type { SegmentOption } from "../components/SegmentedTabs.vue";
 import { computeScore } from "../utils/scoring";
 import DOMPurify from "dompurify";
+import { withLocalPictures } from "../utils/localPictures";
 import {
   normalizePlatformFamily,
   PLATFORM_OPTIONS,
@@ -240,7 +241,10 @@ async function bulkAddToCollection() {
 // gifs), sanitize it instead of dumping the raw tags as text
 const selectedGameDescriptionHtml = computed(() => {
   if (!selectedGame.value?.description) return "";
-  return DOMPurify.sanitize(selectedGame.value.description);
+  return withLocalPictures(
+    DOMPurify.sanitize(selectedGame.value.description),
+    selectedGame.value.id,
+  );
 });
 
 // Only the sort order is remembered between visits. Filters start fresh every

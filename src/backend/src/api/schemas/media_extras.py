@@ -116,9 +116,9 @@ class ActivityEntryCreate(BaseModel):
     every automatic entry, so a manual log on a day that already has one
     just adds to its count rather than creating a second line."""
 
-    media_type: str = Field(pattern="^(movie|tv|anime)$")
+    media_type: str = Field(pattern="^(movie|tv|anime|game)$")
     media_id: UUID
-    event_type: str = Field(pattern="^(episodes_watched|status_changed|rewatched|rated)$")
+    event_type: str = Field(pattern="^(episodes_watched|status_changed|rewatched|rated|finished|played|bought)$")
     event_date: date
     count: int = Field(default=1, ge=1)
     detail: str | None = Field(default=None, max_length=500)
@@ -131,10 +131,10 @@ class ActivityEntryUpdate(BaseModel):
     row merges into it (counts added together) rather than erroring on
     the unique constraint."""
 
-    media_type: str | None = Field(default=None, pattern="^(movie|tv|anime)$")
+    media_type: str | None = Field(default=None, pattern="^(movie|tv|anime|game)$")
     media_id: UUID | None = None
     event_type: str | None = Field(
-        default=None, pattern="^(episodes_watched|status_changed|rewatched|rated)$"
+        default=None, pattern="^(episodes_watched|status_changed|rewatched|rated|finished|played|bought)$"
     )
     event_date: date | None = None
     count: int | None = Field(default=None, ge=1)

@@ -12,7 +12,7 @@ from src.database.base import Base
 
 
 class GameProfile(Base):
-    """A named sub-scope within one game — e.g. separate OSRS accounts
+    """A named sub-scope within one game — e.g. separate accounts
     (Main, Ironman) or separate save slots you're tracking independently.
     Not a new Game row: a profile shares the parent game's library entry
     entirely and only exists to let checklist items and media be filtered
@@ -34,13 +34,9 @@ class GameProfile(Base):
     # the game-level Notes tab's markdown notes
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
     # free-form key/value pairs (e.g. {"Overall": "1450", "Combat": "110"})
-    # — manually edited, or filled in bulk by a WiseOldMan sync. A JSON blob
+    # — manually edited (older ones may come from the removed stat sync). A JSON blob
     # rather than a separate table since order/typing don't matter here,
     # it's just a small label/value list rendered as-is.
     stats: Mapped[dict[str, str]] = mapped_column(PG_JSON, nullable=False, default=dict)
-    # RuneScape username used to pull stats from wiseoldman.net (OSRS-
-    # specific, unlike the rest of this model) — nullable since most
-    # profiles on most games never use this
-    wiseoldman_username: Mapped[str | None] = mapped_column(String(64), nullable=True)
     created_at: Mapped[int] = mapped_column(BigInteger, nullable=False, default=time.time)
     deleted_at: Mapped[int | None] = mapped_column(BigInteger, nullable=True)

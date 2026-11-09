@@ -6,10 +6,13 @@ import {
   fixOneGame,
   gamesWithProblem,
   repairStatus,
+  restoreOldFiles,
   scanLibraries,
+  scanOldFiles,
   startRepair,
 } from "../../services/gameRepair";
 import type {
+  OldFiles,
   RepairGame,
   RepairPerson,
   RepairResult,
@@ -34,7 +37,7 @@ const PROBLEMS: { id: string; label: string; reportOnly?: boolean }[] = [
   { id: "no_times", label: "No play time" },
   { id: "placeholder_folder", label: 'Folder named "Steam-app"' },
   { id: "no_info_file", label: "No game.json" },
-  { id: "missing_media", label: "Media file gone", reportOnly: true },
+  { id: "missing_media", label: "File gone", reportOnly: true },
 ];
 
 const people = ref<RepairPerson[] | null>(null);
@@ -51,6 +54,30 @@ const fixed = ref<Record<string, string>>({});
 let timer: ReturnType<typeof setTimeout> | null = null;
 
 const running = computed(() => run.value?.running ?? false);
+// what the progress line counts: games, or pictures when saving them for offline
+const unit = ref("games");
+
+function offlineTotal(person: RepairPerson): number {
+  return Object.values(person.offline_missing ?? {}).reduce((a, b) => a + b, 0);
+}
+function offlineSummary(person: RepairPerson): string {
+  const m = person.offline_missing ?? {};
+  const parts: string[] = [];
+  const posters = (m.movie ?? 0) + (m.tv ?? 0) + (m.anime ?? 0);
+  if (posters)
+    parts.push(
+      `${posters} ${posters === 1 ? "poster or backdrop" : "posters and backdrops"}`,
+    );
+  if (m.icon)
+    parts.push(`${m.icon} achievement ${m.icon === 1 ? "icon" : "icons"}`);
+  if (m.still)
+    parts.push(`${m.still} episode ${m.still === 1 ? "still" : "stills"}`);
+  if (m.page)
+    parts.push(
+      `${m.page} ${m.page === 1 ? "picture or clip" : "pictures and clips"} from game descriptions`,
+    );
+  return parts.join(", ");
+}
 
 function shown(person: RepairPerson) {
   return PROBLEMS.filter((p) => person.problems[p.id]);
@@ -85,11 +112,12 @@ async function poll() {
   }
 }
 
-async function start(userId: string | null, covers = false) {
+async function start(userId: string | null, covers = false, pictures = false) {
   error.value = null;
   opened.value = null;
+  unit.value = pictures ? "pictures" : "games";
   try {
-    run.value = await startRepair(userId, force.value, covers);
+    run.value = await startRepair(userId, force.value, covers, pictures);
     void poll();
   } catch (err) {
     error.value = message(err, "Could not start the repair.");
@@ -120,11 +148,13 @@ function describe(r: Partial<RepairResult>): string {
   add(r.names, "named");
   add(r.details, "with details added");
   add(r.art, "images added");
+  add(r.dates, "finish dates corrected");
   add(
     r.covers,
     r.covers === 1 ? "poor cover replaced" : "poor covers replaced",
   );
   add(r.times, "play times added");
+  add(r.pictures, "pictures saved for offline");
   add(r.folders, "folders renamed");
   add(r.failed, "failed");
   if (r.hltb_error)
@@ -146,6 +176,40 @@ async function fixGame(game: RepairGame) {
     };
   } finally {
     fixing.value = null;
+  }
+}
+
+// files stuck in the old shared data folder
+const oldFor = ref<string | null>(null);
+const oldFiles = ref<OldFiles | null>(null);
+const oldBusy = ref(false);
+const oldMessage = ref<string | null>(null);
+function oldSummary(files: Record<string, number>): string {
+  return Object.entries(files)
+    .map(([kind, count]) => `${count} ${kind}`)
+    .join(", ");
+}
+async function checkOldFiles(person: RepairPerson) {
+  oldFor.value = person.user_id;
+  oldFiles.value = null;
+  oldMessage.value = null;
+  try {
+    oldFiles.value = await scanOldFiles(person.user_id);
+  } catch (err) {
+    oldMessage.value = message(err, "Could not read the old folder.");
+  }
+}
+async function bringBackOldFiles(person: RepairPerson) {
+  oldBusy.value = true;
+  oldMessage.value = null;
+  try {
+    const done = await restoreOldFiles(person.user_id);
+    oldFiles.value = await scanOldFiles(person.user_id);
+    oldMessage.value = `Copied ${done.copied} files${done.failed ? `, ${done.failed} could not be copied` : ""}. The originals are still in the old folder.`;
+  } catch (err) {
+    oldMessage.value = message(err, "Could not copy the files.");
+  } finally {
+    oldBusy.value = false;
   }
 }
 
@@ -193,7 +257,7 @@ onBeforeUnmount(() => {
         </label>
       </div>
       <p v-if="running && run" class="last-run" aria-live="polite">
-        Working on {{ run.who }}: {{ run.done }} of {{ run.total }} games
+        Working on {{ run.who }}: {{ run.done }} of {{ run.total }} {{ unit }}
       </p>
       <p v-else-if="run?.error" class="form-error">{{ run.error }}</p>
       <p v-else-if="run?.finished_at" class="last-run" aria-live="polite">
@@ -255,6 +319,74 @@ onBeforeUnmount(() => {
         </button>
       </div>
       <p v-else class="tile-desc">Nothing is missing.</p>
+
+      <div v-if="person.offline_missing" class="offline">
+        <p v-if="!offlineTotal(person)" class="tile-desc">
+          Every picture is saved here, so this library can be viewed offline.
+        </p>
+        <template v-else>
+          <p class="tile-desc">
+            {{ offlineSummary(person) }}
+            {{ offlineTotal(person) === 1 ? "is" : "are" }} only online and will
+            not show without internet.
+          </p>
+          <button
+            class="secondary-button small"
+            :disabled="running"
+            type="button"
+            @click="start(person.user_id, false, true)"
+          >
+            Save for offline
+          </button>
+        </template>
+      </div>
+
+      <div class="old-files">
+        <button
+          class="text-button"
+          type="button"
+          @click="checkOldFiles(person)"
+        >
+          Check the old data folder
+        </button>
+        <template v-if="oldFor === person.user_id">
+          <p v-if="oldMessage" class="tile-desc">{{ oldMessage }}</p>
+          <template v-if="oldFiles">
+            <p v-if="!oldFiles.folders.length" class="tile-desc">
+              Nothing here is only in the old folder.
+            </p>
+            <template v-else>
+              <p class="tile-desc">
+                These are only in the old /data/games folder, so the app does
+                not show them. Bringing them back copies them and leaves the
+                originals.
+              </p>
+              <ul class="old-list">
+                <li v-for="f in oldFiles.folders" :key="f.folder">
+                  <strong>{{ f.title }}</strong>
+                  <template v-if="f.in_trash"> (in the trash)</template>:
+                  {{ oldSummary(f.files) }}
+                </li>
+              </ul>
+              <button
+                class="secondary-button small"
+                type="button"
+                :disabled="oldBusy"
+                @click="bringBackOldFiles(person)"
+              >
+                {{ oldBusy ? "Copying..." : "Bring these back" }}
+              </button>
+            </template>
+            <p v-if="oldFiles.no_game.length" class="tile-desc">
+              Left alone, no matching game: {{ oldFiles.no_game.join(", ") }}.
+            </p>
+            <p v-if="oldFiles.map_folders" class="tile-desc">
+              Saved world maps are not copied, because the app no longer has
+              that feature.
+            </p>
+          </template>
+        </template>
+      </div>
 
       <div v-if="opened?.person === person" class="game-list">
         <p v-if="opened.games === null" class="tile-desc">Listing games...</p>
@@ -402,6 +534,29 @@ onBeforeUnmount(() => {
 }
 .chip.report strong {
   color: var(--ui-danger-bright);
+}
+.old-files,
+.offline {
+  margin-top: 12px;
+}
+.offline .tile-desc,
+.old-files .tile-desc {
+  margin: 8px 0;
+}
+.old-list {
+  color: var(--ui-text-soft);
+  font-size: 0.8rem;
+  margin: 8px 0 10px;
+  padding-left: 18px;
+}
+.text-button {
+  background: none;
+  border: 0;
+  color: var(--ui-dim-3);
+  cursor: pointer;
+  font-size: 0.78rem;
+  padding: 0;
+  text-decoration: underline;
 }
 .game-list {
   margin-top: 14px;

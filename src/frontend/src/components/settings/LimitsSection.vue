@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { ref, onMounted } from "vue";
 import { fetchUploadLimits, updateUploadLimit } from "../../services/settings";
+import type { UploadLimits } from "../../services/settings";
 
 const loading = ref(true);
 const loadError = ref<string | null>(null);
 const effectiveMb = ref<number | null>(null);
+const limits = ref<UploadLimits | null>(null);
 // what the admin's typing — separate from effectiveMb so a bad value being
 // edited doesn't flash the wrong number elsewhere while it's mid-edit
 const draftMb = ref("");
@@ -18,6 +20,7 @@ async function load() {
   loadError.value = null;
   try {
     const r = await fetchUploadLimits();
+    limits.value = r;
     effectiveMb.value = r.max_upload_size_mb;
     draftMb.value = String(r.max_upload_size_mb);
   } catch (e) {
@@ -72,9 +75,8 @@ async function resetToDefault() {
   <section class="settings-section">
     <h2>Upload limits</h2>
     <p class="hint">
-      Server-wide limits for administrators. Only the image and media upload
-      size can be changed here. Video clips and world saves have separate,
-      larger limits.
+      The largest file each part of the app accepts. A reverse proxy in front of
+      the app can have a lower limit of its own, which these do not change.
     </p>
 
     <p v-if="loading" class="hint">Loading…</p>
@@ -90,11 +92,12 @@ async function resetToDefault() {
               min="1"
               step="1"
               inputmode="numeric"
+              :disabled="limits?.from_environment"
             />
             <button
               type="button"
               class="primary-button"
-              :disabled="saving"
+              :disabled="saving || limits?.from_environment"
               @click="save"
             >
               {{ saving ? "Saving…" : "Save" }}
@@ -102,10 +105,15 @@ async function resetToDefault() {
           </div>
           <span class="field-hint">
             Applies to cover art, banners, screenshots and documents.
+            <template v-if="limits?.from_environment">
+              Set by MAX_UPLOAD_SIZE_MB on the server, so it can only be changed
+              there.
+            </template>
           </span>
         </label>
 
         <button
+          v-if="!limits?.from_environment"
           type="button"
           class="text-button"
           :disabled="saving"
@@ -113,6 +121,13 @@ async function resetToDefault() {
         >
           Reset to default
         </button>
+
+        <p v-if="limits" class="hint set-on-server">
+          Set on the server: video clips and soundtracks
+          {{ limits.max_clip_size_mb }} MB, saves
+          {{ limits.max_save_size_mb }} MB, world saves and modpacks
+          {{ limits.max_world_save_size_mb }} MB.
+        </p>
 
         <div v-if="saveError" class="form-error">{{ saveError }}</div>
         <div v-if="saveSuccess" class="form-success">Saved</div>

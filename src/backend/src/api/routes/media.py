@@ -29,8 +29,8 @@ from src.features.trash.inbox_trash import (
     restore_inbox_file_from_trash,
 )
 from src.features.trash.sweep import RETENTION_SECONDS
-from src.helpers.media import MediaKind, classify_media, list_media, media_subdir, save_media_bytes
-from src.helpers.media_dates import detect_date
+from src.helpers.media import classify_media, list_media, media_subdir, MediaKind, save_upload, UploadTooLarge
+from src.helpers.media_dates import detect_date_of_file
 from src.helpers.range_response import ranged_file_response
 from src.helpers.save_game_asset import DATA_ROOT as GAMES_DATA_ROOT
 from src.helpers.save_game_asset import create_game_folder
@@ -111,8 +111,12 @@ async def upload_to_inbox(
         )
         max_bytes = limit_mb * 1024 * 1024
 
-        data = await file.read()
-        if len(data) > max_bytes:
+        dest_dir = _inbox_dir(current_user.id) / media_subdir(kind)
+        try:
+            saved_path, _size = await save_upload(
+                file, dest_dir, file.filename or "file", max_bytes
+            )
+        except UploadTooLarge:
             results.append(
                 {
                     "filename": file.filename,
@@ -121,11 +125,13 @@ async def upload_to_inbox(
                 }
             )
             continue
-
-        dest_dir = _inbox_dir(current_user.id) / media_subdir(kind)
-        saved_path = save_media_bytes(data, dest_dir, file.filename or "file")
-        taken_at, taken_source = detect_date(
-            data,
+        except OSError:
+            results.append(
+                {"filename": file.filename, "status": "rejected", "reason": "Could not be saved."}
+            )
+            continue
+        taken_at, taken_source = detect_date_of_file(
+            saved_path,
             file.filename or "",
             kind,
             last_modified[index] if last_modified and index < len(last_modified) else None,

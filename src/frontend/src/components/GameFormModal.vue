@@ -202,10 +202,6 @@ const initialDateAdded = toLocalDateInput(props.game?.dateAdded ?? new Date());
 const dateAdded = ref(initialDateAdded);
 const description = ref(props.game?.description ?? "");
 const profilesEnabled = ref(props.game?.profilesEnabled ?? false);
-const osrsStatsEnabled = ref(props.game?.osrsStatsEnabled ?? false);
-watch(profilesEnabled, (enabled) => {
-  if (!enabled) osrsStatsEnabled.value = false;
-});
 // this game's overrides of what its page shows (see Settings, Game page)
 const pageOverrides = ref<PageOverrides>(
   JSON.parse(JSON.stringify(props.game?.pageSettings ?? {})),
@@ -552,7 +548,6 @@ async function submit() {
     collections: splitList(collectionsInput.value),
     profilesEnabled: profilesEnabled.value,
     pageSettings: pageOverrides.value,
-    osrsStatsEnabled: osrsStatsEnabled.value,
   };
 
   try {
@@ -1066,16 +1061,6 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKey));
                 <small
                   >Adds an account switcher with its own checklist and media for
                   each account.</small
-                >
-              </span>
-            </label>
-            <label v-if="profilesEnabled" class="gf-check full">
-              <input v-model="osrsStatsEnabled" type="checkbox" />
-              <span>
-                Use OSRS stats (WiseOldMan)
-                <small
-                  >Adds skill and boss syncing from wiseoldman.net. Only for Old
-                  School RuneScape.</small
                 >
               </span>
             </label>

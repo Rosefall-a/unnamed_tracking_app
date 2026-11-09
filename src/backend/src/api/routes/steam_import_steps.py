@@ -38,6 +38,7 @@ from src.core.preferences import load_preferences
 from src.database.models.game import Game, GameStatus
 from src.database.models.user import User
 from src.database.session import get_db
+from src.features.game_finish_dates import correct_finish_dates
 from src.features.game_matches import find_matches
 from src.features.metadata.games import steam, steam_wishlist
 from src.features.metadata.games.steam_achievements import (
@@ -139,6 +140,8 @@ async def import_achievements(
             )
         else:
             _advance_status(game, total, unlocked_count, game.playtime_seconds)
+    await db.flush()
+    await correct_finish_dates(db, current_user.id)
     await db.commit()
     return {"achievements_synced": synced, "achievements_unavailable": unavailable}
 

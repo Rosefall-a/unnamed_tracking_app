@@ -33,6 +33,8 @@ class MediaType(str, Enum):
     MOVIE = "movie"
     TV = "tv"
     ANIME = "anime"
+    # only the activity log holds games; lists and rewatches check for the other three
+    GAME = "game"
 
 
 class RewatchLog(Base):
@@ -146,6 +148,9 @@ class ActivityEventType(str, Enum):
     STATUS_CHANGED = "status_changed"
     RATED = "rated"
     REWATCHED = "rewatched"
+    FINISHED = "finished"
+    PLAYED = "played"
+    BOUGHT = "bought"
 
 
 class ActivityLog(Base):

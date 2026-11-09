@@ -236,9 +236,19 @@ async def test_leftovers_list_only_files_nothing_points_at(scratch, monkeypatch)
     users_root = scratch.tmp / "users"
     monkeypatch.setattr(backups, "_GAMES_DATA_ROOT", users_root)
     monkeypatch.setattr(backups, "DELETED_ACCOUNTS_ROOT", scratch.tmp / "deleted")
+    monkeypatch.setattr(backups, "_OLD_BACKUPS_ROOT", scratch.tmp / "backups")
     stray_game = users_root / "_trash" / str(uuid.uuid4())
     stray_account = users_root / str(uuid.uuid4())
-    for folder in (stray_game, stray_account, scratch.tmp / "deleted" / "old-account"):
+    old_backups = scratch.tmp / "backups" / str(scratch.user_id)
+    # the whole-database backups live beside them and are never offered
+    database_backups = scratch.tmp / "backups" / "database"
+    for folder in (
+        stray_game,
+        stray_account,
+        scratch.tmp / "deleted" / "old-account",
+        old_backups,
+        database_backups,
+    ):
         folder.mkdir(parents=True)
         (folder / "f.bin").write_bytes(b"1234")
 
@@ -248,9 +258,17 @@ async def test_leftovers_list_only_files_nothing_points_at(scratch, monkeypatch)
         async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
             listed = (await client.get("/api/settings/backups/leftovers")).json()
             kinds = sorted((item["kind"], item["bytes"]) for item in listed)
-            assert kinds == [("account_files", 4), ("deleted_account", 4), ("game_trash", 4)]
-            # the scratch user's own folder still has an account, so it is not offered
-            assert not any(str(scratch.user_id) in item["name"] for item in listed)
+            assert kinds == [
+                ("account_files", 4),
+                ("deleted_account", 4),
+                ("game_trash", 4),
+                ("old_backups", 4),
+            ]
+            # the scratch user's own files still have an account, so they are not
+            # offered; only that account's old backups are
+            assert [item["kind"] for item in listed if str(scratch.user_id) in item["name"]] == [
+                "old_backups"
+            ]
             gone = await client.delete(
                 f"/api/settings/backups/leftovers/game_trash/{stray_game.name}"
             )
@@ -259,7 +277,16 @@ async def test_leftovers_list_only_files_nothing_points_at(scratch, monkeypatch)
                 f"/api/settings/backups/leftovers/account_files/users-{scratch.user_id}"
             )
             assert refused.status_code == 404
+            assert (
+                await client.delete(
+                    f"/api/settings/backups/leftovers/old_backups/{scratch.user_id}"
+                )
+            ).status_code == 200
+            assert (
+                await client.delete("/api/settings/backups/leftovers/old_backups/database")
+            ).status_code == 404
     finally:
         app.dependency_overrides.pop(get_current_admin, None)
+    assert not old_backups.exists() and database_backups.exists()
     assert not stray_game.exists()
     assert stray_account.exists() and (users_root / str(scratch.user_id)).exists()

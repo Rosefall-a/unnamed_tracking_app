@@ -36,9 +36,12 @@ from src.api.routes.settings import (
 )
 from src.core.integrations import Integrations, resolve_integrations
 from src.database.models.game import Game
+from src.database.models.game_archive import GameArchive, GameArchiveVersion
+from src.database.models.game_file_item import GameFileItem
 from src.database.models.media_item import MediaItem
 from src.database.models.user import User
 from src.database.session import SessionLocal
+from src.features.game_finish_dates import correct_finish_dates
 from src.features.game_matches import find_matches
 from src.features.metadata.games import steam
 from src.features.metadata.games.search import _steam_result, search_game_metadata
@@ -89,6 +92,7 @@ class RepairResult:
     details: int = 0
     art: int = 0
     covers: int = 0
+    dates: int = 0
     times: int = 0
     folders: int = 0
     info_files: int = 0
@@ -103,6 +107,7 @@ class RepairResult:
             "details",
             "art",
             "covers",
+            "dates",
             "times",
             "folders",
             "info_files",
@@ -339,6 +344,7 @@ async def repair_user_games(
                 )
             ).all()
             game_ids = [g.id for g in games if needs_repair(g, scan_settings, now, force)]
+            result.dates += await correct_finish_dates(db, user_id)
             for game in games:
                 result.folders += await name_folder_after_title(db, game)
                 result.info_files += write_game_info(game)
@@ -505,6 +511,10 @@ def _media_is_gone(game: Game, kind: MediaKind, filename: str) -> bool:
     return not (folder / media_subdir(kind) / Path(filename).name).is_file()
 
 
+_FILE_FOLDERS = {"doc": "docs", "modpack": "modpacks"}
+_SAVE_FOLDERS = {"save": "saves", "world_save": "world_saves"}
+
+
 async def _missing_media(db: AsyncSession, games: list[Game]) -> Counter[UUID]:
     by_id = {g.id: g for g in games}
     rows = await db.execute(
@@ -512,11 +522,36 @@ async def _missing_media(db: AsyncSession, games: list[Game]) -> Counter[UUID]:
             MediaItem.game_id.in_(by_id), MediaItem.deleted_at.is_(None)
         )
     )
-    return Counter(
+    missing: Counter[UUID] = Counter(
         game_id
         for game_id, kind, name in rows.all()
         if _media_is_gone(by_id[game_id], cast(MediaKind, kind), name)
     )
+    file_rows = await db.execute(
+        select(GameFileItem.game_id, GameFileItem.kind, GameFileItem.filename).where(
+            GameFileItem.game_id.in_(by_id), GameFileItem.deleted_at.is_(None)
+        )
+    )
+    for game_id, kind, name in file_rows.all():
+        game = by_id[game_id]
+        folder = DATA_ROOT / str(game.user_id) / "games" / (game.folder_location or "")
+        if not (folder / _FILE_FOLDERS.get(kind, kind) / name).is_file():
+            missing[game_id] += 1
+    save_rows = await db.execute(
+        select(GameArchive.game_id, GameArchive.kind, GameArchive.id, GameArchiveVersion.filename)
+        .join(GameArchiveVersion, GameArchiveVersion.archive_id == GameArchive.id)
+        .where(
+            GameArchive.game_id.in_(by_id),
+            GameArchive.deleted_at.is_(None),
+            GameArchiveVersion.deleted_at.is_(None),
+        )
+    )
+    for game_id, kind, archive_id, name in save_rows.all():
+        game = by_id[game_id]
+        folder = DATA_ROOT / str(game.user_id) / "games" / (game.folder_location or "")
+        if not (folder / _SAVE_FOLDERS.get(kind, kind) / str(archive_id) / name).is_file():
+            missing[game_id] += 1
+    return missing
 
 
 async def _user_games(db: AsyncSession, user_id: UUID) -> list[Game]:

@@ -380,11 +380,20 @@ export async function removeFromMediaList(
 }
 
 export type ActivityEventType =
-  "episodes_watched" | "status_changed" | "rated" | "rewatched";
+  | "episodes_watched"
+  | "status_changed"
+  | "rated"
+  | "rewatched"
+  | "finished"
+  | "played"
+  | "bought";
+export type ActivityMediaType = MediaType | "game";
+export type LogActionKind =
+  "episodes" | "finished" | "played" | "mastered" | "bought";
 
 export interface ActivityEntry {
   id: string;
-  mediaType: MediaType;
+  mediaType: ActivityMediaType;
   mediaId: string;
   mediaTitle: string;
   eventType: ActivityEventType;
@@ -395,7 +404,7 @@ export interface ActivityEntry {
 
 interface BackendActivityEntry {
   id: string;
-  media_type: MediaType;
+  media_type: ActivityMediaType;
   media_id: string;
   media_title: string;
   event_type: ActivityEventType;
@@ -425,8 +434,34 @@ export async function fetchActivity(days = 30): Promise<ActivityEntry[]> {
   return raw.map(mapActivityEntry);
 }
 
+// Logs something and also does it: see backend api/routes/activity_log.py
+export async function logActivityAction(input: {
+  mediaType: ActivityMediaType;
+  mediaId: string;
+  action: LogActionKind;
+  eventDate: string;
+  count?: number;
+  detail?: string | null;
+}): Promise<ActivityEntry> {
+  const response = await fetch("/api/activity/log", {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      media_type: input.mediaType,
+      media_id: input.mediaId,
+      action: input.action,
+      event_date: input.eventDate,
+      count: input.count ?? 1,
+      detail: input.detail ?? null,
+    }),
+  });
+  const raw = await handle<BackendActivityEntry>(response, "log that");
+  return mapActivityEntry(raw);
+}
+
 export async function createActivityEntry(input: {
-  mediaType: MediaType;
+  mediaType: ActivityMediaType;
   mediaId: string;
   eventType: ActivityEventType;
   eventDate: string;
@@ -456,7 +491,7 @@ export async function createActivityEntry(input: {
 export async function updateActivityEntry(
   id: string,
   input: {
-    mediaType?: MediaType;
+    mediaType?: ActivityMediaType;
     mediaId?: string;
     eventType?: ActivityEventType;
     eventDate?: string;
@@ -562,7 +597,11 @@ export async function fetchCalendarFeedUrl(
 // achievements were unlocked on a day (Settings > Games history).
 export interface CalendarGameEntry {
   kind:
-    "game_released" | "game_finished" | "game_achievements" | "game_purchased";
+    | "game_released"
+    | "game_played"
+    | "game_finished"
+    | "game_achievements"
+    | "game_purchased";
   gameId: string;
   title: string;
   date: string;

@@ -13,11 +13,9 @@ from src.database.base import Base
 
 class GameProfileStatSnapshot(Base):
     """A dated copy of GameProfile.stats — written automatically every
-    time stats change (a WiseOldMan sync or a manual edit), plus
-    backfilled from WiseOldMan's own snapshot history on a profile's
-    first sync when it has one. This is what lets progression ("what was
-    my Zulrah KC a month ago?") be shown over time instead of only ever
-    seeing the current numbers GameProfile.stats holds."""
+    time stats change. Older ones may also come from the stat sync this
+    app used to have. This is what lets progression be shown over time
+    instead of only ever seeing the current numbers GameProfile.stats holds."""
 
     __tablename__ = "game_profile_stat_snapshots"
 
@@ -30,7 +28,7 @@ class GameProfileStatSnapshot(Base):
     )
     stats: Mapped[dict[str, str]] = mapped_column(PG_JSON, nullable=False, default=dict)
     # raw integers alongside `stats`' display strings — a manual edit never
-    # sets these (empty dicts), a WiseOldMan sync always does. Needed to
+    # sets these (empty dicts), only the old stat sync did. Needed to
     # compute an accurate day-to-day gain: a single skill level can span
     # tens of thousands of XP, so diffing the level number alone would be
     # meaningless for a "gained this much XP" readout.

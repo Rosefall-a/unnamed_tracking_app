@@ -57,6 +57,7 @@ from src.features.metadata.games.steam_achievements import (
     fetch_steam_achievements,
 )
 from src.features.metadata.games.time_to_beat import TimesLookup, fill_times
+from src.features.game_finish_dates import correct_finish_dates
 from src.helpers.game_art_download import download_asset as _download_asset
 from src.helpers.game_art_download import fill_art as _fill_art
 from src.helpers.game_art_download import wanted_art as _wanted_art
@@ -494,10 +495,14 @@ async def _replace_achievements(
     db: AsyncSession, game_id: UUID, provider: str, rows: list[dict]
 ) -> None:
     """Upserts by (game_id, provider, external_id) rather than delete +
-    reinsert — a media item can link to a specific achievement
+    reinsert, since a media item can link to a specific achievement
     (MediaItem.linked_achievement_id), and that FK is ON DELETE SET NULL,
     so wiping every row on each re-sync was silently unlinking every
-    screenshot/clip tagged to an achievement the next time the game synced."""
+    screenshot/clip tagged to an achievement the next time the game synced.
+
+    A Mastered game that gains achievements it has not unlocked (an update or
+    DLC) is no longer fully done, so it goes back to Played. Its finish date
+    stays, so the calendar still shows the day it was first finished."""
     existing = {
         a.external_id: a
         for a in (
@@ -510,8 +515,14 @@ async def _replace_achievements(
         .scalars()
         .all()
     }
+    if not rows:
+        # an empty answer is a provider hiccup far more often than a game losing
+        # every achievement, so nothing stored is thrown away on it
+        return
+    was_complete = bool(existing) and all(a.unlocked for a in existing.values())
     now = int(time.time())
     seen_ids: set[str] = set()
+    new_locked = False
     for row in rows:
         seen_ids.add(row["external_id"])
         current = existing.get(row["external_id"])
@@ -523,10 +534,25 @@ async def _replace_achievements(
                     continue
                 setattr(current, field, value)
         else:
+            new_locked = new_locked or not row.get("unlocked")
             db.add(Achievement(game_id=game_id, provider=provider, created_at=now, **row))
-    for external_id, achievement in existing.items():
-        if external_id not in seen_ids:
+    game = await db.get(Game, game_id)
+    if game is not None and was_complete and new_locked and game.status == GameStatus.MASTERED:
+        game.status = GameStatus.PLAYED
+    gone = [a for external_id, a in existing.items() if external_id not in seen_ids]
+    if gone and game is not None and (await _removes_gone_achievements(db, game.user_id)):
+        for achievement in gone:
             await db.delete(achievement)
+
+
+async def _removes_gone_achievements(db: AsyncSession, user_id: UUID) -> bool:
+    removes = await db.scalar(
+        select(UserScanSettings.remove_gone_achievements).where(
+            UserScanSettings.user_id == user_id
+        )
+    )
+    # no settings saved yet means the default, which is on
+    return removes is None or bool(removes)
 
 
 @router.post("/games/{game_id}/achievements")
@@ -764,6 +790,8 @@ async def sync_steam_library(
 
     games_flagged_stale = await _flag_stale_games(db, current_user.id, "Steam", touched_ids)
     # a game added by hand that this sync brought in again: ask, never merge
+    await db.flush()
+    await correct_finish_dates(db, current_user.id)
     possible_duplicates = await find_matches(db, current_user.id)
     current_user.steam_library_synced_at = int(time.time())
     await db.commit()

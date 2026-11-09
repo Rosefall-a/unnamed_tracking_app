@@ -18,6 +18,7 @@ from src.api.schemas.appearance_settings import AppearanceSettingsRead, Appearan
 from src.api.schemas.scan_settings import ScanSettingsRead, ScanSettingsUpdate
 from src.core.app_integrations import (
     get_max_upload_size_mb,
+    upload_limit_is_from_environment,
     get_or_create_app_integration_settings,
 )
 from src.core.auth import get_current_admin, get_current_user
@@ -294,12 +295,16 @@ async def get_system_info(admin: User = Depends(get_current_admin)) -> dict:
 
 
 @router.get("/upload-limits")
-async def get_upload_limits(db: AsyncSession = Depends(get_db)) -> dict[str, int]:
-    """The effective max upload size: an admin's override from Settings >
-    Administration > Limits if one's been saved, else the MAX_UPLOAD_SIZE_MB
-    env default. Read-only here — PUT /upload-limit is the admin-only way
-    to change it."""
-    return {"max_upload_size_mb": await get_max_upload_size_mb(db)}
+async def get_upload_limits(db: AsyncSession = Depends(get_db)) -> dict[str, int | bool]:
+    """Every upload limit in effect. Read-only here: PUT /upload-limit is the
+    admin-only way to change the one that can be changed."""
+    return {
+        "max_upload_size_mb": await get_max_upload_size_mb(db),
+        "from_environment": upload_limit_is_from_environment(),
+        "max_clip_size_mb": settings.MAX_CLIP_SIZE_MB,
+        "max_save_size_mb": settings.MAX_SAVE_ARCHIVE_SIZE_MB,
+        "max_world_save_size_mb": settings.MAX_WORLD_SAVE_SIZE_MB,
+    }
 
 
 class UploadLimitRequest(BaseModel):
@@ -315,6 +320,11 @@ async def update_upload_limit(
     """Admin-only. `max_upload_size_mb: null` clears the override and goes
     back to the .env default."""
     del admin
+    if upload_limit_is_from_environment():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="MAX_UPLOAD_SIZE_MB is set on the server, so it can only be changed there.",
+        )
     if payload.max_upload_size_mb is not None and payload.max_upload_size_mb < 1:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

@@ -30,13 +30,13 @@ _STATUS = {
     "on-hold": AnimeStatus.BACKLOG,
     "on hold": AnimeStatus.BACKLOG,
     "dropped": AnimeStatus.DROPPED,
-    "plan to watch": AnimeStatus.WATCHLIST,
+    "plan to watch": AnimeStatus.WISHLIST,
     # the numeric codes some exporters write
     "1": AnimeStatus.IN_PROGRESS,
     "2": AnimeStatus.WATCHED,
     "3": AnimeStatus.BACKLOG,
     "4": AnimeStatus.DROPPED,
-    "6": AnimeStatus.WATCHLIST,
+    "6": AnimeStatus.WISHLIST,
 }
 # the same labels the AniList lookup stores, so a title reads the same whichever way it was added
 _FORMAT = {
@@ -123,7 +123,7 @@ def parse_mal_export(raw: bytes) -> list[MalEntry]:
             continue
         total = _int(_text(node, "series_episodes")) or None
         watched = _int(_text(node, "my_watched_episodes"))
-        status = _STATUS.get(_text(node, "my_status").lower(), AnimeStatus.WATCHLIST)
+        status = _STATUS.get(_text(node, "my_status").lower(), AnimeStatus.WISHLIST)
         assumed = status is AnimeStatus.WATCHED and watched == 0 and total is not None
         if assumed and total is not None:
             watched = total

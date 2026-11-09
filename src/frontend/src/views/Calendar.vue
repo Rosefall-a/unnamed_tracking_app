@@ -26,12 +26,15 @@ import {
   createCalendarEvent,
   updateCalendarEvent,
   deleteCalendarEvent,
-  createActivityEntry,
+  logActivityAction,
+  addRewatch,
   updateActivityEntry,
   deleteActivityEntry,
 } from "../services/mediaExtras";
 import type {
   ActivityEventType,
+  ActivityMediaType,
+  LogActionKind,
   CalendarEntry,
   CalendarGameEntry,
   CalendarEventEntry,
@@ -40,6 +43,7 @@ import type {
 } from "../services/mediaExtras";
 import AppTopBar from "../components/AppTopBar.vue";
 import SegmentedTabs from "../components/SegmentedTabs.vue";
+import StatCard from "../components/stats/StatCard.vue";
 import type { SegmentOption } from "../components/SegmentedTabs.vue";
 import {
   fetchPreferences,
@@ -49,9 +53,11 @@ import {
 import type { Preferences } from "../services/preferences";
 import { useKeptAlive } from "../utils/useKeptAlive";
 import { useConfirm } from "../state/dialog";
-import { fetchMovies } from "../services/movies";
-import { fetchTVShows } from "../services/tvShows";
-import { fetchAnime } from "../services/anime";
+import { createMovie, fetchMovies } from "../services/movies";
+import { createTVShow, fetchTVShows } from "../services/tvShows";
+import { createAnime, fetchAnime } from "../services/anime";
+import { createGame, getGames } from "../services/games";
+import { sizedAssetUrl } from "../utils/gameImages";
 import { displayTitle } from "../utils/displayTitle";
 
 const router = useRouter();
@@ -69,7 +75,7 @@ const VIEW_OPTIONS: SegmentOption[] = [
 
 // ---- shared library lookup (posters for watched chips + title picker) ----
 interface PickableMedia {
-  mediaType: MediaType;
+  mediaType: ActivityMediaType;
   mediaId: string;
   title: string;
   posterUrl: string | null;
@@ -84,10 +90,11 @@ const posterByMedia = computed(() => {
 });
 async function loadManualLibrary() {
   if (manualLibraryLoaded.value) return;
-  const [movies, shows, anime] = await Promise.all([
+  const [movies, shows, anime, games] = await Promise.all([
     fetchMovies(),
     fetchTVShows(),
     fetchAnime(),
+    getGames(),
   ]);
   manualLibrary.value = [
     ...movies.map((m) => ({
@@ -107,6 +114,12 @@ async function loadManualLibrary() {
       mediaId: a.id,
       title: displayTitle(a),
       posterUrl: a.posterUrl,
+    })),
+    ...games.map((g) => ({
+      mediaType: "game" as const,
+      mediaId: g.id,
+      title: g.title,
+      posterUrl: g.coverImageUrl,
     })),
   ];
   manualLibraryLoaded.value = true;
@@ -145,11 +158,7 @@ watch(filters, () => {
 
 // ---- preferences (Settings > Calendar) ----
 const prefs = ref<Preferences>({ ...DEFAULT_PREFERENCES });
-const showGamesFilter = computed(
-  () =>
-    !prefs.value.calendar_hide_games &&
-    (prefs.value.calendar_game_releases || prefs.value.calendar_game_history),
-);
+const showGamesFilter = computed(() => !prefs.value.calendar_hide_games);
 const weekStart = computed(() => prefs.value.calendar_week_start);
 async function loadPreferences() {
   try {
@@ -181,6 +190,40 @@ async function toggleAiringStatus(key: AiringStatus) {
   } catch {
     prefs.value = { ...prefs.value, calendar_airing_statuses: previous };
   }
+}
+
+// saved like the airing chips, because they change what the server sends
+type SavedCalendarChoice = Partial<
+  Pick<
+    Preferences,
+    "calendar_game_releases" | "calendar_game_history" | "calendar_week_start"
+  >
+>;
+async function saveCalendarChoice(change: SavedCalendarChoice) {
+  const previous = prefs.value;
+  prefs.value = { ...previous, ...change };
+  try {
+    const { latest } = await queuePreferences(change);
+    if (latest) await Promise.all([loadCalendar(), loadGameHistory()]);
+  } catch {
+    prefs.value = previous;
+  }
+}
+const WEEK_START_DAYS = [
+  "Sunday",
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+];
+function setWeekStart(event: Event) {
+  void saveCalendarChoice({
+    calendar_week_start: Number(
+      (event.target as HTMLSelectElement).value,
+    ) as Preferences["calendar_week_start"],
+  });
 }
 
 // ---- calendar data ----
@@ -215,7 +258,9 @@ const isCurrentMonth = computed(
     viewYear.value === today.getFullYear() &&
     viewMonth.value === today.getMonth(),
 );
-const CAL_MAX_DAYS = 90;
+const CAL_MAX_DAYS = 365;
+// a year of days is too long to read as a list
+const AGENDA_DAYS = 90;
 // Back as far as the oldest entry of any kind (watch history, game history and
 // release dates, your own entries), never earlier than the current month, so a
 // brand-new account still has somewhere sensible to stand; forward as far as
@@ -320,6 +365,12 @@ useKeptAlive(refreshAll);
 
 // ---- unify everything the grid/agenda draws ----
 type Layer = "episode" | "release" | "watched" | "event";
+const LAYER_LABEL: Record<Layer, string> = {
+  episode: "Airing",
+  release: "Release",
+  watched: "Watched",
+  event: "Mine",
+};
 type CalMediaType = MediaType | "game" | "custom";
 interface CalItem {
   key: string;
@@ -330,6 +381,8 @@ interface CalItem {
   posterUrl: string | null;
   badge: string; // short text on the thumbnail: "12", "×3", ""
   detail: string; // longer line for tooltip/drawer
+  tag: string; // what it is, shown beside it in lists
+  count: number; // episodes or achievements it stands for, 1 for anything else
   projected: boolean;
   sortAt: number;
   dayKey: string;
@@ -360,23 +413,35 @@ function fromEntry(e: CalendarEntry): CalItem {
     mediaType: e.mediaType,
     mediaId: e.mediaId,
     title: e.title,
-    posterUrl: e.posterUrl,
+    posterUrl: e.posterUrl && sizedAssetUrl(e.posterUrl, CHIP_POSTER_WIDTH),
     badge: e.nextEpisodeNumber ? String(e.nextEpisodeNumber) : "",
     detail: [ep, when, estimate].filter(Boolean).join(" · "),
+    tag: LAYER_LABEL[layer],
+    count: 1,
     projected: e.isProjected,
     sortAt: e.airAt,
     dayKey: keyOfDate(new Date(e.airAt * 1000)),
   };
 }
+const CHIP_POSTER_WIDTH = 200;
+const GAME_TAGS: Record<CalendarGameEntry["kind"], string> = {
+  game_released: "Release",
+  game_played: "Played",
+  game_finished: "Finished",
+  game_purchased: "Bought",
+  game_achievements: "Achievements",
+};
 function fromGame(g: CalendarGameEntry): CalItem {
   const detail =
     g.kind === "game_released"
       ? "Release date"
-      : g.kind === "game_finished"
-        ? "Finished"
-        : g.kind === "game_purchased"
-          ? "Bought"
-          : `${g.count} achievement${g.count === 1 ? "" : "s"} unlocked`;
+      : g.kind === "game_played"
+        ? "Last played"
+        : g.kind === "game_finished"
+          ? "Finished"
+          : g.kind === "game_purchased"
+            ? "Bought"
+            : `${g.count} achievement${g.count === 1 ? "" : "s"} unlocked`;
   return {
     key: `${g.kind}-${g.gameId}-${g.date}`,
     // a release date belongs with the other releases, the rest with what you did
@@ -384,16 +449,20 @@ function fromGame(g: CalendarGameEntry): CalItem {
     mediaType: "game",
     mediaId: g.gameId,
     title: g.title,
-    posterUrl: g.posterUrl,
+    posterUrl: g.posterUrl && sizedAssetUrl(g.posterUrl, CHIP_POSTER_WIDTH),
     badge:
       g.kind === "game_released"
         ? ""
-        : g.kind === "game_finished"
-          ? "✓"
-          : g.kind === "game_purchased"
-            ? "$"
-            : String(g.count),
+        : g.kind === "game_played"
+          ? "▶"
+          : g.kind === "game_finished"
+            ? "✓"
+            : g.kind === "game_purchased"
+              ? "$"
+              : String(g.count),
     detail,
+    tag: GAME_TAGS[g.kind],
+    count: g.count,
     projected: false,
     sortAt: new Date(`${g.date}T12:00:00`).getTime() / 1000,
     dayKey: g.date,
@@ -415,6 +484,8 @@ function fromEvent(e: CalendarEventEntry): CalItem {
     detail: [e.eventTime ? e.eventTime : "All day", e.note]
       .filter(Boolean)
       .join(" · "),
+    tag: LAYER_LABEL.event,
+    count: 1,
     projected: false,
     sortAt:
       new Date(`${e.eventDate}T${e.eventTime ?? "00:00"}:00`).getTime() / 1000,
@@ -423,9 +494,36 @@ function fromEvent(e: CalendarEventEntry): CalItem {
   };
 }
 function fromActivity(a: ActivityEntry): CalItem | null {
-  if (a.eventType !== "episodes_watched" && a.eventType !== "rewatched")
-    return null;
+  // a game's finished and bought days come from the game itself (fromGame)
+  const game = a.mediaType === "game";
+  const shown =
+    a.eventType === "played" ||
+    (!game &&
+      (a.eventType === "episodes_watched" ||
+        a.eventType === "rewatched" ||
+        a.eventType === "finished"));
+  if (!shown) return null;
   const isRewatch = a.eventType === "rewatched";
+  if (a.eventType === "played" || a.eventType === "finished") {
+    const played = a.eventType === "played";
+    return {
+      key: `watched-${a.id}`,
+      layer: "watched",
+      mediaType: a.mediaType,
+      mediaId: a.mediaId,
+      title: a.mediaTitle,
+      posterUrl: posterByMedia.value.get(`${a.mediaType}-${a.mediaId}`) ?? null,
+      badge: played ? "▶" : "✓",
+      detail: [played ? "Played" : "Finished", a.detail]
+        .filter(Boolean)
+        .join(" · "),
+      tag: played ? "Played" : "Finished",
+      count: 1,
+      projected: false,
+      sortAt: new Date(`${a.eventDate}T12:00:00`).getTime() / 1000,
+      dayKey: a.eventDate,
+    };
+  }
   return {
     key: `watched-${a.id}`,
     layer: "watched",
@@ -437,6 +535,8 @@ function fromActivity(a: ActivityEntry): CalItem | null {
     detail: isRewatch
       ? "Rewatched"
       : `Watched ${a.count} episode${a.count === 1 ? "" : "s"}`,
+    tag: isRewatch ? "Rewatched" : "Watched",
+    count: a.count,
     projected: false,
     sortAt: new Date(`${a.eventDate}T12:00:00`).getTime() / 1000,
     dayKey: a.eventDate,
@@ -467,7 +567,17 @@ const watchedByDay = computed(() => {
     const item = fromActivity(a);
     if (item) items.push(item);
   }
-  for (const g of gameEntries.value) items.push(fromGame(g));
+  // a day logged by hand already says it was played
+  const loggedPlays = new Set(
+    historyEntries.value
+      .filter((a) => a.eventType === "played")
+      .map((a) => `${a.mediaId}-${a.eventDate}`),
+  );
+  for (const g of gameEntries.value) {
+    if (g.kind === "game_played" && loggedPlays.has(`${g.gameId}-${g.date}`))
+      continue;
+    items.push(fromGame(g));
+  }
   return indexByDay(items);
 });
 function passesFilters(i: CalItem): boolean {
@@ -570,8 +680,12 @@ watch(weekStart, () => (weekAnchor.value = startOfWeek(weekAnchor.value)));
 interface WeekDay {
   key: string;
   label: string;
+  weekday: string;
+  dayOfMonth: number;
+  month: string;
   isToday: boolean;
   isPast: boolean;
+  isFuture: boolean;
   items: CalItem[];
 }
 const weekDays = computed<WeekDay[]>(() =>
@@ -586,8 +700,12 @@ const weekDays = computed<WeekDay[]>(() =>
         month: "short",
         day: "numeric",
       }),
+      weekday: d.toLocaleDateString(undefined, { weekday: "short" }),
+      dayOfMonth: d.getDate(),
+      month: d.toLocaleDateString(undefined, { month: "short" }),
       isToday: key === todayKey,
       isPast: key < todayKey,
+      isFuture: key > todayKey,
       items: itemsForDay(key),
     };
   }),
@@ -659,17 +777,143 @@ function openItem(i: { mediaType: CalMediaType; mediaId: string }) {
   router.push(`${base}/${i.mediaId}`);
 }
 
-// ---- agenda: what's coming, day by day ----
-const agendaGroups = computed(() =>
-  [...upcomingByDay.value.keys()]
-    .filter((key) => key >= todayKey)
-    .sort()
-    .map((key) => ({
-      key,
-      items: itemsForDay(key).filter((i) => i.layer !== "watched"),
-    }))
-    .filter((g) => g.items.length),
+// ---- agenda: what is coming and what you did, day by day ----
+const RECENT_DAYS = 30;
+function dayKeys(from: Date, days: number): string[] {
+  return Array.from({ length: days }, (_, i) => {
+    const d = new Date(from);
+    d.setDate(d.getDate() + i);
+    return keyOfDate(d);
+  });
+}
+function groupsFor(keys: string[]) {
+  return keys
+    .map((key) => ({ key, items: itemsForDay(key) }))
+    .filter((g) => g.items.length);
+}
+// today counts as coming up, with what was already done today in it
+const agendaGroups = computed(() => groupsFor(dayKeys(today, AGENDA_DAYS + 1)));
+const recentGroups = computed(() =>
+  groupsFor(
+    dayKeys(new Date(today.getTime() - RECENT_DAYS * 86_400_000), RECENT_DAYS),
+  ).reverse(),
 );
+
+// ---- what the period on screen holds, in exact counts ----
+const summaryKeys = computed(() => {
+  if (calView.value === "week") return weekDays.value.map((d) => d.key);
+  if (calView.value === "month")
+    return gridCells.value.filter((c) => c.inMonth).map((c) => c.key);
+  return [
+    ...recentGroups.value.map((g) => g.key),
+    ...agendaGroups.value.map((g) => g.key),
+  ];
+});
+type StatIcon =
+  "play" | "calendar" | "check" | "trophy" | "flame" | "grid" | "star";
+interface SummaryStat {
+  key: string;
+  value: number;
+  label: string;
+  icon: StatIcon;
+  sub?: string;
+}
+const summary = computed<SummaryStat[]>(() => {
+  const items = summaryKeys.value.flatMap((key) => itemsForDay(key));
+  const airing = items.filter((i) => i.layer === "episode");
+  const estimated = airing.filter((i) => i.projected).length;
+  const sum = (tag: string) =>
+    items.filter((i) => i.tag === tag).reduce((n, i) => n + i.count, 0);
+  const played = new Set(
+    items
+      .filter((i) => i.mediaType === "game" && i.tag === "Played")
+      .map((i) => i.mediaId),
+  ).size;
+  const stats: SummaryStat[] = [
+    {
+      key: "airing",
+      value: airing.length,
+      label: "Episodes airing",
+      icon: "calendar",
+      sub: estimated ? `${estimated} estimated` : undefined,
+    },
+    {
+      key: "releases",
+      value: items.filter((i) => i.layer === "release").length,
+      label: "Releases",
+      icon: "star",
+    },
+    {
+      key: "watched",
+      value: sum("Watched"),
+      label: "Episodes watched",
+      icon: "play",
+    },
+    { key: "played", value: played, label: "Games played", icon: "flame" },
+    {
+      key: "finished",
+      value: items.filter((i) => i.tag === "Finished").length,
+      label: "Finished",
+      icon: "check",
+    },
+    {
+      key: "rewatched",
+      value: items.filter((i) => i.tag === "Rewatched").length,
+      label: "Rewatched",
+      icon: "play",
+    },
+    {
+      key: "achievements",
+      value: sum("Achievements"),
+      label: "Achievements",
+      icon: "trophy",
+    },
+    {
+      key: "entries",
+      value: items.filter((i) => i.layer === "event").length,
+      label: "My entries",
+      icon: "grid",
+    },
+  ];
+  // an empty period says so instead of showing a row of zeros
+  return stats.filter((stat) => stat.value > 0);
+});
+const summaryLabel = computed(() =>
+  calView.value === "week"
+    ? "This week"
+    : calView.value === "month"
+      ? `${MONTH_NAMES[viewMonth.value]}`
+      : `Next ${AGENDA_DAYS} days and last ${RECENT_DAYS}`,
+);
+
+// ---- filters live in one panel; the line under the title says what is hidden
+const filtersOpen = ref(false);
+const FILTER_LABELS: Record<keyof typeof filters, string> = {
+  movie: "Movies",
+  tv: "TV",
+  anime: "Anime",
+  game: "Games",
+  episode: "Airing",
+  release: "Releases",
+  watched: "Watched and played",
+  event: "My entries",
+  estimated: "Estimated",
+};
+const hiddenFilters = computed(() => {
+  const off = (Object.keys(FILTER_LABELS) as (keyof typeof filters)[])
+    .filter((k) => !filters[k])
+    .filter((k) => k !== "game" || showGamesFilter.value)
+    .filter((k) => k !== "estimated" || prefs.value.calendar_show_estimated)
+    .map((k) => FILTER_LABELS[k]);
+  for (const chip of AIRING_STATUS_CHIPS)
+    if (!prefs.value.calendar_airing_statuses.includes(chip.key))
+      off.push(`${chip.label} shows`);
+  if (showGamesFilter.value && !prefs.value.calendar_game_releases)
+    off.push("game release dates");
+  if (showGamesFilter.value && !prefs.value.calendar_game_history)
+    off.push("game history");
+  return off;
+});
 function longDayLabel(key: string): string {
   const yesterday = keyOfDate(new Date(today.getTime() - 86_400_000));
   const tomorrow = keyOfDate(new Date(today.getTime() + 86_400_000));
@@ -695,13 +939,6 @@ function openDrawer(cell: DayCell) {
 function closeDrawer() {
   drawerKey.value = null;
 }
-const LAYER_LABEL: Record<Layer, string> = {
-  episode: "Airing",
-  release: "Release",
-  watched: "Watched",
-  event: "Mine",
-};
-
 // ---- entries you add by hand ----
 const showEventForm = ref(false);
 const eventId = ref<string | null>(null);
@@ -750,8 +987,9 @@ function closeEventForm() {
 const eventLinkResults = computed(() => {
   const q = eventLinkSearch.value.trim().toLowerCase();
   if (!q || eventLink.value) return [];
+  // a calendar entry can link to a movie, show or anime, not a game
   return manualLibrary.value
-    .filter((m) => m.title.toLowerCase().includes(q))
+    .filter((m) => m.mediaType !== "game" && m.title.toLowerCase().includes(q))
     .slice(0, 6);
 });
 function pickEventLink(m: PickableMedia) {
@@ -858,6 +1096,25 @@ const feedUrl = ref("");
 const feedError = ref<string | null>(null);
 const feedCopied = ref(false);
 const feedBusy = ref(false);
+const FEED_TYPES = [
+  { value: "movie", label: "Movies" },
+  { value: "tv", label: "TV" },
+  { value: "anime", label: "Anime" },
+  { value: "game", label: "Games" },
+  { value: "mine", label: "My entries" },
+];
+const feedTypes = ref(FEED_TYPES.map((t) => t.value));
+function toggleFeedType(value: string) {
+  feedTypes.value = feedTypes.value.includes(value)
+    ? feedTypes.value.filter((t) => t !== value)
+    : [...feedTypes.value, value];
+  feedCopied.value = false;
+}
+const feedLink = computed(() =>
+  !feedUrl.value || feedTypes.value.length === FEED_TYPES.length
+    ? feedUrl.value
+    : `${feedUrl.value}?types=${feedTypes.value.join(",")}`,
+);
 async function openFeed() {
   showFeed.value = true;
   feedError.value = null;
@@ -872,7 +1129,7 @@ async function openFeed() {
 }
 async function copyFeed() {
   try {
-    await navigator.clipboard.writeText(feedUrl.value);
+    await navigator.clipboard.writeText(feedLink.value);
     feedCopied.value = true;
     setTimeout(() => (feedCopied.value = false), 1800);
   } catch {
@@ -909,6 +1166,12 @@ function historyDayLabel(key: string): string {
 }
 function describeActivity(e: ActivityEntry): string {
   switch (e.eventType) {
+    case "played":
+      return `Played ${e.mediaTitle}`;
+    case "finished":
+      return `Finished ${e.mediaTitle}${e.detail ? `: ${e.detail}` : ""}`;
+    case "bought":
+      return `Bought ${e.mediaTitle}`;
     case "episodes_watched":
       return `Watched ${e.count} episode${e.count === 1 ? "" : "s"} of ${e.mediaTitle}`;
     case "status_changed":
@@ -926,6 +1189,9 @@ const HISTORY_ICONS: Record<ActivityEntry["eventType"], string> = {
   status_changed: "↻",
   rewatched: "⟲",
   rated: "★",
+  finished: "✓",
+  played: "▶",
+  bought: "$",
 };
 const filteredHistory = computed(() => {
   const q = historySearch.value.trim().toLowerCase();
@@ -1055,7 +1321,8 @@ async function removeHistoryEntry(e: ActivityEntry) {
 const showManualForm = ref(false);
 const manualSearch = ref("");
 const manualPicked = ref<PickableMedia | null>(null);
-const manualEventType = ref<ActivityEventType>("episodes_watched");
+type LogChoice = LogActionKind | "rewatched";
+const manualAction = ref<LogChoice>("episodes");
 const manualDate = ref(keyOfDate(new Date()));
 const manualCount = ref(1);
 const manualDetail = ref("");
@@ -1067,7 +1334,131 @@ const EVENT_TYPE_LABELS: Record<ActivityEventType, string> = {
   status_changed: "Status changed",
   rewatched: "Rewatched",
   rated: "Rated",
+  finished: "Finished",
+  played: "Played",
+  bought: "Bought",
 };
+const SERIES_CHOICES: { value: LogChoice; label: string }[] = [
+  { value: "episodes", label: "Watched episodes" },
+  { value: "finished", label: "Finished the whole thing" },
+  { value: "rewatched", label: "Rewatched it" },
+];
+const LOG_CHOICES: Record<
+  ActivityMediaType,
+  { value: LogChoice; label: string }[]
+> = {
+  tv: SERIES_CHOICES,
+  anime: SERIES_CHOICES,
+  movie: [
+    { value: "finished", label: "Watched it" },
+    { value: "rewatched", label: "Rewatched it" },
+  ],
+  game: [
+    { value: "played", label: "Played it" },
+    { value: "finished", label: "Beat it" },
+    { value: "mastered", label: "Mastered it (100%)" },
+    { value: "bought", label: "Bought it" },
+  ],
+};
+const manualChoices = computed(() =>
+  manualPicked.value ? LOG_CHOICES[manualPicked.value.mediaType] : [],
+);
+const LOG_EFFECTS: Record<LogChoice, string> = {
+  episodes: "Adds to your history. It does not tick episodes off.",
+  finished:
+    "Sets it to Watched and ticks off every episode with a known count.",
+  rewatched: "Adds a rewatch.",
+  played:
+    "Sets the last played day if this is later, and moves it off Backlog.",
+  mastered: "Sets it to Mastered with this as the finish date.",
+  bought: "Sets the bought date, and moves it off the Wishlist.",
+};
+const manualEffect = computed(() => {
+  if (!manualPicked.value) return "";
+  if (
+    manualPicked.value.mediaType === "game" &&
+    manualAction.value === "finished"
+  )
+    return "Sets it to Beaten with this as the finish date.";
+  if (
+    manualPicked.value.mediaType === "movie" &&
+    manualAction.value === "finished"
+  )
+    return "Sets it to Watched.";
+  return LOG_EFFECTS[manualAction.value];
+});
+const NEW_TITLE_KINDS: { value: ActivityMediaType; label: string }[] = [
+  { value: "movie", label: "Movie" },
+  { value: "tv", label: "TV show" },
+  { value: "anime", label: "Anime" },
+  { value: "game", label: "Game" },
+];
+const manualAdding = ref(false);
+async function createForLog(kind: ActivityMediaType, title: string) {
+  if (kind === "movie") return (await createMovie({ title })).id;
+  if (kind === "tv") return (await createTVShow({ title })).id;
+  if (kind === "anime") return (await createAnime({ title })).id;
+  const game = await createGame({
+    title,
+    folderLocation:
+      title
+        .trim()
+        .replace(/[^A-Za-z0-9_-]+/g, "-")
+        .replace(/^-+|-+$/g, "") || "game",
+    status: "backlog",
+    description: null,
+    developer: null,
+    publisher: null,
+    series: null,
+    parentGameId: null,
+    relationshipType: null,
+    releaseDate: null,
+    dateAdded: null,
+    completionDate: null,
+    source: null,
+    platform: null,
+    ageRating: null,
+    timeToBeatHours: null,
+    region: null,
+    language: null,
+    achievementsProvider: null,
+    ratingOverall: null,
+    ratingStory: null,
+    ratingGameplay: null,
+    ratingSound: null,
+    tags: [],
+    features: [],
+    links: [],
+    ownership: {
+      format: null,
+      purchaseDate: null,
+      price: null,
+      priceCurrency: null,
+      condition: null,
+    },
+    favorite: false,
+    collections: [],
+    profilesEnabled: false,
+  });
+  return game.id;
+}
+async function addNewTitle(kind: ActivityMediaType) {
+  const title = manualSearch.value.trim();
+  if (!title || manualAdding.value) return;
+  manualAdding.value = true;
+  manualError.value = null;
+  try {
+    const mediaId = await createForLog(kind, title);
+    const added = { mediaType: kind, mediaId, title, posterUrl: null };
+    manualLibrary.value = [...manualLibrary.value, added];
+    pickManualMedia(added);
+  } catch (err) {
+    manualError.value =
+      err instanceof Error ? err.message : "Could not add that title.";
+  } finally {
+    manualAdding.value = false;
+  }
+}
 
 async function openManualForm(date?: string) {
   showManualForm.value = true;
@@ -1100,6 +1491,7 @@ const manualSearchResults = computed(() => {
 function pickManualMedia(m: PickableMedia) {
   manualPicked.value = m;
   manualSearch.value = m.title;
+  manualAction.value = LOG_CHOICES[m.mediaType][0].value;
 }
 async function submitManualEntry() {
   if (manualSaving.value) return;
@@ -1110,20 +1502,22 @@ async function submitManualEntry() {
   manualSaving.value = true;
   manualError.value = null;
   try {
-    const created = await createActivityEntry({
-      mediaType: manualPicked.value.mediaType,
-      mediaId: manualPicked.value.mediaId,
-      eventType: manualEventType.value,
-      eventDate: manualDate.value,
-      count: manualCount.value,
-      detail: manualDetail.value || null,
-    });
-    // Same upsert semantics as the backend's automatic logging — if a
-    // bucket for this exact (media, event type, day) already existed,
-    // `created` is that same row with the count bumped, not a new one.
-    const idx = historyEntries.value.findIndex((h) => h.id === created.id);
-    if (idx !== -1) historyEntries.value[idx] = created;
-    else historyEntries.value.push(created);
+    const { mediaType, mediaId } = manualPicked.value;
+    const note = manualDetail.value || null;
+    if (manualAction.value === "rewatched") {
+      await addRewatch(mediaType as MediaType, mediaId, manualDate.value, note);
+    } else {
+      await logActivityAction({
+        mediaType,
+        mediaId,
+        action: manualAction.value,
+        eventDate: manualDate.value,
+        count: manualCount.value,
+        detail: note,
+      });
+    }
+    // finishing a show also logs its episodes, and a game changes its own dates
+    await Promise.all([loadHistory(), loadGameHistory()]);
     showManualForm.value = false;
   } catch (err) {
     manualError.value =
@@ -1166,7 +1560,7 @@ async function submitManualEntry() {
           :class="tab === 'calendar' ? 'ui-btn-secondary' : 'ui-btn-primary'"
           @click="openManualForm()"
         >
-          + Log Watched
+          + Log activity
         </button>
       </template>
     </AppTopBar>
@@ -1225,9 +1619,7 @@ async function submitManualEntry() {
             </button>
           </div>
           <div v-else class="month-nav">
-            <span class="month-label agenda-label"
-              >Next {{ CAL_MAX_DAYS }} days</span
-            >
+            <span class="month-label agenda-label">Recent and coming up</span>
           </div>
           <div class="month-bar-actions">
             <SegmentedTabs
@@ -1262,6 +1654,18 @@ async function submitManualEntry() {
             </button>
             <button
               type="button"
+              class="filter-btn"
+              :class="{ 'active-filter': hiddenFilters.length }"
+              :aria-expanded="filtersOpen"
+              @click="filtersOpen = !filtersOpen"
+            >
+              Filters
+              <span v-if="hiddenFilters.length" class="count">{{
+                hiddenFilters.length
+              }}</span>
+            </button>
+            <button
+              type="button"
               class="ui-btn ui-btn-sm ui-btn-secondary"
               :class="{ 'is-hidden': calView === 'agenda' }"
               :aria-hidden="calView === 'agenda'"
@@ -1278,8 +1682,15 @@ async function submitManualEntry() {
           </div>
         </div>
 
-        <div class="filter-row">
+        <p v-if="hiddenFilters.length && !filtersOpen" class="hidden-note">
+          Hiding: {{ hiddenFilters.join(", ") }}.
+          <button type="button" class="link-btn" @click="filtersOpen = true">
+            Change
+          </button>
+        </p>
+        <div v-if="filtersOpen" class="filter-row filter-panel">
           <div class="filter-group">
+            <span class="filter-caption">Show</span>
             <button
               type="button"
               class="ui-chip"
@@ -1315,6 +1726,7 @@ async function submitManualEntry() {
             </button>
           </div>
           <div class="filter-group">
+            <span class="filter-caption">Kinds</span>
             <button
               type="button"
               class="ui-chip layer-episode"
@@ -1337,7 +1749,7 @@ async function submitManualEntry() {
               :class="{ on: filters.watched }"
               @click="filters.watched = !filters.watched"
             >
-              <span class="swatch"></span>Watched
+              <span class="swatch"></span>Watched and played
             </button>
             <button
               type="button"
@@ -1373,9 +1785,76 @@ async function submitManualEntry() {
               {{ chip.label }}
             </button>
           </div>
+          <div
+            v-if="showGamesFilter"
+            class="filter-group"
+            role="group"
+            aria-label="Games"
+          >
+            <span class="filter-caption">Games</span>
+            <button
+              type="button"
+              class="ui-chip"
+              :class="{ on: prefs.calendar_game_releases }"
+              title="Show the release date of every game in your library"
+              @click="
+                saveCalendarChoice({
+                  calendar_game_releases: !prefs.calendar_game_releases,
+                })
+              "
+            >
+              Release dates
+            </button>
+            <button
+              type="button"
+              class="ui-chip"
+              :class="{ on: prefs.calendar_game_history }"
+              title="Show when games were last played, finished and bought, and achievements unlocked"
+              @click="
+                saveCalendarChoice({
+                  calendar_game_history: !prefs.calendar_game_history,
+                })
+              "
+            >
+              My history
+            </button>
+          </div>
+          <label class="filter-group week-start">
+            <span class="filter-caption">Week starts</span>
+            <select
+              class="ui-field week-start-select"
+              :value="prefs.calendar_week_start"
+              @change="setWeekStart"
+            >
+              <option
+                v-for="(day, index) in WEEK_START_DAYS"
+                :key="day"
+                :value="index"
+              >
+                {{ day }}
+              </option>
+            </select>
+          </label>
         </div>
 
         <p v-if="calError" class="ui-state error">{{ calError }}</p>
+
+        <section class="cal-summary" aria-live="polite">
+          <h2 class="cal-summary-title">{{ summaryLabel }}</h2>
+          <div v-if="summary.length" class="cal-summary-grid">
+            <StatCard
+              v-for="stat in summary"
+              :key="stat.key"
+              :value="stat.value"
+              :label="stat.label"
+              :icon="stat.icon"
+              :sub="stat.sub"
+            />
+          </div>
+          <p v-else class="cal-summary-empty">
+            Nothing here yet with these filters.
+          </p>
+        </section>
 
         <template v-if="calView === 'month'">
           <div class="weekday-row">
@@ -1423,83 +1902,146 @@ async function submitManualEntry() {
         </template>
 
         <template v-else-if="calView === 'week'">
-          <div class="week-grid" :class="{ loading: calLoading }">
+          <div class="week-list" :class="{ loading: calLoading }">
             <section
               v-for="d in weekDays"
               :key="d.key"
-              class="week-day"
-              :class="{ today: d.isToday, past: d.isPast }"
+              class="week-row"
+              :class="{
+                today: d.isToday,
+                past: d.isPast,
+                empty: !d.items.length,
+              }"
             >
-              <header class="week-day-head">
-                <span>{{ d.label }}</span>
+              <div class="week-date">
+                <span class="week-date-name">{{ d.weekday }}</span>
+                <span class="week-date-num">{{ d.dayOfMonth }}</span>
+                <span class="week-date-month">{{
+                  d.isToday ? "Today" : d.month
+                }}</span>
+              </div>
+              <div class="week-body">
+                <div v-if="d.items.length" class="week-cards">
+                  <button
+                    v-for="i in d.items"
+                    :key="i.key"
+                    type="button"
+                    class="week-card"
+                    :class="[`layer-${i.layer}`, { projected: i.projected }]"
+                    :title="itemTooltip(i)"
+                    @click="activate(i)"
+                  >
+                    <span class="week-cover">
+                      <img
+                        v-if="i.posterUrl"
+                        :src="i.posterUrl"
+                        alt=""
+                        loading="lazy"
+                      />
+                      <span v-else>{{ i.title.slice(0, 1) }}</span>
+                    </span>
+                    <span class="week-card-text">
+                      <span class="week-card-title">{{ i.title }}</span>
+                      <span class="week-card-detail">{{ i.detail }}</span>
+                    </span>
+                    <span class="week-card-tag">{{ i.tag }}</span>
+                  </button>
+                </div>
+                <p v-else class="week-nothing">Nothing on this day</p>
+              </div>
+              <div class="week-row-actions">
                 <button
                   type="button"
-                  class="week-add"
+                  class="week-action"
                   title="Add an entry on this day"
                   @click="openEventForm(d.key)"
                 >
-                  +
+                  + Entry
                 </button>
-              </header>
-              <p v-if="!d.items.length" class="week-empty">Nothing</p>
-              <button
-                v-for="i in d.items"
-                :key="i.key"
-                type="button"
-                class="agenda-row"
-                :class="[`layer-${i.layer}`, { projected: i.projected }]"
-                :title="i.title"
-                @click="activate(i)"
-              >
-                <span class="agenda-thumb">
-                  <img
-                    v-if="i.posterUrl"
-                    :src="i.posterUrl"
-                    alt=""
-                    loading="lazy"
-                  />
-                </span>
-                <span class="agenda-main">
-                  <span class="agenda-title">{{ i.title }}</span>
-                  <span class="agenda-detail">{{ i.detail }}</span>
-                </span>
-              </button>
+                <button
+                  v-if="!d.isFuture"
+                  type="button"
+                  class="week-action"
+                  title="Log something you watched or played on this day"
+                  @click="openManualForm(d.key)"
+                >
+                  + Log
+                </button>
+              </div>
             </section>
           </div>
         </template>
 
         <template v-else>
-          <p v-if="!agendaGroups.length && !calLoading" class="ui-state">
-            Nothing scheduled in the next {{ CAL_MAX_DAYS }} days with these
-            filters.
-          </p>
-          <div v-else class="agenda">
-            <div v-for="g in agendaGroups" :key="g.key" class="agenda-day">
-              <div class="day-heading">{{ longDayLabel(g.key) }}</div>
-              <button
-                v-for="i in g.items"
-                :key="i.key"
-                type="button"
-                class="agenda-row"
-                :class="[`layer-${i.layer}`, { projected: i.projected }]"
-                :title="i.title"
-                @click="activate(i)"
-              >
-                <span class="agenda-thumb">
-                  <img
-                    v-if="i.posterUrl"
-                    :src="i.posterUrl"
-                    alt=""
-                    loading="lazy"
-                  />
-                </span>
-                <span class="agenda-main">
-                  <span class="agenda-title">{{ i.title }}</span>
-                  <span class="agenda-detail">{{ i.detail }}</span>
-                </span>
-                <span class="agenda-tag">{{ LAYER_LABEL[i.layer] }}</span>
-              </button>
-            </div>
+          <div class="agenda-columns">
+            <section class="agenda-section">
+              <h2 class="agenda-heading">Coming up</h2>
+              <p v-if="!agendaGroups.length && !calLoading" class="ui-state">
+                Nothing in the next {{ AGENDA_DAYS }} days with these filters.
+              </p>
+              <div v-else class="agenda">
+                <div v-for="g in agendaGroups" :key="g.key" class="agenda-day">
+                  <div class="day-heading">{{ longDayLabel(g.key) }}</div>
+                  <button
+                    v-for="i in g.items"
+                    :key="i.key"
+                    type="button"
+                    class="agenda-row"
+                    :class="[`layer-${i.layer}`, { projected: i.projected }]"
+                    :title="i.title"
+                    @click="activate(i)"
+                  >
+                    <span class="agenda-thumb">
+                      <img
+                        v-if="i.posterUrl"
+                        :src="i.posterUrl"
+                        alt=""
+                        loading="lazy"
+                      />
+                    </span>
+                    <span class="agenda-main">
+                      <span class="agenda-title">{{ i.title }}</span>
+                      <span class="agenda-detail">{{ i.detail }}</span>
+                    </span>
+                    <span class="agenda-tag">{{ i.tag }}</span>
+                  </button>
+                </div>
+              </div>
+            </section>
+            <section class="agenda-section">
+              <h2 class="agenda-heading">Recently</h2>
+              <p v-if="!recentGroups.length && !calLoading" class="ui-state">
+                Nothing in the last {{ RECENT_DAYS }} days with these filters.
+              </p>
+              <div v-else class="agenda">
+                <div v-for="g in recentGroups" :key="g.key" class="agenda-day">
+                  <div class="day-heading">{{ longDayLabel(g.key) }}</div>
+                  <button
+                    v-for="i in g.items"
+                    :key="i.key"
+                    type="button"
+                    class="agenda-row"
+                    :class="[`layer-${i.layer}`, { projected: i.projected }]"
+                    :title="i.title"
+                    @click="activate(i)"
+                  >
+                    <span class="agenda-thumb">
+                      <img
+                        v-if="i.posterUrl"
+                        :src="i.posterUrl"
+                        alt=""
+                        loading="lazy"
+                      />
+                    </span>
+                    <span class="agenda-main">
+                      <span class="agenda-title">{{ i.title }}</span>
+                      <span class="agenda-detail">{{ i.detail }}</span>
+                    </span>
+                    <span class="agenda-tag">{{ i.tag }}</span>
+                  </button>
+                </div>
+              </div>
+            </section>
           </div>
         </template>
       </template>
@@ -1719,7 +2261,7 @@ async function submitManualEntry() {
                 <span class="agenda-title">{{ i.title }}</span>
                 <span class="agenda-detail">{{ i.detail }}</span>
               </span>
-              <span class="agenda-tag">{{ LAYER_LABEL[i.layer] }}</span>
+              <span class="agenda-tag">{{ i.tag }}</span>
             </button>
           </div>
           <div class="drawer-foot">
@@ -1735,7 +2277,7 @@ async function submitManualEntry() {
               class="ui-btn ui-btn-secondary"
               @click="logForDrawerDay"
             >
-              Log something watched
+              Log activity
             </button>
           </div>
         </aside>
@@ -1752,11 +2294,27 @@ async function submitManualEntry() {
           so treat it like a password. The app has to be reachable from the
           internet for Google Calendar to fetch it.
         </p>
+        <div
+          class="filter-group feed-types"
+          role="group"
+          aria-label="In this link"
+        >
+          <button
+            v-for="t in FEED_TYPES"
+            :key="t.value"
+            type="button"
+            class="ui-chip"
+            :class="{ on: feedTypes.includes(t.value) }"
+            @click="toggleFeedType(t.value)"
+          >
+            {{ t.label }}
+          </button>
+        </div>
         <input
           class="ui-field"
           type="text"
           readonly
-          :value="feedUrl"
+          :value="feedLink"
           placeholder="Loading…"
           @focus="($event.target as HTMLInputElement).select()"
         />
@@ -1883,10 +2441,10 @@ async function submitManualEntry() {
       @click.self="closeManualForm"
     >
       <div class="ui-modal" role="dialog" aria-modal="true">
-        <h3>Log a history entry</h3>
+        <h3>Log activity</h3>
         <p class="modal-hint">
-          For anything the app didn't catch automatically: watch history from
-          before you added this title, or an import.
+          For anything the app did not catch: something you watched or played
+          before adding it, or finished somewhere else.
         </p>
 
         <label class="modal-field">
@@ -1915,28 +2473,54 @@ async function submitManualEntry() {
           </div>
         </label>
 
-        <label class="modal-field">
-          <span>What happened</span>
-          <select v-model="manualEventType" class="ui-field">
-            <option
-              v-for="(label, key) in EVENT_TYPE_LABELS"
-              :key="key"
-              :value="key"
+        <div
+          v-if="
+            !manualPicked &&
+            manualSearch.trim().length > 1 &&
+            !manualSearchResults.length
+          "
+          class="modal-field"
+        >
+          <span>Not in your library. Add it as:</span>
+          <div class="log-new-title">
+            <button
+              v-for="kind in NEW_TITLE_KINDS"
+              :key="kind.value"
+              type="button"
+              class="ui-btn ui-btn-sm ui-btn-secondary"
+              :disabled="manualAdding"
+              @click="addNewTitle(kind.value)"
             >
-              {{ label }}
+              {{ kind.label }}
+            </button>
+          </div>
+        </div>
+
+        <label v-if="manualPicked" class="modal-field">
+          <span>What happened</span>
+          <select v-model="manualAction" class="ui-field">
+            <option
+              v-for="choice in manualChoices"
+              :key="choice.value"
+              :value="choice.value"
+            >
+              {{ choice.label }}
             </option>
           </select>
+          <span class="log-effect">{{ manualEffect }}</span>
         </label>
 
         <div class="modal-field-row">
           <label class="modal-field">
             <span>Date</span>
-            <input v-model="manualDate" type="date" class="ui-field" />
+            <input
+              v-model="manualDate"
+              type="date"
+              class="ui-field"
+              :max="todayKey"
+            />
           </label>
-          <label
-            v-if="manualEventType === 'episodes_watched'"
-            class="modal-field"
-          >
+          <label v-if="manualAction === 'episodes'" class="modal-field">
             <span>Episodes</span>
             <input
               v-model.number="manualCount"
@@ -1953,7 +2537,7 @@ async function submitManualEntry() {
             v-model="manualDetail"
             type="text"
             class="ui-field"
-            placeholder="e.g. rewatched with friends"
+            placeholder="e.g. with friends"
           />
         </label>
 
@@ -1973,7 +2557,7 @@ async function submitManualEntry() {
             :disabled="manualSaving"
             @click="submitManualEntry"
           >
-            {{ manualSaving ? "Logging…" : "Log entry" }}
+            {{ manualSaving ? "Logging…" : "Log it" }}
           </button>
         </div>
       </div>
@@ -1982,6 +2566,28 @@ async function submitManualEntry() {
 </template>
 
 <style scoped>
+.week-start {
+  align-items: center;
+}
+.week-start-select {
+  width: auto;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  font-size: 0.8rem;
+}
+.feed-types {
+  margin-bottom: 10px;
+}
+.log-new-title {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.log-effect {
+  color: var(--ui-dim-2);
+  font-size: 0.76rem;
+  line-height: 1.4;
+}
 /* month calendar grid */
 .month-bar {
   display: flex;
@@ -2073,7 +2679,289 @@ async function submitManualEntry() {
   text-align: left;
 }
 
-/* filters */
+/* filters: one button, one panel, the same as the libraries */
+/* the period on screen, in the Statistics page's cards */
+.cal-summary {
+  margin: 0 0 18px;
+}
+.cal-summary-title {
+  margin: 0 0 10px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ui-dim);
+}
+.cal-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+}
+.cal-summary-empty {
+  margin: 0;
+  font-size: 0.84rem;
+  color: var(--ui-dim);
+}
+
+/* week: a row per day, the date on the left and its titles as cards */
+.week-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: opacity 0.15s ease;
+}
+.week-list.loading {
+  opacity: 0.6;
+}
+.week-row {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: start;
+  padding: 12px 14px;
+  background: var(--ui-popover);
+  border: 1px solid var(--ui-border-soft);
+  border-radius: 12px;
+}
+.week-row.today {
+  border-color: color-mix(in srgb, var(--ui-accent) 55%, transparent);
+  background: color-mix(in srgb, var(--ui-accent) 6%, var(--ui-popover));
+}
+.week-row.empty {
+  align-items: center;
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+.week-row.past.empty {
+  opacity: 0.6;
+}
+.week-date {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1.1;
+}
+.week-date-name,
+.week-date-month {
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ui-dim);
+}
+.week-date-num {
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: var(--ui-heading);
+  font-variant-numeric: tabular-nums;
+}
+.week-row.today .week-date-num,
+.week-row.today .week-date-month {
+  color: var(--ui-accent);
+}
+.week-row.empty .week-date {
+  flex-direction: row;
+  gap: 6px;
+  align-items: baseline;
+}
+.week-row.empty .week-date-num {
+  font-size: 1rem;
+}
+.week-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 8px;
+}
+.week-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 6px 10px 6px 6px;
+  background: var(--ui-bg-2);
+  border: 1px solid var(--ui-border-soft);
+  border-left: 3px solid var(--layer, #888);
+  border-radius: 10px;
+  text-align: left;
+  font-family: inherit;
+  color: inherit;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+.week-card:hover {
+  background: var(--ui-surface);
+  border-color: var(--ui-accent-line);
+  border-left-color: var(--layer, #888);
+}
+.week-card.projected {
+  border-left-style: dashed;
+}
+.week-cover {
+  width: 38px;
+  height: 56px;
+  flex-shrink: 0;
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--ui-surface-3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  font-weight: 800;
+  color: var(--ui-dim);
+}
+.week-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.week-card-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.week-card-title {
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: var(--ui-heading);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.week-card-detail {
+  font-size: 0.74rem;
+  color: var(--ui-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.week-card-tag {
+  flex-shrink: 0;
+  align-self: flex-start;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 0.6rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--layer, var(--ui-dim-2));
+  background: color-mix(in srgb, var(--layer, #888) 14%, transparent);
+}
+.week-nothing {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--ui-dim-2);
+}
+.week-row-actions {
+  display: flex;
+  gap: 6px;
+}
+.week-action {
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid var(--ui-border);
+  background: transparent;
+  color: var(--ui-dim-3);
+  font-family: inherit;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.week-action:hover {
+  border-color: var(--ui-accent-line);
+  color: var(--ui-accent);
+}
+@media (max-width: 700px) {
+  .week-row {
+    grid-template-columns: 52px minmax(0, 1fr);
+  }
+  .week-row-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-end;
+  }
+}
+
+.filter-btn {
+  box-sizing: border-box;
+  height: 32px;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  color: var(--ui-dim);
+  border-radius: 8px;
+  padding: 0 12px;
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.filter-btn.active-filter {
+  border-color: var(--ui-accent-line);
+  color: var(--ui-accent);
+}
+.filter-btn .count {
+  background: var(--ui-accent);
+  color: var(--ui-on-accent);
+  border-radius: 999px;
+  font-size: 0.66rem;
+  font-weight: 800;
+  padding: 1px 6px;
+}
+.filter-panel {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 14px 16px;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  border-radius: 10px;
+}
+.filter-panel .filter-caption {
+  min-width: 86px;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.hidden-note {
+  margin: 0 0 12px;
+  font-size: 0.8rem;
+  color: var(--ui-dim);
+}
+.link-btn {
+  background: none;
+  border: 0;
+  padding: 0;
+  margin-left: 4px;
+  color: var(--ui-accent);
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.agenda-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 28px;
+  align-items: start;
+}
+.agenda-heading {
+  margin: 0 0 12px;
+  font-size: 0.95rem;
+  color: var(--ui-heading);
+}
+@media (max-width: 900px) {
+  .agenda-columns {
+    grid-template-columns: 1fr;
+  }
+}
 .filter-row {
   display: flex;
   flex-wrap: wrap;
@@ -2681,80 +3569,8 @@ async function submitManualEntry() {
 }
 
 /* week view: seven day columns, one per day, stacking on a phone */
-.week-grid {
-  display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 8px;
-}
-.week-grid.loading {
-  opacity: 0.6;
-}
-.week-day {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  background: var(--ui-popover);
-  border: 1px solid var(--ui-border-soft);
-  border-radius: 8px;
-  padding: 8px;
-}
-.week-day.today {
-  border-color: color-mix(in srgb, var(--ui-accent) 55%, transparent);
-  background: color-mix(in srgb, var(--ui-accent) 7%, transparent);
-}
-.week-day.past {
-  opacity: 0.75;
-}
-.week-day-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-size: 0.76rem;
-  font-weight: 700;
-  color: var(--ui-text-soft);
-}
-.week-add {
-  width: 22px;
-  height: 22px;
-  border-radius: 6px;
-  border: 1px solid var(--ui-border);
-  background: transparent;
-  color: var(--ui-dim-3);
-  cursor: pointer;
-}
-.week-add:hover {
-  color: var(--ui-accent);
-  border-color: var(--ui-accent-line);
-}
-.week-empty {
-  margin: 0;
-  font-size: 0.72rem;
-  color: var(--ui-dim-2);
-}
-/* a day column is narrow: drop the poster so the title can wrap */
-.week-day .agenda-row {
-  padding: 6px 8px;
-  gap: 8px;
-}
-.week-day .agenda-thumb {
-  display: none;
-}
-.week-day .agenda-title {
-  white-space: normal;
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  line-clamp: 3;
-  -webkit-box-orient: vertical;
-}
 
 @media (max-width: 720px) {
-  .week-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .week-day .agenda-thumb {
-    display: block;
-  }
   .month-grid {
     gap: 3px;
     grid-auto-rows: 70px;

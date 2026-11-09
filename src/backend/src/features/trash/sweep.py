@@ -121,6 +121,9 @@ async def purge_expired_trash() -> dict[str, int]:
         for media_item in media_result.scalars().all():
             if media_item.game and media_item.game.folder_location:
                 purge_media_file(media_item.filename, _game_dir(media_item.game), media_item.kind)
+                if media_item.thumb_filename:
+                    thumb = _game_dir(media_item.game) / "thumbs" / media_item.thumb_filename
+                    thumb.unlink(missing_ok=True)
             await db.delete(media_item)
             purged_media_items += 1
         await db.commit()

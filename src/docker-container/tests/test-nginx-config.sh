@@ -142,5 +142,6 @@ grep -q 'Referrer-Policy "strict-origin-when-cross-origin"' "$rendered"
 grep -q 'X-Frame-Options "SAMEORIGIN"' "$rendered"
 grep -q 'X-Forwarded-Proto $scheme' "$rendered"
 grep -q 'proxy_read_timeout 60s' "$rendered"
+grep -q 'client_max_body_size 4200m' "$rendered"
 
 echo "production Nginx/TLS configuration tests passed"

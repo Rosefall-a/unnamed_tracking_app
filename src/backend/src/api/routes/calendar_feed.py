@@ -116,7 +116,13 @@ async def regenerate_feed_token(
 
 
 @public_router.get("/feed/{token}.ics")
-async def calendar_feed(token: str, db: AsyncSession = Depends(get_db)) -> Response:
+async def calendar_feed(
+    token: str,
+    db: AsyncSession = Depends(get_db),
+    types: str | None = None,
+) -> Response:
+    """`types` is a comma list of movie, tv, anime, game and mine (your own
+    entries), so one link can carry only part of the calendar. Left out, all of it."""
     user = await db.scalar(
         select(User).where(User.calendar_token == token, User.is_active.is_(True))
     )
@@ -131,10 +137,15 @@ async def calendar_feed(token: str, db: AsyncSession = Depends(get_db)) -> Respo
     )
     if not prefs["calendar_show_estimated"]:
         entries = [e for e in entries if not e.get("is_projected")]
+    wanted = {t.strip() for t in types.split(",")} if types is not None else None
+    if wanted is not None:
+        entries = [e for e in entries if e["media_type"] in wanted]
     events = (
         (await db.execute(select(CalendarEvent).where(CalendarEvent.user_id == user.id)))
         .scalars()
         .all()
+        if wanted is None or "mine" in wanted
+        else []
     )
     return Response(
         content=_build_ics(entries, list(events)), media_type="text/calendar; charset=utf-8"

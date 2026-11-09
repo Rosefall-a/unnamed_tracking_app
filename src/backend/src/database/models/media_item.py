@@ -36,7 +36,7 @@ class MediaItem(Base):
     )  # "screenshot" | "clip" | "soundtrack"
     filename: Mapped[str] = mapped_column(String(300), nullable=False)
     tags: Mapped[list[str]] = mapped_column(ARRAY(String), nullable=False, default=list)
-    # which GameProfile (e.g. an OSRS account) this belongs to, if any — lets
+    # which GameProfile (e.g. one account) this belongs to, if any — lets
     # a game with several accounts filter its gallery down to one instead of
     # scrolling through every account's screenshots together. NULL means
     # "not tied to a specific profile" (most games never set this).

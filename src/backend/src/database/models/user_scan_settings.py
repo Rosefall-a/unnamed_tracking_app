@@ -3,7 +3,7 @@ from __future__ import annotations
 import time
 from uuid import UUID, uuid4
 
-from sqlalchemy import JSON, BigInteger, Boolean, ForeignKey
+from sqlalchemy import JSON, BigInteger, Boolean, ForeignKey, text
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -59,6 +59,11 @@ class UserScanSettings(Base):
     save_banner: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     save_logo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     save_icon: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    # a sync removes an achievement the provider no longer lists (the developer
+    # took it out); off keeps every one ever seen
+    remove_gone_achievements: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default=text("true")
+    )
     # {provider name: epoch seconds} — last time that provider actually
     # returned a result during a search (games.py's search_metadata route
     # updates this after each call), so Scan Settings can show "last used"

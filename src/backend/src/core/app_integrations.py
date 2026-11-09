@@ -25,9 +25,15 @@ async def get_or_create_app_integration_settings(db: AsyncSession) -> AppIntegra
     return row
 
 
+def upload_limit_is_from_environment() -> bool:
+    return "MAX_UPLOAD_SIZE_MB" in settings.model_fields_set
+
+
 async def get_max_upload_size_mb(db: AsyncSession) -> int:
-    """The effective image/media upload cap: whatever an admin set under
-    Settings > Administration > Limits, falling back to the
-    MAX_UPLOAD_SIZE_MB env default when nothing's been saved yet."""
+    """The effective image/media upload cap. MAX_UPLOAD_SIZE_MB wins when the server
+    sets it, otherwise whatever an admin saved under Settings > Administration >
+    Limits, otherwise the built-in default."""
+    if upload_limit_is_from_environment():
+        return settings.MAX_UPLOAD_SIZE_MB
     row = await get_or_create_app_integration_settings(db)
     return row.max_upload_size_mb or settings.MAX_UPLOAD_SIZE_MB

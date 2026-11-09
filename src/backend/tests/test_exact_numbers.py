@@ -52,7 +52,7 @@ def test_preferences_reject_unknown_keys_and_bad_values():
     with pytest.raises(ValueError):
         validate_preference("calendar_game_releases", "yes")
     with pytest.raises(ValueError):
-        validate_preference("calendar_week_start", 3)
+        validate_preference("calendar_week_start", 7)
     with pytest.raises(ValueError):
         validate_preference("notification_retention_days", 45)
     assert validate_preference("notification_retention_days", 0) == 0
@@ -950,7 +950,7 @@ def test_mal_export_is_read_exactly_and_completed_means_fully_watched():
     )
     assert bebop.score == 9 and bebop.rewatches == 2 and bebop.tags == ["space", "jazz"]
     assert bebop.started is None and str(bebop.finished) == "2020-05-01" and bebop.format == "TV"
-    assert movie.score is None and movie.status == AnimeStatus.WATCHLIST and movie.format == "Movie"
+    assert movie.score is None and movie.status == AnimeStatus.WISHLIST and movie.format == "Movie"
     # an unknown length stays unknown, and the watched count is the file's own
     assert ongoing.episodes is None and ongoing.watched == 5 and not ongoing.assumed_complete
 
@@ -1406,7 +1406,7 @@ def test_letterboxd_export_is_read_exactly():
     assert (
         heat.rewatches == 2 and float(heat.rating) == 6.0 and str(heat.watched_on) == "2022-03-01"
     )
-    assert (ran.status, ran.rating, ran.year) == ("WATCHLIST", None, 1985)
+    assert (ran.status, ran.rating, ran.year) == ("WISHLIST", None, 1985)
 
 
 _IMDB = (
@@ -1430,7 +1430,7 @@ def test_imdb_export_maps_types_and_reports_what_it_skipped():
         117,
     )
     assert by_name["Alien"].genres == ["Horror", "Sci-Fi"] and by_name["Alien"].year == 1979
-    assert by_name["Breaking Bad"].kind == "tv" and by_name["Later"].status == "WATCHLIST"
+    assert by_name["Breaking Bad"].kind == "tv" and by_name["Later"].status == "WISHLIST"
 
 
 class _FakeTMDB:

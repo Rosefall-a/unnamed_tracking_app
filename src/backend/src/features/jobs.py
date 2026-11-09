@@ -176,6 +176,8 @@ def _summarize_game_repair(r: dict[str, Any]) -> str:
         f"{r.get('art') or 0} images added",
         f"{r.get('times') or 0} play times added",
     ]
+    if r.get("dates"):
+        parts.append(f"{r['dates']} finish dates corrected")
     if r.get("covers"):
         parts.append(f"{r['covers']} poor covers replaced")
     if r.get("folders"):

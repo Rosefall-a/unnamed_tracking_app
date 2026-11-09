@@ -15,11 +15,14 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.auth import get_current_admin
 from src.database.models.user import User
-from src.database.session import SessionLocal
+from src.database.session import SessionLocal, get_db
 from src.features import jobs
+from src.features.legacy_files import restore_old_files, scan_old_files
+from src.features.offline_pictures import count_missing, save_missing
 from src.features.metadata.games.repair import (
     games_with_problem,
     repair_all_games,
@@ -43,6 +46,8 @@ class RepairRequest(BaseModel):
     force: bool = False
     # instead of filling blanks, look for covers that are only Steam's poor ones
     covers: bool = False
+    # instead of filling blanks, save a local copy of every picture still only online
+    pictures: bool = False
 
 
 @dataclass
@@ -64,8 +69,15 @@ def _progress(who: str, done: int, total: int) -> None:
     _run.who, _run.done, _run.total = who, done, total
 
 
-async def _go(user_id: UUID | None, username: str | None, force: bool, covers: bool) -> None:
+async def _go(
+    user_id: UUID | None, username: str | None, force: bool, covers: bool, pictures: bool = False
+) -> None:
     try:
+        if pictures and user_id is not None:
+            _run.result = await save_missing(
+                user_id, lambda done, total: _progress(username or "", done, total)
+            )
+            return
         if covers and user_id is not None:
             result = asdict(
                 await replace_poor_covers(
@@ -94,7 +106,11 @@ async def _go(user_id: UUID | None, username: str | None, force: bool, covers: b
 
 @router.get("/scan")
 async def scan() -> list[dict[str, Any]]:
-    return await scan_libraries()
+    people = await scan_libraries()
+    for person in people:
+        # pictures a page would have to fetch from another site, so not viewable offline
+        person["offline_missing"] = await count_missing(UUID(str(person["user_id"])))
+    return people
 
 
 @router.get("/games")
@@ -123,13 +139,31 @@ async def start_run(body: RepairRequest) -> dict[str, Any]:
         if username is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No such person.")
     _run.running, _run.who, _run.done, _run.total = True, username or "everyone", 0, 0
+    if body.pictures and body.user_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Pick whose pictures to save."
+        )
     _run.result, _run.error, _run.finished_at = {}, None, None
     task = asyncio.get_running_loop().create_task(
-        _go(body.user_id, username, body.force, body.covers)
+        _go(body.user_id, username, body.force, body.covers, body.pictures)
     )
     _tasks.add(task)
     task.add_done_callback(_tasks.discard)
     return asdict(_run)
+
+
+@router.get("/old-files")
+async def old_files(user_id: UUID, db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
+    result = await scan_old_files(db, user_id)
+    await db.commit()
+    return result
+
+
+@router.post("/old-files")
+async def bring_back_old_files(
+    user_id: UUID, db: AsyncSession = Depends(get_db)
+) -> dict[str, int]:
+    return await restore_old_files(db, user_id)
 
 
 @router.post("/games/{game_id}")

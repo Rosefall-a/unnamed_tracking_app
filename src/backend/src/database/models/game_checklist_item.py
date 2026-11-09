@@ -14,7 +14,7 @@ class GameChecklistItem(Base):
     """One to-do line on a game's Notes tab — e.g. "get quest cape" or
     "finish collection log". profile_id is NULL for a checklist item that
     applies to the game as a whole; set when it belongs to one specific
-    GameProfile (e.g. one OSRS account) so accounts don't share a single
+    GameProfile (e.g. one account) so accounts don't share a single
     undifferentiated list. sort_order is a plain float (like a linked-list
     gap) so reordering one item only ever rewrites that one row."""
 

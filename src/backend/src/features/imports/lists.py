@@ -40,7 +40,7 @@ class ImportedTitle:
     kind: str  # "movie" | "tv"
     title: str
     year: int | None
-    status: str  # "WATCHED" | "WATCHLIST"
+    status: str  # "WATCHED" | "WISHLIST"
     rating: Decimal | None = None
     favorite: bool = False
     rewatches: int = 0
@@ -102,7 +102,7 @@ def parse_letterboxd(raw: bytes, filename: str = "") -> list[ImportedTitle]:
         year = _year(row.get("Year", ""))
         key = (name.lower(), year)
         if key not in titles:
-            titles[key] = ImportedTitle("movie", name, year, "WATCHLIST")
+            titles[key] = ImportedTitle("movie", name, year, "WISHLIST")
         return titles[key]
 
     def find(base: str) -> list[dict[str, str]] | None:
@@ -193,7 +193,7 @@ def parse_imdb(raw: bytes) -> tuple[list[ImportedTitle], int]:
                 kind=kind,
                 title=title,
                 year=_year(row.get("Year", "")),
-                status="WATCHED" if row.get("Your Rating") else "WATCHLIST",
+                status="WATCHED" if row.get("Your Rating") else "WISHLIST",
                 rating=rating,
                 watched_on=_day(row.get("Date Rated", "")),
                 genres=[g.strip() for g in row.get("Genres", "").split(",") if g.strip()],

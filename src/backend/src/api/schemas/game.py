@@ -70,10 +70,6 @@ class GameBase(BaseModel):
         default=False,
         description="Per-game opt-in for the account/profile switcher (Notes checklist + Screenshots scoping).",
     )
-    osrs_stats_enabled: bool = Field(
-        default=False,
-        description="Per-game opt-in for OSRS-specific account features (WiseOldMan sync, skill/boss icons).",
-    )
     page_settings: dict | None = Field(
         default=None,
         description="This game's overrides of the page defaults (which tabs show, which buttons are hidden).",
@@ -175,7 +171,6 @@ class GameUpdate(BaseModel):
     priority: str | None = Field(default=None, max_length=20)
     favorite: bool | None = None
     profiles_enabled: bool | None = None
-    osrs_stats_enabled: bool | None = None
     page_settings: dict | None = None
 
     @field_validator("page_settings")
@@ -254,6 +249,9 @@ class GameRead(GameBase):
 
     id: UUID
     user_id: UUID
+    # the folder rule is checked when a game is saved; reading it back does not
+    # check it again, so one row stored some other way cannot fail the whole list
+    folder_location: str
     sort_title: str
     locked_fields: list[str] = Field(default_factory=list)
     created_at: int = Field(description="Unix timestamp in seconds when the game was created.")

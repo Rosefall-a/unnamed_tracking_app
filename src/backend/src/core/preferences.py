@@ -63,7 +63,7 @@ DEFAULTS: dict[str, Any] = {
 
 _CHOICES: dict[str, tuple[Any, ...]] = {
     "calendar_default_view": ("month", "week", "agenda"),
-    "calendar_week_start": (0, 1),
+    "calendar_week_start": (0, 1, 2, 3, 4, 5, 6),
     "notification_retention_days": (0, 7, 14, 30, 90),
     "media_trash_retention_days": (0, 7, 14, 30, 90),
     "library_default_layout": ("list", "shelf", "board"),

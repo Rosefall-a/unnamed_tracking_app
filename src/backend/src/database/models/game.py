@@ -243,17 +243,10 @@ class Game(Base):
 
     # per-game opt-in for the account/profile switcher (Notes checklist +
     # Screenshots gallery scoping) — off by default since most games never
-    # need more than one account; a multi-account game like OSRS turns it
+    # need more than one account; a multi-account game turns it
     # on for just that game instead of a global setting cluttering every
     # other game's page.
     profiles_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-
-    # a second, independent opt-in — accounts/profiles work for any game
-    # (checklist + media grouping, no game-specific assumptions), but the
-    # WiseOldMan sync/stat-icon/skill-boss-grouping UI on the Stats card is
-    # OSRS-specific and would be nonsense noise on every other game's
-    # accounts. Off by default, same as profiles_enabled.
-    osrs_stats_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
     # this game's overrides of the page defaults in Settings: which tabs show,
     # which buttons are hidden, the tab it opens on. Only what differs from the

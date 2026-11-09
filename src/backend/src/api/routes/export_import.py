@@ -197,12 +197,12 @@ async def import_library(
             link_rows = [
                 GameLink(label=link["label"], url=link["url"]) for link in data.pop("links", [])
             ]
+            create_game_folder(current_user.id, data["folder_location"])
             game = Game(**data)
             game.links = link_rows
             db.add(game)
             await db.commit()
             await db.refresh(game)
-            create_game_folder(current_user.id, game.folder_location)
             write_game_info(game)
             created += 1
         except IntegrityError as exc:

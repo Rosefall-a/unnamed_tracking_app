@@ -29,7 +29,7 @@ MAX_ROWS = 50000
 _STATUS = {
     "completed": "WATCHED",
     "watching": "IN_PROGRESS",
-    "plan to watch": "WATCHLIST",
+    "plan to watch": "WISHLIST",
     "on-hold": "BACKLOG",
     "on hold": "BACKLOG",
     "dropped": "DROPPED",
@@ -82,7 +82,7 @@ def _score(value: str | None) -> Decimal | None:
 def _status(value: str | None, enum_class: Any) -> Any:
     mapped = _STATUS.get((value or "").strip().lower())
     if mapped is None:
-        return enum_class.WATCHLIST
+        return enum_class.WISHLIST
     return enum_class(mapped)
 
 

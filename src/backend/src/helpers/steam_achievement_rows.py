@@ -7,6 +7,11 @@ def needs_community_descriptions(schema: dict[str, dict]) -> bool:
     return any(d.get("hidden") and not d.get("description") for d in schema.values())
 
 
+def _icon(url: str | None) -> str | None:
+    """Steam sends the bare folder (no file name) for an achievement with no icon."""
+    return url if url and not url.endswith("/") else None
+
+
 def steam_achievement_rows(
     schema: dict[str, dict],
     unlocked: list[dict],
@@ -37,9 +42,9 @@ def steam_achievement_rows(
             or (descriptions or {}).get(api_name.lower())
             or (descriptions or {}).get(f"name:{(defn.get('displayName') or '').lower()}")
             or None,
-            "icon_url": defn.get("icon")
-            if player(api_name).get("achieved")
-            else defn.get("icongray"),
+            "icon_url": _icon(
+                defn.get("icon") if player(api_name).get("achieved") else defn.get("icongray")
+            ),
             "unlocked": bool(player(api_name).get("achieved")),
             "unlocked_at": player(api_name).get("unlocktime") or None,
             "hidden": bool(defn.get("hidden")),

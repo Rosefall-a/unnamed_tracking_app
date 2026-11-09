@@ -1,7 +1,8 @@
 """Downloading artwork as soon as it is saved, so no page waits on another site.
 
-A movie, show or anime keeps the address of its poster and backdrop, and an
-achievement the address of its icon. Whenever one of those rows is written
+A movie, show or anime keeps the address of its poster and backdrop, an
+achievement the address of its icon, an episode its still, and a game's
+description the pictures and clips it shows. Whenever one of those rows is written
 (added, imported, edited or refreshed from a metadata source) the picture is
 fetched into this server's own cache in the background, using the same files
 the image routes serve. A picture that could not be fetched is left for the
@@ -11,15 +12,18 @@ Switched on by the app at startup; until then (tests, scripts) it does nothing.
 """
 
 import asyncio
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import event
+from sqlalchemy import event, select
 
 from src.database.models.achievement import Achievement
-from src.database.models.anime import Anime
+from src.database.models.anime import Anime, AnimeEpisode, AnimeSeason
+from src.database.models.game import Game
 from src.database.models.movies import Movie
-from src.database.models.tv_show import TVShow
+from src.database.models.tv_show import TVEpisode, TVSeason, TVShow
+from src.helpers import local_copies
 from src.helpers.remote_images import (
     RemoteImageError,
     cache_path,
@@ -51,10 +55,18 @@ def enable() -> None:
     _icon_semaphore = asyncio.Semaphore(_ICON_PARALLEL)
 
 
-async def _download(url: str, target: Path, width: int, lane: asyncio.Semaphore) -> None:
+async def _download(
+    url: str,
+    target: Path,
+    width: int,
+    lane: asyncio.Semaphore,
+    fetch: Callable[[str, Path], None] | None,
+) -> None:
     try:
         async with lane:
-            if width == WIDTHS["icon"]:
+            if fetch is not None:
+                await asyncio.to_thread(fetch, url, target)
+            elif width == WIDTHS["icon"]:
                 await asyncio.to_thread(fetch_icon, url, target)
             else:
                 await asyncio.to_thread(fetch_and_store, url, target, width)
@@ -64,7 +76,14 @@ async def _download(url: str, target: Path, width: int, lane: asyncio.Semaphore)
         _running.discard(target)
 
 
-def schedule(url: str | None, target: Path, width: int) -> None:
+def schedule(
+    url: str | None,
+    target: Path,
+    width: int,
+    fetch: Callable[[str, Path], None] | None = None,
+) -> None:
+    """Fetch `url` into `target` in the background unless it is already there.
+    `fetch` saves it some other way than a resized picture (a clip, a still)."""
     lane = _icon_semaphore if width == WIDTHS["icon"] else _semaphore
     if not url or lane is None or target in _running or target in _gave_up:
         return
@@ -75,7 +94,7 @@ def schedule(url: str | None, target: Path, width: int) -> None:
     except RuntimeError:
         return
     _running.add(target)
-    task = loop.create_task(_download(url, target, width, lane))
+    task = loop.create_task(_download(url, target, width, lane, fetch))
     _tasks.add(task)
     task.add_done_callback(_tasks.discard)
 
@@ -106,3 +125,46 @@ for _model, _kind in ((Movie, "movie"), (TVShow, "tv"), (Anime, "anime")):
     event.listen(_model, "after_insert", _media_saved(_kind))
     event.listen(_model, "after_update", _media_saved(_kind))
 event.listen(Achievement, "after_insert", _icon_saved)
+
+
+def _description_saved(_mapper: Any, _connection: Any, row: Game) -> None:
+    if not row.description or "http" not in row.description:
+        return
+    cache = local_copies.cache_root(MEDIA_ROOT, row.user_id)
+    for url in local_copies.description_files(row.description):
+        target = local_copies.description_file_path(cache, url)
+        schedule(url, target, WIDTHS["backdrop"], local_copies.fetch_description_file)
+
+
+# season id -> owner, so saving a season's worth of episodes asks once, not per episode
+_season_owner: dict[Any, Any] = {}
+
+
+def _still_saved(season_model: Any, show_model: Any):
+    def handler(_mapper: Any, connection: Any, row: Any) -> None:
+        url = row.still_url
+        if not url or not url.startswith(("http://", "https://")) or _semaphore is None:
+            return
+        owner = _season_owner.get(row.season_id)
+        if owner is None:
+            owner = connection.execute(
+                select(show_model.user_id)
+                .join(season_model, season_model.show_id == show_model.id)
+                .where(season_model.id == row.season_id)
+            ).scalar()
+            if owner is None:
+                return
+            if len(_season_owner) > 5000:
+                _season_owner.clear()
+            _season_owner[row.season_id] = owner
+        target = local_copies.still_path(local_copies.cache_root(MEDIA_ROOT, owner), url)
+        schedule(url, target, local_copies.STILL_WIDTH, local_copies.fetch_still)
+
+    return handler
+
+
+event.listen(Game, "after_insert", _description_saved)
+event.listen(Game, "after_update", _description_saved)
+for _episode, _season, _show in ((TVEpisode, TVSeason, TVShow), (AnimeEpisode, AnimeSeason, Anime)):
+    event.listen(_episode, "after_insert", _still_saved(_season, _show))
+    event.listen(_episode, "after_update", _still_saved(_season, _show))

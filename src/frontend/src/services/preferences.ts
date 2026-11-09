@@ -9,7 +9,7 @@ export interface Preferences {
   calendar_game_releases: boolean;
   calendar_game_history: boolean;
   calendar_default_view: "month" | "week" | "agenda";
-  calendar_week_start: 0 | 1;
+  calendar_week_start: 0 | 1 | 2 | 3 | 4 | 5 | 6;
   calendar_hide_games: boolean;
   calendar_show_estimated: boolean;
   notify_episode_aired: boolean;

@@ -64,7 +64,6 @@ export interface BackendGame {
   stale_since: number | null;
   profiles_enabled: boolean;
   page_settings?: PageOverrides | null;
-  osrs_stats_enabled: boolean;
   collections: string[];
   links: GameLink[];
 }
@@ -146,7 +145,6 @@ export function mapBackendGame(raw: BackendGame): Game {
     staleSince: unixSecondsToIso(raw.stale_since),
     profilesEnabled: raw.profiles_enabled,
     pageSettings: raw.page_settings ?? null,
-    osrsStatsEnabled: raw.osrs_stats_enabled,
     completionDate: unixSecondsToDateInput(raw.completion_date),
     folderLocation: raw.folder_location,
     releaseDate: raw.release_date,
@@ -772,7 +770,6 @@ export interface NewGameInput {
   profilesEnabled: boolean;
   // undefined leaves the saved overrides alone; {} clears them
   pageSettings?: PageOverrides | null;
-  osrsStatsEnabled: boolean;
 }
 
 export async function createGame(input: NewGameInput): Promise<Game> {
@@ -802,7 +799,6 @@ export async function createGame(input: NewGameInput): Promise<Game> {
       lastPlayedAt: null,
       staleSince: null,
       profilesEnabled: input.profilesEnabled,
-      osrsStatsEnabled: input.osrsStatsEnabled,
       completionDate: input.completionDate,
       tags: input.tags,
       features: input.features,
@@ -835,7 +831,6 @@ export async function createGame(input: NewGameInput): Promise<Game> {
       status: denormalizeStatus(input.status),
       favorite: input.favorite,
       profiles_enabled: input.profilesEnabled,
-      osrs_stats_enabled: input.osrsStatsEnabled,
       description: input.description,
       developer: input.developer,
       publisher: input.publisher,
@@ -911,7 +906,6 @@ export async function updateGame(
           : input.pageSettings && Object.keys(input.pageSettings).length
             ? input.pageSettings
             : null,
-      osrsStatsEnabled: input.osrsStatsEnabled,
       completionDate: input.completionDate,
       tags: input.tags,
       folderLocation: input.folderLocation || null,
@@ -938,7 +932,6 @@ export async function updateGame(
     status: denormalizeStatus(input.status),
     favorite: input.favorite,
     profiles_enabled: input.profilesEnabled,
-    osrs_stats_enabled: input.osrsStatsEnabled,
     ...(input.pageSettings !== undefined
       ? { page_settings: input.pageSettings ?? {} }
       : {}),

@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, defineAsyncComponent, onMounted } from "vue";
 import { fetchProviderCredentials } from "../../services/settings";
 import type { ProviderCredentialStatus } from "../../services/settings";
 import { syncLibrary } from "../../services/librarySync";
 import type { LibrarySyncProvider } from "../../services/librarySync";
 
-const emit = defineEmits<{ navigate: [section: string] }>();
+const MetadataSourcesSection = defineAsyncComponent(
+  () => import("./MetadataSourcesSection.vue"),
+);
 
 // Only providers you sign in to and pull a library from. Metadata sources
 // (TMDB, IGDB, SteamGridDB...) live under Library > Metadata.
@@ -105,7 +107,8 @@ const accountRows = computed<Row[]>(() =>
 );
 
 async function load() {
-  loading.value = true;
+  // a refresh after closing a card keeps the list on screen
+  loading.value = !Object.keys(credentials.value).length;
   try {
     credentials.value = await fetchProviderCredentials();
   } catch (e) {
@@ -115,6 +118,14 @@ async function load() {
   loading.value = false;
 }
 onMounted(load);
+
+const managing = ref<string | null>(null);
+function toggleManage(name: string) {
+  const closing = managing.value === name;
+  managing.value = closing ? null : name;
+  // what was changed in the card shows on the row
+  if (closing) void load();
+}
 
 async function sync(row: Row) {
   if (!row.syncable) return;
@@ -139,46 +150,54 @@ async function sync(row: Row) {
   <section class="settings-section">
     <h2>Connections</h2>
     <p class="hint">
-      The accounts your library is linked to. Adding or changing one happens
-      under Library > Metadata.
+      The accounts your library is linked to. Choose Manage to add or change
+      one.
     </p>
     <p v-if="error" class="error">{{ error }}</p>
     <p v-if="syncMessage" class="note">{{ syncMessage }}</p>
 
     <p v-if="loading" class="hint">Loading…</p>
     <ul v-else class="rows">
-      <li v-for="row in accountRows" :key="row.name" class="row">
-        <span
-          class="mark"
-          :style="{
-            background: markFor(row.name).bg,
-            color: markFor(row.name).fg,
-          }"
-          >{{ markFor(row.name).mark }}</span
-        >
-        <span class="info">
-          <strong>{{ row.name }}</strong>
-          <span class="detail">{{ row.detail }}</span>
-        </span>
-        <span class="pill" :class="{ ok: row.connected, bad: row.error }">{{
-          row.error ? "Error" : row.connected ? "Connected" : "Not connected"
-        }}</span>
-        <button
-          v-if="row.syncable && row.connected"
-          type="button"
-          class="btn"
-          :disabled="syncing !== null"
-          @click="sync(row)"
-        >
-          {{ syncing === row.name ? "Syncing…" : "Sync" }}
-        </button>
-        <button
-          type="button"
-          class="btn ghost"
-          @click="emit('navigate', 'sources')"
-        >
-          Manage
-        </button>
+      <li v-for="row in accountRows" :key="row.name" class="row-block">
+        <div class="row">
+          <span
+            class="mark"
+            :style="{
+              background: markFor(row.name).bg,
+              color: markFor(row.name).fg,
+            }"
+            >{{ markFor(row.name).mark }}</span
+          >
+          <span class="info">
+            <strong>{{ row.name }}</strong>
+            <span class="detail">{{ row.detail }}</span>
+          </span>
+          <span class="pill" :class="{ ok: row.connected, bad: row.error }">{{
+            row.error ? "Error" : row.connected ? "Connected" : "Not connected"
+          }}</span>
+          <button
+            v-if="row.syncable && row.connected"
+            type="button"
+            class="btn"
+            :disabled="syncing !== null"
+            @click="sync(row)"
+          >
+            {{ syncing === row.name ? "Syncing…" : "Sync" }}
+          </button>
+          <button
+            type="button"
+            class="btn ghost"
+            :aria-expanded="managing === row.name"
+            @click="toggleManage(row.name)"
+          >
+            {{ managing === row.name ? "Close" : "Manage" }}
+          </button>
+        </div>
+        <MetadataSourcesSection
+          v-if="managing === row.name"
+          :only="row.name"
+          class="manage-card"
+        />
       </li>
     </ul>
   </section>
@@ -219,6 +238,9 @@ h3 {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+.manage-card {
+  margin: 8px 0 4px;
 }
 .row {
   display: flex;
