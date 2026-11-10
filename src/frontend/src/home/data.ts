@@ -28,6 +28,7 @@ import { fetchAllMedia } from "../services/media";
 import type { MediaItem } from "../services/media";
 import { animeFormatLabel } from "../utils/animeFormat";
 import { sizedAssetUrl } from "../utils/gameImages";
+import { chosenHours } from "../utils/timeToBeat";
 import { displayTitle } from "../utils/displayTitle";
 import { progressPercent } from "../utils/watchProgress";
 import type { Anime } from "../types/anime";
@@ -387,7 +388,7 @@ function gameTitle(g: Game): HomeTitle {
     genres: g.tags ?? [],
     release: dayMs(g.releaseDate),
     platform: g.platform || g.source || "",
-    hours: g.timeToBeatHours,
+    hours: chosenHours(g),
     makers: g.developer ? [g.developer] : [],
     collections: g.collections ?? [],
     playedHours:

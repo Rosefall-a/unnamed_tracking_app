@@ -16,6 +16,7 @@ from src.api.schemas.game import GameCreate
 from src.database.models.game import Game, GameStatus
 from src.database.models.user import User
 from src.database.session import SessionLocal
+from src.helpers import achievement_store
 
 
 @pytest.fixture(autouse=True)
@@ -392,9 +393,9 @@ def test_playstation_rows_have_time_hidden_flag_and_earned_rate():
 
 
 def test_unreadable_timestamps_are_none_not_an_error():
-    assert library_sync._unix_from_text("") is None
-    assert library_sync._unix_from_text(None) is None
-    assert library_sync._unix_from_text("not a date") is None
+    assert achievement_store._unix_from_text("") is None
+    assert achievement_store._unix_from_text(None) is None
+    assert achievement_store._unix_from_text("not a date") is None
 
 
 async def _provider_game(user, *, source, external_id, platform=None):

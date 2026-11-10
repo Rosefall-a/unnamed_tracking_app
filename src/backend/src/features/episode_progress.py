@@ -77,3 +77,36 @@ def apply_counter(season: Any, new_counter: int) -> None:
                 break
             episode.watched = False
             flagged.remove(episode)
+
+
+def finish_season(season: Any) -> int | None:
+    """Every episode of a finished season counts as watched. Returns how many were
+    newly marked, or None when nobody knows how many episodes it has."""
+    total = season.episode_count
+    if not total:
+        return None
+    watched = season.episodes_watched or 0
+    if watched >= total:
+        return 0
+    season.episodes_watched = total
+    apply_counter(season, total)
+    return total - watched
+
+
+def finish_seasons(
+    seasons: Iterable[Any], finished: Any, keep: Iterable[Any] = ()
+) -> tuple[int, int]:
+    """Marks a whole show finished: every season's episodes, and each season's own
+    status unless it already says something in `keep` (Favorite). Returns how many
+    episodes were newly marked and how many seasons have no episode count."""
+    marked = unknown = 0
+    kept = set(keep)
+    for season in seasons:
+        newly = finish_season(season)
+        if newly is None:
+            unknown += 1
+            continue
+        marked += newly
+        if season.status not in kept:
+            season.status = finished
+    return marked, unknown

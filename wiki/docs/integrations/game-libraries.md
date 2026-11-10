@@ -1,6 +1,6 @@
 # Game library imports
 
-Settings › Metadata › Achievements & Accounts connects game store accounts and
+Settings › Connections connects game store accounts and
 imports what you own into the Games library. Each imported game is tagged with
 its store and put in a collection of the same name. Settings › Connections
 lists the connected accounts, how many games each has brought in and when it

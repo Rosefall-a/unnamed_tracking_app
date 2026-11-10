@@ -28,6 +28,8 @@ export interface ScanSettings {
   save_banner: boolean;
   save_logo: boolean;
   save_icon: boolean;
+  // a sync removes achievements a game no longer has
+  remove_gone_achievements: boolean;
   // {provider name: epoch seconds}, last time that provider actually
   // returned a result during a search; read-only, not part of ScanSettingsUpdate
   provider_last_used: Record<string, number>;
@@ -53,6 +55,7 @@ export type ScanSettingsUpdate = Partial<
     | "save_banner"
     | "save_logo"
     | "save_icon"
+    | "remove_gone_achievements"
   >
 >;
 
@@ -81,6 +84,7 @@ const MOCK_SCAN_SETTINGS: ScanSettings = {
   save_banner: true,
   save_logo: true,
   save_icon: true,
+  remove_gone_achievements: true,
   provider_last_used: {},
   created_at: 0,
   updated_at: 0,
@@ -125,11 +129,24 @@ export async function updateScanSettings(
   return await response.json();
 }
 
-export async function fetchUploadLimits(): Promise<{
+export interface UploadLimits {
   max_upload_size_mb: number;
-}> {
+  // set by MAX_UPLOAD_SIZE_MB on the server, so it cannot be changed here
+  from_environment: boolean;
+  max_clip_size_mb: number;
+  max_save_size_mb: number;
+  max_world_save_size_mb: number;
+}
+
+export async function fetchUploadLimits(): Promise<UploadLimits> {
   if (import.meta.env.VITE_USE_MOCK_DATA === "true") {
-    return { max_upload_size_mb: 15 };
+    return {
+      max_upload_size_mb: 15,
+      from_environment: false,
+      max_clip_size_mb: 500,
+      max_save_size_mb: 4096,
+      max_world_save_size_mb: 2000,
+    };
   }
 
   const response = await fetch("/api/settings/upload-limits", {

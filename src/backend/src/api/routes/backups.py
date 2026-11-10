@@ -28,6 +28,9 @@ router = APIRouter(
 
 _GAMES_DATA_ROOT = Path("/data/users")
 DELETED_ACCOUNTS_ROOT = snapshot.DELETED_ACCOUNTS_ROOT
+# before whole-database backups, each account got its own folder of backups here;
+# nothing writes, rotates or restores those any more
+_OLD_BACKUPS_ROOT = snapshot.BACKUP_ROOT
 _UUID_NAME = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
 
 
@@ -181,6 +184,18 @@ async def _leftovers(db: AsyncSession) -> list[dict[str, Any]]:
                 if folder.is_dir():
                     out.append(
                         entry("deleted_account", folder.name, "Files of a deleted account", folder)
+                    )
+        if _OLD_BACKUPS_ROOT.is_dir():
+            for folder in _OLD_BACKUPS_ROOT.iterdir():
+                if folder.is_dir() and _UUID_NAME.match(folder.name):
+                    whose = "an account" if folder.name in known_users else "a deleted account"
+                    out.append(
+                        entry(
+                            "old_backups",
+                            folder.name,
+                            f"Older backups of {whose}, from before whole-database backups",
+                            folder,
+                        )
                     )
         return out
 

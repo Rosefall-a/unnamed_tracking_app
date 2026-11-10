@@ -47,6 +47,7 @@ const saveKeyArt = ref(true);
 const saveBanner = ref(true);
 const saveLogo = ref(true);
 const saveIcon = ref(true);
+const removeGoneAchievements = ref(true);
 const providerLastUsed = ref<Record<string, number>>({});
 
 function lastUsedLabel(provider: string): string {
@@ -77,6 +78,7 @@ onMounted(async () => {
     saveBanner.value = settings.save_banner;
     saveLogo.value = settings.save_logo;
     saveIcon.value = settings.save_icon;
+    removeGoneAchievements.value = settings.remove_gone_achievements;
     providerLastUsed.value = settings.provider_last_used;
   } catch (err) {
     error.value =
@@ -106,6 +108,7 @@ watch(
     saveBanner,
     saveLogo,
     saveIcon,
+    removeGoneAchievements,
   ],
   () => {
     saveSuccess.value = false;
@@ -152,6 +155,7 @@ async function save() {
       save_banner: saveBanner.value,
       save_logo: saveLogo.value,
       save_icon: saveIcon.value,
+      remove_gone_achievements: removeGoneAchievements.value,
     });
     saveSuccess.value = true;
   } catch (err) {
@@ -304,6 +308,24 @@ async function save() {
           </ToggleButton>
           <ToggleButton v-model="saveTimeToBeat" label="Time to beat">
             <strong>Time to beat</strong>: main story hours, from HowLongToBeat
+          </ToggleButton>
+        </div>
+      </div>
+
+      <div class="field-block">
+        <span class="field-label">Achievements</span>
+        <p class="field-sublabel">
+          A game that gets new achievements after you master it goes back to
+          Played. The day you finished it stays on the calendar.
+        </p>
+        <div class="refresh-options">
+          <ToggleButton
+            v-model="removeGoneAchievements"
+            label="Remove achievements a game no longer has"
+          >
+            <strong>Remove achievements a game no longer has</strong>: when the
+            developer takes one out, it goes from the list on the next sync.
+            Turn off to keep every one you have ever seen.
           </ToggleButton>
         </div>
       </div>

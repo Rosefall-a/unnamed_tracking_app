@@ -10,6 +10,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from src.api.routes import (
     achievement_icons,
+    activity_log,
     backups,
     steam_import_steps,
     app_integrations,
@@ -24,11 +25,13 @@ from src.api.routes import (
     game_archives,
     game_matches,
     game_notes,
+    game_repair,
     game_page,
     games,
     jobs,
     library_import,
     library_sync,
+    local_pictures,
     media,
     media_extras,
     media_io,
@@ -115,10 +118,13 @@ app.include_router(library_sync.router)
 app.include_router(library_import.router)
 app.include_router(export_import.router)
 app.include_router(backups.router)
+app.include_router(game_repair.router)
+app.include_router(activity_log.router)
 app.include_router(jobs.router)
 app.include_router(media_io.router)
 app.include_router(media_extras.router)
 app.include_router(media_images.router)
+app.include_router(local_pictures.router)
 app.include_router(achievement_icons.router)
 app.include_router(steam_import_steps.router)
 app.include_router(epic_import.router)

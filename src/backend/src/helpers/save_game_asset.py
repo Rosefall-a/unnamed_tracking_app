@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from io import BytesIO
 from pathlib import Path
 from typing import Literal
@@ -98,7 +99,14 @@ async def save_game_asset(
     resized = _resize_to_exact(image_obj, width, height)
 
     output_path = output_dir / ASSET_FILENAMES[asset_kind]
-    resized.save(output_path, format="PNG")
+    # a crash or a full disk part way through keeps the art that was there
+    temporary = output_path.with_name(f".{output_path.name}.part")
+    try:
+        resized.save(temporary, format="PNG")
+        os.replace(temporary, output_path)
+    except OSError:
+        temporary.unlink(missing_ok=True)
+        raise
     # the smaller copies the pages show, made now so no first visit waits for them
     await asyncio.to_thread(make_standard_previews, output_path, asset_kind, str(game_id))
     return output_path

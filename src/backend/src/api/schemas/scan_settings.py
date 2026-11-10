@@ -32,6 +32,7 @@ class ScanSettingsUpdate(BaseModel):
     save_banner: bool | None = None
     save_logo: bool | None = None
     save_icon: bool | None = None
+    remove_gone_achievements: bool | None = None
 
     @field_validator("provider_order")
     @classmethod
@@ -78,6 +79,7 @@ class ScanSettingsRead(BaseModel):
     save_banner: bool
     save_logo: bool
     save_icon: bool
+    remove_gone_achievements: bool
     # {provider name: epoch seconds last used} — read-only, updated by
     # games.py's search_metadata route, not settable via ScanSettingsUpdate
     provider_last_used: dict[str, int]

@@ -23,6 +23,7 @@ import {
   pickRandomGame,
 } from "../utils/randomPicker";
 import type { PickerFilters } from "../utils/randomPicker";
+import { chosenHours } from "../utils/timeToBeat";
 
 const props = defineProps<{ games: Game[] }>();
 const emit = defineEmits<{ close: [] }>();
@@ -248,8 +249,8 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown));
               <template v-if="picked.platforms[0]">
                 · {{ picked.platforms[0].platform }}</template
               >
-              <template v-if="picked.timeToBeatHours !== null">
-                · ~{{ picked.timeToBeatHours }}h</template
+              <template v-if="chosenHours(picked) !== null">
+                · ~{{ chosenHours(picked) }}h</template
               >
               <template v-if="pickedPriority !== null">
                 · priority {{ priorityLabel(pickedPriority) }}</template

@@ -18,7 +18,7 @@ import asyncio
 import logging
 import re
 import time
-from datetime import UTC, date, datetime
+from datetime import date, datetime
 from typing import Literal
 from uuid import UUID
 
@@ -26,6 +26,11 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.helpers.achievement_store import (  # noqa: F401
+    _psn_trophy_rows,
+    _replace_achievements,
+    _retro_achievement_rows,
+)
 from src.helpers.steam_achievement_rows import (  # noqa: F401
     needs_community_descriptions as _needs_community_descriptions,
     steam_achievement_rows as _steam_achievement_rows,
@@ -38,9 +43,9 @@ from src.api.routes.settings import (
 from src.core.auth import get_current_user
 from src.core.crypto import decrypt_secret
 from src.core.integrations import resolve_integrations
-from src.database.models.achievement import Achievement
 from src.database.models.game import Game, GameStatus
 from src.database.models.user import User
+from src.database.models.user_scan_settings import UserScanSettings
 from src.database.session import get_db
 from src.features.game_matches import find_matches
 from src.features.metadata.games import steam, steam_tags
@@ -55,9 +60,11 @@ from src.features.metadata.games.steam_achievements import (
     SteamAchievementData,
     fetch_steam_achievements,
 )
+from src.features.metadata.games.time_to_beat import TimesLookup, fill_times
+from src.features.game_finish_dates import correct_finish_dates
 from src.helpers.game_art_download import download_asset as _download_asset
-from src.helpers.game_art_download import steamgriddb_key_art_url as _fetch_key_art_from_steamgriddb
-from src.helpers.game_art_download import steam_cdn_art_urls as _steam_cdn_art_urls
+from src.helpers.game_art_download import fill_art as _fill_art
+from src.helpers.game_art_download import wanted_art as _wanted_art
 from src.helpers.library_games import LibraryIndex
 from src.helpers.steam_bare_games import bare_steam_game_ids
 from src.helpers.library_games import get_or_create_game as _get_or_create_game
@@ -109,26 +116,39 @@ def _is_junk_title(title: str) -> bool:
 async def _enrich_steam_game_by_appid(
     game: Game, app_id: int, user: User, igdb_client_id: str | None, igdb_client_secret: str | None,
     use_user_tags: bool = True,
+    scan_settings: UserScanSettings | None = None,
+    times: TimesLookup | None = None,
 ) -> None:
     """Steam-sourced games already carry an authoritative Steam appid from
     the account's real owned-games list — no text matching needed at all,
     which is exactly what made the generic search-based `_enrich_new_game`
     occasionally attach one game's data/art to a different, similarly-named
     game. Pulls straight from Steam's own storefront API + CDN, both keyed
-    by that exact id. Best-effort, like `_enrich_new_game`."""
+    by that exact id. Best-effort, like `_enrich_new_game`. A field the person
+    locked, or chose in Settings not to save, is left as it is."""
+
+    def wanted(field: str, setting: str) -> bool:
+        return field not in (game.locked_fields or []) and (
+            scan_settings is None or getattr(scan_settings, setting)
+        )
+
     try:
         details = await asyncio.to_thread(steam.get_app_details, app_id)
     except Exception:  # best-effort, the art below still runs
         logger.warning("Steam store details for app %s failed", app_id, exc_info=True)
         details = None
     if details:
-        if game.title.startswith("Steam app ") and details.get("name"):
+        if (
+            game.title.startswith("Steam app ")
+            and details.get("name")
+            and "title" not in (game.locked_fields or [])
+        ):
             # a wishlisted game is saved under a placeholder until now
             game.title = details["name"][:_MAX_TITLE]
             game.sort_title = game.title.lower()
-        if details.get("developers"):
+        if details.get("developers") and wanted("developer", "save_developer"):
             game.developer = ", ".join(details["developers"])
-        if details.get("publishers"):
+        if details.get("publishers") and wanted("publisher", "save_publisher"):
             game.publisher = ", ".join(details["publishers"])
         # "About This Game" (rich HTML, the dev's full writeup) over the
         # plain-text short_description blurb meant for search-result lists
@@ -139,23 +159,24 @@ async def _enrich_steam_game_by_appid(
             or details.get("detailed_description")
             or details.get("short_description")
         )
-        if description:
+        if description and wanted("description", "save_description"):
             game.description = description
-        genres = details.get("genres") or []
-        tags = [g["description"] for g in genres if g.get("description")]
-        if use_user_tags:
-            tags = await asyncio.to_thread(steam_tags.tags_with_player_votes, app_id, tags)
-        if tags:
-            game.tags = tags
+        if wanted("tags", "save_tags"):
+            genres = details.get("genres") or []
+            tags = [g["description"] for g in genres if g.get("description")]
+            if use_user_tags:
+                tags = await asyncio.to_thread(steam_tags.tags_with_player_votes, app_id, tags)
+            if tags:
+                game.tags = tags
         categories = details.get("categories") or []
         features = [c["description"] for c in categories if c.get("description")]
-        if features:
+        if features and wanted("features", "save_features"):
             game.features = features
         required_age = details.get("required_age")
-        if required_age:
+        if required_age and wanted("age_rating", "save_age_rating"):
             game.age_rating = f"{required_age}+"
         release = (details.get("release_date") or {}).get("date")
-        if release:
+        if release and wanted("release_date", "save_release_date"):
             for fmt in ("%b %d, %Y", "%d %b, %Y", "%Y"):
                 try:
                     game.release_date = datetime.strptime(release, fmt).date()
@@ -163,27 +184,26 @@ async def _enrich_steam_game_by_appid(
                 except ValueError:
                     continue
 
-    series = await _fetch_series_from_igdb(game.title, igdb_client_id, igdb_client_secret)
-    if series:
-        game.series = series
-        _add_to_series_collection(game, series)
+    if wanted("series", "save_series"):
+        series = await _fetch_series_from_igdb(game.title, igdb_client_id, igdb_client_secret)
+        if series:
+            game.series = series
+            _add_to_series_collection(game, series)
 
-    saved: dict[AssetKind, bool] = {}
-    for asset_kind, url in _steam_cdn_art_urls(app_id).items():
-        saved[asset_kind] = await _download_asset(url, game.id, asset_kind)
-
-    # not every app has the "library" style art Steam generates for newer
-    # titles (older/free/niche games often don't). header_image is wide
-    # (~460x215) — a fine banner fallback, but forcing it into key_art's
-    # portrait (~2:3) slot crops it into something unrecognizable, so
-    # key_art falls back to SteamGridDB's actual portrait grids instead.
-    header_image = (details or {}).get("header_image")
-    if not saved.get("key_art"):
-        sgdb_key_art = await _fetch_key_art_from_steamgriddb(app_id, user.steamgriddb_api_key)
-        if sgdb_key_art:
-            await _download_asset(sgdb_key_art, game.id, "key_art")
-    if header_image and not saved.get("banner"):
-        await _download_asset(header_image, game.id, "banner")
+    is_named = not game.title.startswith("Steam app ")
+    await _fill_art(
+        game.id,
+        _wanted_art(game, scan_settings),
+        app_id,
+        game.title if is_named else None,
+        user.steamgriddb_api_key,
+        (details or {}).get("header_image"),
+        (igdb_client_id, igdb_client_secret),
+    )
+    if is_named and (scan_settings is None or scan_settings.save_time_to_beat):
+        await fill_times(game, times or TimesLookup(igdb_client_id, igdb_client_secret))
+    if details and (times is None or times.hltb_error is None):
+        game.details_checked_at = int(time.time())
 
 
 def _infer_status(
@@ -408,110 +428,6 @@ async def _flag_stale_games(
             game.stale_since = now
             newly_flagged += 1
     return newly_flagged
-
-
-def _unix_from_text(text: object) -> int | None:
-    """A provider's timestamp text ("2023-05-02 14:03:00" or an ISO string
-    ending in Z) as unix seconds, or None when it's missing or unreadable."""
-    if not isinstance(text, str) or not text:
-        return None
-    try:
-        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
-    except ValueError:
-        return None
-    if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=UTC)
-    return int(parsed.timestamp())
-
-
-def _retro_achievement_rows(progress: dict) -> list[dict]:
-    """Stored rows for one RetroAchievements game. `NumAwarded` over the
-    game's player count is the share of players who earned each one."""
-    players = progress.get("NumDistinctPlayers") or progress.get("NumDistinctPlayersCasual")
-    rows = []
-    for ach_id, ach in (progress.get("Achievements") or {}).items():
-        earned = ach.get("DateEarned") or ach.get("DateEarnedHardcore")
-        awarded = ach.get("NumAwarded")
-        row = {
-            "external_id": str(ach_id),
-            "name": ach.get("Title") or str(ach_id),
-            "description": ach.get("Description"),
-            "icon_url": f"https://media.retroachievements.org/Badge/{ach['BadgeName']}.png"
-            if ach.get("BadgeName")
-            else None,
-            "unlocked": bool(earned),
-            "unlocked_at": _unix_from_text(earned),
-            # RA's classic API's exact casing for this field isn't documented
-            # as clearly as the newer v1 API's: check both
-            "tier": (ach.get("Type") or ach.get("type") or "").lower() or None,
-        }
-        if isinstance(awarded, int | float) and isinstance(players, int | float) and players > 0:
-            row["global_percent"] = round(awarded / players * 100, 2)
-        rows.append(row)
-    return rows
-
-
-def _psn_trophy_rows(trophies: list[dict]) -> list[dict]:
-    """Stored rows for one PlayStation title: earned state and time, whether
-    it's a hidden trophy, and the rate of players who earned it."""
-    rows = []
-    for t in trophies:
-        if t.get("trophyId") is None:
-            continue
-        row = {
-            "external_id": str(t.get("trophyId")),
-            "name": t.get("trophyName") or "Trophy",
-            "description": t.get("trophyDetail"),
-            "icon_url": t.get("trophyIconUrl"),
-            "unlocked": bool(t.get("earned")),
-            "unlocked_at": _unix_from_text(t.get("earnedDateTime")),
-            "hidden": bool(t.get("trophyHidden")),
-        }
-        try:
-            row["global_percent"] = round(float(t["trophyEarnedRate"]), 2)
-        except (KeyError, TypeError, ValueError):
-            pass
-        rows.append(row)
-    return rows
-
-
-async def _replace_achievements(
-    db: AsyncSession, game_id: UUID, provider: str, rows: list[dict]
-) -> None:
-    """Upserts by (game_id, provider, external_id) rather than delete +
-    reinsert — a media item can link to a specific achievement
-    (MediaItem.linked_achievement_id), and that FK is ON DELETE SET NULL,
-    so wiping every row on each re-sync was silently unlinking every
-    screenshot/clip tagged to an achievement the next time the game synced."""
-    existing = {
-        a.external_id: a
-        for a in (
-            await db.execute(
-                select(Achievement).where(
-                    Achievement.game_id == game_id, Achievement.provider == provider
-                )
-            )
-        )
-        .scalars()
-        .all()
-    }
-    now = int(time.time())
-    seen_ids: set[str] = set()
-    for row in rows:
-        seen_ids.add(row["external_id"])
-        current = existing.get(row["external_id"])
-        if current is not None:
-            for field, value in row.items():
-                # a lookup that found no description (Steam refused the extra
-                # request, say) must not erase one we already have
-                if field == "description" and value is None and current.description:
-                    continue
-                setattr(current, field, value)
-        else:
-            db.add(Achievement(game_id=game_id, provider=provider, created_at=now, **row))
-    for external_id, achievement in existing.items():
-        if external_id not in seen_ids:
-            await db.delete(achievement)
 
 
 @router.post("/games/{game_id}/achievements")
@@ -749,6 +665,8 @@ async def sync_steam_library(
 
     games_flagged_stale = await _flag_stale_games(db, current_user.id, "Steam", touched_ids)
     # a game added by hand that this sync brought in again: ask, never merge
+    await db.flush()
+    await correct_finish_dates(db, current_user.id)
     possible_duplicates = await find_matches(db, current_user.id)
     current_user.steam_library_synced_at = int(time.time())
     await db.commit()

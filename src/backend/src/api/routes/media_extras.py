@@ -150,7 +150,7 @@ def _date_to_unix(d: date | None) -> int:
 
 router = APIRouter(prefix="/api", tags=["media-extras"], dependencies=[Depends(get_current_user)])
 
-_MODEL_BY_TYPE: dict[str, Any] = {"movie": Movie, "tv": TVShow, "anime": Anime}
+_MODEL_BY_TYPE: dict[str, Any] = {"movie": Movie, "tv": TVShow, "anime": Anime, "game": Game}
 
 
 async def _resolve_media(media_type: str, media_id: UUID, user_id: UUID, db: AsyncSession) -> Any:
@@ -629,7 +629,7 @@ async def build_calendar_entries(
 
 @router.get("/calendar", response_model=list[CalendarEntryRead])
 async def get_calendar(
-    days: int = Query(default=14, ge=1, le=90),
+    days: int = Query(default=14, ge=1, le=365),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> list[dict]:
@@ -651,7 +651,7 @@ async def get_calendar_games(
     """The past side of Games on the calendar. With "Game releases" on, the
     release date of every game in the library from before yesterday (the
     calendar's own feed carries today and everything ahead). With "Games
-    history" on, the day each game was finished and bought and how many
+    history" on, the day each game was last played, finished and bought and how many
     achievements were unlocked on a day. Empty when Games are hidden."""
     prefs = await load_preferences(db, current_user.id)
     if prefs["calendar_hide_games"]:
@@ -690,6 +690,31 @@ async def get_calendar_games(
         entries.sort(key=lambda e: e["date"])
         return entries
     since = int(time.time()) - days * 86400
+    played = (
+        await db.scalars(
+            select(Game).where(
+                Game.user_id == current_user.id,
+                Game.deleted_at.is_(None),
+                Game.last_played_at.isnot(None),
+                Game.last_played_at >= since,
+            )
+        )
+    ).all()
+    for g in played:
+        if g.last_played_at is None:
+            continue
+        entries.append(
+            {
+                "kind": "game_played",
+                "game_id": g.id,
+                "title": g.title,
+                "date": datetime.fromtimestamp(g.last_played_at, tz=timezone.utc)
+                .date()
+                .isoformat(),
+                "count": 1,
+                "poster_url": f"/api/game/{g.id}/assets/key_art",
+            }
+        )
     finished = (
         (
             await db.execute(

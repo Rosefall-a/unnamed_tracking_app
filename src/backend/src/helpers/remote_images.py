@@ -14,6 +14,7 @@ import hashlib
 import io
 import ipaddress
 import os
+import re
 import socket
 import tempfile
 from pathlib import Path
@@ -66,44 +67,95 @@ def _check_address(url: str) -> None:
         raise RemoteImageError("not a public host")
 
 
+def _close(response: requests.Response) -> None:
+    close = getattr(response, "close", None)
+    if close:
+        close()
+
+
+def _open(url: str) -> requests.Response:
+    """A streamed 200 response for `url`, following at most a few redirects and
+    checking every address before it is asked for. The caller closes it."""
+    for _ in range(_MAX_REDIRECTS + 1):
+        _check_address(url)
+        response = requests.get(
+            url,
+            stream=True,
+            timeout=_TIMEOUT,
+            allow_redirects=False,
+            headers={"User-Agent": "unnamed-tracking-app/1.0 (image cache)"},
+        )
+        if response.status_code in (301, 302, 303, 307, 308):
+            location = response.headers.get("location")
+            _close(response)
+            if not location:
+                raise RemoteImageError("redirect with no address")
+            url = urljoin(url, location)
+            continue
+        if response.status_code != 200:
+            _close(response)
+            raise RemoteImageError(f"status {response.status_code}")
+        return response
+    raise RemoteImageError("too many redirects")
+
+
+def _too_large(response: requests.Response, limit: int) -> bool:
+    declared = response.headers.get("content-length")
+    return bool(declared and declared.isdigit() and int(declared) > limit)
+
+
 def download_image(url: str) -> bytes:
     """The bytes at `url`, or RemoteImageError if it is not a safe, small image."""
     try:
-        for _ in range(_MAX_REDIRECTS + 1):
-            _check_address(url)
-            response = requests.get(
-                url,
-                stream=True,
-                timeout=_TIMEOUT,
-                allow_redirects=False,
-                headers={"User-Agent": "unnamed-tracking-app/1.0 (image cache)"},
-            )
-            try:
-                if response.status_code in (301, 302, 303, 307, 308):
-                    # the next address is checked like the first before it is asked for
-                    location = response.headers.get("location")
-                    if not location:
-                        raise RemoteImageError("redirect with no address")
-                    url = urljoin(url, location)
-                    continue
-                if response.status_code != 200:
-                    raise RemoteImageError(f"status {response.status_code}")
-                declared = response.headers.get("content-length")
-                if declared and declared.isdigit() and int(declared) > MAX_BYTES:
+        response = _open(url)
+        try:
+            if _too_large(response, MAX_BYTES):
+                raise RemoteImageError("too large")
+            data = bytearray()
+            for chunk in response.iter_content(64 * 1024):
+                data.extend(chunk)
+                if len(data) > MAX_BYTES:
                     raise RemoteImageError("too large")
-                data = bytearray()
-                for chunk in response.iter_content(64 * 1024):
-                    data.extend(chunk)
-                    if len(data) > MAX_BYTES:
-                        raise RemoteImageError("too large")
-                return bytes(data)
-            finally:
-                close = getattr(response, "close", None)
-                if close:
-                    close()
+            return bytes(data)
+        finally:
+            _close(response)
     except requests.RequestException as exc:
         raise RemoteImageError(str(exc)) from exc
-    raise RemoteImageError("too many redirects")
+
+
+def download_file(url: str, target: Path, limit: int, kinds: tuple[str, ...]) -> None:
+    """Saves `url` at `target` as it is, when its type starts with one of `kinds`
+    (such as "image/" or "video/") and it is no bigger than `limit` bytes.
+    Written beside the target and moved into place, so a half download is never
+    served and an existing copy is only replaced by a whole one."""
+    try:
+        response = _open(url)
+        try:
+            kind = (response.headers.get("content-type") or "").split(";")[0].strip().lower()
+            if not kind.startswith(kinds):
+                raise RemoteImageError(f"not a picture or clip ({kind or 'no type'})")
+            if _too_large(response, limit):
+                raise RemoteImageError("too large")
+            target.parent.mkdir(parents=True, exist_ok=True)
+            handle, temp_name = tempfile.mkstemp(dir=target.parent, suffix=".tmp")
+            try:
+                size = 0
+                with os.fdopen(handle, "wb") as out:
+                    for chunk in response.iter_content(256 * 1024):
+                        size += len(chunk)
+                        if size > limit:
+                            raise RemoteImageError("too large")
+                        out.write(chunk)
+                if size == 0:
+                    raise RemoteImageError("empty")
+                os.replace(temp_name, target)
+            finally:
+                if os.path.exists(temp_name):
+                    os.unlink(temp_name)
+        finally:
+            _close(response)
+    except requests.RequestException as exc:
+        raise RemoteImageError(str(exc)) from exc
 
 
 def save_shrunk(data: bytes, target: Path, width: int) -> None:
@@ -174,11 +226,37 @@ def _write_png(image: Image.Image, target: Path) -> None:
             os.unlink(temp_name)
 
 
+# Steam's API still hands out icon addresses on hosts that no longer have the
+# newer files; the same file is on its current community host
+_OLD_STEAM_ICON = re.compile(
+    r"^https://(?:steamcdn-a\.akamaihd\.net|cdn\.(?:akamai|cloudflare)\.steamstatic\.com)"
+    r"/steamcommunity/public/images/apps/(\d+/[0-9a-f]+\.(?:jpg|png))$"
+)
+
+
+def current_steam_icon(url: str) -> str | None:
+    """The address on Steam's current host for an icon on an old one, else None."""
+    match = _OLD_STEAM_ICON.match(url)
+    if not match:
+        return None
+    return f"https://shared.akamai.steamstatic.com/community_assets/images/apps/{match.group(1)}"
+
+
+def _icon_bytes(url: str) -> bytes:
+    try:
+        return download_image(url)
+    except RemoteImageError:
+        moved = current_steam_icon(url)
+        if moved is None:
+            raise
+        return download_image(moved)
+
+
 def fetch_icon(url: str, target: Path) -> None:
     """Keep an achievement icon exactly as the provider made it, as a lossless PNG.
     Steam's are 64 px JPEGs; saving them as JPEG again would damage them twice."""
     try:
-        with Image.open(io.BytesIO(download_image(url))) as opened:
+        with Image.open(io.BytesIO(_icon_bytes(url))) as opened:
             image = opened.convert("RGBA")
     except (UnidentifiedImageError, OSError, Image.DecompressionBombError) as exc:
         raise RemoteImageError("not an image") from exc

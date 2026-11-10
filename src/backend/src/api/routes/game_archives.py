@@ -34,7 +34,7 @@ from src.database.models.user import User
 from src.database.session import get_db
 from src.features.trash import archive_trash
 from src.features.trash.sweep import RETENTION_SECONDS
-from src.helpers.media import safe_filename
+from src.helpers.media import UploadTooLarge, save_upload
 
 _DB_DEPENDENCY = Depends(get_db)
 _CURRENT_USER_DEPENDENCY = Depends(get_current_user)
@@ -46,34 +46,18 @@ router = APIRouter(
 
 ArchiveKind = Literal["save", "world_save"]
 
-_UPLOAD_CHUNK_SIZE = 1024 * 1024
-
 
 async def _save_upload_stream(
     file: UploadFile, dest_dir: Path, original_name: str, limit_mb: int
 ) -> tuple[Path, int]:
     """Stream an uploaded archive to disk without buffering it in memory."""
-    dest_dir.mkdir(parents=True, exist_ok=True)
-    path = dest_dir / safe_filename(original_name)
-    limit_bytes = limit_mb * 1024 * 1024
-    size = 0
     try:
-        with path.open("wb") as output:
-            while True:
-                chunk = await file.read(_UPLOAD_CHUNK_SIZE)
-                if not chunk:
-                    break
-                size += len(chunk)
-                if size > limit_bytes:
-                    raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail=f"Larger than {limit_mb} MB.",
-                    )
-                output.write(chunk)
-    except Exception:
-        path.unlink(missing_ok=True)
-        raise
-    return path, size
+        return await save_upload(file, dest_dir, original_name, limit_mb * 1024 * 1024)
+    except UploadTooLarge as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Larger than {limit_mb} MB.",
+        ) from exc
 
 
 _ARCHIVE_SUBDIRS: dict[ArchiveKind, str] = {"save": "saves", "world_save": "world_saves"}
@@ -242,6 +226,7 @@ async def create_archive(
     await db.flush()
 
     dest_dir = _archive_dir(game.folder_location, kind, archive.id, user_id=current_user.id)  # type: ignore[arg-type]
+    saved_path: Path | None = None
     try:
         saved_path, size = await _save_upload_stream(
             file, dest_dir, file.filename or "file", limit_mb
@@ -253,6 +238,8 @@ async def create_archive(
         await db.commit()
     except Exception:
         await db.rollback()
+        if saved_path is not None:
+            saved_path.unlink(missing_ok=True)
         raise
     await db.refresh(archive, attribute_names=["versions"])
     return _archive_to_dict(game_id, archive)
@@ -282,6 +269,7 @@ async def add_archive_version(
     )
 
     dest_dir = _archive_dir(game.folder_location, archive.kind, archive.id, user_id=current_user.id)  # type: ignore[arg-type]
+    saved_path: Path | None = None
     try:
         saved_path, size = await _save_upload_stream(
             file, dest_dir, file.filename or "file", limit_mb
@@ -294,6 +282,8 @@ async def add_archive_version(
         await db.commit()
     except Exception:
         await db.rollback()
+        if saved_path is not None:
+            saved_path.unlink(missing_ok=True)
         raise
     await db.refresh(archive, attribute_names=["versions"])
     return _archive_to_dict(game_id, archive)
@@ -417,6 +407,10 @@ async def restore_archive_version(
     archive = await _get_archive_or_404(
         game_id, archive_id, db, current_user.id, include_deleted=True
     )
+    if archive.deleted_at is not None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Restore the whole save first."
+        )
     game = await _get_game_or_404(game_id, db, current_user.id)
     version = next(
         (v for v in archive.versions if v.id == version_id and v.deleted_at is not None), None

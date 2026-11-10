@@ -13,7 +13,6 @@ const baseGame = {
   lastPlayedAt: null,
   staleSince: null,
   profilesEnabled: false,
-  osrsStatsEnabled: false,
   completionDate: null,
   parentGameId: null,
   relationshipType: null,

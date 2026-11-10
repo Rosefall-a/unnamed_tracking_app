@@ -43,7 +43,7 @@ from src.database.models.media_extras import ActivityEventType
 from src.database.models.tv_show import TVEpisode, TVSeason, TVShow, TVShowStatus
 from src.database.models.user import User
 from src.database.session import get_db
-from src.features.episode_progress import apply_counter, counter_from_flags, materialize_progress
+from src.features.episode_progress import apply_counter, finish_season, finish_seasons, counter_from_flags, materialize_progress
 from src.features.metadata.locked_fields import apply_updates_with_locking, drop_nulls_for_required
 from src.features.tv_seasons import check_in_background, is_due
 from src.features.metadata.movies.tmdb import TMDBClient
@@ -279,6 +279,9 @@ async def get_show(
     return show
 
 
+_COMPLETED = {TVShowStatus.WATCHED, TVShowStatus.FAVORITE}
+
+
 @router.patch("/update/{show_id}", response_model=TVShowRead)
 async def update_show(
     show_id: UUID,
@@ -310,6 +313,22 @@ async def update_show(
                 date.today(),
                 detail=change,
             )
+        # finished means every episode was watched, so the progress says 12/12
+        if show.status in _COMPLETED and previous_status not in _COMPLETED:
+            marked, _unknown = finish_seasons(
+                show.seasons, TVShowStatus.WATCHED, keep=(_COMPLETED)
+            )
+            if marked:
+                await log_activity(
+                    db,
+                    current_user.id,
+                    "tv",
+                    show.id,
+                    show.title,
+                    ActivityEventType.EPISODES_WATCHED,
+                    date.today(),
+                    increment=marked,
+                )
 
     await db.commit()
     return await _get_show_or_404(show_id, db, current_user.id)
@@ -397,8 +416,17 @@ async def update_season(
 
     updates = drop_nulls_for_required(season, payload.model_dump(exclude_unset=True))
     old_counter = season.episodes_watched or 0
+    old_status = season.status
     for field, value in updates.items():
         setattr(season, field, value)
+    if (
+        "status" in updates
+        and "episodes_watched" not in updates
+        and season.status in _COMPLETED
+        and old_status not in _COMPLETED
+        and finish_season(season)
+    ):
+        updates["episodes_watched"] = season.episodes_watched
 
     if "episodes_watched" in updates:
         new_counter = season.episodes_watched or 0

@@ -25,6 +25,7 @@ import type {
   StatusCounts,
   TopTitle,
 } from "../services/mediaStats";
+import { chosenTimeLabel } from "../utils/timeToBeat";
 import { useKeptAlive } from "../utils/useKeptAlive";
 
 type Tab = "overview" | "games" | "movie" | "tv" | "anime";
@@ -225,7 +226,7 @@ const backlogSub = computed(() => {
   const b = stats.value?.games.insights.backlog;
   if (!b) return "";
   const missing = b.without_estimate
-    ? `, ${b.without_estimate} without a time-to-beat`
+    ? `, ${b.without_estimate} without this time`
     : "";
   return `${b.count} backlog game${b.count === 1 ? "" : "s"}${missing}`;
 });
@@ -522,7 +523,7 @@ const episodic = computed<EpisodicStats | null>(() => {
             />
             <StatCard
               icon="check"
-              label="Backlog"
+              :label="`Backlog (${chosenTimeLabel()})`"
               :value="backlogHours"
               :sub="backlogSub"
             />

@@ -251,11 +251,14 @@ function onHide() {
   if (document.visibilityState === "hidden") flushPending();
 }
 onBeforeRouteLeave(
-  () =>
+  async () =>
     !dirty.value ||
-    window.confirm(
-      "You have changes to Home that are not saved. Leave anyway?",
-    ),
+    (await confirm({
+      title: "Leave Home",
+      message: "You have changes to Home that are not saved. Leave anyway?",
+      confirmLabel: "Leave",
+      danger: true,
+    })),
 );
 // Home's data is shared for the whole visit; coming back to the page loads it
 // again, so a change made elsewhere (a status, a new title) shows here

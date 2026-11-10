@@ -395,8 +395,9 @@ function formatBytes(bytes: number): string {
       <h3>Leftover files</h3>
       <p class="tile-desc">
         Files nothing in the app points at any more: games that were emptied
-        from the trash before the cleanup knew where to look, and files of
-        deleted accounts. They are only removed from here.
+        from the trash before the cleanup knew where to look, files of deleted
+        accounts, and the older per-account backups made before whole-database
+        backups. They are only removed from here.
       </p>
       <p v-if="leftoversError" class="form-error">{{ leftoversError }}</p>
       <p v-else-if="leftovers === null" class="tile-desc">

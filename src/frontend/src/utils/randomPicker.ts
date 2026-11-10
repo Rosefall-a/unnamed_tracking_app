@@ -6,6 +6,7 @@ import type { Game, GameStatus } from "../types/game";
 import { hasGenre } from "./genres";
 import { normalizePlatformFamily } from "./platforms";
 import { activePriority } from "./priority";
+import { chosenHours } from "./timeToBeat";
 
 export interface PickerFilters {
   // empty means any status that isn't finished
@@ -53,9 +54,10 @@ export function matchesPickerFilters(game: Game, f: PickerFilters): boolean {
   }
   if (f.genre !== "all" && !hasGenre(game.tags, f.genre)) return false;
   if (f.maxHours !== null) {
-    if (game.timeToBeatHours === null) {
+    const hours = chosenHours(game);
+    if (hours === null) {
       if (!f.includeUnknownLength) return false;
-    } else if (game.timeToBeatHours > f.maxHours) {
+    } else if (hours > f.maxHours) {
       return false;
     }
   }

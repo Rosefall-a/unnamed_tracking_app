@@ -3,11 +3,13 @@ import { DEFAULT_PAGE_SETTINGS } from "../utils/gamePage";
 import type { PageSettings } from "../utils/gamePage";
 import type { HomeLayout } from "../home/layout";
 
+export type TimeToBeatStyle = "main" | "extras" | "completionist" | "all";
+
 export interface Preferences {
   calendar_game_releases: boolean;
   calendar_game_history: boolean;
   calendar_default_view: "month" | "week" | "agenda";
-  calendar_week_start: 0 | 1;
+  calendar_week_start: 0 | 1 | 2 | 3 | 4 | 5 | 6;
   calendar_hide_games: boolean;
   calendar_show_estimated: boolean;
   notify_episode_aired: boolean;
@@ -41,6 +43,8 @@ export interface Preferences {
   theme_colors: Record<string, string>;
   // franchise and source collections the sync made: their own tab, mixed in, or hidden
   collections_auto: "tab" | "mixed" | "hidden";
+  // which HowLongToBeat figure sorting, length limits and totals go by
+  time_to_beat_style: TimeToBeatStyle;
 }
 
 export const DEFAULT_PREFERENCES: Preferences = {
@@ -75,6 +79,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   home_layout: null,
   theme_colors: {},
   collections_auto: "tab",
+  time_to_beat_style: "main",
 };
 
 export async function fetchPreferences(): Promise<Preferences> {

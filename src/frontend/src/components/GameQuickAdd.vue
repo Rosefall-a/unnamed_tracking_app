@@ -171,7 +171,6 @@ async function add(result: GameResult) {
       favorite: false,
       collections: [],
       profilesEnabled: false,
-      osrsStatsEnabled: false,
     });
     updateTask(taskId, 1);
     addFeedItem(taskId, "Added to your library");

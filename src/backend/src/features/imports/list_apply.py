@@ -169,7 +169,7 @@ class OmdbLookup:
 
 
 def _seasons_from(meta: dict[str, Any], watched: bool) -> list[TVSeason]:
-    status = TVShowStatus.WATCHED if watched else TVShowStatus.WATCHLIST
+    status = TVShowStatus.WATCHED if watched else TVShowStatus.WISHLIST
     return [
         TVSeason(
             season_number=s["season_number"],

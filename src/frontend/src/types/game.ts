@@ -85,10 +85,6 @@ export interface Game {
   profilesEnabled: boolean;
   // this game's overrides of the page defaults (which tabs show, and so on)
   pageSettings?: PageOverrides | null;
-  // second, independent opt-in, accounts work for any game (checklist +
-  // media grouping), but WiseOldMan sync/skill-boss icons on the Stats
-  // card are OSRS-specific and would be noise on every other game
-  osrsStatsEnabled: boolean;
   // when this game was first 100%-completed (Mastered), set once
   // automatically, editable afterward like purchaseDate
   completionDate: string | null;

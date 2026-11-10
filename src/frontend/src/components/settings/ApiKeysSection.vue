@@ -7,7 +7,9 @@ import {
   revokeApiKey,
   type ApiKeySummary,
 } from "../../services/auth";
+import { useConfirm } from "../../state/dialog";
 
+const confirm = useConfirm();
 const keys = ref<ApiKeySummary[]>([]);
 const name = ref("");
 const isLoading = ref(true);
@@ -52,7 +54,12 @@ async function handleCreate() {
 
 async function handleRevoke(key: ApiKeySummary) {
   if (
-    !window.confirm(`Revoke the API key "${key.name}"? This cannot be undone.`)
+    !(await confirm({
+      title: "Revoke API key",
+      message: `Revoke the API key "${key.name}"? This cannot be undone.`,
+      confirmLabel: "Revoke",
+      danger: true,
+    }))
   ) {
     return;
   }

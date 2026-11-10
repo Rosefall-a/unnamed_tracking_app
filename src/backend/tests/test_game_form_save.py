@@ -47,7 +47,6 @@ FORM_BODY = {
     "status": "BACKLOG",
     "favorite": True,
     "profiles_enabled": False,
-    "osrs_stats_enabled": False,
     "page_settings": {},
     "description": "A description.",
     "developer": "Dev",

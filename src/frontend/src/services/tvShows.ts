@@ -87,6 +87,7 @@ export interface BackendTVShow {
 }
 
 import { createEntityCache } from "../utils/entityCache";
+import { localEpisodeStill } from "../utils/localPictures";
 const tvShowCache = createEntityCache<TVShow>();
 export const peekTVShow = tvShowCache.peek;
 export const peekAllTVShows = (): TVShow[] | null =>
@@ -117,7 +118,7 @@ function mapBackendEpisode(raw: BackendEpisode): Episode {
     description: raw.description,
     airDate: raw.air_date,
     runtimeMinutes: raw.runtime_minutes,
-    stillUrl: raw.still_url,
+    stillUrl: localEpisodeStill("tv", raw.id, raw.still_url),
     watched: raw.watched,
     rating: toNumberOrNull(raw.rating),
     note: raw.note ?? null,

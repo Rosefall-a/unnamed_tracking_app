@@ -106,8 +106,6 @@ async def library_page(  # pylint: disable=too-many-arguments,too-many-positiona
         count_stmt = count_stmt.where(model.favorite == favorite)
     if search_clause is not None:
         count_stmt = count_stmt.where(search_clause)
-    if status_values:
-        count_stmt = count_stmt.where(model.status.in_(status_values))
     if genres:
         genre_clauses = [model.genres.contains([genre]) for genre in genres]
         count_stmt = count_stmt.where(*(genre_clauses if genre_match_all else [or_(*genre_clauses)]))

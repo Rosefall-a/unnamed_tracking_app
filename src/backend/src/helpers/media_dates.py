@@ -198,6 +198,31 @@ def detect_date(
     return int(now), "uploaded"
 
 
+def detect_date_of_file(
+    path: Path,
+    filename: str,
+    kind: str,
+    client_modified: int | None = None,
+    now: float | None = None,
+) -> tuple[int, DateSource]:
+    """detect_date for a file already on disk, which can be far too big to read in
+    whole. `filename` is the original name."""
+    now = time.time() if now is None else now
+    try:
+        if kind == "screenshot":
+            found = from_photo_data(path.read_bytes(), now)
+            if found is not None:
+                return found, "photo"
+        elif kind == "clip":
+            with path.open("rb") as handle:
+                found = _sane(from_video_data(handle, path.stat().st_size), now)
+            if found is not None:
+                return found, "video"
+    except OSError:
+        pass
+    return detect_date(b"", filename, "doc", client_modified, now)
+
+
 def detect_from_stored(path: Path, kind: str) -> tuple[int, DateSource] | None:
     """Re-read a file already saved: photo data first, then its name. Never the
     modified date, because on disk that is only the upload day."""

@@ -7,6 +7,7 @@ separate effort, not a silent gap. Folder assets, screenshots and saves
 aren't included in either direction."""
 
 import time
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, status
 from pydantic import BaseModel
@@ -27,6 +28,7 @@ from src.database.models.tv_show import TVShow
 from src.database.models.user import User
 from src.database.session import get_db
 from src.features.backup import scheduler, snapshot
+from src.helpers.game_info_file import write_game_info
 from src.helpers.save_game_asset import create_game_folder
 
 router = APIRouter(prefix="/api", tags=["export"], dependencies=[Depends(get_current_user)])
@@ -130,19 +132,31 @@ class ImportResult(BaseModel):
     errors: list[str]
 
 
-async def _available_folder_location(folder_name: str, db: AsyncSession) -> str:
-    """folder_location is unique server-wide, pick the first free
-    'name', 'name-2', 'name-3'... instead of failing the whole import over
-    one collision (importing back onto the same server being the most
-    common way this collision actually happens)."""
+async def _available_folder_location(folder_name: str, user_id: UUID, db: AsyncSession) -> str:
+    """Folders are per person, trashed games keep theirs, so pick the first of
+    'name', 'name-2', 'name-3'... this person has no game using."""
     candidate = folder_name
     suffix = 2
     while True:
-        stmt = select(Game.id).where(Game.folder_location == candidate, Game.deleted_at.is_(None))
-        if not (await db.execute(stmt)).scalar_one_or_none():
+        stmt = select(Game.id).where(Game.folder_location == candidate, Game.user_id == user_id)
+        if (await db.scalar(stmt.limit(1))) is None:
             return candidate
         candidate = f"{folder_name}-{suffix}"
         suffix += 1
+
+
+async def _already_in_library(entry: GameCreate, user_id: UUID, db: AsyncSession) -> bool:
+    """The same game by its store id, else one with its name and source and no
+    id of its own. Importing a file twice must not double the library."""
+    same = select(Game.id).where(Game.user_id == user_id, Game.deleted_at.is_(None))
+    if entry.external_id and entry.source:
+        by_id = same.where(Game.source == entry.source, Game.external_id == entry.external_id)
+        if await db.scalar(by_id.limit(1)):
+            return True
+    by_name = same.where(Game.title == entry.title, Game.source == entry.source)
+    if entry.external_id:
+        by_name = by_name.where(Game.external_id.is_(None))
+    return (await db.scalar(by_name.limit(1))) is not None
 
 
 @router.post("/import/library", response_model=ImportResult, status_code=status.HTTP_200_OK)
@@ -157,9 +171,14 @@ async def import_library(
 
     for entry in payload:
         try:
+            if await _already_in_library(entry, current_user.id, db):
+                skipped += 1
+                continue
             data = entry.model_dump()
             data["user_id"] = current_user.id
-            data["folder_location"] = await _available_folder_location(data["folder_location"], db)
+            data["folder_location"] = await _available_folder_location(
+                data["folder_location"], current_user.id, db
+            )
             if not data.get("sort_title"):
                 data["sort_title"] = _derive_sort_title(data["title"])
 
@@ -178,12 +197,13 @@ async def import_library(
             link_rows = [
                 GameLink(label=link["label"], url=link["url"]) for link in data.pop("links", [])
             ]
+            create_game_folder(current_user.id, data["folder_location"])
             game = Game(**data)
             game.links = link_rows
             db.add(game)
             await db.commit()
             await db.refresh(game)
-            create_game_folder(current_user.id, game.folder_location)
+            write_game_info(game)
             created += 1
         except IntegrityError as exc:
             await db.rollback()

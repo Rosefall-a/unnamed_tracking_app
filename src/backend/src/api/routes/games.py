@@ -66,7 +66,7 @@ from src.database.models.user import User
 from src.database.models.user_scan_settings import UserScanSettings
 from src.database.session import get_db
 from src.features.metadata.locked_fields import apply_updates_with_locking
-from src.features.metadata.games import steam, wiseoldman
+from src.features.metadata.games import steam
 from src.core.preferences import load_preferences
 from src.features.metadata.games.search import (
     _apply_steam_user_tags,
@@ -74,14 +74,16 @@ from src.features.metadata.games.search import (
     find_art_options,
     search_game_metadata,
 )
+from src.features.metadata.games.time_to_beat import TimesLookup
 from src.features.metadata.search_utils import cached_search
 from src.features.trash.game_trash import move_game_to_trash, restore_game_from_trash
 from src.features.trash.media_trash import move_media_file_to_trash, restore_media_file_from_trash
 from src.features.trash.sweep import RETENTION_SECONDS
-from src.helpers.game_art_download import steam_cdn_art_urls
+from src.helpers.game_info_file import write_game_info
+from src.helpers.game_art_download import steam_cdn_art_urls, steam_store_art_urls
 from src.helpers.remote_images import RemoteImageError, download_image
-from src.helpers.media import MediaKind, classify_media, list_media, media_subdir, save_media_bytes
-from src.helpers.media_dates import detect_date, detect_from_stored
+from src.helpers.media import classify_media, list_media, media_subdir, MediaKind, save_upload, UploadTooLarge
+from src.helpers.media_dates import detect_date_of_file, detect_from_stored
 from src.helpers.range_response import ranged_file_response
 from src.helpers.save_game_asset import (
     ASSET_FILENAMES,
@@ -357,7 +359,6 @@ _NON_NULLABLE_UPDATE_FIELDS = frozenset(
         "status",
         "favorite",
         "profiles_enabled",
-        "osrs_stats_enabled",
         "playtime_seconds",
         "tags",
         "features",
@@ -724,6 +725,17 @@ def _media_item_to_dict(item: MediaItem, game_id: UUID) -> dict:
     }
 
 
+async def _commit_or_remove(db: AsyncSession, saved_paths: list[Path]) -> None:
+    """Saved files with no row would sit on disk with nothing pointing at them."""
+    try:
+        await db.commit()
+    except Exception:
+        await db.rollback()
+        for path in saved_paths:
+            path.unlink(missing_ok=True)
+        raise
+
+
 _THUMB_MAX_WIDTH = 640
 _THUMB_UPLOAD = File(...)
 _THUMB_DURATION = Form(None)
@@ -819,7 +831,7 @@ async def upload_game_screenshots(
     soundtrack; anything else is rejected per-file (the rest still save).
     Each saved file gets a MediaItem row (not just a file on disk) so it can
     be tagged, noted, and linked to an achievement afterward. An optional
-    profile_id tags the whole batch to one account (e.g. an OSRS ironman) —
+    profile_id tags the whole batch to one account (e.g. a second account) —
     useful for a "levelup dump from this account" upload in one go."""
     game = await _get_game_or_404(game_id, db, current_user.id)
     if not game.folder_location:
@@ -830,6 +842,7 @@ async def upload_game_screenshots(
         await _get_profile_or_404(profile_id, game_id, db)
 
     results: list[dict] = []
+    saved_paths: list[Path] = []
     for index, file in enumerate(files):
         kind = classify_media(file.content_type, file.filename or "")
         if kind is None:
@@ -851,8 +864,14 @@ async def upload_game_screenshots(
         )
         max_bytes = limit_mb * 1024 * 1024
 
-        data = await file.read()
-        if len(data) > max_bytes:
+        dest_dir = (
+            _DATA_ROOT / str(game.user_id) / "games" / game.folder_location / media_subdir(kind)
+        )
+        try:
+            saved_path, _size = await save_upload(
+                file, dest_dir, file.filename or "file", max_bytes
+            )
+        except UploadTooLarge:
             results.append(
                 {
                     "filename": file.filename,
@@ -861,13 +880,14 @@ async def upload_game_screenshots(
                 }
             )
             continue
-
-        dest_dir = (
-            _DATA_ROOT / str(game.user_id) / "games" / game.folder_location / media_subdir(kind)
-        )
-        saved_path = save_media_bytes(data, dest_dir, file.filename or "file")
-        taken_at, taken_source = detect_date(
-            data,
+        except OSError:
+            results.append(
+                {"filename": file.filename, "status": "rejected", "reason": "Could not be saved."}
+            )
+            continue
+        saved_paths.append(saved_path)
+        taken_at, taken_source = detect_date_of_file(
+            saved_path,
             file.filename or "",
             kind,
             last_modified[index] if last_modified and index < len(last_modified) else None,
@@ -884,7 +904,7 @@ async def upload_game_screenshots(
         )
         results.append({"filename": saved_path.name, "status": "saved", "kind": kind})
 
-    await db.commit()
+    await _commit_or_remove(db, saved_paths)
     return {"results": results}
 
 
@@ -1174,9 +1194,20 @@ async def upload_game_files(
     )
     max_bytes = limit_mb * 1024 * 1024
     results: list[dict] = []
+    saved_paths: list[Path] = []
     for index, file in enumerate(files):
-        data = await file.read()
-        if len(data) > max_bytes:
+        dest_dir = (
+            _DATA_ROOT
+            / str(game.user_id)
+            / "games"
+            / game.folder_location
+            / _game_file_subdir(kind)
+        )
+        try:
+            saved_path, size = await save_upload(
+                file, dest_dir, file.filename or "file", max_bytes
+            )
+        except UploadTooLarge:
             results.append(
                 {
                     "filename": file.filename,
@@ -1185,16 +1216,14 @@ async def upload_game_files(
                 }
             )
             continue
-        dest_dir = (
-            _DATA_ROOT
-            / str(game.user_id)
-            / "games"
-            / game.folder_location
-            / _game_file_subdir(kind)
-        )
-        saved_path = save_media_bytes(data, dest_dir, file.filename or "file")
-        taken_at, taken_source = detect_date(
-            data,
+        except OSError:
+            results.append(
+                {"filename": file.filename, "status": "rejected", "reason": "Could not be saved."}
+            )
+            continue
+        saved_paths.append(saved_path)
+        taken_at, taken_source = detect_date_of_file(
+            saved_path,
             file.filename or "",
             "doc",
             last_modified[index] if last_modified and index < len(last_modified) else None,
@@ -1208,9 +1237,9 @@ async def upload_game_files(
                 taken_source=taken_source,
             )
         )
-        results.append({"filename": saved_path.name, "status": "saved", "size": len(data)})
+        results.append({"filename": saved_path.name, "status": "saved", "size": size})
 
-    await db.commit()
+    await _commit_or_remove(db, saved_paths)
     return {"results": results}
 
 
@@ -1659,7 +1688,6 @@ def _profile_to_dict(profile: GameProfile) -> dict:
         "name": profile.name,
         "note": profile.note,
         "stats": profile.stats,
-        "wiseoldman_username": profile.wiseoldman_username,
         "created_at": profile.created_at,
     }
 
@@ -1672,11 +1700,10 @@ async def _record_stat_snapshot(
     xp: dict[str, int] | None = None,
     kc: dict[str, int] | None = None,
 ) -> None:
-    """Called whenever a profile's stats change (manual edit or WiseOldMan
-    sync) — a dated copy so progression can be shown later instead of only
-    ever seeing the current numbers. xp/kc (WiseOldMan syncs only — a
-    manual edit leaves them empty) are the raw integers a "gained this
-    much" digest needs; `stats` alone (display strings) isn't precise
+    """Called whenever a profile's stats change: a dated copy so
+    progression can be shown later instead of only ever seeing the current
+    numbers. xp/kc (only on snapshots from the old stat sync; a manual edit
+    leaves them empty) are the raw integers a "gained this much" digest needs; `stats` alone (display strings) isn't precise
     enough since a level can span tens of thousands of XP. Not deduped:
     two saves the same minute just make two rows, which is harmless and
     keeps this simple."""
@@ -1701,7 +1728,6 @@ class ProfileUpdate(BaseModel):
     name: str | None = None
     note: str | None = None
     stats: dict[str, str] | None = None
-    wiseoldman_username: str | None = None
 
 
 @router.get("/{game_id}/profiles")
@@ -1710,7 +1736,7 @@ async def list_game_profiles(
     db: AsyncSession = _DB_DEPENDENCY,
     current_user: User = _CURRENT_USER_DEPENDENCY,
 ) -> dict[str, list[dict]]:
-    """Named sub-scopes for a game (e.g. separate OSRS accounts) — lets
+    """Named sub-scopes for a game (e.g. separate accounts) — lets
     checklist items and screenshots be filtered down to one instead of
     mixed together across every account the game has."""
     await _get_game_or_404(game_id, db, current_user.id)
@@ -1760,72 +1786,6 @@ async def update_game_profile(
         setattr(profile, field, value)
     if "stats" in updates:
         await _record_stat_snapshot(db, profile.id, updates["stats"])
-    await db.commit()
-    await db.refresh(profile)
-    return _profile_to_dict(profile)
-
-
-class WiseOldManSyncRequest(BaseModel):
-    username: str | None = None
-
-
-_WISEOLDMAN_SYNC_BODY = Body(default=WiseOldManSyncRequest())
-
-
-@router.post("/{game_id}/profiles/{profile_id}/sync-wiseoldman")
-async def sync_profile_wiseoldman(
-    game_id: UUID,
-    profile_id: UUID,
-    payload: WiseOldManSyncRequest = _WISEOLDMAN_SYNC_BODY,
-    db: AsyncSession = _DB_DEPENDENCY,
-    current_user: User = _CURRENT_USER_DEPENDENCY,
-) -> dict:
-    """Pulls current skill levels from wiseoldman.net (OSRS's community
-    stat tracker, no account/API key needed) into this profile's stats.
-    Manual, click-to-sync — no scheduled background refresh."""
-    await _get_game_or_404(game_id, db, current_user.id)
-    profile = await _get_profile_or_404(profile_id, game_id, db)
-    username = (payload.username or profile.wiseoldman_username or "").strip()
-    if not username:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="A WiseOldMan username is required."
-        )
-    try:
-        result = await asyncio.to_thread(wiseoldman.get_player_stats, username)
-    except wiseoldman.WiseOldManError as exc:
-        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
-    stats = dict(result["stats"])
-    if result.get("combat_level"):
-        stats["Combat"] = result["combat_level"]
-    profile.stats = stats
-    profile.wiseoldman_username = username
-
-    # first sync ever for this profile — backfill whatever history
-    # WiseOldMan already has for the account (only as good as how often
-    # *someone* updated it there before), so progression doesn't start
-    # from a blank slate just because this is the first time this app
-    # asked. A later sync only ever adds today's snapshot below.
-    has_history = await db.scalar(
-        select(GameProfileStatSnapshot.id)
-        .where(GameProfileStatSnapshot.profile_id == profile.id)
-        .limit(1)
-    )
-    if has_history is None:
-        try:
-            history = await asyncio.to_thread(wiseoldman.get_player_snapshots, username)
-        except Exception:  # noqa: BLE001 — backfill is best-effort, never blocks the sync itself
-            history = []
-        for entry in history:
-            await _record_stat_snapshot(
-                db,
-                profile.id,
-                entry["stats"],
-                entry["recorded_at"],
-                entry.get("xp"),
-                entry.get("kc"),
-            )
-
-    await _record_stat_snapshot(db, profile.id, stats, xp=result.get("xp"), kc=result.get("kc"))
     await db.commit()
     await db.refresh(profile)
     return _profile_to_dict(profile)
@@ -2220,6 +2180,7 @@ async def create_game(
         raise _duplicate_folder_error(payload.folder_location) from exc
 
     create_game_folder(game.user_id, game.folder_location)
+    write_game_info(game)
     return game
 
 
@@ -2394,6 +2355,7 @@ async def update_game(
             renamed_to.rename(renamed_from)  # the name was not kept, so the folder goes back
         raise _duplicate_folder_error(game.folder_location) from exc
 
+    write_game_info(game)
     return game
 
 
@@ -2439,7 +2401,7 @@ _STEAM_PLACEHOLDER_TITLE = "Steam app "
 
 
 async def _steam_refresh_match(
-    game: Game, use_player_tags: bool
+    game: Game, use_player_tags: bool, times: TimesLookup
 ) -> tuple[dict[str, Any] | None, list[str]] | None:
     """The refresh result for a Steam game, read by its app id. None when the
     game has no Steam app id, so the caller falls back to a title search."""
@@ -2454,11 +2416,17 @@ async def _steam_refresh_match(
     if not details:
         return None, ["Steam: this app has no store page any more"]
     match = _steam_result({"id": app_id}, details)
-    if not game.title.startswith(_STEAM_PLACEHOLDER_TITLE):
+    known_name = game.title
+    if game.title.startswith(_STEAM_PLACEHOLDER_TITLE):
+        known_name = match["title"]
+    else:
         # the name someone gave the game stays; only the placeholder is replaced
         match["title"] = None
     await asyncio.to_thread(_apply_steam_user_tags, [match], use_player_tags)
-    art = steam_cdn_art_urls(app_id)
+    if known_name:
+        match.update(await asyncio.to_thread(times.find, known_name))
+    # a newer game's art is only at the address the store itself gives
+    art = {**steam_cdn_art_urls(app_id), **await asyncio.to_thread(steam_store_art_urls, app_id)}
     match["key_art_url"] = art["key_art"]
     match["banner_url"] = art["banner"]
     return match, []
@@ -2538,7 +2506,9 @@ async def refresh_game_metadata(
     # instead of searching by title: a wishlist game still named "Steam app
     # 123", or a name with a trademark sign, never matches a title search.
     steam_match = await _steam_refresh_match(
-        game, (await load_preferences(db, user_id))["steam_user_tags"]
+        game,
+        (await load_preferences(db, user_id))["steam_user_tags"],
+        TimesLookup(app_integrations.igdb_client_id, app_integrations.igdb_client_secret),
     )
     match, provider_errors = steam_match or (None, [])
     if match is None:

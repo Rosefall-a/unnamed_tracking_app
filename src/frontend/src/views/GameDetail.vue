@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { usePageTitle } from "../state/pageTitle";
 import { formatDisplayDate } from "../utils/dates";
+import { chosenHours, chosenTimeLabel } from "../utils/timeToBeat";
 import { activePriority, isFinished, priorityLabel } from "../utils/priority";
 import {
   computed,
@@ -66,7 +67,6 @@ import {
   renameGameProfile,
   updateGameProfile,
   deleteGameProfile,
-  syncProfileWiseOldMan,
   fetchProfileStatHistory,
   listChecklist,
   createChecklistItem,
@@ -153,6 +153,7 @@ import {
 import type { AchievementLocal } from "../state/achievementLocal";
 import { computeScore } from "../utils/scoring";
 import DOMPurify from "dompurify";
+import { withLocalPictures } from "../utils/localPictures";
 import { useConfirm, usePrompt } from "../state/dialog";
 
 const confirm = useConfirm();
@@ -184,7 +185,10 @@ const showDeleteConfirm = ref(false);
 // content survives
 const descriptionHtml = computed(() => {
   if (!game.value?.description) return "";
-  return DOMPurify.sanitize(game.value.description);
+  return withLocalPictures(
+    DOMPurify.sanitize(game.value.description),
+    game.value.id,
+  );
 });
 
 const descriptionExpanded = ref(false);
@@ -284,9 +288,9 @@ async function removeProfile(profile: GameProfile) {
   }
 }
 
-// --- Accounts tab: selected account's note/stats/WiseOldMan sync -----------
+// --- Accounts tab: selected account's note and stats ----------------------
 // null activeProfileId means the sidebar's "General" entry, there's no
-// GameProfile row for that, so note/stats/WiseOldMan simply don't apply
+// GameProfile row for that, so note and stats simply don't apply
 const selectedProfile = computed(
   () => profiles.value.find((p) => p.id === activeProfileId.value) ?? null,
 );
@@ -325,7 +329,7 @@ interface StatRow {
 const statRows = ref<StatRow[]>([]);
 // display mode by default (a clean read-only grid), editing mode swaps in
 // the raw label/value rows, entered explicitly rather than always showing
-// 30+ input pairs for an account with a full WiseOldMan sync
+// dozens of input pairs for an account with a lot of stats
 const editingStats = ref(false);
 watch(selectedProfile, (profile) => {
   statRows.value = profile
@@ -379,42 +383,6 @@ async function saveProfileStats() {
   } catch (err) {
     profileError.value =
       err instanceof Error ? err.message : "Could not save stats";
-  }
-}
-
-const womUsername = ref("");
-watch(selectedProfile, (profile) => {
-  womUsername.value = profile?.wiseoldman_username ?? "";
-});
-const womSyncing = ref(false);
-const womError = ref<string | null>(null);
-async function syncWiseOldMan() {
-  if (!game.value || !selectedProfile.value) return;
-  const username = womUsername.value.trim();
-  if (!username) {
-    womError.value = "Enter a RuneScape username first.";
-    return;
-  }
-  womSyncing.value = true;
-  womError.value = null;
-  try {
-    const updated = await syncProfileWiseOldMan(
-      game.value.id,
-      selectedProfile.value.id,
-      username,
-    );
-    const idx = profiles.value.findIndex((p) => p.id === updated.id);
-    if (idx !== -1) profiles.value[idx] = updated;
-    statRows.value = Object.entries(updated.stats).map(([key, value]) => ({
-      key,
-      value,
-    }));
-    await loadStatHistory();
-  } catch (err) {
-    womError.value =
-      err instanceof Error ? err.message : "Could not sync WiseOldMan";
-  } finally {
-    womSyncing.value = false;
   }
 }
 
@@ -495,45 +463,6 @@ const visibleHistory = computed(() =>
     ? statHistory.value
     : statHistory.value.slice(0, HISTORY_PAGE_SIZE),
 );
-
-// grouped for display: Overall/Combat as headline tiles, boss kill counts
-// (WOM always formats these as "N KC") in their own section instead of
-// mixed in alphabetically with skill levels
-const HEADLINE_STAT_KEYS = ["Overall", "Combat"];
-const headlineStats = computed(() =>
-  HEADLINE_STAT_KEYS.filter((key) => selectedProfile.value?.stats[key]).map(
-    (key) => ({
-      key,
-      value: selectedProfile.value!.stats[key],
-    }),
-  ),
-);
-const skillStats = computed(() =>
-  Object.entries(selectedProfile.value?.stats ?? {}).filter(
-    ([key, value]) =>
-      !HEADLINE_STAT_KEYS.includes(key) && !value.endsWith(" KC"),
-  ),
-);
-const bossStats = computed(() =>
-  Object.entries(selectedProfile.value?.stats ?? {}).filter(([, value]) =>
-    value.endsWith(" KC"),
-  ),
-);
-
-// real OSRS Wiki icons for skills/Overall/Combat, the wiki's own
-// "<Name>_icon.png" naming is reliable for these (verified: 22/23 skills
-// match directly, "Runecrafting" is the one renamed in-game to
-// "Runecraft"). Boss/activity icons on the same wiki follow no reliable
-// pattern (spot-checked well under half of ~60 names resolve), so those
-// get one shared generic icon instead of a wall of broken images.
-const SKILL_ICON_OVERRIDES: Record<string, string> = {
-  Runecrafting: "Runecraft",
-  Overall: "Stats",
-};
-function skillIconUrl(label: string): string {
-  const name = SKILL_ICON_OVERRIDES[label] ?? label;
-  return `https://oldschool.runescape.wiki/images/${encodeURIComponent(name.replace(/ /g, "_"))}_icon.png`;
-}
 
 // --- Accounts tab: gallery, split by kind + free-form category (tag) -------
 const ACCOUNT_MEDIA_KINDS = ["screenshot", "clip", "soundtrack"] as const;
@@ -1233,9 +1162,10 @@ const overviewFacts = computed(() => {
       ? { label: "Playtime", value: formatPlaytime(minutes) }
       : { label: "Playtime", value: "–", muted: true },
   );
-  // how long the story takes, next to how long you have spent
-  if (g.timeToBeatHours)
-    facts.push({ label: "Main story", value: `${g.timeToBeatHours}h` });
+  // how long it takes, next to how long you have spent
+  const timeToBeat = chosenHours(g);
+  if (timeToBeat)
+    facts.push({ label: chosenTimeLabel(), value: `${timeToBeat}h` });
   if (g.achievementTotal > 0 && achievementsOn.value)
     facts.push({
       label: "Achievements",
@@ -3863,116 +3793,12 @@ void loadGame(route.params.id as string);
                 Edit
               </button>
             </div>
-            <div v-if="game.osrsStatsEnabled" class="wom-sync-row">
-              <input
-                v-model="womUsername"
-                type="text"
-                placeholder="RuneScape username (WiseOldMan)"
-              />
-              <button
-                type="button"
-                class="small-button"
-                :disabled="womSyncing"
-                @click="void syncWiseOldMan()"
-              >
-                {{ womSyncing ? "Syncing…" : "Sync from WiseOldMan" }}
-              </button>
-            </div>
-            <div v-if="womError" class="note-error">{{ womError }}</div>
-
             <p
               v-if="!editingStats && !Object.keys(selectedProfile.stats).length"
               class="empty-state small"
             >
-              No stats yet, add one manually{{
-                game.osrsStatsEnabled ? ", or sync from WiseOldMan above" : ""
-              }}.
+              No stats yet, add one manually.
             </p>
-            <template v-else-if="!editingStats && game.osrsStatsEnabled">
-              <div v-if="headlineStats.length" class="stat-grid headline">
-                <div
-                  v-for="entry in headlineStats"
-                  :key="entry.key"
-                  class="account-stat-tile headline"
-                >
-                  <img
-                    :src="skillIconUrl(entry.key)"
-                    alt=""
-                    class="stat-tile-icon"
-                    @error="
-                      ($event.target as HTMLElement).style.visibility = 'hidden'
-                    "
-                  />
-                  <span class="stat-tile-label">{{ entry.key }}</span>
-                  <span class="stat-tile-value">{{ entry.value }}</span>
-                </div>
-              </div>
-              <template v-if="skillStats.length">
-                <h4 class="stat-group-heading">Skills</h4>
-                <div class="stat-grid">
-                  <div
-                    v-for="[key, value] in skillStats"
-                    :key="key"
-                    class="account-stat-tile"
-                  >
-                    <img
-                      :src="skillIconUrl(key)"
-                      alt=""
-                      class="stat-tile-icon"
-                      @error="
-                        ($event.target as HTMLElement).style.visibility =
-                          'hidden'
-                      "
-                    />
-                    <span class="stat-tile-label">{{ key }}</span>
-                    <span class="stat-tile-value">{{ value }}</span>
-                  </div>
-                </div>
-              </template>
-              <template v-if="bossStats.length">
-                <h4 class="stat-group-heading">Bosses &amp; Activities</h4>
-                <div class="stat-grid">
-                  <div
-                    v-for="[key, value] in bossStats"
-                    :key="key"
-                    class="account-stat-tile"
-                  >
-                    <svg
-                      viewBox="0 0 24 24"
-                      width="20"
-                      height="20"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="1.6"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      class="stat-tile-boss-icon"
-                    >
-                      <path d="M6.5 2 3 6l3.5 2M17.5 2 21 6l-3.5 2" />
-                      <path
-                        d="M12 2c-3 0-5 2-5 5 0 2.5 1.5 4 2 5.5L8 21h8l-1-8.5c.5-1.5 2-3 2-5.5 0-3-2-5-5-5z"
-                      />
-                      <circle
-                        cx="9.5"
-                        cy="8"
-                        r="1"
-                        fill="currentColor"
-                        stroke="none"
-                      />
-                      <circle
-                        cx="14.5"
-                        cy="8"
-                        r="1"
-                        fill="currentColor"
-                        stroke="none"
-                      />
-                    </svg>
-                    <span class="stat-tile-label">{{ key }}</span>
-                    <span class="stat-tile-value">{{ value }}</span>
-                  </div>
-                </div>
-              </template>
-            </template>
             <div v-else-if="!editingStats" class="stat-grid">
               <div
                 v-for="(value, key) in selectedProfile.stats"
@@ -5848,18 +5674,6 @@ void loadGame(route.params.id as string);
   gap: 8px;
   margin-bottom: 4px;
 }
-.stat-grid.headline {
-  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-  margin-bottom: 14px;
-}
-.stat-group-heading {
-  margin: 4px 0 8px;
-  color: var(--ui-dim-3);
-  font-size: 0.72rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
 .account-stat-tile {
   display: flex;
   flex-direction: column;
@@ -5870,15 +5684,6 @@ void loadGame(route.params.id as string);
   border-radius: 8px;
   padding: 8px 6px;
   text-align: center;
-}
-.account-stat-tile.headline {
-  padding: 14px 6px;
-  background: color-mix(in srgb, var(--ui-accent) 10%, transparent);
-  border-color: color-mix(in srgb, var(--ui-accent) 35%, transparent);
-}
-.account-stat-tile.headline .stat-tile-value {
-  color: var(--ui-accent);
-  font-size: 1.3rem;
 }
 .stat-tile-label {
   color: var(--ui-dim-3);
@@ -5894,19 +5699,6 @@ void loadGame(route.params.id as string);
   color: var(--ui-heading);
   font-weight: 700;
   font-size: 0.95rem;
-}
-.stat-tile-icon {
-  width: 20px;
-  height: 20px;
-  object-fit: contain;
-  image-rendering: pixelated;
-}
-.account-stat-tile.headline .stat-tile-icon {
-  width: 26px;
-  height: 26px;
-}
-.stat-tile-boss-icon {
-  color: var(--ui-dim-3);
 }
 .account-history-card {
   background: color-mix(in srgb, var(--ui-scrim-base) 20%, transparent);
@@ -5932,18 +5724,6 @@ void loadGame(route.params.id as string);
 .account-history-caret {
   color: var(--ui-faint-2);
   font-size: 0.75rem;
-}
-.wom-sync-row {
-  display: flex;
-  gap: 8px;
-}
-.wom-sync-row input {
-  flex: 1;
-  background: var(--ui-bg-2);
-  border: 1px solid var(--ui-border-strong);
-  border-radius: 8px;
-  color: var(--ui-heading);
-  padding: 8px 10px;
 }
 .stat-rows {
   display: flex;

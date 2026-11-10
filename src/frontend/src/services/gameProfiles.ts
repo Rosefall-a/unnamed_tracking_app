@@ -1,4 +1,4 @@
-// Named sub-scopes within one game (e.g. separate OSRS accounts), lets
+// Named sub-scopes within one game (e.g. separate accounts), lets
 // checklist items and screenshots be filtered down to one account instead
 // of mixing every account's stuff together.
 
@@ -8,7 +8,6 @@ export interface GameProfile {
   name: string;
   note: string | null;
   stats: Record<string, string>;
-  wiseoldman_username: string | null;
   created_at: number;
 }
 
@@ -16,7 +15,6 @@ export interface ProfileUpdate {
   name?: string;
   note?: string | null;
   stats?: Record<string, string>;
-  wiseoldman_username?: string | null;
 }
 
 export interface TrashedGameProfile extends GameProfile {
@@ -80,37 +78,14 @@ export async function updateGameProfile(
   return await response.json();
 }
 
-export async function syncProfileWiseOldMan(
-  gameId: string,
-  profileId: string,
-  username?: string,
-): Promise<GameProfile> {
-  const response = await fetch(
-    `/api/game/${gameId}/profiles/${profileId}/sync-wiseoldman`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ username: username || null }),
-    },
-  );
-  if (!response.ok) {
-    const message = await response.text();
-    throw new Error(
-      `Could not sync WiseOldMan: ${response.status} ${response.statusText} ${message}`,
-    );
-  }
-  return await response.json();
-}
-
 // a dated copy of a profile's stats, written automatically on every sync
 // or manual edit, so progression can be shown over time
 export interface StatSnapshot {
   id: string;
   recorded_at: number;
   stats: Record<string, string>;
-  // raw integers (WiseOldMan syncs only, empty on a manually-edited
-  // snapshot) used to compute an accurate day-to-day gain instead of
+  // raw integers (only on snapshots from the old stat sync, empty on a
+  // manually-edited one) used to compute an accurate day-to-day gain instead of
   // diffing level numbers, which can each span tens of thousands of XP
   xp: Record<string, number>;
   kc: Record<string, number>;
