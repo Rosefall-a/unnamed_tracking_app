@@ -7,6 +7,7 @@ import {
   runBackupsNow,
   deleteBackup,
   backupDownloadUrl,
+  backupFilesDownloadUrl,
   fetchLeftovers,
   deleteLeftover,
 } from "../../services/settings";
@@ -54,7 +55,10 @@ async function loadOverview() {
     const first = !overview.value;
     overview.value = await fetchBackups();
     // only the first time: a refresh during a run must not undo typing
-    if (first) resetDraft();
+    if (first) {
+      resetDraft();
+      resetFilesKeep();
+    }
   } catch (e) {
     error.value = e instanceof Error ? e.message : "Could not load backups";
   }
@@ -83,6 +87,8 @@ async function save(changes: {
   enabled?: boolean;
   intervalMinutes?: number;
   keep?: number;
+  includeFiles?: boolean;
+  filesKeep?: number;
 }) {
   error.value = null;
   try {
@@ -126,6 +132,24 @@ function changeUnit(unit: Unit) {
 }
 
 const confirm = useConfirm();
+
+// how many of the newest backups keep their files copy
+const filesKeepDraft = ref(2);
+function resetFilesKeep() {
+  if (overview.value) filesKeepDraft.value = overview.value.filesKeep;
+}
+function saveFilesKeep() {
+  const o = overview.value;
+  if (!o) return;
+  const raw: unknown = filesKeepDraft.value;
+  const value = typeof raw === "number" ? Math.round(raw) : NaN;
+  if (!Number.isFinite(value) || value < 1 || value > o.maxFilesKeep) {
+    error.value = `Keep files with between 1 and ${o.maxFilesKeep} backups.`;
+    resetFilesKeep();
+    return;
+  }
+  if (value !== o.filesKeep) void save({ filesKeep: value });
+}
 
 async function saveKeep() {
   const o = overview.value;
@@ -211,9 +235,16 @@ const lastSummary = computed(() => {
   const r = lastResult.value;
   if (!overview.value?.lastRunAt || r.status !== "written") return "";
   const parts = [`saved (${formatBytes(Number(r.size ?? 0))})`];
+  if (r.files_size) parts.push(`files ${formatBytes(Number(r.files_size))}`);
   if (r.removed) parts.push(`${r.removed} old removed`);
   return parts.join(", ");
 });
+const filesFailed = computed(() =>
+  overview.value?.lastRunAt && lastResult.value.files_error
+    ? String(lastResult.value.files_error).replace(/[.\s]+$/, "")
+    : "",
+);
+const storage = computed(() => overview.value?.storage ?? null);
 const failedReason = computed(() =>
   overview.value?.lastRunAt && lastResult.value.status === "failed"
     ? String(lastResult.value.error ?? "unknown error").replace(/[.\s]+$/, "")
@@ -248,10 +279,10 @@ function formatBytes(bytes: number): string {
     <h2>Backups</h2>
     <p class="section-hint">
       The whole database is saved to one file: every account, library, note,
-      achievement, setting and link. Covers, screenshots and saves stay in the
-      data folder and are not inside it. A backup is opened and checked after it
-      is written before anything older is removed, and only an admin can delete
-      backups, here.
+      achievement, setting and link. Covers, screenshots and saves are not
+      inside it; they can be copied with it, below. A backup is opened and
+      checked after it is written before anything older is removed, and only an
+      admin can delete backups, here.
     </p>
 
     <div v-if="error" class="form-error">{{ error }}</div>
@@ -336,6 +367,20 @@ function formatBytes(bytes: number): string {
         >
         Saved in {{ overview.folder }} on the server.
       </p>
+      <p v-if="storage?.backups && !storage.backups.mounted" class="form-error">
+        Backups are only inside the container, so removing or rebuilding it
+        loses them. Mount a folder at /data/backups (BACKUP_FOLDER in .env).
+      </p>
+      <p v-else-if="storage?.sameDrive" class="warning">
+        Backups are on {{ storage.backups?.label }}, the same drive as the data
+        they protect, so a failed drive loses both. To keep them on another
+        drive, set BACKUP_FOLDER in .env (for example D:/ArchiveBackups) and run
+        <code>docker compose up -d</code>.
+      </p>
+      <p v-else-if="storage?.sameDrive === false" class="tile-desc">
+        Backups are on {{ storage.backups?.label }}, a different drive from the
+        data on {{ storage.data?.label }}.
+      </p>
       <p class="last-run">
         Last run: {{ formatTime(overview.lastRunAt) }}
         <template v-if="lastSummary"> · {{ lastSummary }}</template>
@@ -346,9 +391,56 @@ function formatBytes(bytes: number): string {
           Automatic backups try again an hour after a failure.
         </template>
       </p>
+      <p v-if="filesFailed" class="warning">
+        The database was backed up, but the copy of files failed:
+        {{ filesFailed }}.
+      </p>
       <p v-if="held" class="warning">
         Old backups were kept: {{ held }}. Check the libraries before deleting
         anything.
+      </p>
+    </div>
+
+    <div v-if="overview" class="tile">
+      <h3>Covers and files</h3>
+      <p class="tile-desc">
+        Covers, screenshots, clips, saves and uploads are not in the database
+        backup. Turned on, each backup also gets a copy of them, about as big as
+        the files themselves. Downloaded copies the app fetches again by itself,
+        and the trash, are left out.
+      </p>
+      <div class="controls">
+        <label class="inline">
+          <input
+            type="checkbox"
+            :checked="overview.includeFiles"
+            @change="
+              save({
+                includeFiles: ($event.target as HTMLInputElement).checked,
+              })
+            "
+          />
+          Also copy files with each backup
+        </label>
+        <label class="inline">
+          Keep files with the newest
+          <input
+            v-model.number="filesKeepDraft"
+            type="number"
+            min="1"
+            :max="overview.maxFilesKeep"
+            class="num"
+            :disabled="!overview.includeFiles"
+            aria-label="Backups that keep their files"
+            @change="saveFilesKeep"
+          />
+          {{ backupWord(filesKeepDraft) }}
+        </label>
+      </div>
+      <p class="tile-desc restore">
+        To put files back, stop the app and run
+        <code>tar -xf database-&lt;time&gt;.files.tar -C data</code>
+        in the folder that holds data.
       </p>
     </div>
 
@@ -364,7 +456,18 @@ function formatBytes(bytes: number): string {
             <template v-if="b.tables !== null">
               · {{ b.tables }} tables</template
             >
+            <template v-if="b.files">
+              · files {{ formatBytes(b.files.size) }}</template
+            >
           </span>
+          <a
+            v-if="b.files"
+            class="secondary-button small"
+            :href="backupFilesDownloadUrl(b.name)"
+            download
+          >
+            Files
+          </a>
           <a
             class="secondary-button small"
             :href="backupDownloadUrl(b.name)"

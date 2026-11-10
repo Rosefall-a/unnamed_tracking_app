@@ -439,6 +439,7 @@ const relatedBranches = ref<AnimeRelationBranch[]>([]);
 
 async function loadRelated() {
   if (!show.value || relatedLoaded.value) return;
+  loadLibraryCovers();
   const remembered = peekAnimeRelations(show.value.id);
   if (remembered) {
     relatedChain.value = remembered.chain;
@@ -686,6 +687,7 @@ const recommendedList = ref<RelatedAnime[]>([]);
 
 async function loadRecommended() {
   if (!show.value || recommendedLoaded.value) return;
+  loadLibraryCovers();
   recommendedLoading.value = true;
   recommendedError.value = null;
   try {
@@ -708,6 +710,29 @@ const myAnime = ref<Anime[] | null>(null);
 async function ensureMyAnime(): Promise<Anime[]> {
   if (!myAnime.value) myAnime.value = await fetchAnime();
   return myAnime.value;
+}
+
+// Related and recommended covers stay online only and are never stored, but a
+// title that is already in the library shows the cover saved for it, so it
+// still has one offline
+const libraryByAnilistId = computed(() => {
+  const found = new Map<string, Anime>();
+  for (const a of myAnime.value ?? []) {
+    if (a.anilistId) found.set(String(a.anilistId), a);
+  }
+  return found;
+});
+function coverFor(r: RelatedAnime): string | null {
+  const mine = libraryByAnilistId.value.get(String(r.id));
+  if (!mine) return r.posterUrl;
+  return (
+    localMediaImage("anime", mine.id, "poster", mine.posterUrl) ?? r.posterUrl
+  );
+}
+function loadLibraryCovers() {
+  ensureMyAnime().catch(() => {
+    // without the library list every cover simply stays the online one
+  });
 }
 
 const previewOpen = ref(false);
@@ -1206,7 +1231,7 @@ async function onRatingChange(value: number | null) {
               <div
                 class="poster-card-sm-art"
                 :style="
-                  r.posterUrl ? { backgroundImage: `url(${r.posterUrl})` } : {}
+                  coverFor(r) ? { backgroundImage: `url(${coverFor(r)})` } : {}
                 "
               ></div>
               <div class="poster-card-sm-title">{{ r.title }}</div>
@@ -1240,7 +1265,7 @@ async function onRatingChange(value: number | null) {
             <div
               class="poster-card-sm-art"
               :style="
-                r.posterUrl ? { backgroundImage: `url(${r.posterUrl})` } : {}
+                coverFor(r) ? { backgroundImage: `url(${coverFor(r)})` } : {}
               "
             ></div>
             <div class="poster-card-sm-title">{{ r.title }}</div>

@@ -38,6 +38,8 @@ class BackupSettingsUpdate(BaseModel):
     enabled: bool | None = None
     interval_minutes: int | None = None
     keep: int | None = None
+    include_files: bool | None = None
+    files_keep: int | None = None
 
 
 def _folder_size(path: Path) -> int:
@@ -64,6 +66,10 @@ async def _describe(db: AsyncSession) -> dict[str, Any]:
         "last_result": row.last_result or {},
         "running": scheduler.is_running(),
         "folder": str(snapshot.DATABASE_DIR),
+        "include_files": scheduler.includes_files(row),
+        "files_keep": scheduler.files_keep(row),
+        "max_files_keep": scheduler.MAX_FILES_KEEP,
+        "storage": await asyncio.to_thread(snapshot.storage_report),
     }
 
 
@@ -100,6 +106,15 @@ async def update_backup_settings(
                 detail=f"Keep between 0 (every backup) and {scheduler.MAX_KEEP}.",
             )
         row.options = {**(row.options or {}), "keep": payload.keep}
+    if payload.files_keep is not None:
+        if not 1 <= payload.files_keep <= scheduler.MAX_FILES_KEEP:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Keep files with between 1 and {scheduler.MAX_FILES_KEEP} backups.",
+            )
+        row.options = {**(row.options or {}), "files_keep": payload.files_keep}
+    if payload.include_files is not None:
+        row.options = {**(row.options or {}), "include_files": payload.include_files}
     if payload.enabled is not None:
         row.enabled = payload.enabled
     await db.commit()
@@ -117,6 +132,14 @@ async def download_database_backup(name: str) -> FileResponse:
     if not snapshot.BACKUP_NAME.match(name) or not path.is_file():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Backup not found.")
     return FileResponse(path, filename=name, media_type="application/octet-stream")
+
+
+@router.get("/database/{name}/files", response_class=FileResponse)
+async def download_files_copy(name: str) -> FileResponse:
+    path = snapshot.files_path(snapshot.DATABASE_DIR, name)
+    if not snapshot.BACKUP_NAME.match(name) or not path.is_file():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No files copy.")
+    return FileResponse(path, filename=path.name, media_type="application/x-tar")
 
 
 @router.delete("/database/{name}")
