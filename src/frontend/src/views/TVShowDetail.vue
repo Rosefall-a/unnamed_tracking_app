@@ -694,7 +694,11 @@ async function onRatingChange(value: number | null) {
             <span class="meta-value">{{ show.creators.join(", ") }}</span>
           </div>
           <div v-if="show.tmdbScore !== null" class="meta-item">
-            <span class="meta-label">Score</span>
+            <span
+              class="meta-label"
+              title="The score on TMDB or IMDb, from whichever one this title was added"
+              >Public score</span
+            >
             <span class="meta-value accent">{{
               show.tmdbScore.toFixed(1)
             }}</span>

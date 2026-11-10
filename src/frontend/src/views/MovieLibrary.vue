@@ -15,6 +15,7 @@ import {
 } from "../services/movies";
 import type { Movie, MovieStatus } from "../types/movie";
 import { localMediaImage } from "../utils/mediaImages";
+import { pickResult, titleWithYear } from "../utils/mediaLookup";
 import { formatDuration, progressPercent } from "../utils/watchProgress";
 import MediaLibraryView from "../components/library/MediaLibraryView.vue";
 import MovieFormModal from "../components/MovieFormModal.vue";
@@ -261,7 +262,8 @@ async function search(
       poster: r.posterUrl,
       description: r.description,
       episodeTotal: null,
-      releaseYear: r.releaseDate ? r.releaseDate.slice(0, 4) : null,
+      releaseYear: r.year,
+      providerId: r.providerId,
     })),
     providerErrors,
   };
@@ -275,8 +277,17 @@ async function createFromResult(
   // title (the normalized SearchResultVM only carries what the shared
   // library view needs to render — the rest of the real fields still
   // come straight from the same provider search).
-  const { results } = await searchMovieMetadata(result.title, 1);
-  const match = results.find((r) => r.title === result.title) ?? results[0];
+  // the full search for this exact title, found again by its id and year, so
+  // two films with the same name are never swapped
+  const { results } = await searchMovieMetadata(
+    titleWithYear(result.title, result.releaseYear),
+    8,
+  );
+  const match = pickResult(results, {
+    title: result.title,
+    year: result.releaseYear,
+    providerId: result.providerId,
+  });
   const created = await createMovie({
     title: result.title,
     description: match?.description ?? null,

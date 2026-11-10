@@ -248,6 +248,8 @@ export interface MovieMetadataResult {
   title: string;
   description: string | null;
   releaseDate: string | null;
+  // the year it came out, known even when a quick search has no full date
+  year: string | null;
   runtimeMinutes: number | null;
   director: string | null;
   writer: string | null;
@@ -274,6 +276,7 @@ interface BackendMovieMetadataResult {
   title: string;
   description: string | null;
   release_date: string | null;
+  year?: string | null;
   runtime_minutes: number | null;
   director: string | null;
   writer: string | null;
@@ -336,6 +339,7 @@ export async function searchMovieMetadata(
       title: r.title,
       description: r.description,
       releaseDate: r.release_date,
+      year: r.year ?? (r.release_date ? r.release_date.slice(0, 4) : null),
       runtimeMinutes: r.runtime_minutes,
       director: r.director,
       writer: r.writer,

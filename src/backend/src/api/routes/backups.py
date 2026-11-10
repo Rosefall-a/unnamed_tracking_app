@@ -230,6 +230,16 @@ async def list_leftovers(db: AsyncSession = Depends(get_db)) -> list[dict[str, A
     return await _leftovers(db)
 
 
+@router.delete("/leftovers/{kind}")
+async def delete_leftovers_of_kind(kind: str, db: AsyncSession = Depends(get_db)) -> dict[str, int]:
+    """Every leftover of one kind at once, such as hundreds of folders of
+    accounts that no longer exist. Only what the list offers right now goes."""
+    matches = [item for item in await _leftovers(db) if item["kind"] == kind]
+    for item in matches:
+        await asyncio.to_thread(shutil.rmtree, Path(item["path"]))
+    return {"deleted": len(matches)}
+
+
 @router.delete("/leftovers/{kind}/{name}")
 async def delete_leftover(
     kind: str, name: str, db: AsyncSession = Depends(get_db)

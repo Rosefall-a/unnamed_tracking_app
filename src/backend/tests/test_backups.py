@@ -290,3 +290,29 @@ async def test_leftovers_list_only_files_nothing_points_at(scratch, monkeypatch)
     assert not old_backups.exists() and database_backups.exists()
     assert not stray_game.exists()
     assert stray_account.exists() and (users_root / str(scratch.user_id)).exists()
+
+
+async def test_every_leftover_of_one_kind_can_go_at_once(scratch, monkeypatch) -> None:
+    from src.api.routes import backups
+
+    users_root = scratch.tmp / "users"
+    monkeypatch.setattr(backups, "_GAMES_DATA_ROOT", users_root)
+    monkeypatch.setattr(backups, "DELETED_ACCOUNTS_ROOT", scratch.tmp / "deleted")
+    monkeypatch.setattr(backups, "_OLD_BACKUPS_ROOT", scratch.tmp / "backups")
+    strays = [users_root / str(uuid.uuid4()) for _ in range(3)]
+    trashed = users_root / "_trash" / str(uuid.uuid4())
+    for folder in [*strays, trashed]:
+        folder.mkdir(parents=True)
+        (folder / "f.bin").write_bytes(b"1234")
+
+    app.dependency_overrides[get_current_admin] = lambda: SimpleNamespace(id=uuid.uuid4())
+    try:
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+            gone = await client.delete("/api/settings/backups/leftovers/account_files")
+    finally:
+        app.dependency_overrides.pop(get_current_admin, None)
+    assert gone.json() == {"deleted": 3}
+    assert not any(folder.exists() for folder in strays)
+    # other kinds, and the files of an account that still exists, stay
+    assert trashed.exists() and (users_root / str(scratch.user_id)).exists()

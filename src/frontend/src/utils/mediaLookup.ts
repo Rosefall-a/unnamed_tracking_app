@@ -48,6 +48,33 @@ export function makeOffer(
   };
 }
 
+// The search result someone picked, found again in a fuller search: by the
+// provider's own id first, then by title and year, so two titles with the same
+// name ("Extinction" 2015 and 2018) are never mixed up.
+export function pickResult<
+  T extends { providerId: string; title: string; year: string | null },
+>(
+  results: T[],
+  wanted: { title: string; year?: string | null; providerId?: string | null },
+): T | undefined {
+  return (
+    (wanted.providerId
+      ? results.find((r) => r.providerId === wanted.providerId)
+      : undefined) ??
+    results.find(
+      (r) =>
+        r.title === wanted.title && (!wanted.year || r.year === wanted.year),
+    ) ??
+    results.find((r) => r.title === wanted.title) ??
+    results[0]
+  );
+}
+
+// "Extinction 2015": the title with its year, so the search looks in that year
+export function titleWithYear(title: string, year?: string | null): string {
+  return year ? `${title} ${year}` : title;
+}
+
 export function listText(items: string[] | null | undefined): string {
   return (items ?? []).join(", ");
 }

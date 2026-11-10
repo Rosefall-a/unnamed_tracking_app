@@ -17,6 +17,7 @@ import {
 import type { SeasonUpdateInput } from "../services/tvShows";
 import type { TVShow, TVShowStatus } from "../types/tv_show";
 import { localMediaImage } from "../utils/mediaImages";
+import { pickResult, titleWithYear } from "../utils/mediaLookup";
 import MediaLibraryView from "../components/library/MediaLibraryView.vue";
 import TVShowFormModal from "../components/TVShowFormModal.vue";
 import { statusBucket, bucketToReal } from "../utils/mediaStatus";
@@ -347,7 +348,8 @@ async function search(
       episodeTotal: r.seasons.length
         ? r.seasons.reduce((sum, s) => sum + (s.episodeCount ?? 0), 0)
         : null,
-      releaseYear: r.firstAirDate ? r.firstAirDate.slice(0, 4) : null,
+      releaseYear: r.year,
+      providerId: r.providerId,
     })),
     providerErrors,
   };
@@ -357,8 +359,17 @@ async function createFromResult(
   result: SearchResultVM,
   form: QuickAddForm,
 ): Promise<void> {
-  const { results } = await searchTVShowMetadata(result.title, 1);
-  const match = results.find((r) => r.title === result.title) ?? results[0];
+  // the full search for this exact show, found again by its id and year, so
+  // two shows with the same name are never swapped
+  const { results } = await searchTVShowMetadata(
+    titleWithYear(result.title, result.releaseYear),
+    8,
+  );
+  const match = pickResult(results, {
+    title: result.title,
+    year: result.releaseYear,
+    providerId: result.providerId,
+  });
   // TMDB results carry a real per-season breakdown; TVmaze's don't (it has
   // no season-level endpoint wired up here) — fall back to a single
   // Season 1 using the flat episode total so there's always somewhere for

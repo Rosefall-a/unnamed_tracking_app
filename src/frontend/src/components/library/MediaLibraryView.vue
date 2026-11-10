@@ -80,6 +80,8 @@ export interface SearchResultVM {
   description: string | null;
   episodeTotal: number | null;
   releaseYear: string | null;
+  // the provider's own id, so adding it saves exactly this title
+  providerId?: string | null;
 }
 
 export interface QuickAddForm {
@@ -308,6 +310,7 @@ const selectedFormats = ref<Set<string>>(new Set());
 const onlyFavorites = ref(false);
 const onlyUnrated = ref(false);
 const onlyWithNote = ref(false);
+const missingFinish = ref(false);
 const minScore = ref<number | null>(null);
 // kept as text: v-model on a number input would hand back a Number
 const yearFrom = ref("");
@@ -336,6 +339,7 @@ const activeFilterCount = computed(
       onlyFavorites.value,
       onlyUnrated.value,
       onlyWithNote.value,
+      missingFinish.value,
       minScore.value !== null,
       yearFrom.value.trim() !== "" || yearTo.value.trim() !== "",
     ].filter(Boolean).length,
@@ -349,6 +353,13 @@ const BASE_PATH: Record<string, string> = {
 };
 function applyLinkedFilter() {
   if (route.path !== BASE_PATH[props.kind]) return;
+  // Repair links here as ?missing=finish to list finished titles with no date
+  if (route.query.missing === "finish") {
+    clearFilters();
+    missingFinish.value = true;
+    filtersOpen.value = true;
+    return;
+  }
   const genre = route.query.genre;
   if (typeof genre !== "string" || !genre) return;
   clearFilters();
@@ -362,6 +373,7 @@ function clearFilters() {
   onlyFavorites.value = false;
   onlyUnrated.value = false;
   onlyWithNote.value = false;
+  missingFinish.value = false;
   minScore.value = null;
   yearFrom.value = "";
   yearTo.value = "";
@@ -409,6 +421,7 @@ const filters = computed<LibraryFilters>(() => ({
   onlyFavorites: onlyFavorites.value,
   onlyUnrated: onlyUnrated.value,
   onlyWithNote: onlyWithNote.value,
+  missingFinish: missingFinish.value,
   minScore: minScore.value,
   yearFrom: yearFrom.value,
   yearTo: yearTo.value,
@@ -439,9 +452,15 @@ function computedRank(it: LibraryCardVM): number | null {
 }
 
 // the server counts by real status; the tabs are the five buckets
-const statusCounts = computed<Record<string, number>>(() =>
-  bucketCounts(props.statusCounts),
-);
+const statusCounts = computed<Record<string, number>>(() => {
+  const counts = bucketCounts(props.statusCounts);
+  // Library: everything you have started or finished, so all but Plan to Watch
+  return { ...counts, library: (counts.all ?? 0) - (counts.plan ?? 0) };
+});
+function inTab(status: string, tab: string): boolean {
+  const bucket = statusBucket(status);
+  return tab === "library" ? bucket !== "plan" : bucket === tab;
+}
 
 function progressPct(it: LibraryCardVM): number {
   if (it.progressPercent != null) return it.progressPercent;
@@ -452,7 +471,7 @@ function progressPct(it: LibraryCardVM): number {
 const filteredItems = computed(() => {
   let list = props.items;
   if (activeStatus.value !== "all") {
-    list = list.filter((it) => statusBucket(it.status) === activeStatus.value);
+    list = list.filter((it) => inTab(it.status, activeStatus.value));
   }
   list = list.filter(matchesFilterState);
   const sorted = [...list];
@@ -552,7 +571,11 @@ const boardGroups = computed(() => {
   const statuses =
     activeStatus.value === "all"
       ? STATUSES
-      : STATUSES.filter((s) => s.key === activeStatus.value);
+      : STATUSES.filter((s) =>
+          activeStatus.value === "library"
+            ? s.key !== "plan"
+            : s.key === activeStatus.value,
+        );
   return statuses
     .map((s) => {
       let rowItems = props.items.filter(
@@ -1008,6 +1031,15 @@ defineExpose({ openQuickAdd });
           >
             Has a note
           </button>
+          <button
+            type="button"
+            class="genre-chip"
+            :class="{ selected: missingFinish }"
+            title="Completed titles with no finish date, which keeps them off the calendar, history and yearly stats"
+            @click="missingFinish = !missingFinish"
+          >
+            No finish date
+          </button>
         </div>
         <div class="filter-group">
           <span class="filter-label">Score</span>
@@ -1101,6 +1133,14 @@ defineExpose({ openQuickAdd });
           @click="activeStatus = 'all'"
         >
           All <span class="n">{{ statusCounts.all }}</span>
+        </button>
+        <button
+          type="button"
+          class="status-tab"
+          :class="{ active: activeStatus === 'library' }"
+          @click="activeStatus = 'library'"
+        >
+          Library <span class="n">{{ statusCounts.library }}</span>
         </button>
         <button
           v-for="s in STATUSES"

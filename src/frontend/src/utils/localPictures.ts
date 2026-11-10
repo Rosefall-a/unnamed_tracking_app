@@ -49,3 +49,10 @@ export function withLocalPictures(html: string, gameId: string): string {
   }
   return doc.body.innerHTML;
 }
+
+// A picture that only exists online (a connected account's avatar, a sign-in
+// button's logo) disappears instead of showing a broken image when it cannot
+// load, such as offline.
+export function hideBrokenPicture(event: Event): void {
+  (event.target as HTMLElement).style.display = "none";
+}

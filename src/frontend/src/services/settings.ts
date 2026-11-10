@@ -722,6 +722,17 @@ export async function fetchLeftovers(): Promise<Leftover[]> {
     }[]
   ).map((l) => ({ ...l, modifiedAt: l.modified_at }));
 }
+export async function deleteLeftoversOfKind(
+  kind: Leftover["kind"],
+): Promise<number> {
+  const response = await fetch(`/api/settings/backups/leftovers/${kind}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  if (!response.ok)
+    throw await backupError(response, "Could not delete the files");
+  return ((await response.json()) as { deleted: number }).deleted;
+}
 export async function deleteLeftover(item: Leftover): Promise<void> {
   const response = await fetch(
     `/api/settings/backups/leftovers/${item.kind}/${encodeURIComponent(item.name)}`,

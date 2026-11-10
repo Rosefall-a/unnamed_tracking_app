@@ -2,6 +2,7 @@
 // See what each library is missing and fill it in without a reimport. Looking
 // changes nothing, and a run only ever adds what is blank.
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+import { currentUser } from "../../state/auth";
 import {
   fixOneGame,
   gamesWithProblem,
@@ -56,6 +57,22 @@ let timer: ReturnType<typeof setTimeout> | null = null;
 const running = computed(() => run.value?.running ?? false);
 // what the progress line counts: games, or pictures when saving them for offline
 const unit = ref("games");
+
+// Completed titles with no finish date are left off the calendar, the history
+// and the yearly stats. The app never guesses a date; the library's
+// "No finish date" filter lists them so they can be filled in.
+const FINISH_KINDS = [
+  { key: "anime", label: "anime", path: "/anime" },
+  { key: "movie", label: "movies", path: "/movies" },
+  { key: "tv", label: "TV shows", path: "/tv" },
+] as const;
+function missingFinish(person: RepairPerson) {
+  const m = person.missing_finish;
+  return m ? FINISH_KINDS.filter((k) => m[k.key] > 0) : [];
+}
+function isMe(person: RepairPerson): boolean {
+  return currentUser.value?.id === person.user_id;
+}
 
 function offlineTotal(person: RepairPerson): number {
   return Object.values(person.offline_missing ?? {}).reduce((a, b) => a + b, 0);
@@ -339,6 +356,23 @@ onBeforeUnmount(() => {
             Save for offline
           </button>
         </template>
+      </div>
+
+      <div v-if="missingFinish(person).length" class="offline">
+        <p class="tile-desc">
+          Completed with no finish date, so left off the calendar, history and
+          yearly stats:
+          <template v-for="(k, i) in missingFinish(person)" :key="k.key">
+            <template v-if="i">, </template>
+            <RouterLink
+              v-if="isMe(person)"
+              :to="{ path: k.path, query: { missing: 'finish' } }"
+              >{{ person.missing_finish?.[k.key] }} {{ k.label }}</RouterLink
+            ><template v-else
+              >{{ person.missing_finish?.[k.key] }} {{ k.label }}</template
+            >
+          </template>
+        </p>
       </div>
 
       <div class="old-files">

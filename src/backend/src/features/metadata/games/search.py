@@ -19,7 +19,13 @@ from src.features.metadata.games.igdb import IGDBClient, IGDBError
 from src.features.metadata.games.retroachievements import RetroAchievementsClient
 from src.features.metadata.games.screenscraper import ScreenScraperClient, ScreenScraperError
 from src.features.metadata.games.steam_grid_db import SteamGridDBClient, SteamGridDBError
-from src.features.metadata.search_utils import format_provider_error, visible_errors
+from src.features.metadata.search_utils import (
+    format_provider_error,
+    result_year,
+    split_year,
+    visible_errors,
+    year_first,
+)
 from src.helpers.game_art_download import steam_cdn_art_urls
 
 if TYPE_CHECKING:
@@ -160,6 +166,14 @@ def _rank_by_relevance(results: list[dict[str, Any]], query: str) -> None:
     results.sort(key=lambda r: _relevance(str(r.get("title", "")), query))
 
 
+def _different_years(first: dict[str, Any], second: dict[str, Any]) -> bool:
+    """Two games with one name but years far apart (Doom 1993 and 2016) are two
+    games. One year either way is the same game: stores date early access and
+    the full release differently."""
+    a, b = result_year(first), result_year(second)
+    return a is not None and b is not None and abs(int(a) - int(b)) > 1
+
+
 def _merge_or_append(results: list[dict[str, Any]], candidate: dict[str, Any]) -> None:
     """Primary providers can turn up a game already found by an earlier
     provider (e.g. RetroAchievements finding the same title Steam did) —
@@ -169,7 +183,9 @@ def _merge_or_append(results: list[dict[str, Any]], candidate: dict[str, Any]) -
         # A malformed provider response must not abort an otherwise usable refresh.
         return
     for existing in results:
-        if _titles_match(existing["title"], candidate["title"]):
+        if _titles_match(existing["title"], candidate["title"]) and not _different_years(
+            existing, candidate
+        ):
             for key, value in candidate.items():
                 if key in ("provider", "provider_id", "title", "links"):
                     continue
@@ -205,6 +221,8 @@ class ProviderContext:
     light: bool = False
     # filling in one known game: only its own entry is worth the extra lookups
     only_matching: bool = False
+    # a year typed after the title, which IGDB searches by
+    year: int | None = None
 
 
 ProviderRun = Callable[
@@ -406,7 +424,7 @@ def _run_igdb(
     assert ctx.igdb_client_id and ctx.igdb_client_secret  # guarded by `available`
     client = IGDBClient(client_id=ctx.igdb_client_id, client_secret=ctx.igdb_client_secret)
     found: list[dict[str, Any]] = []
-    for game in client.search(query, limit=limit):
+    for game in client.search(query, limit=limit, year=ctx.year):
         result = _blank_result("IGDB", str(game.get("id", "")), game.get("name", ""))
         result.update(
             {
@@ -677,6 +695,8 @@ def search_game_metadata(
     include_image_providers: bool = True,
     light: bool = False,
     only_matching: bool = False,
+    *,
+    _year: int | None = None,
 ) -> dict[str, Any]:
     """Search configured providers and return normalized creation-form data.
 
@@ -699,6 +719,29 @@ def search_game_metadata(
     prompt; new providers surface their configured-ness via
     `GET /api/settings/provider-credentials` instead.
     """
+    # "Doom 1993": the year it came out, not part of the name. The exact-title
+    # lookup a refresh does (only_matching) is never split.
+    if not only_matching:
+        title, year = split_year(query)
+        if year is not None:
+            found = search_game_metadata(
+                title,
+                limit,
+                steamgriddb_api_key,
+                preferences,
+                user,
+                igdb_client_id,
+                igdb_client_secret,
+                include_image_providers,
+                light,
+                only_matching,
+                _year=year,
+            )
+            if found["results"]:
+                found["query"] = query
+                found["results"] = year_first(found["results"], year)
+                return found
+
     preferences = preferences or DEFAULT_PREFERENCES
     provider_order = preferences.get("provider_order") or DEFAULT_PROVIDER_ORDER
     image_provider_order = preferences.get("image_provider_order") or DEFAULT_IMAGE_PROVIDER_ORDER
@@ -710,6 +753,7 @@ def search_game_metadata(
         steam_user_tags=bool(preferences.get("steam_user_tags", True)),
         light=light,
         only_matching=only_matching,
+        year=_year,
     )
 
     results: list[dict[str, Any]] = []

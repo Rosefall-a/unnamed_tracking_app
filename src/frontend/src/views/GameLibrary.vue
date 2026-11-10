@@ -67,6 +67,8 @@ const SORT_KEYS = [
 ] as const;
 type SortBy = (typeof SORT_KEYS)[number];
 type AchievementsFilter = "all" | "has" | "none";
+// "library" is every game you have, so everything except the wishlist
+type StatusTab = GameStatus | "all" | "library";
 type MissingFilter = "none" | "playtime" | "rating" | "tags" | "description";
 type CardDensity = "compact" | "cozy" | "large";
 
@@ -253,7 +255,7 @@ const selectedGameDescriptionHtml = computed(() => {
 const FILTERS_KEY = "gameLibraryFilters";
 interface PersistedFilters {
   searchQuery: string;
-  statusFilter: GameStatus | "all";
+  statusFilter: StatusTab;
   platformFilter: string;
   genreFilter: string;
   sortBy: SortBy;
@@ -286,7 +288,7 @@ function loadPersistedFilters(): Partial<PersistedFilters> {
 const persisted = loadPersistedFilters();
 
 const searchQuery = ref("");
-const statusFilter = ref<GameStatus | "all">("all");
+const statusFilter = ref<StatusTab>("all");
 const platformFilter = ref<string>("all");
 const genreFilter = ref<string>("all");
 const sortBy = ref<SortBy>(
@@ -547,8 +549,9 @@ if (typeof queryCollection === "string" && queryCollection) {
   collectionFilter.value = queryCollection;
 }
 
-const statusOptions: (GameStatus | "all")[] = [
+const statusOptions: StatusTab[] = [
   "all",
+  "library",
   "playing",
   "beaten",
   "mastered",
@@ -581,6 +584,7 @@ const VIEW_OPTIONS: SegmentOption[] = [
 const statusCounts = computed(() => {
   const counts: Record<string, number> = { all: games.value.length };
   for (const g of games.value) counts[g.status] = (counts[g.status] ?? 0) + 1;
+  counts.library = games.value.length - (counts.wishlist ?? 0);
   return counts;
 });
 
@@ -588,9 +592,9 @@ const statusCounts = computed(() => {
 const queryStatus = route.query.status;
 if (
   typeof queryStatus === "string" &&
-  statusOptions.includes(queryStatus as GameStatus | "all")
+  statusOptions.includes(queryStatus as StatusTab)
 ) {
-  statusFilter.value = queryStatus as GameStatus | "all";
+  statusFilter.value = queryStatus as StatusTab;
 }
 const querySort = route.query.sort;
 if (
@@ -1029,7 +1033,9 @@ function openGame(game: Game) {
 const filteredGames = computed(() => {
   let result = games.value;
 
-  if (statusFilter.value !== "all") {
+  if (statusFilter.value === "library") {
+    result = result.filter((g) => g.status !== "wishlist");
+  } else if (statusFilter.value !== "all") {
     result = result.filter((g) => g.status === statusFilter.value);
   }
   if (platformFilter.value !== "all") {
@@ -1815,7 +1821,9 @@ function cardsInRow(rowIndex: number): Game[] {
           <label>Hide statuses</label>
           <div class="tags-multiselect">
             <button
-              v-for="s in statusOptions.filter((o) => o !== 'all')"
+              v-for="s in statusOptions.filter(
+                (o) => o !== 'all' && o !== 'library',
+              )"
               :key="s"
               type="button"
               class="tag-chip hide-chip"
@@ -1896,8 +1904,8 @@ function cardsInRow(rowIndex: number): Game[] {
           :class="{ active: statusFilter === s }"
           @click="statusFilter = s"
         >
-          {{ s === "all" ? "All" : s }}
-          <span class="n">{{ statusCounts[s] }}</span>
+          {{ s === "all" ? "All" : s === "library" ? "Library" : s }}
+          <span class="n">{{ statusCounts[s] ?? 0 }}</span>
         </button>
       </div>
 

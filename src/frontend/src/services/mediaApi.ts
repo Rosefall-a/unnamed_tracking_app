@@ -77,6 +77,7 @@ export function createMediaApi<
     if (filters?.onlyFavorites) params.set("favorite", "true");
     if (filters?.onlyUnrated) params.set("only_unrated", "true");
     if (filters?.onlyWithNote) params.set("only_with_note", "true");
+    if (filters?.missingFinish) params.set("missing_finish", "true");
     if (filters?.minScore !== null && filters?.minScore !== undefined)
       params.set("min_score", String(filters.minScore));
     if (filters?.yearFrom.trim())

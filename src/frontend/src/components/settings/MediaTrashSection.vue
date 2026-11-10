@@ -112,7 +112,7 @@ onMounted(async () => {
   try {
     retentionDays.value = (await fetchPreferences()).media_trash_retention_days;
   } catch {
-    // the default (never) stays shown
+    // the default (7 days) stays shown
   }
 });
 

@@ -13,7 +13,7 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.schemas.media_extras import (
@@ -27,8 +27,8 @@ from src.api.schemas.media_extras import (
 from src.core.auth import get_current_user
 from src.core.preferences import load_preferences
 from src.core.titles import display_title
-from src.database.models.achievement import Achievement
 from src.database.models.anime import Anime, AnimeStatus
+from src.features.game_history import game_history
 from src.features.notifications import tracked_statuses
 from src.database.models.media_extras import (
     ActivityEventType,
@@ -36,7 +36,7 @@ from src.database.models.media_extras import (
     MediaType,
     RewatchLog,
 )
-from src.database.models.game import Game, GameStatus
+from src.database.models.game import Game
 from src.database.models.movies import Movie, MovieStatus
 from src.database.models.tv_show import TVShow, TVShowStatus
 from src.database.models.user import User
@@ -642,6 +642,18 @@ async def get_calendar(
     )
 
 
+@router.get("/history/games")
+async def get_game_history(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> list[dict]:
+    """Every game's history for the History tab, as far back as the data goes:
+    played, finished and bought days, and achievements unlocked per day. It
+    does not follow the calendar's display switches; hiding games on the
+    calendar does not hide what happened."""
+    return await game_history(db, current_user.id)
+
+
 @router.get("/calendar/games")
 async def get_calendar_games(
     days: int = Query(default=36500, ge=1, le=36500),
@@ -686,116 +698,9 @@ async def get_calendar_games(
                     "poster_url": f"/api/game/{g.id}/assets/key_art",
                 }
             )
-    if not prefs["calendar_game_history"]:
-        entries.sort(key=lambda e: e["date"])
-        return entries
-    since = int(time.time()) - days * 86400
-    played = (
-        await db.scalars(
-            select(Game).where(
-                Game.user_id == current_user.id,
-                Game.deleted_at.is_(None),
-                Game.last_played_at.isnot(None),
-                Game.last_played_at >= since,
-            )
-        )
-    ).all()
-    for g in played:
-        if g.last_played_at is None:
-            continue
-        entries.append(
-            {
-                "kind": "game_played",
-                "game_id": g.id,
-                "title": g.title,
-                "date": datetime.fromtimestamp(g.last_played_at, tz=timezone.utc)
-                .date()
-                .isoformat(),
-                "count": 1,
-                "poster_url": f"/api/game/{g.id}/assets/key_art",
-            }
-        )
-    finished = (
-        (
-            await db.execute(
-                select(Game).where(
-                    Game.user_id == current_user.id,
-                    Game.deleted_at.is_(None),
-                    Game.completion_date.isnot(None),
-                    Game.completion_date >= since,
-                )
-            )
-        )
-        .scalars()
-        .all()
-    )
-    for g in finished:
-        if g.completion_date is None:
-            continue
-        entries.append(
-            {
-                "kind": "game_finished",
-                "game_id": g.id,
-                "title": g.title,
-                "date": datetime.fromtimestamp(g.completion_date, tz=timezone.utc)
-                .date()
-                .isoformat(),
-                "count": 1,
-                "poster_url": f"/api/game/{g.id}/assets/key_art",
-            }
-        )
-    bought = (
-        (
-            await db.execute(
-                select(Game).where(
-                    Game.user_id == current_user.id,
-                    Game.deleted_at.is_(None),
-                    Game.purchase_date.isnot(None),
-                    Game.purchase_date >= since,
-                )
-            )
-        )
-        .scalars()
-        .all()
-    )
-    for g in bought:
-        if g.purchase_date is None:
-            continue
-        entries.append(
-            {
-                "kind": "game_purchased",
-                "game_id": g.id,
-                "title": g.title,
-                "date": datetime.fromtimestamp(g.purchase_date, tz=timezone.utc).date().isoformat(),
-                "count": 1,
-                "poster_url": f"/api/game/{g.id}/assets/key_art",
-            }
-        )
-    day = func.date(func.to_timestamp(Achievement.unlocked_at))
-    rows = (
-        await db.execute(
-            select(Game.id, Game.title, day, func.count())
-            .join(Game, Game.id == Achievement.game_id)
-            .where(
-                Game.user_id == current_user.id,
-                Game.deleted_at.is_(None),
-                Achievement.unlocked.is_(True),
-                Achievement.unlocked_at.isnot(None),
-                Achievement.unlocked_at >= since,
-            )
-            .group_by(Game.id, Game.title, day)
-        )
-    ).all()
-    for game_id, title, d, count in rows:
-        entries.append(
-            {
-                "kind": "game_achievements",
-                "game_id": game_id,
-                "title": title,
-                "date": d.isoformat(),
-                "count": count,
-                "poster_url": f"/api/game/{game_id}/assets/key_art",
-            }
+    if prefs["calendar_game_history"]:
+        entries.extend(
+            await game_history(db, current_user.id, since=int(time.time()) - days * 86400)
         )
     entries.sort(key=lambda e: e["date"])
     return entries

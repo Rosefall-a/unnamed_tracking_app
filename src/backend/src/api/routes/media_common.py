@@ -46,6 +46,13 @@ def library_order(model: Any, sort: str | None, year_column: Any | None) -> list
     return [model.sort_title, model.id]
 
 
+def _missing_finish(model: Any) -> tuple[ColumnElement[bool], ...]:
+    """Finished titles (Completed, which includes favourites) with no finish
+    date: they are left off the calendar, the history and the yearly stats
+    until one is filled in."""
+    return (model.status.in_(["WATCHED", "FAVORITE"]), model.end_date.is_(None))
+
+
 async def library_page(  # pylint: disable=too-many-arguments,too-many-positional-arguments
     db: AsyncSession,
     model: Any,
@@ -62,6 +69,7 @@ async def library_page(  # pylint: disable=too-many-arguments,too-many-positiona
     formats: list[str] | None = None,
     only_unrated: bool = False,
     only_with_note: bool = False,
+    missing_finish: bool = False,
     min_score: float | None = None,
     year_column: Any | None = None,
     year_from: int | None = None,
@@ -93,6 +101,8 @@ async def library_page(  # pylint: disable=too-many-arguments,too-many-positiona
         stmt = stmt.where(model.rating_overall.is_(None))
     if only_with_note:
         stmt = stmt.where(model.note.is_not(None), func.trim(model.note) != "")
+    if missing_finish:
+        stmt = stmt.where(*_missing_finish(model))
     if min_score is not None:
         stmt = stmt.where(model.rating_overall >= min_score)
     if year_column is not None:
@@ -116,6 +126,8 @@ async def library_page(  # pylint: disable=too-many-arguments,too-many-positiona
         count_stmt = count_stmt.where(model.rating_overall.is_(None))
     if only_with_note:
         count_stmt = count_stmt.where(model.note.is_not(None), func.trim(model.note) != "")
+    if missing_finish:
+        count_stmt = count_stmt.where(*_missing_finish(model))
     if min_score is not None:
         count_stmt = count_stmt.where(model.rating_overall >= min_score)
     if year_column is not None:
@@ -146,9 +158,9 @@ async def soft_delete(db: AsyncSession, row: Any) -> None:
 
 
 async def trash_listing(db: AsyncSession, model: Any, user_id: Any) -> list[dict]:
-    """A user's deleted rows, most recently deleted first. Nothing purges
-    these on a schedule: a row is only data, so there is nothing to clean up
-    and it stays until it is restored or purged."""
+    """A user's deleted rows, most recently deleted first. They are deleted for
+    good after the person's chosen number of days (7 unless changed, see
+    features/trash/sweep.py), or when restored or purged by hand."""
     result = await db.execute(
         select(model)
         .where(model.user_id == user_id, model.deleted_at.is_not(None))

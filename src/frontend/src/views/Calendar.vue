@@ -22,6 +22,7 @@ import {
   fetchActivity,
   fetchCalendarFeedUrl,
   fetchCalendarGames,
+  fetchGameHistory,
   fetchCalendarEvents,
   createCalendarEvent,
   updateCalendarEvent,
@@ -321,6 +322,9 @@ async function loadCalendar() {
 
 // ---- history data (also feeds the calendar's "watched" layer) ----
 const historyEntries = ref<ActivityEntry[]>([]);
+// what the game library itself knows: played, finished and bought days and
+// achievements per day, as far back as the data goes
+const gameHistory = ref<CalendarGameEntry[]>([]);
 const historyLoading = ref(false);
 const historyError = ref<string | null>(null);
 
@@ -329,7 +333,12 @@ async function loadHistory() {
   historyError.value = null;
   try {
     // every entry there is, not a fixed window
-    historyEntries.value = await fetchActivity(36500);
+    const [logged, games] = await Promise.all([
+      fetchActivity(36500),
+      fetchGameHistory().catch(() => [] as CalendarGameEntry[]),
+    ]);
+    historyEntries.value = logged;
+    gameHistory.value = games;
   } catch (e) {
     historyError.value =
       e instanceof Error ? e.message : "Could not load history.";
@@ -1157,15 +1166,68 @@ async function regenerateFeed() {
 }
 
 // ---- history (folded in as a second tab) ----
+// A row is either something logged (editable) or read from a game's own data
+// (played, finished, bought, achievements), which is changed on the game.
+type HistoryEventType = ActivityEventType | "achievements";
+interface HistoryRow extends Omit<ActivityEntry, "eventType"> {
+  eventType: HistoryEventType;
+  fromGame: boolean;
+  names: string[];
+}
+const GAME_KIND_TO_EVENT: Partial<
+  Record<CalendarGameEntry["kind"], HistoryEventType>
+> = {
+  game_played: "played",
+  game_finished: "finished",
+  game_purchased: "bought",
+  game_achievements: "achievements",
+};
+const historyRows = computed<HistoryRow[]>(() => {
+  const rows: HistoryRow[] = historyEntries.value.map((e) => ({
+    ...e,
+    fromGame: false,
+    names: [],
+  }));
+  // the same game, day and kind already logged is shown once, as the log
+  const logged = new Set(
+    rows.map((r) => `${r.mediaId}|${r.eventType}|${r.eventDate}`),
+  );
+  for (const g of gameHistory.value) {
+    const eventType = GAME_KIND_TO_EVENT[g.kind];
+    if (!eventType || logged.has(`${g.gameId}|${eventType}|${g.date}`))
+      continue;
+    rows.push({
+      id: `game:${g.kind}:${g.gameId}:${g.date}`,
+      mediaType: "game",
+      mediaId: g.gameId,
+      mediaTitle: g.title,
+      eventType,
+      eventDate: g.date,
+      count: g.count,
+      detail: null,
+      fromGame: true,
+      names: g.names ?? [],
+    });
+  }
+  return rows;
+});
 const historySearch = ref("");
-const historyType = ref<"all" | ActivityEventType>("all");
+const historyType = ref<"all" | HistoryEventType>("all");
 const historyWindowDays = ref(60);
 
 function historyDayLabel(key: string): string {
   return longDayLabel(key);
 }
-function describeActivity(e: ActivityEntry): string {
+function describeActivity(e: HistoryRow): string {
   switch (e.eventType) {
+    case "achievements": {
+      const what = `${e.count} achievement${e.count === 1 ? "" : "s"}`;
+      const more = e.count - e.names.length;
+      const names = e.names.length
+        ? `: ${e.names.join(", ")}${more > 0 ? ` and ${more} more` : ""}`
+        : "";
+      return `Unlocked ${what} in ${e.mediaTitle}${names}`;
+    }
     case "played":
       return `Played ${e.mediaTitle}`;
     case "finished":
@@ -1184,7 +1246,8 @@ function describeActivity(e: ActivityEntry): string {
       return e.mediaTitle;
   }
 }
-const HISTORY_ICONS: Record<ActivityEntry["eventType"], string> = {
+const HISTORY_ICONS: Record<HistoryEventType, string> = {
+  achievements: "◆",
   episodes_watched: "▶",
   status_changed: "↻",
   rewatched: "⟲",
@@ -1195,7 +1258,7 @@ const HISTORY_ICONS: Record<ActivityEntry["eventType"], string> = {
 };
 const filteredHistory = computed(() => {
   const q = historySearch.value.trim().toLowerCase();
-  return historyEntries.value.filter((e) => {
+  return historyRows.value.filter((e) => {
     if (historyType.value !== "all" && e.eventType !== historyType.value)
       return false;
     if (q && !e.mediaTitle.toLowerCase().includes(q)) return false;
@@ -1206,7 +1269,7 @@ const historyCutoff = computed(() =>
   keyOfDate(new Date(today.getTime() - historyWindowDays.value * 86_400_000)),
 );
 const groupedHistory = computed(() => {
-  const map = new Map<string, ActivityEntry[]>();
+  const map = new Map<string, HistoryRow[]>();
   for (const e of filteredHistory.value) {
     if (e.eventDate < historyCutoff.value) continue;
     const list = map.get(e.eventDate);
@@ -1218,7 +1281,7 @@ const groupedHistory = computed(() => {
 const hasOlderHistory = computed(() =>
   filteredHistory.value.some((e) => e.eventDate < historyCutoff.value),
 );
-function openHistoryEntry(e: ActivityEntry) {
+function openHistoryEntry(e: HistoryRow) {
   openItem(e);
 }
 
@@ -1337,6 +1400,11 @@ const EVENT_TYPE_LABELS: Record<ActivityEventType, string> = {
   finished: "Finished",
   played: "Played",
   bought: "Bought",
+};
+// the History filter also offers achievements, which only come from games
+const HISTORY_FILTER_LABELS: Record<HistoryEventType, string> = {
+  ...EVENT_TYPE_LABELS,
+  achievements: "Achievements",
 };
 const SERIES_CHOICES: { value: LogChoice; label: string }[] = [
   { value: "episodes", label: "Watched episodes" },
@@ -1567,14 +1635,14 @@ async function submitManualEntry() {
 
     <div class="ui-content medium">
       <div class="ui-head">
-        <h1>Calendar</h1>
+        <h1>{{ tab === "history" ? "History" : "Calendar" }}</h1>
       </div>
       <template v-if="tab === 'calendar'">
         <div class="month-bar">
           <div v-if="calView === 'month'" class="month-nav">
             <button
               type="button"
-              class="nav-btn"
+              class="ui-btn ui-btn-secondary cal-icon-btn"
               :disabled="!canGoPrev"
               @click="prevMonth"
             >
@@ -1590,7 +1658,7 @@ async function submitManualEntry() {
             </label>
             <button
               type="button"
-              class="nav-btn"
+              class="ui-btn ui-btn-secondary cal-icon-btn"
               :disabled="!canGoNext"
               @click="nextMonth"
             >
@@ -1600,7 +1668,7 @@ async function submitManualEntry() {
           <div v-else-if="calView === 'week'" class="month-nav">
             <button
               type="button"
-              class="nav-btn"
+              class="ui-btn ui-btn-secondary cal-icon-btn"
               :disabled="!canWeekPrev"
               aria-label="Previous week"
               @click="shiftWeek(-1)"
@@ -1610,7 +1678,7 @@ async function submitManualEntry() {
             <span class="month-label">{{ weekLabel }}</span>
             <button
               type="button"
-              class="nav-btn"
+              class="ui-btn ui-btn-secondary cal-icon-btn"
               :disabled="!canWeekNext"
               aria-label="Next week"
               @click="shiftWeek(1)"
@@ -1632,7 +1700,7 @@ async function submitManualEntry() {
             />
             <button
               type="button"
-              class="refresh-btn"
+              class="ui-btn ui-btn-secondary cal-icon-btn refresh-btn"
               :class="{ spinning: refreshing }"
               title="Refresh"
               :disabled="refreshing"
@@ -1654,8 +1722,8 @@ async function submitManualEntry() {
             </button>
             <button
               type="button"
-              class="filter-btn"
-              :class="{ 'active-filter': hiddenFilters.length }"
+              class="ui-btn ui-btn-secondary filter-btn"
+              :class="{ on: hiddenFilters.length }"
               :aria-expanded="filtersOpen"
               @click="filtersOpen = !filtersOpen"
             >
@@ -1666,7 +1734,7 @@ async function submitManualEntry() {
             </button>
             <button
               type="button"
-              class="ui-btn ui-btn-sm ui-btn-secondary"
+              class="ui-btn ui-btn-secondary"
               :class="{ 'is-hidden': calView === 'agenda' }"
               :aria-hidden="calView === 'agenda'"
               :tabindex="calView === 'agenda' ? -1 : undefined"
@@ -1841,7 +1909,11 @@ async function submitManualEntry() {
 
         <section class="cal-summary" aria-live="polite">
           <h2 class="cal-summary-title">{{ summaryLabel }}</h2>
-          <div v-if="summary.length" class="cal-summary-grid">
+          <div
+            v-if="summary.length"
+            class="cal-summary-grid"
+            :style="{ '--cards': Math.max(summary.length, 4) }"
+          >
             <StatCard
               v-for="stat in summary"
               :key="stat.key"
@@ -2057,7 +2129,7 @@ async function submitManualEntry() {
           <select v-model="historyType" class="ui-field history-type">
             <option value="all">Everything</option>
             <option
-              v-for="(label, key) in EVENT_TYPE_LABELS"
+              v-for="(label, key) in HISTORY_FILTER_LABELS"
               :key="key"
               :value="key"
             >
@@ -2070,7 +2142,7 @@ async function submitManualEntry() {
           {{ historyError }}
         </p>
         <p
-          v-else-if="!groupedHistory.length && historyEntries.length"
+          v-else-if="!groupedHistory.length && historyRows.length"
           class="ui-state"
         >
           Nothing matches the search and filters.
@@ -2087,7 +2159,10 @@ async function submitManualEntry() {
           >
             <div class="day-heading">{{ historyDayLabel(key) }}</div>
             <template v-for="entry in dayEntries" :key="entry.id">
-              <div v-if="editingId === entry.id" class="entry-edit-row">
+              <div
+                v-if="!entry.fromGame && editingId === entry.id"
+                class="entry-edit-row"
+              >
                 <div class="entry-edit-title-row">
                   <template v-if="editChangingMedia">
                     <div class="entry-edit-title-search">
@@ -2166,7 +2241,7 @@ async function submitManualEntry() {
                   <button
                     type="button"
                     class="entry-save-btn"
-                    @click="saveEdit(entry)"
+                    @click="saveEdit(entry as ActivityEntry)"
                   >
                     Save
                   </button>
@@ -2190,12 +2265,18 @@ async function submitManualEntry() {
                   HISTORY_ICONS[entry.eventType]
                 }}</span>
                 <span class="entry-text">{{ describeActivity(entry) }}</span>
-                <span class="entry-actions">
+                <span
+                  v-if="entry.fromGame"
+                  class="entry-source"
+                  title="From the game's own data. Change it on the game's page."
+                  >from the game</span
+                >
+                <span v-else class="entry-actions">
                   <button
                     type="button"
                     class="entry-action-btn"
                     title="Edit"
-                    @click.stop="startEdit(entry)"
+                    @click.stop="startEdit(entry as ActivityEntry)"
                   >
                     ✎
                   </button>
@@ -2203,7 +2284,7 @@ async function submitManualEntry() {
                     type="button"
                     class="entry-action-btn"
                     title="Delete"
-                    @click.stop="removeHistoryEntry(entry)"
+                    @click.stop="removeHistoryEntry(entry as ActivityEntry)"
                   >
                     ×
                   </button>
@@ -2215,7 +2296,7 @@ async function submitManualEntry() {
             v-if="hasOlderHistory"
             type="button"
             class="secondary-button older-btn"
-            @click="historyWindowDays += 90"
+            @click="historyWindowDays += 365"
           >
             Show Older
           </button>
@@ -2608,23 +2689,13 @@ async function submitManualEntry() {
   min-width: 160px;
   text-align: center;
 }
-.nav-btn {
-  width: 30px;
-  height: 30px;
-  border-radius: 8px;
-  background: var(--ui-surface);
-  border: 1px solid var(--ui-border);
-  color: var(--ui-text-soft);
-  font-size: 1rem;
-  cursor: pointer;
-}
-.nav-btn:hover:not(:disabled) {
-  border-color: var(--ui-accent-line);
-  color: var(--ui-accent);
-}
-.nav-btn:disabled {
-  opacity: 0.3;
-  cursor: default;
+/* square buttons with a symbol (arrows, refresh), the same height and look as
+   every other button in the row and the top bar */
+.cal-icon-btn {
+  flex-shrink: 0;
+  width: 38px;
+  padding: 0;
+  font-size: 1.05rem;
 }
 /* Hidden, not removed, in Agenda so the view switcher beside it keeps its place */
 .is-hidden {
@@ -2634,26 +2705,6 @@ async function submitManualEntry() {
   display: flex;
   align-items: center;
   gap: 8px;
-}
-.refresh-btn {
-  width: 30px;
-  height: 30px;
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--ui-wash-base) 6%, transparent);
-  border: 1px solid var(--ui-border);
-  color: var(--ui-text-soft);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.refresh-btn:hover:not(:disabled) {
-  border-color: var(--ui-accent-line);
-  color: var(--ui-accent);
-}
-.refresh-btn:disabled {
-  opacity: 0.6;
-  cursor: default;
 }
 .refresh-btn.spinning svg {
   animation: refresh-spin 0.7s linear infinite;
@@ -2694,7 +2745,9 @@ async function submitManualEntry() {
 }
 .cal-summary-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  /* at least four to a row, so one card is the size of one of four, and five
+     still fit on one row */
+  grid-template-columns: repeat(var(--cards, 4), minmax(0, 1fr));
   gap: 10px;
 }
 .cal-summary-empty {
@@ -2715,7 +2768,8 @@ async function submitManualEntry() {
 }
 .week-row {
   display: grid;
-  grid-template-columns: 76px minmax(0, 1fr) auto;
+  /* wide enough for the one-line date on an empty day, "Wed 30 Today" */
+  grid-template-columns: 104px minmax(0, 1fr) auto;
   gap: 16px;
   align-items: start;
   padding: 12px 14px;
@@ -2763,6 +2817,7 @@ async function submitManualEntry() {
   flex-direction: row;
   gap: 6px;
   align-items: baseline;
+  white-space: nowrap;
 }
 .week-row.empty .week-date-num {
   font-size: 1rem;
@@ -2780,7 +2835,7 @@ async function submitManualEntry() {
   padding: 6px 10px 6px 6px;
   background: var(--ui-bg-2);
   border: 1px solid var(--ui-border-soft);
-  border-left: 3px solid var(--layer, #888);
+  border-left: 3px solid var(--layer, var(--ui-dim-2));
   border-radius: 10px;
   text-align: left;
   font-family: inherit;
@@ -2793,7 +2848,7 @@ async function submitManualEntry() {
 .week-card:hover {
   background: var(--ui-surface);
   border-color: var(--ui-accent-line);
-  border-left-color: var(--layer, #888);
+  border-left-color: var(--layer, var(--ui-dim-2));
 }
 .week-card.projected {
   border-left-style: dashed;
@@ -2849,7 +2904,11 @@ async function submitManualEntry() {
   letter-spacing: 0.05em;
   text-transform: uppercase;
   color: var(--layer, var(--ui-dim-2));
-  background: color-mix(in srgb, var(--layer, #888) 14%, transparent);
+  background: color-mix(
+    in srgb,
+    var(--layer, var(--ui-dim-2)) 14%,
+    transparent
+  );
 }
 .week-nothing {
   margin: 0;
@@ -2881,32 +2940,18 @@ async function submitManualEntry() {
   .week-row {
     grid-template-columns: 52px minmax(0, 1fr);
   }
+  /* too narrow for the one-line date: stacked, like a day with titles */
+  .week-row.empty .week-date {
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+  }
   .week-row-actions {
     grid-column: 1 / -1;
     justify-content: flex-end;
   }
 }
 
-.filter-btn {
-  box-sizing: border-box;
-  height: 32px;
-  background: var(--ui-surface);
-  border: 1px solid var(--ui-border);
-  color: var(--ui-dim);
-  border-radius: 8px;
-  padding: 0 12px;
-  font-family: inherit;
-  font-size: 0.82rem;
-  font-weight: 700;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.filter-btn.active-filter {
-  border-color: var(--ui-accent-line);
-  color: var(--ui-accent);
-}
 .filter-btn .count {
   background: var(--ui-accent);
   color: var(--ui-on-accent);
@@ -2984,7 +3029,7 @@ async function submitManualEntry() {
   width: 10px;
   height: 10px;
   border-radius: 3px;
-  border: 2px solid var(--layer, #888);
+  border: 2px solid var(--layer, var(--ui-dim-2));
   box-sizing: border-box;
 }
 .ui-chip:not(.on) .swatch {
@@ -3000,7 +3045,7 @@ async function submitManualEntry() {
   --layer: var(--ui-good);
 }
 .layer-event {
-  --layer: #c084d9;
+  --layer: var(--ui-event);
 }
 .layer-estimated {
   --layer: var(--ui-accent);
@@ -3056,7 +3101,7 @@ async function submitManualEntry() {
 }
 .day-cell:hover {
   border-color: color-mix(in srgb, var(--ui-accent) 45%, transparent);
-  background: #1b1b1b;
+  background: var(--ui-surface);
 }
 .day-cell:focus-visible {
   outline: 2px solid var(--ui-accent);
@@ -3093,7 +3138,7 @@ async function submitManualEntry() {
   overflow: hidden;
   flex-shrink: 0;
   background: var(--ui-surface-3);
-  border: 2px solid var(--layer, #888);
+  border: 2px solid var(--layer, var(--ui-dim-2));
   box-sizing: border-box;
 }
 .chip img {
@@ -3159,7 +3204,7 @@ async function submitManualEntry() {
   box-sizing: border-box;
   background: var(--ui-popover);
   border: 1px solid var(--ui-border-soft);
-  border-left: 3px solid var(--layer, #888);
+  border-left: 3px solid var(--layer, var(--ui-dim-2));
   border-radius: 10px;
   padding: 8px 12px 8px 8px;
   margin-bottom: 6px;
@@ -3174,7 +3219,7 @@ async function submitManualEntry() {
 .agenda-row:hover {
   background: var(--ui-surface);
   border-color: var(--ui-accent-line);
-  border-left-color: var(--layer, #888);
+  border-left-color: var(--layer, var(--ui-dim-2));
 }
 .agenda-row.projected {
   border-left-style: dashed;
@@ -3370,11 +3415,24 @@ async function submitManualEntry() {
   background: color-mix(in srgb, var(--ui-accent) 14%, transparent);
 }
 .entry-row.rated {
-  border-left-color: #d9c86f;
+  border-left-color: var(--ui-rating);
 }
 .entry-row.rated .entry-icon {
-  color: #d9c86f;
-  background: rgba(217, 200, 111, 0.14);
+  color: var(--ui-rating);
+  background: color-mix(in srgb, var(--ui-rating) 14%, transparent);
+}
+.entry-row.achievements {
+  border-left-color: var(--ui-kind-game);
+}
+.entry-row.achievements .entry-icon {
+  color: var(--ui-kind-game);
+  background: color-mix(in srgb, var(--ui-kind-game) 14%, transparent);
+}
+/* where a row read from a game's own data comes from; it has no edit buttons */
+.entry-source {
+  flex-shrink: 0;
+  font-size: 0.72rem;
+  color: var(--ui-faint);
 }
 .entry-text {
   min-width: 0;
@@ -3571,6 +3629,20 @@ async function submitManualEntry() {
 /* week view: seven day columns, one per day, stacking on a phone */
 
 @media (max-width: 720px) {
+  .cal-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  /* the view switch gets its own row, the other controls share the next */
+  .month-bar-actions {
+    flex-wrap: wrap;
+    width: 100%;
+  }
+  .month-bar-actions > .seg {
+    flex: 1 1 100%;
+  }
+  .month-bar-actions > .seg :deep(.seg-tab) {
+    flex: 1;
+  }
   .month-grid {
     gap: 3px;
     grid-auto-rows: 70px;

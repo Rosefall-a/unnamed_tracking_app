@@ -14,10 +14,13 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.auth import get_current_admin
+from src.database.models.anime import Anime
+from src.database.models.movies import Movie
+from src.database.models.tv_show import TVShow
 from src.database.models.user import User
 from src.database.session import SessionLocal, get_db
 from src.features import jobs
@@ -110,7 +113,30 @@ async def scan() -> list[dict[str, Any]]:
     for person in people:
         # pictures a page would have to fetch from another site, so not viewable offline
         person["offline_missing"] = await count_missing(UUID(str(person["user_id"])))
+        person["missing_finish"] = await _missing_finish(UUID(str(person["user_id"])))
     return people
+
+
+async def _missing_finish(user_id: UUID) -> dict[str, int]:
+    """Completed titles with no finish date, per kind. They stay off the
+    calendar, the history and the yearly stats until a date is filled in;
+    nothing here guesses one."""
+    counts: dict[str, int] = {}
+    async with SessionLocal() as db:
+        for kind, model in (("movie", Movie), ("tv", TVShow), ("anime", Anime)):
+            counts[kind] = (
+                await db.scalar(
+                    select(func.count())
+                    .select_from(model)
+                    .where(
+                        model.user_id == user_id,
+                        model.deleted_at.is_(None),
+                        model.status.in_(["WATCHED", "FAVORITE"]),
+                        model.end_date.is_(None),
+                    )
+                )
+            ) or 0
+    return counts
 
 
 @router.get("/games")

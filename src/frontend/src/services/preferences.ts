@@ -59,7 +59,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   notify_season_started: true,
   notify_sequel_announced: true,
   notify_extras_announced: false,
-  media_trash_retention_days: 0,
+  media_trash_retention_days: 7,
   notify_movie_released: true,
   notify_statuses: ["watching", "plan", "hold"],
   notify_media_types: ["anime", "tv", "movie"],

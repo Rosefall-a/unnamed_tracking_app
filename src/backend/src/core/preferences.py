@@ -31,8 +31,9 @@ DEFAULTS: dict[str, Any] = {
     "notify_statuses": ["watching", "plan", "hold"],
     "notify_media_types": ["anime", "tv", "movie"],
     "notification_retention_days": 30,
-    # days a deleted movie, show or anime stays in the trash before it is deleted for good (0 = never)
-    "media_trash_retention_days": 0,
+    # days a deleted movie, show or anime stays in the trash before it is deleted
+    # for good (0 = never); 7 by default, the same as games
+    "media_trash_retention_days": 7,
     "library_default_layout": "list",
     "title_language": "english",
     "lists_default_sort": "custom",
