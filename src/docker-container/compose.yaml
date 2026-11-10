@@ -21,6 +21,8 @@ services:
       NGINX_REALIP_TRUSTED_PROXIES: ${NGINX_REALIP_TRUSTED_PROXIES-}
     volumes:
       - ./data:/data
+      # backups can live on another drive: set BACKUP_FOLDER in .env
+      - ${BACKUP_FOLDER:-./data/backups}:/data/backups
       # For TLS, mount externally managed certificates read-only:
       # - ./tls:/etc/nginx/tls:ro
 

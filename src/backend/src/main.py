@@ -4,7 +4,6 @@ import asyncio
 from fastapi import FastAPI, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
-from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 from starlette.middleware.sessions import SessionMiddleware
 
@@ -53,6 +52,7 @@ from src.api.routes.real_ip import router as real_ip_router
 from src.api.routes.setup import router as setup_router
 from src.api.routes.settings import get_or_create_app_integration_settings
 from src.api.routes.utils.misc import router as misc_router
+from src.core.compression import SelectiveGZipMiddleware
 from src.core.auth import ensure_primary_user, set_password_policy_override
 from src.core.config import settings as app_settings
 from src.core.provider_credentials import apply_deployment_provider_credentials
@@ -74,7 +74,8 @@ app.add_middleware(
 )
 
 # The anime list alone is several MB of JSON; it compresses roughly tenfold.
-app.add_middleware(GZipMiddleware, minimum_size=1024)
+# Pictures, clips and backups are left as they are (core/compression.py).
+app.add_middleware(SelectiveGZipMiddleware, minimum_size=1024)
 
 # Pydantic's default 422 body echoes what was submitted (`input`, plus the
 # raw values in `ctx`), which puts plaintext passwords, tokens and API keys

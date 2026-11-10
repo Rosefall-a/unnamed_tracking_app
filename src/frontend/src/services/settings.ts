@@ -544,6 +544,19 @@ export interface BackupFile {
   size: number;
   items: number | null;
   tables: number | null;
+  // the copy of everyone's files made with it, when there is one
+  files: { size: number; count: number; skipped: number } | null;
+}
+// which disk a folder is on, as the server sees it
+export interface BackupDrive {
+  label: string;
+  // false: only inside the container, gone when it is removed
+  mounted: boolean;
+}
+export interface BackupStorage {
+  backups: BackupDrive | null;
+  data: BackupDrive | null;
+  sameDrive: boolean | null;
 }
 export interface BackupOverview {
   enabled: boolean;
@@ -556,10 +569,14 @@ export interface BackupOverview {
   lastResult: Record<string, number | string | boolean | null>;
   running: boolean;
   folder: string;
+  includeFiles: boolean;
+  filesKeep: number;
+  maxFilesKeep: number;
+  storage: BackupStorage;
   backups: BackupFile[];
 }
 export interface Leftover {
-  kind: "game_trash" | "account_files" | "deleted_account";
+  kind: "game_trash" | "account_files" | "deleted_account" | "old_backups";
   name: string;
   label: string;
   bytes: number;
@@ -571,6 +588,11 @@ interface BackendBackupFile {
   size: number;
   items: number | null;
   tables: number | null;
+  files?: { size: number; count: number; skipped: number } | null;
+}
+interface BackendDrive {
+  label: string;
+  mounted: boolean;
 }
 interface BackendBackupOverview {
   enabled: boolean;
@@ -583,6 +605,14 @@ interface BackendBackupOverview {
   last_result: Record<string, number | string | boolean | null>;
   running: boolean;
   folder: string;
+  include_files?: boolean;
+  files_keep?: number;
+  max_files_keep?: number;
+  storage?: {
+    backups: BackendDrive | null;
+    data: BackendDrive | null;
+    same_drive: boolean | null;
+  };
   backups?: BackendBackupFile[];
 }
 function mapBackupFile(f: BackendBackupFile): BackupFile {
@@ -592,6 +622,9 @@ function mapBackupFile(f: BackendBackupFile): BackupFile {
     size: f.size,
     items: f.items,
     tables: f.tables ?? null,
+    files: f.files
+      ? { size: f.files.size, count: f.files.count, skipped: f.files.skipped }
+      : null,
   };
 }
 function mapBackupOverview(b: BackendBackupOverview): BackupOverview {
@@ -606,6 +639,14 @@ function mapBackupOverview(b: BackendBackupOverview): BackupOverview {
     lastResult: b.last_result,
     running: b.running,
     folder: b.folder,
+    includeFiles: b.include_files ?? false,
+    filesKeep: b.files_keep ?? 2,
+    maxFilesKeep: b.max_files_keep ?? 30,
+    storage: {
+      backups: b.storage?.backups ?? null,
+      data: b.storage?.data ?? null,
+      sameDrive: b.storage?.same_drive ?? null,
+    },
     backups: (b.backups ?? []).map(mapBackupFile),
   };
 }
@@ -624,6 +665,8 @@ export async function updateBackupSettings(changes: {
   enabled?: boolean;
   intervalMinutes?: number;
   keep?: number;
+  includeFiles?: boolean;
+  filesKeep?: number;
 }): Promise<BackupOverview> {
   const response = await fetch("/api/settings/backups", {
     method: "PUT",
@@ -633,6 +676,8 @@ export async function updateBackupSettings(changes: {
       enabled: changes.enabled,
       interval_minutes: changes.intervalMinutes,
       keep: changes.keep,
+      include_files: changes.includeFiles,
+      files_keep: changes.filesKeep,
     }),
   });
   if (!response.ok) throw await backupError(response, "Could not save");
@@ -649,6 +694,9 @@ export async function runBackupsNow(): Promise<boolean> {
 }
 export function backupDownloadUrl(name: string): string {
   return `/api/settings/backups/database/${encodeURIComponent(name)}`;
+}
+export function backupFilesDownloadUrl(name: string): string {
+  return `${backupDownloadUrl(name)}/files`;
 }
 export async function deleteBackup(name: string): Promise<void> {
   const response = await fetch(backupDownloadUrl(name), {

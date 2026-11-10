@@ -179,10 +179,14 @@ async def create_show(
 
     first_season = None
     for season_input in payload.seasons:
-        season = TVSeason(**season_input.model_dump(), show_id=show.id)
+        # a new season has no episodes yet; saying so up front means the airing
+        # check below can read the list without a database load
+        season = TVSeason(**season_input.model_dump(), show_id=show.id, episodes=[])
         db.add(season)
         if first_season is None:
             first_season = season
+    # the seasons need their ids before the airing check below adds episodes to one
+    await db.flush()
 
     # Otherwise a freshly-added airing show shows no next-episode date
     # anywhere (countdown, calendar) until the next periodic airing-check
@@ -264,6 +268,9 @@ async def list_shows(
     )
 
 
+_FIRST_CHECK_WAIT_SECONDS = 8
+
+
 @router.get("/get/{show_id}", response_model=TVShowRead)
 async def get_show(
     show_id: UUID,
@@ -272,10 +279,24 @@ async def get_show(
 ) -> TVShow:
     """Return one show by ID, with its seasons. If it has been a while,
     also asks TVmaze in the background whether the show has a new season
-    (see features/tv_seasons.py), which shows up the next time it's opened."""
+    (see features/tv_seasons.py), which shows up the next time it's opened.
+
+    The very first check is waited for, up to a few seconds: it is what adds
+    every season after the first, so without it a newly added show opened
+    with only Season 1 until the page was reloaded. A slow TVmaze still
+    finishes in the background and never holds the page longer than that."""
     show = await _get_show_or_404(show_id, db, current_user.id)
     if is_due(show):
-        asyncio.create_task(check_in_background(show.id))
+        check = asyncio.create_task(check_in_background(show.id))
+        if show.seasons_checked_at is None:
+            try:
+                await asyncio.wait_for(asyncio.shield(check), timeout=_FIRST_CHECK_WAIT_SECONDS)
+            except TimeoutError:
+                return show
+            # the check saved through its own session; read the show again from
+            # scratch so the new seasons and every episode come back loaded
+            db.expunge_all()
+            show = await _get_show_or_404(show_id, db, current_user.id)
     return show
 
 

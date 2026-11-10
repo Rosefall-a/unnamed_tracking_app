@@ -5,7 +5,9 @@ snapshot.py.
 
 The schedule is set by an admin in Settings > Admin > Backups and stored in
 the job_settings row "auto_backup": whether it runs by itself, how often,
-and (in options) how many backups to keep. A run is due when the
+and (in options) how many backups to keep, whether each also gets a copy of
+everyone's files (off by default) and for how many of the newest backups
+that copy is kept. A run is due when the
 last one is older than the interval, so restarting the server does not add
 an extra backup each time. After a failed run it is due again an hour later,
 so one bad night does not leave a whole interval without a backup.
@@ -27,7 +29,7 @@ from src.database.models.job_setting import JobSetting
 from src.database.models.movies import Movie
 from src.database.models.tv_show import TVShow
 from src.database.session import SessionLocal
-from src.features.backup import snapshot
+from src.features.backup import files_archive, snapshot
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +40,8 @@ MAX_INTERVAL_MINUTES = 30 * 24 * 60
 RETRY_AFTER_FAILURE_MINUTES = 60
 DEFAULT_KEEP = 7
 MAX_KEEP = 365
+DEFAULT_FILES_KEEP = 2
+MAX_FILES_KEEP = 30
 TICK_SECONDS = 60
 
 _running = False
@@ -66,6 +70,19 @@ def keep_count(row: JobSetting) -> int:
         return int((row.options or {}).get("keep", DEFAULT_KEEP))
     except (TypeError, ValueError):
         return DEFAULT_KEEP
+
+
+def includes_files(row: JobSetting) -> bool:
+    return bool((row.options or {}).get("include_files", False))
+
+
+def files_keep(row: JobSetting) -> int:
+    """How many of the newest backups keep their files copy. Each one is
+    about as big as the files themselves, so fewer than the backups."""
+    try:
+        return max(1, int((row.options or {}).get("files_keep", DEFAULT_FILES_KEEP)))
+    except (TypeError, ValueError):
+        return DEFAULT_FILES_KEEP
 
 
 def is_due(row: JobSetting, now: float) -> bool:
@@ -99,13 +116,31 @@ async def run_backup() -> dict[str, Any]:
     result: dict[str, Any] = {"status": "failed", "removed": 0, "held": None, "error": None}
     try:
         async with SessionLocal() as db:
-            keep = keep_count(await get_setting(db))
+            row = await get_setting(db)
+            keep, with_files, keep_files = keep_count(row), includes_files(row), files_keep(row)
             await db.commit()
         items = await _count_items()
         snapshot.clear_partials(snapshot.DATABASE_DIR)
         info = await asyncio.to_thread(snapshot.write_backup, snapshot.DATABASE_DIR, items)
+        result.update(status="written", name=info.name, size=info.size)
+        if with_files:
+            # the database backup is already safe; a files copy that fails is
+            # reported next to it and never undoes it
+            try:
+                info.files = await asyncio.to_thread(
+                    files_archive.write_files, snapshot.DATABASE_DIR, info.name
+                )
+                snapshot.write_info(snapshot.DATABASE_DIR, info)
+                result["files_size"] = info.files["size"]
+            except Exception as exc:
+                logger.exception("The files copy for %s failed", info.name)
+                result["files_error"] = str(exc)[:500]
         removed, held = await asyncio.to_thread(snapshot.rotate, snapshot.DATABASE_DIR, keep)
-        result.update(status="written", name=info.name, size=info.size, removed=removed, held=held)
+        result.update(removed=removed, held=held)
+        if not held:
+            result["files_removed"] = await asyncio.to_thread(
+                snapshot.prune_files, snapshot.DATABASE_DIR, keep_files
+            )
         if held:
             logger.warning("Backup rotation held: %s", held)
         logger.info("Automatic backup: %s", result)

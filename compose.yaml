@@ -25,6 +25,8 @@ services:
     volumes:
       - ./src/backend/src:/app/src
       - ./data:/data
+      # backups can live on another drive: set BACKUP_FOLDER in .env
+      - ${BACKUP_FOLDER:-./data/backups}:/data/backups
     stdin_open: true
     tty: true
     depends_on:

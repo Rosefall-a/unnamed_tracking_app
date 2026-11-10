@@ -11,6 +11,8 @@ services:
       - .env
     volumes:
       - ./data:/data
+      # backups can live on another drive: set BACKUP_FOLDER in .env
+      - ${BACKUP_FOLDER:-./data/backups}:/data/backups
 
   db:
     image: postgres:18

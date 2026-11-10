@@ -9,7 +9,11 @@ table, so restoring it brings back the whole server as it was:
         -U <user> -d <database> < data/backups/database/database-<time>.dump
 
 Files (covers, screenshots, saves) are not inside it; they stay in
-/data/users and /data/user.
+/data/users and /data/user. An admin can turn on a copy of them next to each
+backup (files_archive.py), off by default because it is far bigger.
+
+/data/backups can be its own folder or drive: BACKUP_FOLDER in .env is
+mounted there by the compose files, and drive_of() says where it really is.
 
 Safety rules, in the order they apply:
 1. The dump is written as .partial, flushed to disk, then opened with
@@ -46,6 +50,7 @@ USER_FILE_ROOTS = (Path("/data/users"), Path("/data/user"))
 DELETED_ACCOUNTS_ROOT = Path("/data/deleted_accounts")
 
 BACKUP_NAME = re.compile(r"^database-\d+\.dump$")
+FILES_SUFFIX = ".files.tar"
 # tables a dump must hold data for to count as a backup at all
 _REQUIRED_TABLES = ("users", "games", "movies", "tv_shows", "anime")
 # a newest backup under half the previous one's items holds rotation back
@@ -68,6 +73,9 @@ class BackupInfo:
     sha256: str | None
     items: int | None
     tables: int | None
+    # the copy of everyone's files made with it, see files_archive.py:
+    # {"name", "size", "count", "skipped"}, or None when it has none
+    files: dict | None = None
 
 
 def _pg_env() -> dict[str, str]:
@@ -178,11 +186,20 @@ def write_backup(backup_dir: Path, items: int) -> BackupInfo:
     info = BackupInfo(
         name=final.name, created_at=stamp, size=size, sha256=digest, items=items, tables=tables
     )
-    meta = _meta_path(final)
+    write_info(backup_dir, info)
+    return info
+
+
+def write_info(backup_dir: Path, info: BackupInfo) -> None:
+    meta = _meta_path(backup_dir / info.name)
     tmp = meta.with_name(meta.name + ".partial")
     tmp.write_text(json.dumps(asdict(info)))
     os.replace(tmp, meta)
-    return info
+
+
+def files_path(backup_dir: Path, name: str) -> Path:
+    """Where the copy of everyone's files for one backup goes, if it has one."""
+    return backup_dir / (name.rsplit(".", 1)[0] + FILES_SUFFIX)
 
 
 def read_info(backup: Path) -> BackupInfo:
@@ -215,8 +232,22 @@ def delete_backup(backup_dir: Path, name: str) -> bool:
     if not path.is_file():
         return False
     path.unlink()
+    files_path(backup_dir, name).unlink(missing_ok=True)
     _meta_path(path).unlink(missing_ok=True)
     return True
+
+
+def prune_files(backup_dir: Path, keep: int) -> int:
+    """Removes the files copy from every backup past the newest `keep` that
+    have one. The database backup itself stays. Returns how many went."""
+    removed = 0
+    with_files = [b for b in list_backups(backup_dir) if b.files]
+    for backup in with_files[keep:]:
+        files_path(backup_dir, backup.name).unlink(missing_ok=True)
+        backup.files = None
+        write_info(backup_dir, backup)
+        removed += 1
+    return removed
 
 
 def rotate(backup_dir: Path, keep: int) -> tuple[int, str | None]:
@@ -243,6 +274,59 @@ def rotate(backup_dir: Path, keep: int) -> tuple[int, str | None]:
         if delete_backup(backup_dir, stale.name):
             removed += 1
     return removed, None
+
+
+MOUNT_TABLE = Path("/proc/self/mountinfo")
+
+
+def _unescape(text: str) -> str:
+    # the mount table writes a space as \040 and a backslash as \134
+    return re.sub(r"\\([0-7]{3})", lambda m: chr(int(m.group(1), 8)), text)
+
+
+def drive_of(path: Path, table: Path = MOUNT_TABLE) -> dict | None:
+    """Which disk a folder really lives on, read from the container's mount
+    table: {"device", "label", "mounted"}. The label is what a person
+    recognises, such as C:\\ or D:\\ under Docker Desktop, or /dev/sdb1 on
+    Linux. "mounted" is False when the folder is only inside the container,
+    where it is lost when the container is removed. None when unknown."""
+    try:
+        lines = table.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return None
+    target = str(path)
+    found: dict | None = None
+    found_length = -1
+    for line in lines:
+        left, _sep, right = line.partition(" - ")
+        fields, tail = left.split(), right.split()
+        if len(fields) < 5 or len(tail) < 2:
+            continue
+        mount_point = _unescape(fields[4])
+        inside = target == mount_point or target.startswith(mount_point.rstrip("/") + "/")
+        # the deepest mount holding the folder is the one it is really on
+        if not inside or len(mount_point) <= found_length:
+            continue
+        fstype, source = tail[0], _unescape(tail[1])
+        # a Windows drive shared by Docker Desktop is named by its letter,
+        # whichever mount it comes through; anything else by its device number
+        windows_drive = re.match(r"^[A-Za-z]:\\", source)
+        found_length = len(mount_point)
+        found = {
+            "device": source[:3].upper() if windows_drive else f"{fields[2]} {source}",
+            "label": source,
+            "mounted": mount_point != "/" and fstype != "overlay",
+        }
+    return found
+
+
+def storage_report(backup_dir: Path = BACKUP_ROOT) -> dict:
+    """Where backups and the files they protect each live, for Settings."""
+    backups, data = drive_of(backup_dir), drive_of(USER_FILE_ROOTS[0])
+    same = None
+    if backups is not None and data is not None:
+        same = backups.get("device") == data.get("device")
+    return {"backups": backups, "data": data, "same_drive": same}
 
 
 def clear_partials(backup_dir: Path, older_than_seconds: int = 24 * 60 * 60) -> None:
