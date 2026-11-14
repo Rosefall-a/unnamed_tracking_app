@@ -32,6 +32,7 @@ from src.database.models.user_appearance_settings import UserAppearanceSettings
 from src.database.models.user_scan_settings import UserScanSettings
 from src.database.session import get_db
 from src.features.metadata.games import steam
+from src.features.metadata.games.atlas import AtlasClient, AtlasError, normalize_base_url
 from src.features.metadata.games.giant_bomb import GiantBombClient, GiantBombError
 from src.features.metadata.games.gog import GOGClient, GOGError
 from src.features.metadata.games.retroachievements import (
@@ -66,6 +67,7 @@ PROVIDER_FIELD_MAP: dict[str, list[tuple[str, str, bool]]] = {
     ],
     "Xbox": [("client_id", "xbox_client_id", False), ("client_secret", "xbox_client_secret", True)],
     "GOG": [("refresh_token", "gog_refresh_token", True)],
+    "Atlas": [("base_url", "atlas_base_url", False), ("token", "atlas_token", True)],
 }
 
 _ProviderClientError = (
@@ -75,6 +77,7 @@ _ProviderClientError = (
     ScreenScraperError,
     XboxError,
     GOGError,
+    AtlasError,
 )
 
 
@@ -123,6 +126,11 @@ def _validate_provider(provider: str, user: User) -> dict:
     if provider == "GOG":
         return GOGClient(
             decrypt_secret(user.gog_refresh_token) if user.gog_refresh_token else ""
+        ).validate()
+    if provider == "Atlas":
+        return AtlasClient(
+            user.atlas_base_url or "",
+            decrypt_secret(user.atlas_token) if user.atlas_token else "",
         ).validate()
     raise ValueError(f"Unknown provider: {provider}")
 
@@ -350,7 +358,7 @@ async def get_provider_credentials(
     are present."""
     # non-secret identifiers (never passwords/keys/tokens) are safe to echo
     # back so a field the user already saved shows filled, not blank
-    _SAFE_TO_DISPLAY_FIELDS = {"steam_id", "username", "ssid", "client_id"}
+    _SAFE_TO_DISPLAY_FIELDS = {"steam_id", "username", "ssid", "client_id", "base_url"}
 
     result: dict[str, dict] = {}
     for provider, field_map in PROVIDER_FIELD_MAP.items():
@@ -520,6 +528,12 @@ async def save_provider_credentials(
         if value is None:
             continue
         value = value.strip()
+        if provider == "Atlas" and payload_field == "base_url" and value:
+            # stored as the plain server root, and a refused address is never saved
+            try:
+                value = await asyncio.to_thread(normalize_base_url, value)
+            except AtlasError as exc:
+                return {"provider": provider, "status": "error", "detail": str(exc)}
         setattr(
             current_user,
             column,
@@ -536,6 +550,12 @@ async def save_provider_credentials(
     if connected and provider == "RetroAchievements":
         current_user.retroachievements_avatar_url = result.get("avatar_url")
         await db.commit()
+    if connected and provider == "Atlas":
+        # an order saved before Atlas existed does not list it, so searches would skip it
+        scan_settings = await get_or_create_scan_settings(current_user.id, db)
+        if "Atlas" not in scan_settings.provider_order:
+            scan_settings.provider_order = [*scan_settings.provider_order, "Atlas"]
+            await db.commit()
     return {"provider": provider, "status": "connected" if connected else "saved", "detail": None}
 
 
