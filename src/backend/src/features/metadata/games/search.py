@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Any, Callable, Literal
 from src.core.config import settings
 from src.core.crypto import decrypt_secret
 from src.features.metadata.games import gog, steam, steam_tags
+from src.features.metadata.games.atlas import AtlasClient
 from src.features.metadata.games.giant_bomb import GiantBombClient
 from src.features.metadata.games.hltb import HLTBClient, HLTBError
 from src.features.metadata.games.igdb import IGDBClient, IGDBError
@@ -471,6 +472,33 @@ def _run_giant_bomb(
     return found
 
 
+def _run_atlas(
+    query: str, limit: int, ctx: ProviderContext, existing: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    del existing
+    user = ctx.user
+    assert user and user.atlas_base_url and user.atlas_token  # guarded by `available`
+    client = AtlasClient(user.atlas_base_url, decrypt_secret(user.atlas_token))
+    found: list[dict[str, Any]] = []
+    for game in client.search(query, limit=limit):
+        result = _blank_result("Atlas", game["id"], game["title"])
+        result.update(
+            {
+                "description": game.get("description"),
+                "release_date": _parse_release_date(game.get("release_date")),
+                "developer": game.get("developer"),
+                "publisher": game.get("publisher"),
+                "series": game.get("series"),
+                "age_rating": game.get("age_rating"),
+                "tags": game.get("genres", []) + game.get("tags", []),
+                "features": game.get("features", []),
+                "links": [{"label": "Atlas", "url": game["url"]}] if game.get("url") else [],
+            }
+        )
+        found.append(result)
+    return found
+
+
 def _run_gog(
     query: str, limit: int, ctx: ProviderContext, existing: list[dict[str, Any]]
 ) -> list[dict[str, Any]]:
@@ -613,6 +641,12 @@ PROVIDERS: dict[str, ProviderSpec] = {
     ),
     "HowLongToBeat": ProviderSpec("HowLongToBeat", "enrichment", lambda ctx: True, _run_hltb),
     "GOG": ProviderSpec("GOG", "primary", lambda ctx: True, _run_gog),
+    "Atlas": ProviderSpec(
+        "Atlas",
+        "primary",
+        lambda ctx: bool(ctx.user and ctx.user.atlas_base_url and ctx.user.atlas_token),
+        _run_atlas,
+    ),
 }
 
 # fields a user can opt out of saving from a metadata search result — the
@@ -643,13 +677,29 @@ _GATED_FIELDS: dict[str, tuple[str, Any]] = {
 # provider never contributes art and an image provider never contributes
 # data, regardless of what a caller passes in `provider_order`/
 # `image_provider_order` (each list is still filtered down to its own set)
-DATA_PROVIDER_NAMES = {"Steam", "IGDB", "GiantBomb", "GOG", "RetroAchievements", "HowLongToBeat"}
+DATA_PROVIDER_NAMES = {
+    "Steam",
+    "IGDB",
+    "GiantBomb",
+    "GOG",
+    "RetroAchievements",
+    "HowLongToBeat",
+    "Atlas",
+}
 IMAGE_PROVIDER_NAMES = {"SteamGridDB", "ScreenScraper"}
 
 # "best of category first" — see user_scan_settings.py's identical constant
 # for the reasoning; kept in sync manually since these are two intentionally
 # separate modules (backend model defaults vs. search-time fallback)
-DEFAULT_PROVIDER_ORDER = ["IGDB", "GiantBomb", "Steam", "GOG", "RetroAchievements", "HowLongToBeat"]
+DEFAULT_PROVIDER_ORDER = [
+    "IGDB",
+    "GiantBomb",
+    "Steam",
+    "GOG",
+    "RetroAchievements",
+    "HowLongToBeat",
+    "Atlas",
+]
 DEFAULT_IMAGE_PROVIDER_ORDER = ["SteamGridDB", "ScreenScraper"]
 DEFAULT_PREFERENCES: dict[str, Any] = {
     "provider_order": DEFAULT_PROVIDER_ORDER,

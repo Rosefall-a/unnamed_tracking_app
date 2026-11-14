@@ -58,6 +58,7 @@ const SHORT_DESC: Record<string, string> = {
   GiantBomb: "General metadata & art",
   ScreenScraper: "Retro box art & screenshots",
   GOG: "Metadata search, no key needed",
+  Atlas: "Your own Atlas metadata server",
   LaunchBox: "Local app, not a cloud API",
   RetroAchievements: "Retro metadata & achievements",
   PlayStation: "Trophies & PSN Store data",
@@ -78,6 +79,7 @@ const VISUALS: Record<string, CardVisual> = {
   ScreenScraper: { bg: "#1a3d0a", fg: "#86efac", mark: "SS" },
   Xbox: { bg: "#0a2e0a", fg: "#4ade80", mark: "Xb" },
   GOG: { bg: "#2a1a3d", fg: "#c084fc", mark: "GOG" },
+  Atlas: { bg: "#0f2a3a", fg: "#38bdf8", mark: "At" },
   LaunchBox: { bg: "#1a1a1a", fg: "#999999", mark: "LB" },
   PlayStation: { bg: "#0a1a3d", fg: "#60a5fa", mark: "PS" },
   "Epic Games": { bg: "#202020", fg: "#f5f5f5", mark: "EG" },
@@ -523,6 +525,17 @@ const PROVIDER_CARDS: Record<string, ProviderCardConfig> = {
         label: "Refresh token (library import only)",
         type: "password",
       },
+    ],
+    kind: "wired",
+  },
+  Atlas: {
+    key: "Atlas",
+    label: "Atlas",
+    description:
+      "Game metadata from an Atlas server you run or are given access to. Needs the server's address and a token with the read scope.",
+    fields: [
+      { key: "base_url", label: "Server address", type: "text" },
+      { key: "token", label: "Read token", type: "password" },
     ],
     kind: "wired",
   },
@@ -1350,7 +1363,7 @@ async function toggleHltb(enabled: boolean) {
 
         <!-- generic wired-provider tiles -->
         <div
-          v-for="key in ['GiantBomb', 'ScreenScraper']"
+          v-for="key in ['GiantBomb', 'ScreenScraper', 'Atlas']"
           :key="key"
           class="source-tile"
         >
