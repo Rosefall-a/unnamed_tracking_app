@@ -7,17 +7,27 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 # strictly separated — a data provider never contributes art and an image
 # provider never contributes data (see search.py's search_game_metadata)
-DATA_PROVIDERS = {"Steam", "IGDB", "RetroAchievements", "GiantBomb", "GOG", "HowLongToBeat"}
+DATA_PROVIDERS = {
+    "Steam",
+    "IGDB",
+    "RetroAchievements",
+    "GiantBomb",
+    "GOG",
+    "HowLongToBeat",
+    "Atlas",
+}
 IMAGE_PROVIDERS = {"SteamGridDB", "ScreenScraper"}
 
-DataProvider = Literal["Steam", "IGDB", "RetroAchievements", "GiantBomb", "GOG", "HowLongToBeat"]
+DataProvider = Literal[
+    "Steam", "IGDB", "RetroAchievements", "GiantBomb", "GOG", "HowLongToBeat", "Atlas"
+]
 ImageProvider = Literal["SteamGridDB", "ScreenScraper"]
 
 
 class ScanSettingsUpdate(BaseModel):
     """Partial update — every field optional."""
 
-    provider_order: list[DataProvider] | None = Field(default=None, max_length=6)
+    provider_order: list[DataProvider] | None = Field(default=None, max_length=7)
     image_provider_order: list[ImageProvider] | None = Field(default=None, max_length=2)
     save_developer: bool | None = None
     save_publisher: bool | None = None

@@ -6,7 +6,8 @@ export type DataProvider =
   | "RetroAchievements"
   | "GiantBomb"
   | "GOG"
-  | "HowLongToBeat";
+  | "HowLongToBeat"
+  | "Atlas";
 export type ImageProvider = "SteamGridDB" | "ScreenScraper";
 export type ScanProvider = DataProvider | ImageProvider;
 
@@ -69,6 +70,7 @@ const MOCK_SCAN_SETTINGS: ScanSettings = {
     "Steam",
     "RetroAchievements",
     "HowLongToBeat",
+    "Atlas",
   ],
   image_provider_order: ["SteamGridDB", "ScreenScraper"],
   save_developer: true,

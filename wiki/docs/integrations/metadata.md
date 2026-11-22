@@ -41,8 +41,8 @@ Metadata changes are recorded in the existing game metadata history, so provider
 ## Developer notes
 
 The editor uses `/api/game/{game_id}/metadata/refresh`, which calls `features.metadata.games.search.search_game_metadata` with the requesting user's existing provider preferences and credentials. The endpoint owns authorization, exact-match validation, manual-field protection, history updates, artwork handling, and stale-preview checks; clients do not send arbitrary provider data to the game update API.
-Games are searched on Steam, GOG, IGDB, GiantBomb, RetroAchievements and
-HowLongToBeat; SteamGridDB and ScreenScraper add artwork. Movies and TV use
+Games are searched on Steam, GOG, IGDB, GiantBomb, RetroAchievements,
+HowLongToBeat and, if you have connected one, an Atlas server; SteamGridDB and ScreenScraper add artwork. Movies and TV use
 TMDB, OMDb and TVmaze, anime uses AniList. Cover and banner artwork can also be
 uploaded by hand.
 
@@ -63,6 +63,26 @@ configured**, so the same provider appearing in both places isn't a sign
 that they're out of sync.
 
 IGDB, TMDB, OMDb and TVDB are server-wide only.
+
+## Atlas
+
+Atlas is a self-hosted game metadata server. Connecting one adds it as a game
+data provider, searched alongside the others in your provider order (it is
+added at the end, and can be moved under **Settings › Metadata › Scan
+Settings**). It supplies title, description, release date, developer,
+publisher, series, age rating, genres, tags and features. It does not supply
+artwork; that still comes from SteamGridDB and ScreenScraper.
+
+To connect one, open **Settings › Metadata/API › Atlas** and enter:
+
+- **Server address**: the root of the server, such as `https://atlas.example.com`
+  (a path prefix is fine, and a pasted `/api/v2` is removed).
+- **Read token**: create one on the server with
+  `atlas token --name tracker --scopes read`.
+
+Atlas is per user only; there is no server-wide Atlas key. Addresses on your own
+network are allowed, but link-local addresses (including `169.254.169.254`)
+and cloud metadata hostnames are refused.
 
 
 ## Steam tags as genres

@@ -11,6 +11,7 @@ const DATA_PROVIDER_LABELS: Record<DataProvider, string> = {
   GOG: "GOG",
   RetroAchievements: "RetroAchievements",
   HowLongToBeat: "HowLongToBeat (time to beat only)",
+  Atlas: "Atlas (your own server)",
 };
 const IMAGE_PROVIDER_LABELS: Record<ImageProvider, string> = {
   SteamGridDB: "SteamGridDB",
@@ -29,6 +30,7 @@ const providerOrder = ref<DataProvider[]>([
   "Steam",
   "RetroAchievements",
   "HowLongToBeat",
+  "Atlas",
 ]);
 const imageProviderOrder = ref<ImageProvider[]>([
   "SteamGridDB",

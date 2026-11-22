@@ -16,7 +16,16 @@ from src.database.base import Base
 # HowLongToBeat contributes a single field, so it's least useful to check
 # first. SteamGridDB's library and curation (community-rated, purpose-built
 # for cover art) beats ScreenScraper's narrower retro-focused art.
-DEFAULT_PROVIDER_ORDER = ["IGDB", "GiantBomb", "Steam", "GOG", "RetroAchievements", "HowLongToBeat"]
+# Atlas is last: it only runs for users who have connected a node of their own.
+DEFAULT_PROVIDER_ORDER = [
+    "IGDB",
+    "GiantBomb",
+    "Steam",
+    "GOG",
+    "RetroAchievements",
+    "HowLongToBeat",
+    "Atlas",
+]
 DEFAULT_IMAGE_PROVIDER_ORDER = ["SteamGridDB", "ScreenScraper"]
 
 
