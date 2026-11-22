@@ -12,8 +12,8 @@ from pathlib import Path
 from typing import Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from fastapi.responses import FileResponse, RedirectResponse, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi.responses import RedirectResponse, Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -32,6 +32,7 @@ from src.helpers.local_copies import (
     fetch_still,
     still_path,
 )
+from src.helpers.range_response import ranged_file_response
 from src.helpers.remote_images import RemoteImageError
 
 # not every Python knows these two, and a wrong type stops the picture showing
@@ -43,7 +44,9 @@ router = APIRouter(prefix="/api", tags=["media"], dependencies=[Depends(get_curr
 _NOT_FOUND = HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No such picture.")
 
 
-async def _serve(url: str, target: Path, fetch: Callable[[str, Path], None]) -> Response:
+async def _serve(
+    request: Request, url: str, target: Path, fetch: Callable[[str, Path], None]
+) -> Response:
     if not target.is_file():
         try:
             await asyncio.to_thread(fetch, url, target)
@@ -53,14 +56,15 @@ async def _serve(url: str, target: Path, fetch: Callable[[str, Path], None]) -> 
                 status_code=status.HTTP_307_TEMPORARY_REDIRECT,
                 headers={"Cache-Control": "no-store"},
             )
-    kind = mimetypes.guess_type(target.name)[0] or "application/octet-stream"
-    return FileResponse(
-        target, media_type=kind, headers={"Cache-Control": "private, max-age=86400"}
-    )
+    # sent in pieces when the browser asks, so a long clip can be skipped through
+    response = ranged_file_response(request, target)
+    response.headers["Cache-Control"] = "private, max-age=86400"
+    return response
 
 
 @router.get("/episode-still/{media_type}/{episode_id}")
 async def get_episode_still(
+    request: Request,
     media_type: Literal["tv", "anime"],
     episode_id: UUID,
     db: AsyncSession = Depends(get_db),
@@ -84,11 +88,12 @@ async def get_episode_still(
     if not url or not url.startswith(("http://", "https://")):
         raise _NOT_FOUND
     root = cache_root(image_prefetch.MEDIA_ROOT, current_user.id)
-    return await _serve(url, still_path(root, url), fetch_still)
+    return await _serve(request, url, still_path(root, url), fetch_still)
 
 
 @router.get("/game/{game_id}/page-file")
 async def get_description_file(
+    request: Request,
     game_id: UUID,
     u: str = Query(..., max_length=2048),
     db: AsyncSession = Depends(get_db),
@@ -100,4 +105,4 @@ async def get_description_file(
     if u not in description_files(description):
         raise _NOT_FOUND
     root = cache_root(image_prefetch.MEDIA_ROOT, current_user.id)
-    return await _serve(u, description_file_path(root, u), fetch_description_file)
+    return await _serve(request, u, description_file_path(root, u), fetch_description_file)

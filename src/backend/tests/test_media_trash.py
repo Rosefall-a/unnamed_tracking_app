@@ -37,10 +37,21 @@ async def test_emptying_the_trash_removes_only_what_is_in_it(flow) -> None:  # n
     assert await _titles(flow.user_id) == ["Kept"]
 
 
-async def test_nothing_is_cleared_automatically_unless_a_period_is_chosen(flow) -> None:  # noqa: F811
+async def test_by_default_titles_go_after_7_days_like_games(flow) -> None:  # noqa: F811
+    # this account never saved a preference, so it gets the default
     now = int(time.time())
-    await _movie(flow.user_id, "Old", now - 40 * 86400)
-    assert preferences.DEFAULTS["media_trash_retention_days"] == 0
+    await _movie(flow.user_id, "Old", now - 8 * 86400)
+    await _movie(flow.user_id, "Recent", now - 6 * 86400)
+    assert preferences.DEFAULTS["media_trash_retention_days"] == 7
+    await purge_expired_media_trash()
+    assert await _titles(flow.user_id) == ["Recent"]
+
+
+async def test_never_keeps_everything(flow) -> None:  # noqa: F811
+    now = int(time.time())
+    await _movie(flow.user_id, "Old", now - 400 * 86400)
+    async with SessionLocal() as db:
+        await preferences.save_preferences(db, flow.user_id, {"media_trash_retention_days": 0})
     await purge_expired_media_trash()
     assert await _titles(flow.user_id) == ["Old"]
 

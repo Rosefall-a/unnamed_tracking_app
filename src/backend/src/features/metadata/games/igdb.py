@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import threading
 import time
+from datetime import datetime, timezone
 from typing import Any
 
 import requests
@@ -143,16 +144,22 @@ class IGDBClient:
             out["time_to_beat_completionist_hours"] = round(row["completely"] / 3600, 1)
         return out
 
-    def search(self, query: str, limit: int = 8) -> list[dict[str, Any]]:
+    def search(self, query: str, limit: int = 8, year: int | None = None) -> list[dict[str, Any]]:
         if not query.strip():
             return []
         safe_query = query.replace('"', "'")
+        # a year typed with the title: only games first released that year
+        when = ""
+        if year is not None:
+            start = int(datetime(year, 1, 1, tzinfo=timezone.utc).timestamp())
+            end = int(datetime(year + 1, 1, 1, tzinfo=timezone.utc).timestamp())
+            when = f"where first_release_date >= {start} & first_release_date < {end}; "
         body = (
             f'search "{safe_query}"; '
             "fields name,summary,first_release_date,url,cover.url,genres.name,"
             "involved_companies.company.name,involved_companies.developer,"
             "involved_companies.publisher,collection.name,franchises.name; "
-            f"limit {limit};"
+            f"{when}limit {limit};"
         )
         response = self._post_games(body)
         if response.status_code == 401:

@@ -4,7 +4,7 @@
 // picks from (a pool, kinds, genre, platform, rating, how long it takes) is set
 // with the controls on the widget. Narrow, it falls back to the poster and the
 // buttons.
-import { computed, inject, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, inject, onBeforeUnmount, onMounted, ref } from "vue";
 import WidgetFrame from "../WidgetFrame.vue";
 import ArtCard from "../ArtCard.vue";
 import { CHROME_KEY } from "../../../home/chrome";
@@ -12,7 +12,10 @@ import { KIND_NOUN, titlesOf } from "../../../home/data";
 import type { HomeTitle } from "../../../home/data";
 import { sampleTitles } from "../../../home/samples";
 import { asKinds } from "../../../home/rail";
-import { narrow } from "../../../home/select";
+import { dailyShuffle, narrow, todayKey } from "../../../home/select";
+import { WIDGET_CONTEXT } from "../../../home/context";
+import { useNow } from "../../../home/clock";
+import { getUi, setUi } from "../../../state/uiState";
 import type { WidgetProps } from "../../../home/registry";
 
 const props = defineProps<WidgetProps>();
@@ -33,19 +36,39 @@ const pool = computed(() => {
   const pick = POOL[String(props.settings.pool)] ?? POOL.waiting;
   return narrow(titlesOf(props.settings.kinds).filter(pick), props.settings);
 });
-// "Spotlight" shows one pick for the whole day instead of a roll
+// "Spotlight" is the same daily pick without a Pick again button
 const daily = computed(() => props.settings.daily === true);
-function dayRoll(): number {
-  const day = Math.floor(Date.now() / 86_400_000);
-  return ((day * 2654435761) % 4294967296) / 4294967296;
-}
-const roll = ref(daily.value ? dayRoll() : Math.random());
-watch(pool, () => (roll.value = daily.value ? dayRoll() : Math.random()));
-const picked = computed(() =>
-  pool.value.length
-    ? pool.value[Math.floor(roll.value * pool.value.length)]
-    : null,
+
+// One pick a day. Until "Pick again" is pressed it is the day's own choice,
+// the same on every visit and every device; a title added to the library
+// does not move it, and only one that leaves the pool (started, finished)
+// is replaced. "Pick again" chooses another, saved on the server with the day
+// it was made, so every device shows it until midnight. It is saved apart from
+// the layout so a daily pick never adds a version to the Home layout's history.
+const widget = inject(WIDGET_CONTEXT, null);
+const widgetId = computed(() => widget?.value?.id ?? "picker");
+const now = useNow();
+const today = computed(() => todayKey(now.value));
+const storageKey = computed(() => `homePick:${widgetId.value}`);
+
+const chosen = computed(() =>
+  getUi<{ day: string; key: string } | null>(storageKey.value, null),
 );
+function keep(key: string) {
+  setUi(storageKey.value, { day: today.value, key });
+}
+
+const picked = computed(() => {
+  const list = pool.value;
+  if (!list.length) return null;
+  if (props.sample) return list[0];
+  const mine = chosen.value;
+  if (mine && mine.day === today.value) {
+    const kept = list.find((t) => t.key === mine.key);
+    if (kept) return kept;
+  }
+  return dailyShuffle(list, (t) => t.key, widgetId.value, today.value)[0];
+});
 const position = computed(() =>
   picked.value ? pool.value.indexOf(picked.value) + 1 : 0,
 );
@@ -53,17 +76,11 @@ const buttonLabel = computed(
   () => String(props.settings.buttonLabel || "").trim() || "Pick again",
 );
 
-// no immediate repeats: a re-roll always lands on something different
+// always something different from what is showing, kept for the rest of the day
 function again() {
-  if (pool.value.length < 2) return;
-  const current = picked.value;
-  let next = Math.random();
-  for (let i = 0; i < 8; i++) {
-    const t = pool.value[Math.floor(next * pool.value.length)];
-    if (t !== current) break;
-    next = Math.random();
-  }
-  roll.value = next;
+  const others = pool.value.filter((t) => t !== picked.value);
+  if (!others.length) return;
+  keep(others[Math.floor(Math.random() * others.length)].key);
 }
 
 const status = computed(() => {

@@ -607,30 +607,47 @@ export interface CalendarGameEntry {
   date: string;
   count: number;
   posterUrl: string | null;
+  // achievements only: the first few unlocked that day, in order
+  names?: string[];
 }
 
-export async function fetchCalendarGames(): Promise<CalendarGameEntry[]> {
-  const response = await fetch("/api/calendar/games", {
-    credentials: "include",
-  });
-  const raw = await handle<
-    {
-      kind: CalendarGameEntry["kind"];
-      game_id: string;
-      title: string;
-      date: string;
-      count: number;
-      poster_url?: string | null;
-    }[]
-  >(response, "load games history");
-  return raw.map((g) => ({
+type BackendGameEntry = {
+  kind: CalendarGameEntry["kind"];
+  game_id: string;
+  title: string;
+  date: string;
+  count: number;
+  poster_url?: string | null;
+  names?: string[];
+};
+function mapGameEntry(g: BackendGameEntry): CalendarGameEntry {
+  return {
     kind: g.kind,
     gameId: g.game_id,
     title: g.title,
     date: g.date,
     count: g.count,
     posterUrl: g.poster_url ?? null,
-  }));
+    names: g.names ?? [],
+  };
+}
+
+// Every game's history for the History tab, as far back as the data goes,
+// whatever the calendar is set to show.
+export async function fetchGameHistory(): Promise<CalendarGameEntry[]> {
+  const response = await fetch("/api/history/games", {
+    credentials: "include",
+  });
+  const raw = await handle<BackendGameEntry[]>(response, "load game history");
+  return raw.map(mapGameEntry);
+}
+
+export async function fetchCalendarGames(): Promise<CalendarGameEntry[]> {
+  const response = await fetch("/api/calendar/games", {
+    credentials: "include",
+  });
+  const raw = await handle<BackendGameEntry[]>(response, "load games history");
+  return raw.map(mapGameEntry);
 }
 
 // Entries the user put on the calendar by hand.

@@ -484,6 +484,8 @@ export interface TVShowMetadataResult {
   title: string;
   description: string | null;
   firstAirDate: string | null;
+  // the year it started, known even when a quick search has no full date
+  year: string | null;
   episodeRuntimeMinutes: number | null;
   creators: string[];
   studios: string[];
@@ -522,6 +524,7 @@ interface BackendTVShowMetadataResult {
   title: string;
   description: string | null;
   first_air_date: string | null;
+  year?: string | null;
   episode_runtime_minutes: number | null;
   creators: string[];
   studios: string[];
@@ -568,6 +571,7 @@ export async function searchTVShowMetadata(
       title: r.title,
       description: r.description,
       firstAirDate: r.first_air_date,
+      year: r.year ?? (r.first_air_date ? r.first_air_date.slice(0, 4) : null),
       episodeRuntimeMinutes: r.episode_runtime_minutes,
       creators: r.creators,
       studios: r.studios,

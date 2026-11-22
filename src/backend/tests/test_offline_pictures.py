@@ -142,6 +142,14 @@ async def test_description_files_and_stills_are_served_from_disk_and_only_your_o
         f"/api/game/{flow.game_id}/page-file", params={"u": "https://shared.example/c.mp4"}
     )
     assert again.status_code == 200 and fetched == ["https://shared.example/c.mp4"]
+    # a player skipping ahead asks for part of the clip and gets just that
+    part = await flow.client.get(
+        f"/api/game/{flow.game_id}/page-file",
+        params={"u": "https://shared.example/c.mp4"},
+        headers={"Range": "bytes=1-2"},
+    )
+    assert part.status_code == 206 and part.content == b"li"
+    assert part.headers["content-range"] == "bytes 1-2/4"
     stranger = await flow.client.get(
         f"/api/game/{flow.game_id}/page-file", params={"u": "http://169.254.169.254/latest"}
     )

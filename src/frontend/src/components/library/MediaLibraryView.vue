@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { getUi, hasUi, removeUi, setUi } from "../../state/uiState";
 import "../../styles/shared/sortHead.css";
 import { readSavedSort } from "../../utils/librarySort";
 import type { LibrarySort } from "../../utils/librarySort";
@@ -80,6 +81,8 @@ export interface SearchResultVM {
   description: string | null;
   episodeTotal: number | null;
   releaseYear: string | null;
+  // the provider's own id, so adding it saves exactly this title
+  providerId?: string | null;
 }
 
 export interface QuickAddForm {
@@ -207,24 +210,23 @@ const LAYOUT_OPTIONS: SegmentOption[] = [
 // layout choice, so opening it never overwrites what List/Shelf/Board
 // was last set to, and leaving it returns to that remembered layout.
 const layout = ref<"list" | "shelf" | "board">(
-  (localStorage.getItem("libraryLayout") as "list" | "shelf" | "board") ||
+  getUi<"list" | "shelf" | "board" | null>("libraryLayout", null) ||
     preferences.value.library_default_layout,
 );
 // the server default arrives a moment after the first render
 watch(
   () => preferences.value.library_default_layout,
   (v) => {
-    if (!localStorage.getItem("libraryLayout")) layout.value = v;
+    if (!hasUi("libraryLayout")) layout.value = v;
   },
 );
-watch(layout, (v) => localStorage.setItem("libraryLayout", v));
+watch(layout, (v) => setUi("libraryLayout", v));
 // Card size for the Shelf grid, same idea as Games' S/M/L density toggle
 // — persisted so it doesn't reset every visit.
 const shelfCardSize = ref<"compact" | "cozy" | "large">(
-  (localStorage.getItem("libraryShelfCardSize") as
-    "compact" | "cozy" | "large") || "cozy",
+  getUi<"compact" | "cozy" | "large">("libraryShelfCardSize", "cozy") || "cozy",
 );
-watch(shelfCardSize, (v) => localStorage.setItem("libraryShelfCardSize", v));
+watch(shelfCardSize, (v) => setUi("libraryShelfCardSize", v));
 const shelfCardMinWidth = computed(() => {
   if (shelfCardSize.value === "compact") return "150px";
   if (shelfCardSize.value === "large") return "260px";
@@ -242,26 +244,14 @@ const boardCardMinWidth = computed(() => {
 // cleared when you leave the library, so coming back starts on All.
 const statusKey = `libraryStatus:${props.kind}`;
 function readSavedStatus(): string {
-  try {
-    return sessionStorage.getItem(statusKey) || "all";
-  } catch {
-    return "all";
-  }
+  return getUi<string>(statusKey, "all") || "all";
 }
 const activeStatus = ref<string>(readSavedStatus());
 watch(activeStatus, (v) => {
-  try {
-    sessionStorage.setItem(statusKey, v);
-  } catch {
-    /* storage unavailable: the tab just won't survive a refresh */
-  }
+  setUi(statusKey, v);
 });
 onBeforeUnmount(() => {
-  try {
-    sessionStorage.removeItem(statusKey);
-  } catch {
-    /* nothing to clear */
-  }
+  removeUi(statusKey);
 });
 const searchQuery = ref("");
 let filterTimer: ReturnType<typeof setTimeout> | null = null;
@@ -279,11 +269,7 @@ function emitFilters() {
 type SortKey = LibrarySort;
 const sortKey = ref<SortKey>(readSavedSort(props.kind));
 watch(sortKey, (v) => {
-  try {
-    localStorage.setItem(`librarySort:${props.kind}`, v);
-  } catch {
-    /* remembering the sort is optional */
-  }
+  setUi(`librarySort:${props.kind}`, v);
 });
 // The server reads every page in the sort's own order, so the first page already
 // holds the right titles. Only "progress" is worked out from seasons and episodes
@@ -308,6 +294,7 @@ const selectedFormats = ref<Set<string>>(new Set());
 const onlyFavorites = ref(false);
 const onlyUnrated = ref(false);
 const onlyWithNote = ref(false);
+const missingFinish = ref(false);
 const minScore = ref<number | null>(null);
 // kept as text: v-model on a number input would hand back a Number
 const yearFrom = ref("");
@@ -336,6 +323,7 @@ const activeFilterCount = computed(
       onlyFavorites.value,
       onlyUnrated.value,
       onlyWithNote.value,
+      missingFinish.value,
       minScore.value !== null,
       yearFrom.value.trim() !== "" || yearTo.value.trim() !== "",
     ].filter(Boolean).length,
@@ -349,6 +337,13 @@ const BASE_PATH: Record<string, string> = {
 };
 function applyLinkedFilter() {
   if (route.path !== BASE_PATH[props.kind]) return;
+  // Repair links here as ?missing=finish to list finished titles with no date
+  if (route.query.missing === "finish") {
+    clearFilters();
+    missingFinish.value = true;
+    filtersOpen.value = true;
+    return;
+  }
   const genre = route.query.genre;
   if (typeof genre !== "string" || !genre) return;
   clearFilters();
@@ -362,6 +357,7 @@ function clearFilters() {
   onlyFavorites.value = false;
   onlyUnrated.value = false;
   onlyWithNote.value = false;
+  missingFinish.value = false;
   minScore.value = null;
   yearFrom.value = "";
   yearTo.value = "";
@@ -409,6 +405,7 @@ const filters = computed<LibraryFilters>(() => ({
   onlyFavorites: onlyFavorites.value,
   onlyUnrated: onlyUnrated.value,
   onlyWithNote: onlyWithNote.value,
+  missingFinish: missingFinish.value,
   minScore: minScore.value,
   yearFrom: yearFrom.value,
   yearTo: yearTo.value,
@@ -439,9 +436,15 @@ function computedRank(it: LibraryCardVM): number | null {
 }
 
 // the server counts by real status; the tabs are the five buckets
-const statusCounts = computed<Record<string, number>>(() =>
-  bucketCounts(props.statusCounts),
-);
+const statusCounts = computed<Record<string, number>>(() => {
+  const counts = bucketCounts(props.statusCounts);
+  // Library: everything you have started or finished, so all but Plan to Watch
+  return { ...counts, library: (counts.all ?? 0) - (counts.plan ?? 0) };
+});
+function inTab(status: string, tab: string): boolean {
+  const bucket = statusBucket(status);
+  return tab === "library" ? bucket !== "plan" : bucket === tab;
+}
 
 function progressPct(it: LibraryCardVM): number {
   if (it.progressPercent != null) return it.progressPercent;
@@ -452,7 +455,7 @@ function progressPct(it: LibraryCardVM): number {
 const filteredItems = computed(() => {
   let list = props.items;
   if (activeStatus.value !== "all") {
-    list = list.filter((it) => statusBucket(it.status) === activeStatus.value);
+    list = list.filter((it) => inTab(it.status, activeStatus.value));
   }
   list = list.filter(matchesFilterState);
   const sorted = [...list];
@@ -552,7 +555,11 @@ const boardGroups = computed(() => {
   const statuses =
     activeStatus.value === "all"
       ? STATUSES
-      : STATUSES.filter((s) => s.key === activeStatus.value);
+      : STATUSES.filter((s) =>
+          activeStatus.value === "library"
+            ? s.key !== "plan"
+            : s.key === activeStatus.value,
+        );
   return statuses
     .map((s) => {
       let rowItems = props.items.filter(
@@ -1008,6 +1015,15 @@ defineExpose({ openQuickAdd });
           >
             Has a note
           </button>
+          <button
+            type="button"
+            class="genre-chip"
+            :class="{ selected: missingFinish }"
+            title="Completed titles with no finish date, which keeps them off the calendar, history and yearly stats"
+            @click="missingFinish = !missingFinish"
+          >
+            No finish date
+          </button>
         </div>
         <div class="filter-group">
           <span class="filter-label">Score</span>
@@ -1101,6 +1117,14 @@ defineExpose({ openQuickAdd });
           @click="activeStatus = 'all'"
         >
           All <span class="n">{{ statusCounts.all }}</span>
+        </button>
+        <button
+          type="button"
+          class="status-tab"
+          :class="{ active: activeStatus === 'library' }"
+          @click="activeStatus = 'library'"
+        >
+          Library <span class="n">{{ statusCounts.library }}</span>
         </button>
         <button
           v-for="s in STATUSES"

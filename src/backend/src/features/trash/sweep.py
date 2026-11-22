@@ -219,19 +219,27 @@ async def purge_expired_trash() -> dict[str, int]:
 
 async def purge_expired_media_trash() -> int:
     """Deletes movies, shows and anime that have been in the trash longer than their
-    owner's chosen number of days. A person who has not chosen one (the default is
-    never) loses nothing."""
+    owner's chosen number of days: 7 unless they chose another, the same as games.
+    Choosing "never" (0) keeps everything."""
     from src.core.preferences import DEFAULTS
     from src.database.models.anime import Anime
     from src.database.models.movies import Movie
     from src.database.models.tv_show import TVShow
+    from src.database.models.user import User
     from src.database.models.user_preferences import UserPreferences
 
     removed = 0
     now = int(time.time())
     async with SessionLocal() as db:
-        for prefs in (await db.execute(select(UserPreferences))).scalars().all():
-            days = int({**DEFAULTS, **(prefs.data or {})}["media_trash_retention_days"])
+        # every account, including one that never saved a preference, which
+        # gets the default
+        people = await db.execute(
+            select(User.id, UserPreferences.data).outerjoin(
+                UserPreferences, UserPreferences.user_id == User.id
+            )
+        )
+        for user_id, data in people.all():
+            days = int({**DEFAULTS, **(data or {})}["media_trash_retention_days"])
             if days <= 0:
                 continue
             cutoff = now - days * 86400
@@ -240,7 +248,7 @@ async def purge_expired_media_trash() -> int:
                     (
                         await db.execute(
                             select(model).where(
-                                model.user_id == prefs.user_id,
+                                model.user_id == user_id,
                                 model.deleted_at.is_not(None),
                                 model.deleted_at < cutoff,
                             )

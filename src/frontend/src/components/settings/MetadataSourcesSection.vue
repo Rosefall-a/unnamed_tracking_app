@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { hideBrokenPicture } from "../../utils/localPictures";
 import { ref, reactive, onMounted } from "vue";
 import PasswordInput from "../PasswordInput.vue";
 import { currentUser, checkAuth } from "../../state/auth";
@@ -1603,6 +1604,7 @@ async function toggleHltb(enabled: boolean) {
               :src="credentialStatus.Steam.avatar_url"
               class="tile-avatar"
               alt=""
+              @error="hideBrokenPicture"
             />
             {{ credentialStatus.Steam.display_name }}
           </span>
@@ -1747,6 +1749,7 @@ async function toggleHltb(enabled: boolean) {
               :src="credentialStatus.RetroAchievements.avatar_url"
               class="tile-avatar"
               alt=""
+              @error="hideBrokenPicture"
             />
             {{ credentialStatus.RetroAchievements.display_name }}
           </span>
@@ -1907,6 +1910,7 @@ async function toggleHltb(enabled: boolean) {
               :src="psnStatus.avatar_url"
               class="tile-avatar"
               alt=""
+              @error="hideBrokenPicture"
             />
             {{ psnStatus.display_name }}
           </span>

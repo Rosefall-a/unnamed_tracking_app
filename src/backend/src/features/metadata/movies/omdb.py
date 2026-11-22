@@ -105,11 +105,16 @@ class OMDBClient:
             "seasons": [],
         }
 
-    def search(self, query: str, limit: int = 8, light: bool = False) -> list[dict[str, Any]]:
+    def search(
+        self, query: str, limit: int = 8, light: bool = False, year: int | None = None
+    ) -> list[dict[str, Any]]:
         if not query.strip():
             return []
         try:
-            payload = self._get({"s": query, "type": "movie"})
+            params = {"s": query, "type": "movie"}
+            if year:
+                params["y"] = str(year)
+            payload = self._get(params)
         except OMDBError as exc:
             # "Movie not found!" is OMDb's normal zero-results response, not
             # a real failure — swallow only that one message so it reads as
@@ -138,6 +143,8 @@ class OMDBClient:
                     "title": _clean(details.get("Title")) or candidate.get("Title"),
                     "overview": _clean(details.get("Plot")),
                     "release_date": _parse_date(details.get("Released")),
+                    # the search answer has the year even when there is no full date
+                    "year": (candidate.get("Year") or "")[:4] or None,
                     "runtime_minutes": _parse_runtime(details.get("Runtime")),
                     "director": _clean(details.get("Director")),
                     "writer": _clean(details.get("Writer")),
@@ -152,14 +159,19 @@ class OMDBClient:
             )
         return results
 
-    def search_tv(self, query: str, limit: int = 8, light: bool = False) -> list[dict[str, Any]]:
+    def search_tv(
+        self, query: str, limit: int = 8, light: bool = False, year: int | None = None
+    ) -> list[dict[str, Any]]:
         """Like `search`, but for series. OMDb's `totalSeasons` gives a
         count only — no per-season episode counts or air dates, unlike
         TMDB's `seasons` array, so this never contributes a season list."""
         if not query.strip():
             return []
         try:
-            payload = self._get({"s": query, "type": "series"})
+            params = {"s": query, "type": "series"}
+            if year:
+                params["y"] = str(year)
+            payload = self._get(params)
         except OMDBError as exc:
             if "not found" in str(exc).lower():
                 return []
@@ -184,6 +196,8 @@ class OMDBClient:
                     "title": _clean(details.get("Title")) or candidate.get("Title"),
                     "overview": _clean(details.get("Plot")),
                     "first_air_date": _parse_date(details.get("Released")),
+                    # the search answer has the year even when there is no full date
+                    "year": (candidate.get("Year") or "")[:4] or None,
                     "episode_runtime_minutes": _parse_runtime(details.get("Runtime")),
                     "creators": _parse_list(details.get("Writer")),
                     "studios": [],

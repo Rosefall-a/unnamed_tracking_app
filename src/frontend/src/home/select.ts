@@ -18,10 +18,47 @@ export function sortTitles(
     case "rating":
       return copy.sort((a, b) => (b.rating ?? -1) - (a.rating ?? -1));
     case "random":
-      return shuffle(copy);
+      // shuffled once a day, so Home looks the same every visit until tomorrow
+      return dailyShuffle(copy, (t) => t.key);
     default:
       return copy.sort((a, b) => b.addedAt - a.addedAt);
   }
+}
+
+// The local day ("2026-11-10"): what "today" means for anything picked daily
+export function todayKey(now: number | Date = Date.now()): string {
+  const d = new Date(now);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+// FNV-1a: a small, stable number for a piece of text
+function hash(text: string): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) {
+    h ^= text.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return h >>> 0;
+}
+
+/** A shuffle that stays the same all day and changes tomorrow. Each item is
+ * placed by its own key and the day, so the order does not depend on the order
+ * the list came in, and a title added or removed leaves the rest where they
+ * were. `salt` lets two widgets shuffle the same titles differently. */
+export function dailyShuffle<T>(
+  list: T[],
+  keyOf: (item: T) => string,
+  salt = "",
+  day = todayKey(),
+): T[] {
+  const placed = list.map((item) => ({
+    item,
+    key: keyOf(item),
+    rank: hash(`${day}|${salt}|${keyOf(item)}`),
+  }));
+  placed.sort((a, b) => a.rank - b.rank || a.key.localeCompare(b.key));
+  return placed.map((p) => p.item);
 }
 
 export function shuffle<T>(list: T[]): T[] {

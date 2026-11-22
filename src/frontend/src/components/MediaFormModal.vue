@@ -342,7 +342,7 @@ function buildChanges(match: Result, poster: string | null): LookupChange[] {
     offer("anilistScore", "AniList score", m.anilistScore);
     offer("malScore", "MAL score", m.malScore);
   } else {
-    offer("tmdbScore", "TMDB score", m.tmdbScore);
+    offer("tmdbScore", "Public score", m.tmdbScore);
   }
   if (
     poster &&

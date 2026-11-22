@@ -1,3 +1,5 @@
+import { clearUiState } from "../state/uiState";
+
 export interface CurrentUser {
   id: string;
   username: string;
@@ -55,6 +57,7 @@ export async function logout(): Promise<void> {
     return;
   }
   await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+  clearUiState();
 }
 
 export async function fetchCurrentUser(): Promise<CurrentUser | null> {

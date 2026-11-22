@@ -7,6 +7,7 @@ import {
 } from "../state/auth";
 import { appearanceLoaded, loadAppearanceSettings } from "../state/appearance";
 import { fetchSetupStatus } from "../services/setup";
+import { loadUiState } from "../state/uiState";
 import {
   classifySetupStatus,
   rememberReturnPath,
@@ -310,6 +311,8 @@ router.beforeEach(async (to) => {
   }
 
   if (currentUser.value) {
+    // saved choices first, so a page opens the way it was left
+    await loadUiState(currentUser.value.id);
     setStartupState("ready");
     if (!appearanceLoaded.value) await loadAppearanceSettings();
   } else {

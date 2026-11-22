@@ -238,6 +238,7 @@ async def list_shows(
     format: list[str] = Query(default=[]),
     only_unrated: bool = Query(default=False),
     only_with_note: bool = Query(default=False),
+    missing_finish: bool = Query(default=False),
     min_score: float | None = Query(default=None, ge=0, le=10),
     year_from: int | None = Query(default=None, ge=1, le=9999),
     year_to: int | None = Query(default=None, ge=1, le=9999),
@@ -248,6 +249,8 @@ async def list_shows(
     if status_bucket and status_bucket != "all":
         status_values = {
             "plan": {TVShowStatus.WISHLIST, TVShowStatus.WATCHLIST}, "hold": {TVShowStatus.BACKLOG},
+            # Library: everything you have started or finished, so all but Plan to Watch
+            "library": set(TVShowStatus) - {TVShowStatus.WISHLIST, TVShowStatus.WATCHLIST},
             "watching": {TVShowStatus.IN_PROGRESS, TVShowStatus.REWATCH},
             "completed": {TVShowStatus.WATCHED, TVShowStatus.FAVORITE}, "dropped": {TVShowStatus.DROPPED},
         }.get(status_bucket)
@@ -262,7 +265,7 @@ async def list_shows(
         skip=skip,
         limit=limit,
         status_values=status_values, genres=genre, genre_match_all=genre_match_all,
-        formats=format, only_unrated=only_unrated, only_with_note=only_with_note,
+        formats=format, only_unrated=only_unrated, only_with_note=only_with_note, missing_finish=missing_finish,
         min_score=min_score, year_column=TVShow.first_air_date, year_from=year_from, year_to=year_to,
         sort=sort,
     )

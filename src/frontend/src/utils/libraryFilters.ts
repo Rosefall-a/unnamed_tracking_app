@@ -3,6 +3,7 @@
 // (no year for a year range, no score for a minimum score) never matches it.
 
 import type { LibrarySort } from "./librarySort";
+import { statusBucket } from "./mediaStatus";
 
 export interface Filterable {
   title: string;
@@ -13,6 +14,8 @@ export interface Filterable {
   score: number | null;
   note: string | null;
   releaseYear: string | null;
+  status?: string;
+  endDate?: string | null;
 }
 
 export interface LibraryFilters {
@@ -23,6 +26,8 @@ export interface LibraryFilters {
   onlyFavorites: boolean;
   onlyUnrated: boolean;
   onlyWithNote: boolean;
+  // finished titles with no finish date, so they can be filled in
+  missingFinish?: boolean;
   minScore: number | null;
   yearFrom: string;
   yearTo: string;
@@ -45,6 +50,11 @@ export function matchesFilters(it: Filterable, f: LibraryFilters): boolean {
   if (f.onlyFavorites && !it.favorite) return false;
   if (f.onlyUnrated && it.score !== null) return false;
   if (f.onlyWithNote && !(it.note && it.note.trim())) return false;
+  if (
+    f.missingFinish &&
+    !(statusBucket(it.status ?? "") === "completed" && !it.endDate)
+  )
+    return false;
   if (f.minScore !== null && !(it.score !== null && it.score >= f.minScore))
     return false;
   const from = parseInt(f.yearFrom, 10);

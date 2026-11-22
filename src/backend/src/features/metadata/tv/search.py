@@ -14,7 +14,9 @@ from src.features.metadata.search_utils import (
     format_provider_error,
     merge_search_result,
     run_providers,
+    split_year,
     visible_errors,
+    year_first,
 )
 
 # Reuses the TMDB/OMDb clients built for Movies (same API keys, same
@@ -30,6 +32,7 @@ def _blank_result(provider: str, provider_id: str, title: str) -> dict[str, Any]
         "title": title,
         "description": None,
         "first_air_date": None,
+        "year": None,
         "episode_runtime_minutes": None,
         "creators": [],
         "studios": [],
@@ -55,6 +58,8 @@ class ProviderContext:
     omdb_api_key: str | None
     # a quick search for a results list: no detail page per result
     light: bool = False
+    # a year typed after the title, which providers that can search by year use
+    year: int | None = None
 
 
 ProviderRun = Callable[[str, int, ProviderContext], list[dict[str, Any]]]
@@ -72,7 +77,7 @@ def _run_tmdb(query: str, limit: int, ctx: ProviderContext) -> list[dict[str, An
     assert ctx.tmdb_api_key  # guarded by `available`
     client = TMDBClient(api_key=ctx.tmdb_api_key)
     found: list[dict[str, Any]] = []
-    for show in client.search_tv(query, limit=limit, light=ctx.light):
+    for show in client.search_tv(query, limit=limit, year=ctx.year, light=ctx.light):
         result = _blank_result("TMDB", str(show.get("id", "")), show.get("title", ""))
         result.update(
             {
@@ -99,12 +104,13 @@ def _run_omdb(query: str, limit: int, ctx: ProviderContext) -> list[dict[str, An
     assert ctx.omdb_api_key  # guarded by `available`
     client = OMDBClient(api_key=ctx.omdb_api_key)
     found: list[dict[str, Any]] = []
-    for show in client.search_tv(query, limit=limit, light=ctx.light):
+    for show in client.search_tv(query, limit=limit, light=ctx.light, year=ctx.year):
         result = _blank_result("OMDb", str(show.get("id", "")), show.get("title", ""))
         result.update(
             {
                 "description": show.get("overview"),
                 "first_air_date": show.get("first_air_date") or None,
+                "year": show.get("year"),
                 "episode_runtime_minutes": show.get("episode_runtime_minutes"),
                 "creators": show.get("creators") or [],
                 "studios": show.get("studios") or [],
@@ -175,13 +181,36 @@ def search_tv_metadata(
     omdb_api_key: str | None = None,
     light: bool = False,
 ) -> dict[str, Any]:
+    """A year typed after the title ("Extinction 2015") is searched as the
+    year it came out, not as part of the name, and that year's shows come
+    first. When the title without it finds nothing, the whole text is
+    searched again, so a name that ends in a number is never lost."""
+    title, year = split_year(query)
+    found = _search(title, limit, tmdb_api_key, omdb_api_key, light, year)
+    if year is not None and not found["results"]:
+        found = _search(query.strip(), limit, tmdb_api_key, omdb_api_key, light, None)
+    found["query"] = query
+    found["results"] = year_first(found["results"], year)
+    return found
+
+
+def _search(
+    query: str,
+    limit: int,
+    tmdb_api_key: str | None,
+    omdb_api_key: str | None,
+    light: bool,
+    year: int | None,
+) -> dict[str, Any]:
     """Search TMDB and OMDb concurrently for TV shows and return
     normalized, creation-form-ready results, mirroring
     `search_movie_metadata`'s orchestration exactly (per-provider error
     isolation, title-match merging). TMDB results additionally carry a
     `seasons` list pulled straight from its `/tv/{id}` response, so a new
     show can bulk-create its seasons instead of the user typing them in."""
-    ctx = ProviderContext(tmdb_api_key=tmdb_api_key, omdb_api_key=omdb_api_key, light=light)
+    ctx = ProviderContext(
+        tmdb_api_key=tmdb_api_key, omdb_api_key=omdb_api_key, light=light, year=year
+    )
     specs = [PROVIDERS[name] for name in DEFAULT_PROVIDER_ORDER if PROVIDERS[name].available(ctx)]
 
     results: list[dict[str, Any]] = []

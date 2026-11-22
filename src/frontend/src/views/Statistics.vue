@@ -8,6 +8,7 @@
 // counter), plus one more pass through those for each logged rewatch; a season counts as completed only when every one of
 // its episodes is watched. Anything with no runtime on record is reported
 // in a note, never given a guessed length.
+import { getUi, setUi } from "../state/uiState";
 import { ref, computed, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import AppTopBar from "../components/AppTopBar.vue";
@@ -41,7 +42,7 @@ const router = useRouter();
 const stats = ref<MediaStats | null>(peekMediaStats());
 const loading = ref(!stats.value);
 const error = ref<string | null>(null);
-const tab = ref<Tab>((localStorage.getItem("statsTab") as Tab) || "overview");
+const tab = ref<Tab>(getUi<Tab>("statsTab", "overview") || "overview");
 
 async function load() {
   error.value = null;
@@ -58,11 +59,7 @@ useKeptAlive(load);
 
 function setTab(t: Tab) {
   tab.value = t;
-  try {
-    localStorage.setItem("statsTab", t);
-  } catch {
-    /* remembering the tab is optional */
-  }
+  setUi("statsTab", t);
 }
 
 // ---- formatting ----

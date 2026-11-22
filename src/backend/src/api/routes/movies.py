@@ -163,6 +163,7 @@ async def list_movies(
     format: list[str] = Query(default=[]),
     only_unrated: bool = Query(default=False),
     only_with_note: bool = Query(default=False),
+    missing_finish: bool = Query(default=False),
     min_score: float | None = Query(default=None, ge=0, le=10),
     year_from: int | None = Query(default=None, ge=1, le=9999),
     year_to: int | None = Query(default=None, ge=1, le=9999),
@@ -173,6 +174,8 @@ async def list_movies(
     if status_bucket and status_bucket != "all":
         status_values = {
             "plan": {MovieStatus.WISHLIST, MovieStatus.WATCHLIST}, "hold": {MovieStatus.BACKLOG},
+            # Library: everything you have started or finished, so all but Plan to Watch
+            "library": set(MovieStatus) - {MovieStatus.WISHLIST, MovieStatus.WATCHLIST},
             "watching": {MovieStatus.IN_PROGRESS, MovieStatus.REWATCH},
             "completed": {MovieStatus.WATCHED, MovieStatus.FAVORITE}, "dropped": {MovieStatus.DROPPED},
         }.get(status_bucket)
@@ -187,7 +190,7 @@ async def list_movies(
         skip=skip,
         limit=limit,
         status_values=status_values, genres=genre, genre_match_all=genre_match_all,
-        formats=format, only_unrated=only_unrated, only_with_note=only_with_note,
+        formats=format, only_unrated=only_unrated, only_with_note=only_with_note, missing_finish=missing_finish,
         min_score=min_score, year_column=Movie.release_date, year_from=year_from, year_to=year_to,
         sort=sort,
     )

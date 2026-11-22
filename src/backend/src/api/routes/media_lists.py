@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import noload
 
 from src.api.routes.media_extras import _MODEL_BY_TYPE, _resolve_media
 from src.api.schemas.media_extras import (
@@ -60,6 +61,15 @@ def _item_dict(
     }
 
 
+def _smart_query(model: Any, user_id: UUID, favorite: Any) -> Any:
+    query = select(model).where(model.user_id == user_id, model.deleted_at.is_(None))
+    if favorite is not None:
+        query = query.where(model.favorite.is_(bool(favorite)))
+    # a list item needs only the title's own columns; the seasons and every
+    # episode would otherwise load with each show (Favorites runs on every read)
+    return query.options(noload("*"))
+
+
 async def _resolve_smart_items(
     rule: dict, user_id: UUID, db: AsyncSession, language: str
 ) -> list[dict]:
@@ -78,15 +88,7 @@ async def _resolve_smart_items(
         model = _MODEL_BY_TYPE.get(media_type)
         if model is None:
             continue
-        rows = (
-            (
-                await db.execute(
-                    select(model).where(model.user_id == user_id, model.deleted_at.is_(None))
-                )
-            )
-            .scalars()
-            .all()
-        )
+        rows = (await db.execute(_smart_query(model, user_id, favorite))).scalars().all()
         for media in rows:
             if allowed_statuses is not None and _status_str(media) not in allowed_statuses:
                 continue

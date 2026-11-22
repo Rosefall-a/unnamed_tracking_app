@@ -5,6 +5,7 @@
 // an editor with a formatting bar and a live preview. A note can be pinned,
 // tagged, tied to an achievement, started from a template, duplicated, moved to
 // another game, and wound back to an earlier version.
+import { getUi, removeUi, setUi } from "../state/uiState";
 import {
   ref,
   computed,
@@ -270,32 +271,20 @@ const previewHtml = computed(() => render(body.value));
 
 const draftKey = computed(() => `noteDraft:${props.gameId}`);
 function loadDraft(): { title: string; body: string } | null {
-  try {
-    const raw = localStorage.getItem(draftKey.value);
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
-  }
+  const saved = getUi<{ title: string; body: string } | null>(
+    draftKey.value,
+    null,
+  );
+  return saved && typeof saved === "object" ? { ...saved } : null;
 }
 function storeDraft() {
   if (editingName.value !== null) return;
-  try {
-    if (title.value.trim() || body.value.trim())
-      localStorage.setItem(
-        draftKey.value,
-        JSON.stringify({ title: title.value, body: body.value }),
-      );
-    else localStorage.removeItem(draftKey.value);
-  } catch {
-    // the draft just will not survive a reload
-  }
+  if (title.value.trim() || body.value.trim())
+    setUi(draftKey.value, { title: title.value, body: body.value });
+  else removeUi(draftKey.value);
 }
 function clearDraft() {
-  try {
-    localStorage.removeItem(draftKey.value);
-  } catch {
-    // nothing to clear
-  }
+  removeUi(draftKey.value);
 }
 const hasDraft = computed(() => {
   void mode.value;

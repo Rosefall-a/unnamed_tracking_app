@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import WidgetFrame from "../WidgetFrame.vue";
+import { hideBrokenPicture } from "../../../utils/localPictures";
 import { ago, ensure, homeData, routeFor } from "../../../home/data";
 import { markAllNotificationsRead } from "../../../services/notifications";
 import { sampleNotifications } from "../../../home/samples";
@@ -61,7 +62,13 @@ const items = computed(() => {
             aria-hidden="true"
           ></span>
           <span class="thumb">
-            <img v-if="n.posterUrl" :src="n.posterUrl" alt="" loading="lazy" />
+            <img
+              v-if="n.posterUrl"
+              :src="n.posterUrl"
+              alt=""
+              loading="lazy"
+              @error="hideBrokenPicture"
+            />
             <span v-else>{{ n.title.charAt(0) }}</span>
           </span>
           <span class="words">

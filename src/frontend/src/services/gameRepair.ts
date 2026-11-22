@@ -8,6 +8,8 @@ export interface RepairPerson {
   to_fix_forced: number;
   // pictures with no local copy yet, so a page has to fetch them from another site
   offline_missing?: Record<string, number>;
+  // completed movies, shows and anime with no finish date
+  missing_finish?: { movie: number; tv: number; anime: number };
 }
 
 export interface RepairGame {

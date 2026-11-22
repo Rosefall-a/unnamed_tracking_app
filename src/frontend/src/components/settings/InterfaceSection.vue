@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { getUi, setUi } from "../../state/uiState";
 import { ref, watch } from "vue";
 import SegmentedControl from "./SegmentedControl.vue";
 import ToggleButton from "./ToggleButton.vue";
@@ -14,17 +15,19 @@ type SortBy =
   "name" | "recent" | "rating" | "playtime" | "last_played" | "priority";
 
 const defaultViewMode = ref<ViewMode>(
-  (localStorage.getItem("gameLibraryViewMode") as ViewMode) || "cards",
+  getUi<ViewMode>("gameLibraryViewMode", "cards") || "cards",
 );
 const defaultSort = ref<SortBy>(
-  (localStorage.getItem("gameLibraryDefaultSort") as SortBy) || "name",
+  getUi<SortBy>("gameLibraryDefaultSort", "name") || "name",
 );
-const compactMode = ref(localStorage.getItem("compactMode") === "true");
+const compactMode = ref(
+  String(getUi<unknown>("compactMode", false)) === "true",
+);
 const weeklyDigestEnabled = ref(
-  localStorage.getItem("weeklyDigestEnabled") !== "false",
+  String(getUi<unknown>("weeklyDigestEnabled", true)) !== "false",
 );
 const highContrastMode = ref(
-  localStorage.getItem("highContrastMode") === "true",
+  String(getUi<unknown>("highContrastMode", false)) === "true",
 );
 
 const viewModeOptions = [
@@ -81,21 +84,15 @@ async function setTimeStyle(value: string) {
   }
 }
 
-watch(defaultViewMode, (mode) =>
-  localStorage.setItem("gameLibraryViewMode", mode),
-);
-watch(defaultSort, (sort) =>
-  localStorage.setItem("gameLibraryDefaultSort", sort),
-);
+watch(defaultViewMode, (mode) => setUi("gameLibraryViewMode", mode));
+watch(defaultSort, (sort) => setUi("gameLibraryDefaultSort", sort));
 watch(compactMode, (enabled) => {
-  localStorage.setItem("compactMode", String(enabled));
+  setUi("compactMode", enabled);
   document.documentElement.classList.toggle("compact", enabled);
 });
-watch(weeklyDigestEnabled, (enabled) =>
-  localStorage.setItem("weeklyDigestEnabled", String(enabled)),
-);
+watch(weeklyDigestEnabled, (enabled) => setUi("weeklyDigestEnabled", enabled));
 watch(highContrastMode, (enabled) => {
-  localStorage.setItem("highContrastMode", String(enabled));
+  setUi("highContrastMode", enabled);
   document.documentElement.classList.toggle("high-contrast", enabled);
 });
 </script>

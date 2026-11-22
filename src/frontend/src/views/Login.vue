@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { hideBrokenPicture } from "../utils/localPictures";
 import { onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { login } from "../services/auth";
@@ -167,6 +168,7 @@ function buttonStyle(provider: OidcLoginProvider) {
               v-if="provider.button_image_url"
               :src="provider.button_image_url"
               alt=""
+              @error="hideBrokenPicture"
             /><span>{{ provider.button_text || provider.name }}</span>
           </button>
         </div>
@@ -203,6 +205,7 @@ function buttonStyle(provider: OidcLoginProvider) {
               v-if="provider.button_image_url"
               :src="provider.button_image_url"
               alt=""
+              @error="hideBrokenPicture"
             /><span>{{ provider.button_text || provider.name }}</span>
           </button>
         </div>

@@ -3,12 +3,19 @@ test removes its own, but a run that is stopped or fails halfway leaves some
 behind, and on the PC stack the tests share the real database. At the end of
 a run, any such account made during that run is removed. Nothing older is
 touched, and never an admin or an account with any other email.
+
+Files go the same way: every folder under /data the app's code knows about is
+pointed at a fresh temporary folder for each test, so a test can never leave
+files in the real data folder (some used to, through modules that keep their
+own copy of the path). A test that sets its own folder still does.
 """
 
 from __future__ import annotations
 
 import asyncio
+import sys
 import time
+from pathlib import Path
 
 import pytest
 from sqlalchemy import text
@@ -25,6 +32,37 @@ _REMOVE_TEST_ACCOUNTS = text(
       AND created_at >= :since
     """
 )
+
+
+_DATA = Path("/data")
+
+
+def _under_data(value: object) -> bool:
+    return isinstance(value, Path) and (value == _DATA or _DATA in value.parents)
+
+
+@pytest.fixture(autouse=True)
+def _private_data_folder(tmp_path, monkeypatch):
+    """Points every module-level path under /data (and tuples of them) at the
+    same place under this test's own temporary folder."""
+    root = tmp_path / "data"
+
+    def moved(path: Path) -> Path:
+        return root / path.relative_to(_DATA)
+
+    for name, module in list(sys.modules.items()):
+        if module is None or not name.startswith("src."):
+            continue
+        for attr, value in list(vars(module).items()):
+            if _under_data(value):
+                monkeypatch.setattr(module, attr, moved(value))
+            elif (
+                isinstance(value, tuple)
+                and value
+                and all(_under_data(item) for item in value)
+            ):
+                monkeypatch.setattr(module, attr, tuple(moved(item) for item in value))
+    yield
 
 
 def pytest_sessionstart(session: pytest.Session) -> None:

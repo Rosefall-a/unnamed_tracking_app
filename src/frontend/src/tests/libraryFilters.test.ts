@@ -34,6 +34,25 @@ describe("library filters", () => {
     expect(matchesFilters(title(), none)).toBe(true);
   });
 
+  it("No finish date keeps only completed titles that have none", () => {
+    const missing = { ...none, missingFinish: true };
+    expect(
+      matchesFilters(title({ status: "watched", endDate: null }), missing),
+    ).toBe(true);
+    expect(
+      matchesFilters(title({ status: "favorite", endDate: null }), missing),
+    ).toBe(true);
+    expect(
+      matchesFilters(
+        title({ status: "watched", endDate: "2024-02-01" }),
+        missing,
+      ),
+    ).toBe(false);
+    expect(
+      matchesFilters(title({ status: "in progress", endDate: null }), missing),
+    ).toBe(false);
+  });
+
   it("search finds any spelling of the title", () => {
     expect(matchesFilters(title(), { ...none, search: "shingeki" })).toBe(true);
     expect(matchesFilters(title(), { ...none, search: "巨人" })).toBe(true);

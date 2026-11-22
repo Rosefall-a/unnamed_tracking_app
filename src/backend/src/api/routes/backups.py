@@ -20,6 +20,7 @@ from src.core.auth import get_current_admin
 from src.database.models.game import Game
 from src.database.models.user import User
 from src.database.session import get_db
+from src.features import task_schedule
 from src.features.backup import scheduler, snapshot
 
 router = APIRouter(
@@ -40,6 +41,8 @@ class BackupSettingsUpdate(BaseModel):
     keep: int | None = None
     include_files: bool | None = None
     files_keep: int | None = None
+    # runs last when the tasks run together, instead of on its own timer
+    together: bool | None = None
 
 
 def _folder_size(path: Path) -> int:
@@ -67,6 +70,7 @@ async def _describe(db: AsyncSession) -> dict[str, Any]:
         "running": scheduler.is_running(),
         "folder": str(snapshot.DATABASE_DIR),
         "include_files": scheduler.includes_files(row),
+        "together": task_schedule.together(row),
         "files_keep": scheduler.files_keep(row),
         "max_files_keep": scheduler.MAX_FILES_KEEP,
         "storage": await asyncio.to_thread(snapshot.storage_report),
@@ -117,6 +121,11 @@ async def update_backup_settings(
         row.options = {**(row.options or {}), "include_files": payload.include_files}
     if payload.enabled is not None:
         row.enabled = payload.enabled
+    if payload.together is not None:
+        joining = payload.together and not task_schedule.together(row)
+        task_schedule.set_together(row, payload.together)
+        if joining:
+            task_schedule.arm(await task_schedule.get_schedule(db))
     await db.commit()
     return await _describe(db)
 
@@ -228,6 +237,16 @@ async def _leftovers(db: AsyncSession) -> list[dict[str, Any]]:
 @router.get("/leftovers")
 async def list_leftovers(db: AsyncSession = Depends(get_db)) -> list[dict[str, Any]]:
     return await _leftovers(db)
+
+
+@router.delete("/leftovers/{kind}")
+async def delete_leftovers_of_kind(kind: str, db: AsyncSession = Depends(get_db)) -> dict[str, int]:
+    """Every leftover of one kind at once, such as hundreds of folders of
+    accounts that no longer exist. Only what the list offers right now goes."""
+    matches = [item for item in await _leftovers(db) if item["kind"] == kind]
+    for item in matches:
+        await asyncio.to_thread(shutil.rmtree, Path(item["path"]))
+    return {"deleted": len(matches)}
 
 
 @router.delete("/leftovers/{kind}/{name}")

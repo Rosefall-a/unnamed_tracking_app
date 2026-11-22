@@ -171,10 +171,15 @@ def start_now() -> bool:
 
 
 async def run_backup_loop() -> None:
+    # imported here: task_schedule imports this module
+    from src.features import task_schedule
+
     while True:
         try:
             async with SessionLocal() as db:
-                due = is_due(await get_setting(db), time.time())
+                row = await get_setting(db)
+                # set to run with the other tasks, it is their last step instead
+                due = not task_schedule.together(row) and is_due(row, time.time())
                 await db.commit()
             if due and not _running:
                 await run_backup()

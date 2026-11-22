@@ -1,9 +1,10 @@
 // Extra per-collection details the backend has no place for (a collection is
 // just a tag on games): the description, whether it's pinned, and where it
-// sits in "My order". Keyed by collection name in localStorage, the same tier
-// as the manual-collections list and cover picks, so Collections can offer
-// what Media's lists have without a backend row.
-import { ref } from "vue";
+// sits in "My order". Keyed by collection name and saved on the server with
+// the person's other page choices (state/uiState.ts), like the manual-collections
+// list and cover picks.
+import { computed } from "vue";
+import { getUi, setUi } from "./uiState";
 
 export interface CollectionMeta {
   description?: string;
@@ -17,24 +18,19 @@ const COVER_KEY = "collectionCoverPicks";
 const ORDER_KEY = "collectionGameOrder";
 
 function readJson<T>(key: string, fallback: T): T {
-  try {
-    const raw = localStorage.getItem(key);
-    return raw ? (JSON.parse(raw) as T) : fallback;
-  } catch {
-    return fallback;
-  }
+  const saved = getUi<T | null>(key, null);
+  return saved === null || saved === undefined
+    ? fallback
+    : (JSON.parse(JSON.stringify(saved)) as T);
 }
 function writeJson(key: string, value: unknown) {
-  try {
-    localStorage.setItem(key, JSON.stringify(value));
-  } catch {
-    // best-effort, the change just won't survive a reload
-  }
+  setUi(key, value);
 }
 
-export const collectionMeta = ref<Record<string, CollectionMeta>>(
-  readJson(META_KEY, {}),
-);
+export const collectionMeta = computed<Record<string, CollectionMeta>>({
+  get: () => readJson(META_KEY, {}),
+  set: (all) => writeJson(META_KEY, all),
+});
 
 export function metaFor(name: string): CollectionMeta {
   return collectionMeta.value[name] ?? {};
@@ -49,7 +45,6 @@ export function updateMeta(name: string, patch: Partial<CollectionMeta>) {
   if (Object.keys(next).length) all[name] = next;
   else delete all[name];
   collectionMeta.value = all;
-  writeJson(META_KEY, all);
 }
 
 // the whole "My order": each name's position is its index in `names`
@@ -59,7 +54,6 @@ export function setCollectionOrder(names: string[]) {
     all[name] = { ...(all[name] ?? {}), position };
   });
   collectionMeta.value = all;
-  writeJson(META_KEY, all);
 }
 
 function moveKey(key: string, from: string, to: string) {
@@ -74,7 +68,6 @@ function moveKey(key: string, from: string, to: string) {
 export function renameCollectionKeys(from: string, to: string) {
   if (from === to) return;
   moveKey(META_KEY, from, to);
-  collectionMeta.value = readJson(META_KEY, {});
   moveKey(COVER_KEY, from, to);
   moveKey(ORDER_KEY, from, to);
   const manual = readJson<string[]>(MANUAL_KEY, []);
@@ -95,7 +88,6 @@ export function forgetCollectionKeys(name: string) {
       writeJson(key, store);
     }
   }
-  collectionMeta.value = readJson(META_KEY, {});
   const manual = readJson<string[]>(MANUAL_KEY, []);
   if (manual.includes(name)) {
     writeJson(

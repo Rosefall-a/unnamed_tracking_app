@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import re
 import time
 from collections.abc import Callable
+from datetime import date
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from typing import Any, TypeVar
 
@@ -103,6 +105,50 @@ def format_provider_error(name: str, message: str) -> str:
     return f"{name}: {message}"
 
 
+# "Extinction 2015", "Extinction (2015)": a title with the year it came out
+_TRAILING_YEAR = re.compile(r"^(?P<title>.*?\S)[\s,]*\((?P<y1>\d{4})\)\s*$|^(?P<plain>.*?\S)\s+(?P<y2>\d{4})\s*$")
+
+
+def split_year(query: str) -> tuple[str, int | None]:
+    """A search's title and the year typed after it, if any. Only a believable
+    release year counts, so a title that ends in a number ("Blade Runner 2049")
+    keeps it; and callers search the whole text again when the split finds
+    nothing, so no title is ever lost to this."""
+    text = query.strip()
+    match = _TRAILING_YEAR.match(text)
+    if not match:
+        return text, None
+    title = (match.group("title") or match.group("plain")).rstrip(" ,;:-")
+    year = int(match.group("y1") or match.group("y2"))
+    if not 1870 <= year <= date.today().year + 3:
+        return text, None
+    return title, year
+
+
+def result_year(result: dict[str, Any]) -> str | None:
+    """The year a result came out, from whichever date or year it carries."""
+    for key in ("release_date", "first_air_date", "year"):
+        value = str(result.get(key) or "")
+        if len(value) >= 4 and value[:4].isdigit():
+            return value[:4]
+    return None
+
+
+def years_conflict(first: dict[str, Any], second: dict[str, Any]) -> bool:
+    a, b = result_year(first), result_year(second)
+    return a is not None and b is not None and a != b
+
+
+def year_first(results: list[dict[str, Any]], year: int | None) -> list[dict[str, Any]]:
+    """Results from the year asked for first, the rest after, each in order."""
+    if year is None:
+        return results
+    wanted = str(year)
+    return [r for r in results if result_year(r) == wanted] + [
+        r for r in results if result_year(r) != wanted
+    ]
+
+
 def titles_match(first: str, second: str) -> bool:
     """Compare titles while ignoring case, punctuation, and whitespace."""
     normalize = lambda value: "".join(char.lower() for char in value if char.isalnum())
@@ -123,7 +169,11 @@ def merge_search_result(
     an existing result are filled from later providers when available.
     """
     for existing in results:
-        if not titles_match(existing["title"], candidate["title"]):
+        # the same title from different years is a different film or show
+        # ("Extinction" 2015 and 2018), never one result
+        if not titles_match(existing["title"], candidate["title"]) or years_conflict(
+            existing, candidate
+        ):
             continue
 
         for key, value in candidate.items():

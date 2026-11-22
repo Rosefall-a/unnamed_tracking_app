@@ -10,6 +10,8 @@ import {
   backupFilesDownloadUrl,
   fetchLeftovers,
   deleteLeftover,
+  deleteLeftoversOfKind,
+  fetchTaskSchedule,
 } from "../../services/settings";
 import type {
   BackupOverview,
@@ -89,6 +91,7 @@ async function save(changes: {
   keep?: number;
   includeFiles?: boolean;
   filesKeep?: number;
+  together?: boolean;
 }) {
   error.value = null;
   try {
@@ -211,6 +214,52 @@ async function removeBackup(b: BackupFile) {
     busy.value = null;
   }
 }
+// one button per kind, for when there are far too many to delete one by one
+const KIND_NAMES: Record<Leftover["kind"], string> = {
+  game_trash: "files of games emptied from the trash",
+  account_files: "files of accounts that no longer exist",
+  deleted_account: "files of deleted accounts",
+  old_backups: "older per-account backups",
+};
+const leftoverGroups = computed(() => {
+  const groups = new Map<Leftover["kind"], { count: number; bytes: number }>();
+  for (const item of leftovers.value ?? []) {
+    const g = groups.get(item.kind) ?? { count: 0, bytes: 0 };
+    g.count += 1;
+    g.bytes += item.bytes;
+    groups.set(item.kind, g);
+  }
+  return [...groups].map(([kind, g]) => ({
+    kind,
+    name: KIND_NAMES[kind] ?? kind,
+    ...g,
+  }));
+});
+async function removeLeftoverKind(group: {
+  kind: Leftover["kind"];
+  name: string;
+  count: number;
+  bytes: number;
+}) {
+  const ok = await confirm({
+    title: "Delete all",
+    message: `Permanently delete all ${group.count} ${group.name} (${formatBytes(group.bytes)})? This cannot be undone.`,
+    confirmLabel: `Delete ${group.count}`,
+    danger: true,
+  });
+  if (!ok) return;
+  busy.value = `kind/${group.kind}`;
+  error.value = null;
+  try {
+    await deleteLeftoversOfKind(group.kind);
+    await loadLeftovers();
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "Could not delete the files";
+  } finally {
+    busy.value = null;
+  }
+}
+
 async function removeLeftover(item: Leftover) {
   const ok = await confirm({
     message: `Delete these files (${formatBytes(item.bytes)}) permanently? This cannot be undone.`,
@@ -272,6 +321,27 @@ function formatBytes(bytes: number): string {
   if (bytes < 1024 ** 3) return `${(bytes / 1024 ** 2).toFixed(1)} MB`;
   return `${(bytes / 1024 ** 3).toFixed(2)} GB`;
 }
+
+// Off, on its own timer, or together with the other tasks at the time set in
+// Settings > Tasks, where it always goes last
+type Mode = "off" | "timer" | "together";
+const togetherTime = ref<string | null>(null);
+onMounted(async () => {
+  try {
+    togetherTime.value = (await fetchTaskSchedule()).time;
+  } catch {
+    // the choice shows without the time
+  }
+});
+const mode = computed<Mode>(() => {
+  const o = overview.value;
+  if (!o || !o.enabled) return "off";
+  return o.together ? "together" : "timer";
+});
+function setMode(next: Mode) {
+  if (next === "off") void save({ enabled: false });
+  else void save({ enabled: true, together: next === "together" });
+}
 </script>
 
 <template>
@@ -292,23 +362,38 @@ function formatBytes(bytes: number): string {
         <h3>Schedule</h3>
         <span class="status-badge" :class="{ on: overview.enabled }">
           {{
-            overview.running ? "Running now" : overview.enabled ? "On" : "Off"
+            overview.running
+              ? "Running now"
+              : mode === "off"
+                ? "Off"
+                : mode === "together"
+                  ? "Together"
+                  : "Own timer"
           }}
         </span>
       </div>
       <div class="controls">
         <label class="inline">
-          <input
-            type="checkbox"
-            :checked="overview.enabled"
+          Runs
+          <select
+            :value="mode"
+            class="unit"
+            aria-label="How backups run"
             @change="
-              save({ enabled: ($event.target as HTMLInputElement).checked })
+              setMode(($event.target as HTMLSelectElement).value as Mode)
             "
-          />
-          Back up automatically
+          >
+            <option value="off">Off</option>
+            <option value="timer">On its own timer</option>
+            <option value="together">
+              Last, with the other tasks{{
+                togetherTime ? ` (${togetherTime})` : ""
+              }}
+            </option>
+          </select>
         </label>
-        <label class="inline">
-          Every
+        <label v-if="mode === 'timer'" class="inline">
+          every
           <input
             v-model.number="draft.amount"
             type="number"
@@ -507,6 +592,22 @@ function formatBytes(bytes: number): string {
         Checking for leftover files…
       </p>
       <p v-else-if="!leftovers.length" class="tile-desc">Nothing left over.</p>
+      <div
+        v-if="leftoverGroups.some((g) => g.count > 1)"
+        class="controls leftover-groups"
+      >
+        <template v-for="g in leftoverGroups" :key="g.kind">
+          <button
+            v-if="g.count > 1"
+            type="button"
+            class="danger-button small"
+            :disabled="busy === `kind/${g.kind}`"
+            @click="removeLeftoverKind(g)"
+          >
+            Delete all {{ g.count }} {{ g.name }}
+          </button>
+        </template>
+      </div>
       <ul v-else class="backup-list">
         <li
           v-for="item in leftovers"

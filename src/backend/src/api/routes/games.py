@@ -2467,15 +2467,19 @@ async def _search_refresh_match(
             last_used[provider_name] = now
         scan_settings.provider_last_used = last_used
 
+    same_title = [
+        candidate
+        for candidate in result.get("results", [])
+        if isinstance(candidate, dict)
+        and _normalize_metadata_title(str(candidate.get("title") or ""))
+        == _normalize_metadata_title(game.title)
+    ]
+    # two games can share a name (Doom 1993 and 2016): the one from this game's
+    # year is the one to fill it in from
+    year = str(game.release_date.year) if game.release_date else None
     match = next(
-        (
-            candidate
-            for candidate in result.get("results", [])
-            if isinstance(candidate, dict)
-            and _normalize_metadata_title(str(candidate.get("title") or ""))
-            == _normalize_metadata_title(game.title)
-        ),
-        None,
+        (c for c in same_title if year and str(c.get("release_date") or "")[:4] == year),
+        same_title[0] if same_title else None,
     )
     return match, provider_errors
 

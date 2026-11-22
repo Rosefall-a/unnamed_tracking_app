@@ -3,8 +3,9 @@
 // on the Media pages (MediaExtrasPanel): same round icon with a count, same
 // popover with a checkbox per collection, a box to create a new one, and a
 // link to the full page. Collections here are names on the game itself (plus
-// empty ones kept in localStorage), so there is no rename or delete in the
+// empty ones saved with the page choices), so there is no rename or delete in the
 // popover; those stay on the Collections page.
+import { getUi, setUi } from "../state/uiState";
 import { ref, computed, onMounted, onBeforeUnmount } from "vue";
 import { useRouter } from "vue-router";
 import {
@@ -47,12 +48,10 @@ const covers = ref<Record<string, string>>({});
 const memberOf = computed(() => new Set(props.game.collections));
 
 function readJson<T>(key: string, fallback: T): T {
-  try {
-    const raw = localStorage.getItem(key);
-    return raw ? (JSON.parse(raw) as T) : fallback;
-  } catch {
-    return fallback;
-  }
+  const saved = getUi<T | null>(key, null);
+  return saved === null || saved === undefined
+    ? fallback
+    : (JSON.parse(JSON.stringify(saved)) as T);
 }
 
 async function load() {
@@ -126,11 +125,7 @@ async function submitNew() {
 
 function useAsCover(name: string) {
   covers.value = { ...covers.value, [name]: props.game.id };
-  try {
-    localStorage.setItem(COVER_KEY, JSON.stringify(covers.value));
-  } catch {
-    // the cover just won't survive a reload
-  }
+  setUi(COVER_KEY, covers.value);
 }
 
 function goToCollections() {

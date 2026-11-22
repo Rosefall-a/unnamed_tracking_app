@@ -4,6 +4,7 @@
 // the collection's cover, remove, and an Add Games dialog. Smart collections
 // show what their rule currently matches, so they have no add, remove or
 // reorder, only the rule.
+import { getUi, setUi } from "../state/uiState";
 import { computed, ref, onMounted, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import BackButton from "../components/BackButton.vue";
@@ -61,21 +62,15 @@ const collectionDisplayName = computed(() => {
 // the cover pick below, keyed the same way
 const ORDER_KEY = "collectionGameOrder";
 function loadOrders(): Record<string, string[]> {
-  try {
-    const raw = localStorage.getItem(ORDER_KEY);
-    return raw ? JSON.parse(raw) : {};
-  } catch {
-    return {};
-  }
+  const saved = getUi<unknown>(ORDER_KEY, {});
+  return saved && typeof saved === "object"
+    ? { ...(saved as Record<string, string[]>) }
+    : {};
 }
 function saveOrder(order: string[]) {
   const orders = loadOrders();
   orders[collectionName.value] = order;
-  try {
-    localStorage.setItem(ORDER_KEY, JSON.stringify(orders));
-  } catch {
-    // best-effort, falls back to natural order next time
-  }
+  setUi(ORDER_KEY, orders);
 }
 
 const gameOrder = ref<string[] | null>(
@@ -190,16 +185,14 @@ const {
 
 // ---- cover ----
 // which game's cover represents this collection on the Collections grid,
-// keyed by collection name, alongside manualCollections' own localStorage
-// entry, since collections have no backend row of their own to hang this off
+// keyed by collection name and saved with the page choices, since collections
+// have no backend row of their own to hang this off
 const COLLECTION_COVER_KEY = "collectionCoverPicks";
 function loadCoverPicks(): Record<string, string> {
-  try {
-    const raw = localStorage.getItem(COLLECTION_COVER_KEY);
-    return raw ? JSON.parse(raw) : {};
-  } catch {
-    return {};
-  }
+  const saved = getUi<unknown>(COLLECTION_COVER_KEY, {});
+  return saved && typeof saved === "object"
+    ? { ...(saved as Record<string, string>) }
+    : {};
 }
 const coverPickedGameId = ref<string | null>(
   loadCoverPicks()[collectionName.value] ?? null,
@@ -208,11 +201,7 @@ function setCoverPick(gameId: string) {
   const picks = loadCoverPicks();
   if (gameId) picks[collectionName.value] = gameId;
   else delete picks[collectionName.value];
-  try {
-    localStorage.setItem(COLLECTION_COVER_KEY, JSON.stringify(picks));
-  } catch {
-    // best-effort, the collection just falls back to its default cover collage
-  }
+  setUi(COLLECTION_COVER_KEY, picks);
   coverPickedGameId.value = gameId || null;
 }
 // with no pick, the first game is the cover

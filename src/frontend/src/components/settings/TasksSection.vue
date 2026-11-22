@@ -1,9 +1,20 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
-import { fetchJobs, updateJob, runJobNow } from "../../services/settings";
-import type { CleanupJob } from "../../services/settings";
+// Each task runs one of three ways: off, on its own timer, or together with
+// the other tasks set that way, once a day at one time (the backup goes last).
+import { computed, ref, onMounted } from "vue";
+import {
+  browserTimeZone,
+  fetchJobs,
+  fetchTaskSchedule,
+  runDailyTasksNow,
+  runJobNow,
+  updateJob,
+  updateTaskSchedule,
+} from "../../services/settings";
+import type { CleanupJob, TaskSchedule } from "../../services/settings";
 
 type Unit = "minutes" | "hours" | "days";
+type Mode = "off" | "timer" | "together";
 const UNIT_MINUTES: Record<Unit, number> = {
   minutes: 1,
   hours: 60,
@@ -38,9 +49,14 @@ async function loadJobs() {
     jobError.value = err instanceof Error ? err.message : "Could not load jobs";
   }
 }
+
+function modeOf(job: CleanupJob): Mode {
+  if (!job.enabled) return "off";
+  return job.together ? "together" : "timer";
+}
 async function changeJob(
   job: CleanupJob,
-  changes: { enabled?: boolean; intervalMinutes?: number },
+  changes: { enabled?: boolean; intervalMinutes?: number; together?: boolean },
 ) {
   jobErrors.value = { ...jobErrors.value, [job.id]: "" };
   try {
@@ -50,12 +66,18 @@ async function changeJob(
       ...drafts.value,
       [saved.id]: split(saved.intervalMinutes),
     };
+    // which tasks run together, and when, may have changed
+    await loadSchedule();
   } catch (err) {
     jobErrors.value = {
       ...jobErrors.value,
       [job.id]: err instanceof Error ? err.message : "Could not save",
     };
   }
+}
+function setMode(job: CleanupJob, mode: Mode) {
+  if (mode === "off") void changeJob(job, { enabled: false });
+  else void changeJob(job, { enabled: true, together: mode === "together" });
 }
 function draftMinutes(job: CleanupJob): number {
   const draft = drafts.value[job.id];
@@ -98,6 +120,61 @@ async function runNow(job: CleanupJob) {
 }
 onMounted(loadJobs);
 
+// ---- the time the tasks set to run together start ----
+const schedule = ref<TaskSchedule | null>(null);
+const scheduleTime = ref("03:00");
+const scheduleError = ref<string | null>(null);
+async function loadSchedule() {
+  try {
+    schedule.value = await fetchTaskSchedule();
+    scheduleTime.value = schedule.value.time;
+  } catch (err) {
+    scheduleError.value =
+      err instanceof Error ? err.message : "Could not load the task time";
+  }
+}
+async function saveTime() {
+  scheduleError.value = null;
+  try {
+    schedule.value = await updateTaskSchedule({ time: scheduleTime.value });
+    scheduleTime.value = schedule.value.time;
+  } catch (err) {
+    scheduleError.value =
+      err instanceof Error ? err.message : "Could not save the time";
+  }
+}
+async function runTogetherNow() {
+  scheduleError.value = null;
+  try {
+    await runDailyTasksNow();
+    await loadSchedule();
+    jobs.value = await fetchJobs();
+  } catch (err) {
+    scheduleError.value =
+      err instanceof Error ? err.message : "Could not start the tasks";
+  }
+}
+// the tasks that run together, by name, in the order they run
+const memberNames = computed(() =>
+  (schedule.value?.members ?? []).map((id) =>
+    id === "auto_backup"
+      ? "the backup"
+      : (jobs.value.find((j) => j.id === id)?.name ?? id),
+  ),
+);
+const memberList = computed(() => {
+  const names = memberNames.value;
+  if (names.length <= 1) return names.join("");
+  return `${names.slice(0, -1).join(", ")}, then ${names[names.length - 1]}`;
+});
+// saved in another time zone than this browser's: say which, so 03:00 is clear
+const otherZone = computed(() =>
+  schedule.value && schedule.value.timezone !== browserTimeZone()
+    ? schedule.value.timezone
+    : null,
+);
+onMounted(loadSchedule);
+
 function formatTime(epochSeconds: number | null): string {
   if (!epochSeconds) return "Never run";
   return new Date(epochSeconds * 1000).toLocaleString(undefined, {
@@ -113,46 +190,124 @@ function formatTime(epochSeconds: number | null): string {
   <section class="settings-section">
     <h2>Tasks</h2>
     <p class="section-hint">
-      Recurring jobs run by the app's scheduler. Each job can be turned off and
-      given its own schedule. Run now works whether or not the schedule is on.
+      Jobs the app runs by itself. Each one can be off, run on its own timer, or
+      run together with the others at one time of day. Run now works whatever is
+      picked.
     </p>
+
+    <div v-if="schedule" class="tile">
+      <div class="tile-head">
+        <h3>Run together</h3>
+        <span class="status-badge" :class="{ on: schedule.members.length > 0 }">
+          {{
+            schedule.running
+              ? "Running now"
+              : schedule.members.length
+                ? `${schedule.members.length} selected`
+                : "None selected"
+          }}
+        </span>
+      </div>
+      <p class="tile-desc">
+        Tasks set to "Together with the others" run one after another, once a
+        day at this time. The backup can join too, in Backups, and always goes
+        last so it holds what the others just did.
+      </p>
+      <div class="job-controls">
+        <label class="job-every">
+          Every day at
+          <input
+            v-model="scheduleTime"
+            type="time"
+            class="job-amount job-time"
+            aria-label="Time the tasks run together"
+          />
+        </label>
+        <button
+          v-if="scheduleTime !== schedule.time"
+          type="button"
+          class="secondary-button"
+          @click="saveTime"
+        >
+          Save
+        </button>
+        <button
+          type="button"
+          class="secondary-button"
+          :disabled="schedule.running || !schedule.members.length"
+          @click="runTogetherNow"
+        >
+          {{ schedule.running ? "Running…" : "Run them now" }}
+        </button>
+      </div>
+      <div v-if="scheduleError" class="form-error">{{ scheduleError }}</div>
+      <p v-if="schedule.members.length" class="tile-desc">
+        Runs {{ memberList }}.
+      </p>
+      <p class="last-run">
+        <template v-if="schedule.nextRunAt">
+          Next: {{ formatTime(schedule.nextRunAt) }}
+          <template v-if="otherZone"> ({{ otherZone }} time)</template> ·
+        </template>
+        Last: {{ formatTime(schedule.lastRunAt) }}
+        <template v-if="schedule.lastStatus === 'failed'">
+          · it stopped partway, see the server log</template
+        >
+      </p>
+    </div>
 
     <div v-if="jobError" class="form-error">{{ jobError }}</div>
     <div v-for="job in jobs" :key="job.id" class="tile">
       <div class="tile-head">
         <h3>{{ job.name }}</h3>
         <span class="status-badge" :class="{ on: job.enabled }">
-          {{ job.running ? "Running now" : job.enabled ? "On" : "Off" }}
+          {{
+            job.running
+              ? "Running now"
+              : !job.enabled
+                ? "Off"
+                : job.together
+                  ? "Together"
+                  : "Own timer"
+          }}
         </span>
       </div>
       <p class="tile-desc">{{ job.description }}</p>
       <div class="job-controls">
-        <label class="job-toggle">
-          <input
-            type="checkbox"
-            :checked="job.enabled"
+        <label class="job-every">
+          Runs
+          <select
+            :value="modeOf(job)"
+            class="job-interval"
+            :aria-label="`How ${job.name} runs`"
             @change="
-              changeJob(job, {
-                enabled: ($event.target as HTMLInputElement).checked,
-              })
+              setMode(job, ($event.target as HTMLSelectElement).value as Mode)
             "
-          />
-          Run on a schedule
+          >
+            <option value="off">Off</option>
+            <option value="timer">On its own timer</option>
+            <option value="together">
+              Together with the others{{
+                schedule ? ` (${schedule.time})` : ""
+              }}
+            </option>
+          </select>
         </label>
-        <label v-if="drafts[job.id]" class="job-every">
-          Every
+        <label
+          v-if="modeOf(job) === 'timer' && drafts[job.id]"
+          class="job-every"
+        >
+          every
           <input
             v-model.number="drafts[job.id].amount"
             type="number"
             min="1"
             class="job-amount"
-            :disabled="!job.enabled"
             :aria-label="`How often ${job.name} runs`"
           />
           <select
             v-model="drafts[job.id].unit"
             class="job-interval"
-            :disabled="!job.enabled"
             aria-label="Unit of time"
           >
             <option value="minutes">minutes</option>
@@ -161,7 +316,7 @@ function formatTime(epochSeconds: number | null): string {
           </select>
         </label>
         <button
-          v-if="drafts[job.id] && job.enabled && draftChanged(job)"
+          v-if="modeOf(job) === 'timer' && drafts[job.id] && draftChanged(job)"
           type="button"
           class="secondary-button"
           @click="saveInterval(job)"
@@ -184,7 +339,7 @@ function formatTime(epochSeconds: number | null): string {
         Last run: {{ formatTime(job.lastRunAt) }}
         <template v-if="job.lastSummary"> · {{ job.lastSummary }}</template>
       </p>
-      <p class="tile-desc job-note">
+      <p v-if="modeOf(job) === 'timer'" class="tile-desc job-note">
         Allowed: every {{ describe(job.minIntervalMinutes) }} to
         {{ describe(job.maxIntervalMinutes) }}.
       </p>
@@ -316,5 +471,8 @@ function formatTime(epochSeconds: number | null): string {
 }
 .job-note {
   margin: 8px 0 0;
+}
+.job-time {
+  width: auto;
 }
 </style>

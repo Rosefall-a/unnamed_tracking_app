@@ -1,9 +1,9 @@
 // Rule-based ("smart") collections, membership is computed live against
 // whatever the library looks like right now, instead of being a stored
-// list of game ids. Rules live in localStorage, same tier as manual
-// collections (Collections.vue's manualCollectionNames) since neither has
-// a backend row of its own.
-import { ref } from "vue";
+// list of game ids. Rules are saved on the server with the person's other
+// page choices (state/uiState.ts), like manual collections.
+import { computed } from "vue";
+import { getUi, setUi } from "./uiState";
 import type { Game } from "../types/game";
 
 export type SmartField =
@@ -20,24 +20,13 @@ export interface SmartCollection {
 
 const STORAGE_KEY = "smartCollections";
 
-function load(): SmartCollection[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as SmartCollection[]) : [];
-  } catch {
-    return [];
-  }
-}
-
-export const smartCollections = ref<SmartCollection[]>(load());
-
-function persist() {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(smartCollections.value));
-  } catch {
-    // best-effort, the rule just won't survive a reload
-  }
-}
+export const smartCollections = computed<SmartCollection[]>({
+  get: () => {
+    const saved = getUi<unknown>(STORAGE_KEY, []);
+    return Array.isArray(saved) ? (saved as SmartCollection[]) : [];
+  },
+  set: (list) => setUi(STORAGE_KEY, list),
+});
 
 // The one collection the app keeps itself, like Media's Favorites list: every
 // game you have favorited, filled by a rule nobody can edit or delete. It is
@@ -54,7 +43,6 @@ export const FAVORITES_RULE: SmartCollection = {
 export function addSmartCollection(entry: Omit<SmartCollection, "id">): string {
   const id = crypto.randomUUID();
   smartCollections.value = [...smartCollections.value, { ...entry, id }];
-  persist();
   return id;
 }
 
@@ -65,12 +53,10 @@ export function updateSmartCollection(
   smartCollections.value = smartCollections.value.map((c) =>
     c.id === id ? { ...c, ...patch } : c,
   );
-  persist();
 }
 
 export function removeSmartCollection(id: string) {
   smartCollections.value = smartCollections.value.filter((c) => c.id !== id);
-  persist();
 }
 
 export function findSmartCollectionByName(
