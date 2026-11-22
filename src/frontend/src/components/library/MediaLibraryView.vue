@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { getUi, hasUi, removeUi, setUi } from "../../state/uiState";
 import "../../styles/shared/sortHead.css";
 import { readSavedSort } from "../../utils/librarySort";
 import type { LibrarySort } from "../../utils/librarySort";
@@ -209,24 +210,23 @@ const LAYOUT_OPTIONS: SegmentOption[] = [
 // layout choice, so opening it never overwrites what List/Shelf/Board
 // was last set to, and leaving it returns to that remembered layout.
 const layout = ref<"list" | "shelf" | "board">(
-  (localStorage.getItem("libraryLayout") as "list" | "shelf" | "board") ||
+  getUi<"list" | "shelf" | "board" | null>("libraryLayout", null) ||
     preferences.value.library_default_layout,
 );
 // the server default arrives a moment after the first render
 watch(
   () => preferences.value.library_default_layout,
   (v) => {
-    if (!localStorage.getItem("libraryLayout")) layout.value = v;
+    if (!hasUi("libraryLayout")) layout.value = v;
   },
 );
-watch(layout, (v) => localStorage.setItem("libraryLayout", v));
+watch(layout, (v) => setUi("libraryLayout", v));
 // Card size for the Shelf grid, same idea as Games' S/M/L density toggle
 // — persisted so it doesn't reset every visit.
 const shelfCardSize = ref<"compact" | "cozy" | "large">(
-  (localStorage.getItem("libraryShelfCardSize") as
-    "compact" | "cozy" | "large") || "cozy",
+  getUi<"compact" | "cozy" | "large">("libraryShelfCardSize", "cozy") || "cozy",
 );
-watch(shelfCardSize, (v) => localStorage.setItem("libraryShelfCardSize", v));
+watch(shelfCardSize, (v) => setUi("libraryShelfCardSize", v));
 const shelfCardMinWidth = computed(() => {
   if (shelfCardSize.value === "compact") return "150px";
   if (shelfCardSize.value === "large") return "260px";
@@ -244,26 +244,14 @@ const boardCardMinWidth = computed(() => {
 // cleared when you leave the library, so coming back starts on All.
 const statusKey = `libraryStatus:${props.kind}`;
 function readSavedStatus(): string {
-  try {
-    return sessionStorage.getItem(statusKey) || "all";
-  } catch {
-    return "all";
-  }
+  return getUi<string>(statusKey, "all") || "all";
 }
 const activeStatus = ref<string>(readSavedStatus());
 watch(activeStatus, (v) => {
-  try {
-    sessionStorage.setItem(statusKey, v);
-  } catch {
-    /* storage unavailable: the tab just won't survive a refresh */
-  }
+  setUi(statusKey, v);
 });
 onBeforeUnmount(() => {
-  try {
-    sessionStorage.removeItem(statusKey);
-  } catch {
-    /* nothing to clear */
-  }
+  removeUi(statusKey);
 });
 const searchQuery = ref("");
 let filterTimer: ReturnType<typeof setTimeout> | null = null;
@@ -281,11 +269,7 @@ function emitFilters() {
 type SortKey = LibrarySort;
 const sortKey = ref<SortKey>(readSavedSort(props.kind));
 watch(sortKey, (v) => {
-  try {
-    localStorage.setItem(`librarySort:${props.kind}`, v);
-  } catch {
-    /* remembering the sort is optional */
-  }
+  setUi(`librarySort:${props.kind}`, v);
 });
 // The server reads every page in the sort's own order, so the first page already
 // holds the right titles. Only "progress" is worked out from seasons and episodes

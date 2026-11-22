@@ -3,6 +3,7 @@
 // Customize mode (a working copy of the layout that is only saved on Done), and
 // the side panel that shows either the widget gallery, one widget's settings, or
 // the page options. The widgets themselves live in components/home.
+import { getUi, setUi } from "../state/uiState";
 import {
   computed,
   nextTick,
@@ -292,14 +293,11 @@ function retrySave() {
 
 // one-time welcome, shown on a first visit
 const WELCOME_KEY = "seenWelcomeTour";
-const showWelcome = ref(localStorage.getItem(WELCOME_KEY) !== "true");
+const showWelcome = computed(
+  () => String(getUi<unknown>(WELCOME_KEY, false)) !== "true",
+);
 function dismissWelcome() {
-  showWelcome.value = false;
-  try {
-    localStorage.setItem(WELCOME_KEY, "true");
-  } catch {
-    // it just shows again next time
-  }
+  setUi(WELCOME_KEY, true);
 }
 const TOUR = [
   {

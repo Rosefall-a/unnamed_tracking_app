@@ -108,14 +108,21 @@ export function createMediaApi<
   }
 
   async function fetchAll(search = ""): Promise<Entity[]> {
-    const all: Entity[] = [];
-    let offset = 0;
-    const limit = 100;
-    while (true) {
-      const page = await fetchPage(offset, limit, search);
-      all.push(...page.items);
-      if (all.length >= page.total || page.items.length === 0) break;
-      offset += page.items.length;
+    // the most the server sends at once
+    const limit = 200;
+    const first = await fetchPage(0, limit, search);
+    const all: Entity[] = [...first.items];
+    if (first.items.length && all.length < first.total) {
+      // the total is known, so the remaining pages are fetched side by side
+      // instead of one after another
+      // (pages the size the server actually gave, so none is skipped)
+      const step = first.items.length;
+      const offsets: number[] = [];
+      for (let at = step; at < first.total; at += step) offsets.push(at);
+      const pages = await Promise.all(
+        offsets.map((at) => fetchPage(at, step, search)),
+      );
+      for (const page of pages) all.push(...page.items);
     }
     cache.markListLoaded();
     return all;

@@ -2,6 +2,7 @@
 // "Can't decide what to play?" (#33): narrow the library by status,
 // platform, genre, length and priority, then pick one. Filters are
 // remembered between visits.
+import { getUi, setUi } from "../state/uiState";
 import {
   computed,
   nextTick,
@@ -47,23 +48,17 @@ function defaultFilters(): PickerFilters {
 }
 
 function loadFilters(): PickerFilters {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? { ...defaultFilters(), ...JSON.parse(raw) } : defaultFilters();
-  } catch {
-    return defaultFilters();
-  }
+  const saved = getUi<Partial<PickerFilters> | null>(STORAGE_KEY, null);
+  return saved && typeof saved === "object"
+    ? { ...defaultFilters(), ...saved }
+    : defaultFilters();
 }
 
 const filters = ref<PickerFilters>(loadFilters());
 watch(
   filters,
   (value) => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(value));
-    } catch {
-      // private mode / blocked storage: filters just aren't remembered
-    }
+    setUi(STORAGE_KEY, { ...value });
   },
   { deep: true },
 );

@@ -44,6 +44,7 @@ from src.api.routes import (
     settings,
     stats,
     tv_shows,
+    ui_state,
     users,
 )
 from src.api.routes.auth_oidc import router as auth_oidc_router
@@ -134,6 +135,7 @@ app.include_router(media_lists.router)
 app.include_router(notifications.router)
 app.include_router(media_stats.router)
 app.include_router(preferences.router)
+app.include_router(ui_state.router)
 app.include_router(calendar_events.router)
 app.include_router(calendar_feed.authed_router)
 app.include_router(calendar_feed.public_router)

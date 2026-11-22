@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { getUi } from "../state/uiState";
 import { ref, computed, onMounted } from "vue";
 import { getGames, addGameToCollection } from "../services/games";
 import { preferences } from "../state/preferences";
@@ -28,13 +29,8 @@ onMounted(async () => {
     // the ones a sync made are left out unless they are set to sit with yours
     if (preferences.value.collections_auto !== "mixed")
       for (const name of autoCollectionNames(games)) set.delete(name);
-    try {
-      const raw = localStorage.getItem("manualCollections");
-      const manual: string[] = raw ? JSON.parse(raw) : [];
-      manual.forEach((n) => set.add(n));
-    } catch {
-      // ignore, manual collections are a nice-to-have, not required here
-    }
+    const manual = getUi<unknown>("manualCollections", []);
+    if (Array.isArray(manual)) manual.forEach((n) => set.add(String(n)));
     allNames.value = Array.from(set).sort();
   } finally {
     loading.value = false;

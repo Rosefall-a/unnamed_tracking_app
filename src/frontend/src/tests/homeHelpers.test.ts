@@ -2,7 +2,14 @@ import { describe, expect, it } from "vitest";
 import { chromeFrom } from "../home/chrome";
 import { nearestAnniversary } from "../home/anniversary";
 import { countdown } from "../home/clock";
-import { inCollection, isUnfinished, narrow, sortTitles } from "../home/select";
+import {
+  dailyShuffle,
+  inCollection,
+  isUnfinished,
+  narrow,
+  sortTitles,
+  todayKey,
+} from "../home/select";
 import type { HomeTitle } from "../home/data";
 
 function title(over: Partial<HomeTitle>): HomeTitle {
@@ -196,5 +203,38 @@ describe("inCollection", () => {
     const show = title({ key: "tv:9", kind: "tv" });
     expect(inCollection(show, "list:abc", ["tv:9"])).toBe(true);
     expect(inCollection(show, "list:abc", undefined)).toBe(false);
+  });
+});
+
+describe("daily picks", () => {
+  const keys = ["a", "b", "c", "d", "e", "f", "g", "h"];
+  const order = (list: string[], day: string, salt = "") =>
+    dailyShuffle(list, (k) => k, salt, day).join("");
+
+  it("stay the same all day, whatever order the titles arrive in", () => {
+    const first = order(keys, "2026-11-10");
+    expect(order([...keys].reverse(), "2026-11-10")).toBe(first);
+    expect(first.split("").sort().join("")).toBe(keys.join(""));
+  });
+
+  it("change on another day, and differ between two widgets", () => {
+    const days = ["2026-11-10", "2026-11-11", "2026-11-12"].map((d) =>
+      order(keys, d),
+    );
+    expect(new Set(days).size).toBeGreaterThan(1);
+    expect(order(keys, "2026-11-10", "picker-1")).not.toBe(
+      order(keys, "2026-11-10", "picker-2"),
+    );
+  });
+
+  it("a title added to the library does not move the others", () => {
+    const before = order(keys, "2026-11-10");
+    const after = order([...keys, "z"], "2026-11-10").replace("z", "");
+    expect(after).toBe(before);
+  });
+
+  it("today is the local calendar day", () => {
+    expect(todayKey(new Date(2026, 10, 9, 23, 59))).toBe("2026-11-09");
+    expect(todayKey(new Date(2026, 10, 10, 0, 1))).toBe("2026-11-10");
   });
 });

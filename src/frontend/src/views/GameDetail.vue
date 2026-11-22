@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { getUi, setUi } from "../state/uiState";
 import { usePageTitle } from "../state/pageTitle";
 import { formatDisplayDate } from "../utils/dates";
 import { chosenHours, chosenTimeLabel } from "../utils/timeToBeat";
@@ -532,24 +533,14 @@ function collapsedStorageKey(gameId: string) {
 }
 function loadCollapsedSections() {
   if (!game.value) return;
-  try {
-    const raw = localStorage.getItem(collapsedStorageKey(game.value.id));
-    collapsedSections.value = new Set(raw ? (JSON.parse(raw) as string[]) : []);
-  } catch {
-    collapsedSections.value = new Set();
-  }
+  const saved = getUi<unknown>(collapsedStorageKey(game.value.id), []);
+  collapsedSections.value = new Set(
+    Array.isArray(saved) ? (saved as string[]) : [],
+  );
 }
 function saveCollapsedSections() {
   if (!game.value) return;
-  try {
-    localStorage.setItem(
-      collapsedStorageKey(game.value.id),
-      JSON.stringify([...collapsedSections.value]),
-    );
-  } catch {
-    // best-effort, a checklist with no persisted collapse state just
-    // starts fully expanded next time, not worth failing over
-  }
+  setUi(collapsedStorageKey(game.value.id), [...collapsedSections.value]);
 }
 function toggleSectionCollapsed(headerId: string) {
   if (collapsedSections.value.has(headerId))

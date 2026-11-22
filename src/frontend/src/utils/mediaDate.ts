@@ -1,3 +1,5 @@
+import { getUi, setUi } from "../state/uiState";
+
 // The date shown for an uploaded file. The server works out when it was really
 // taken (photo data, then the file name, then the file's modified date, then
 // the upload) and says which of those it used. Dates read from photo data, a
@@ -73,18 +75,10 @@ const PREF_KEY = "mediaDateFromAchievement";
 // Whether tying a file to an achievement also takes the achievement's unlock
 // time as its date. On by default, and only ever replaces a guessed date.
 export function dateFromAchievementPref(): boolean {
-  try {
-    return localStorage.getItem(PREF_KEY) !== "off";
-  } catch {
-    return true;
-  }
+  return getUi<string>(PREF_KEY, "on") !== "off";
 }
 export function setDateFromAchievementPref(on: boolean): void {
-  try {
-    localStorage.setItem(PREF_KEY, on ? "on" : "off");
-  } catch {
-    // the choice just will not be remembered
-  }
+  setUi(PREF_KEY, on ? "on" : "off");
 }
 
 // "2026-05-15", what a date input shows, in the same zone as the label

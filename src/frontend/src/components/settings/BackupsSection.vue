@@ -11,6 +11,7 @@ import {
   fetchLeftovers,
   deleteLeftover,
   deleteLeftoversOfKind,
+  fetchTaskSchedule,
 } from "../../services/settings";
 import type {
   BackupOverview,
@@ -90,6 +91,7 @@ async function save(changes: {
   keep?: number;
   includeFiles?: boolean;
   filesKeep?: number;
+  together?: boolean;
 }) {
   error.value = null;
   try {
@@ -319,6 +321,27 @@ function formatBytes(bytes: number): string {
   if (bytes < 1024 ** 3) return `${(bytes / 1024 ** 2).toFixed(1)} MB`;
   return `${(bytes / 1024 ** 3).toFixed(2)} GB`;
 }
+
+// Off, on its own timer, or together with the other tasks at the time set in
+// Settings > Tasks, where it always goes last
+type Mode = "off" | "timer" | "together";
+const togetherTime = ref<string | null>(null);
+onMounted(async () => {
+  try {
+    togetherTime.value = (await fetchTaskSchedule()).time;
+  } catch {
+    // the choice shows without the time
+  }
+});
+const mode = computed<Mode>(() => {
+  const o = overview.value;
+  if (!o || !o.enabled) return "off";
+  return o.together ? "together" : "timer";
+});
+function setMode(next: Mode) {
+  if (next === "off") void save({ enabled: false });
+  else void save({ enabled: true, together: next === "together" });
+}
 </script>
 
 <template>
@@ -339,23 +362,38 @@ function formatBytes(bytes: number): string {
         <h3>Schedule</h3>
         <span class="status-badge" :class="{ on: overview.enabled }">
           {{
-            overview.running ? "Running now" : overview.enabled ? "On" : "Off"
+            overview.running
+              ? "Running now"
+              : mode === "off"
+                ? "Off"
+                : mode === "together"
+                  ? "Together"
+                  : "Own timer"
           }}
         </span>
       </div>
       <div class="controls">
         <label class="inline">
-          <input
-            type="checkbox"
-            :checked="overview.enabled"
+          Runs
+          <select
+            :value="mode"
+            class="unit"
+            aria-label="How backups run"
             @change="
-              save({ enabled: ($event.target as HTMLInputElement).checked })
+              setMode(($event.target as HTMLSelectElement).value as Mode)
             "
-          />
-          Back up automatically
+          >
+            <option value="off">Off</option>
+            <option value="timer">On its own timer</option>
+            <option value="together">
+              Last, with the other tasks{{
+                togetherTime ? ` (${togetherTime})` : ""
+              }}
+            </option>
+          </select>
         </label>
-        <label class="inline">
-          Every
+        <label v-if="mode === 'timer'" class="inline">
+          every
           <input
             v-model.number="draft.amount"
             type="number"

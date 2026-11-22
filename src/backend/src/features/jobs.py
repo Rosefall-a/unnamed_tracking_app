@@ -313,20 +313,33 @@ async def _run_due_anilist_imports(now: int) -> None:
 
 
 async def run_jobs_loop() -> None:
+    # imported here: task_schedule imports this module
+    from src.features import task_schedule
+
     while True:
         await asyncio.sleep(TICK_SECONDS)
         try:
             now = int(time.time())
             await _run_due_anilist_imports(now)
             async with SessionLocal() as db:
+                schedule = await task_schedule.get_schedule(db)
+                together_due = task_schedule.is_due(schedule, now) and bool(
+                    await task_schedule.members(db)
+                )
                 due = []
                 for spec in JOBS.values():
                     row = await get_setting(db, spec)
+                    # a task set to run with the others waits for the set time
+                    if task_schedule.together(row):
+                        continue
                     if not spec.is_running() and is_due(row.enabled, row.last_run_at, row.interval_minutes, now):
                         due.append(spec)
                 await db.commit()
             for spec in due:
                 logger.info("Starting the scheduled job %s", spec.id)
                 spec.start("needed")
+            if together_due and not task_schedule.is_running():
+                logger.info("Starting the tasks that run together")
+                task_schedule.start_now()
         except Exception:
             logger.exception("The jobs loop failed; it will try again")

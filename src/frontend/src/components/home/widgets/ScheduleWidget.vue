@@ -5,6 +5,7 @@
 // left out.
 import { computed } from "vue";
 import WidgetFrame from "../WidgetFrame.vue";
+import { hideBrokenPicture } from "../../../utils/localPictures";
 import { allTitles, homeData, routeFor } from "../../../home/data";
 import { sampleCalendar } from "../../../home/samples";
 import type { CalendarEntry } from "../../../services/mediaExtras";
@@ -107,7 +108,13 @@ const dateLabel = (at: number) =>
           class="item"
         >
           <span class="thumb">
-            <img v-if="e.posterUrl" :src="e.posterUrl" alt="" loading="lazy" />
+            <img
+              v-if="e.posterUrl"
+              :src="e.posterUrl"
+              alt=""
+              loading="lazy"
+              @error="hideBrokenPicture"
+            />
             <span v-else>{{ e.title.charAt(0) }}</span>
           </span>
           <span class="words">

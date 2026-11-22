@@ -37,6 +37,7 @@ from src.database.models import (
     user_appearance_settings,  # noqa: F401
     user_preferences,  # noqa: F401
     user_scan_settings,  # noqa: F401
+    user_ui_state,  # noqa: F401
 )
 
 config = context.config

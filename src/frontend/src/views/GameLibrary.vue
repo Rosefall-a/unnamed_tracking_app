@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { getUi, removeUi, setUi } from "../state/uiState";
 import "../styles/shared/sortHead.css";
 import { sizedAssetUrl } from "../utils/gameImages";
 import HeartIcon from "../components/HeartIcon.vue";
@@ -89,7 +90,7 @@ const deletingGame = ref<Game | null>(null);
 const deleting = ref(false);
 const deleteError = ref<string | null>(null);
 
-const storedView = localStorage.getItem("gameLibraryViewMode");
+const storedView = getUi<unknown>("gameLibraryViewMode", null);
 // "shelves" used to be the by-source layout, since removed; "cards" is the
 // grid, which is now what's labelled Shelves
 const viewMode = ref<ViewMode>(
@@ -112,15 +113,11 @@ const showRandomPicker = ref(false);
 // dismissed or the feature is actually used, not re-shown once discovered
 const BULK_EDIT_HINT_KEY = "seenBulkEditHint";
 const showBulkEditHint = ref(
-  localStorage.getItem(BULK_EDIT_HINT_KEY) !== "true",
+  String(getUi<unknown>(BULK_EDIT_HINT_KEY, false)) !== "true",
 );
 function dismissBulkEditHint() {
   showBulkEditHint.value = false;
-  try {
-    localStorage.setItem(BULK_EDIT_HINT_KEY, "true");
-  } catch {
-    // worst case it just shows again next visit, not worth failing over
-  }
+  setUi(BULK_EDIT_HINT_KEY, true);
 }
 
 function toggleSelectMode() {
@@ -278,12 +275,10 @@ interface PersistedFilters {
   hidePlatforms: string[];
 }
 function loadPersistedFilters(): Partial<PersistedFilters> {
-  try {
-    const raw = localStorage.getItem(FILTERS_KEY);
-    return raw ? JSON.parse(raw) : {};
-  } catch {
-    return {};
-  }
+  const saved = getUi<unknown>(FILTERS_KEY, {});
+  return saved && typeof saved === "object"
+    ? (saved as Partial<PersistedFilters>)
+    : {};
 }
 const persisted = loadPersistedFilters();
 
@@ -293,7 +288,7 @@ const platformFilter = ref<string>("all");
 const genreFilter = ref<string>("all");
 const sortBy = ref<SortBy>(
   persisted.sortBy ??
-    (localStorage.getItem("gameLibraryDefaultSort") as SortBy) ??
+    getUi<SortBy | null>("gameLibraryDefaultSort", null) ??
     "name",
 );
 
@@ -345,7 +340,7 @@ function toggleTagFilter(tag: string) {
 }
 
 watch(sortBy, (value) => {
-  localStorage.setItem(FILTERS_KEY, JSON.stringify({ sortBy: value }));
+  setUi(FILTERS_KEY, { sortBy: value });
 });
 
 // recent searches, shown when the search box gets focus while empty, so
@@ -353,12 +348,8 @@ watch(sortBy, (value) => {
 const RECENT_SEARCHES_KEY = "gameLibraryRecentSearches";
 const MAX_RECENT_SEARCHES = 6;
 function loadRecentSearches(): string[] {
-  try {
-    const raw = localStorage.getItem(RECENT_SEARCHES_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
+  const saved = getUi<unknown>(RECENT_SEARCHES_KEY, []);
+  return Array.isArray(saved) ? (saved as string[]) : [];
 }
 const recentSearches = ref<string[]>(loadRecentSearches());
 const showRecentSearches = ref(false);
@@ -370,11 +361,7 @@ function commitSearchToRecent() {
     ...recentSearches.value.filter((s) => s.toLowerCase() !== q.toLowerCase()),
   ].slice(0, MAX_RECENT_SEARCHES);
   recentSearches.value = next;
-  try {
-    localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(next));
-  } catch {
-    // best-effort, recent searches just don't persist, not worth failing over
-  }
+  setUi(RECENT_SEARCHES_KEY, next);
 }
 function pickRecentSearch(q: string) {
   searchQuery.value = q;
@@ -382,14 +369,7 @@ function pickRecentSearch(q: string) {
 }
 function removeRecentSearch(q: string) {
   recentSearches.value = recentSearches.value.filter((s) => s !== q);
-  try {
-    localStorage.setItem(
-      RECENT_SEARCHES_KEY,
-      JSON.stringify(recentSearches.value),
-    );
-  } catch {
-    // same as above
-  }
+  setUi(RECENT_SEARCHES_KEY, recentSearches.value);
 }
 
 const advancedFilterCount = computed(() => {
@@ -457,12 +437,8 @@ interface FilterPreset {
 }
 const PRESETS_KEY = "gameLibraryFilterPresets";
 function loadPresets(): FilterPreset[] {
-  try {
-    const raw = localStorage.getItem(PRESETS_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
+  const saved = getUi<unknown>(PRESETS_KEY, []);
+  return Array.isArray(saved) ? (saved as FilterPreset[]) : [];
 }
 const filterPresets = ref<FilterPreset[]>(loadPresets());
 const showPresetsMenu = ref(false);
@@ -502,11 +478,7 @@ async function saveCurrentAsPreset() {
     { name: trimmed, filters: currentFilterValues() },
   ];
   filterPresets.value = next;
-  try {
-    localStorage.setItem(PRESETS_KEY, JSON.stringify(next));
-  } catch {
-    // best-effort, the preset just won't survive a reload
-  }
+  setUi(PRESETS_KEY, next);
   showPresetsMenu.value = false;
 }
 function applyPreset(preset: FilterPreset) {
@@ -535,11 +507,7 @@ function applyPreset(preset: FilterPreset) {
 function deletePreset(name: string) {
   const next = filterPresets.value.filter((p) => p.name !== name);
   filterPresets.value = next;
-  try {
-    localStorage.setItem(PRESETS_KEY, JSON.stringify(next));
-  } catch {
-    // same as above
-  }
+  setUi(PRESETS_KEY, next);
 }
 
 // arriving from a Collections-page card click (?collection=Name),
@@ -717,7 +685,7 @@ const metadataProviderOptions = computed(() => uniqueValues((g) => g.source));
 
 function setView(mode: ViewMode) {
   viewMode.value = mode;
-  localStorage.setItem("gameLibraryViewMode", mode);
+  setUi("gameLibraryViewMode", mode);
   if (mode === "detail" && !selectedGame.value && games.value.length) {
     selectedGame.value = games.value[0];
   }
@@ -779,7 +747,7 @@ onMounted(loadGames);
 // filters are only remembered while you stay on this page, leaving it
 // (any other route) wipes them so the next visit starts from a clean slate
 onUnmounted(() => {
-  localStorage.removeItem(FILTERS_KEY);
+  removeUi(FILTERS_KEY);
 });
 
 // --- Keyboard shortcuts ------------------------------------------------
@@ -1371,9 +1339,9 @@ const activeFilterPills = computed(() => {
 // viewport breakpoints, layered on top rather than replacing them so the
 // grid still adapts sensibly across screen sizes at every density
 const cardDensity = ref<CardDensity>(
-  (localStorage.getItem("gameLibraryDensity") as CardDensity) || "cozy",
+  getUi<CardDensity>("gameLibraryDensity", "cozy") || "cozy",
 );
-watch(cardDensity, (d) => localStorage.setItem("gameLibraryDensity", d));
+watch(cardDensity, (d) => setUi("gameLibraryDensity", d));
 
 // virtualized cards grid, with 150+ games each rendering a real <img> plus
 // hover/transform effects, mounting every card at once was the actual

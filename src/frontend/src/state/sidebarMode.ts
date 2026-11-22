@@ -1,22 +1,21 @@
 // How the sidebar behaves: overlay (default, hidden until the menu button
 // opens it), pinned (always visible at full width, in flow), or rail
-// (always visible collapsed to icons, expands on hover). Device-level, not
-// a per-user account setting, so it lives in localStorage like compact mode
-// and high contrast do.
-import { ref, watch } from "vue";
+// (always visible collapsed to icons, expands on hover). Saved on the server
+// with the person's other page choices (state/uiState.ts).
+import { computed, ref } from "vue";
+import { getUi, setUi } from "./uiState";
 
 export type SidebarMode = "overlay" | "pinned" | "rail";
 
 const STORAGE_KEY = "sidebarMode";
 
-function readStored(): SidebarMode {
-  const stored = localStorage.getItem(STORAGE_KEY);
-  return stored === "pinned" || stored === "rail" ? stored : "overlay";
-}
-
-export const sidebarMode = ref<SidebarMode>(readStored());
-
-watch(sidebarMode, (mode) => localStorage.setItem(STORAGE_KEY, mode));
+export const sidebarMode = computed<SidebarMode>({
+  get: () => {
+    const stored = getUi<unknown>(STORAGE_KEY, null);
+    return stored === "pinned" || stored === "rail" ? stored : "overlay";
+  },
+  set: (mode) => setUi(STORAGE_KEY, mode),
+});
 
 // Drag-resizable width for overlay and pinned modes (and rail's own
 // hover-expanded width). The icon rail's collapsed width is fixed at 56px
@@ -30,16 +29,13 @@ function clampWidth(width: number): number {
   return Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, width));
 }
 
-function readStoredWidth(): number {
-  const stored = Number(localStorage.getItem(WIDTH_STORAGE_KEY));
-  return stored ? clampWidth(stored) : DEFAULT_WIDTH;
-}
-
-export const sidebarWidth = ref<number>(readStoredWidth());
-
-watch(sidebarWidth, (width) =>
-  localStorage.setItem(WIDTH_STORAGE_KEY, String(width)),
-);
+export const sidebarWidth = computed<number>({
+  get: () => {
+    const stored = Number(getUi<unknown>(WIDTH_STORAGE_KEY, 0));
+    return stored ? clampWidth(stored) : DEFAULT_WIDTH;
+  },
+  set: (width) => setUi(WIDTH_STORAGE_KEY, width),
+});
 
 export function setSidebarWidth(width: number) {
   sidebarWidth.value = clampWidth(width);

@@ -28,6 +28,8 @@ import { fetchAllMedia } from "../services/media";
 import type { MediaItem } from "../services/media";
 import { animeFormatLabel } from "../utils/animeFormat";
 import { sizedAssetUrl } from "../utils/gameImages";
+import { localMediaImage } from "../utils/mediaImages";
+import type { MediaKind } from "../utils/mediaImages";
 import { chosenHours } from "../utils/timeToBeat";
 import { displayTitle } from "../utils/displayTitle";
 import { progressPercent } from "../utils/watchProgress";
@@ -155,11 +157,16 @@ async function load(key: DataKey, fresh: boolean): Promise<void> {
       achFeed.value = await fetchAchievementsFeed(40);
       break;
     case "calendar":
-      calendar.value = await fetchCalendar(45);
+      calendar.value = (await fetchCalendar(45)).map(withLocalPoster);
       break;
-    case "notifications":
-      notifications.value = await fetchMediaNotifications(12);
+    case "notifications": {
+      const found = await fetchMediaNotifications(12);
+      notifications.value = {
+        ...found,
+        items: found.items.map(withLocalPoster),
+      };
       break;
+    }
     case "digest":
       digest.value = await fetchWeeklyDigest();
       break;
@@ -173,6 +180,23 @@ async function load(key: DataKey, fresh: boolean): Promise<void> {
       lists.value = await fetchMediaLists();
       break;
   }
+}
+
+// A movie, show or anime's poster from this server's saved copy, like the library
+// pages use, so Home does not wait on TMDB or AniList and still shows offline.
+function withLocalPoster<
+  T extends { mediaType: string; mediaId: string; posterUrl: string | null },
+>(entry: T): T {
+  if (entry.mediaType === "game") return entry;
+  return {
+    ...entry,
+    posterUrl: localMediaImage(
+      entry.mediaType as MediaKind,
+      entry.mediaId,
+      "poster",
+      entry.posterUrl,
+    ),
+  };
 }
 
 export function ensure(key: DataKey, force = false): Promise<void> {
@@ -403,8 +427,8 @@ function movieTitle(m: Movie): HomeTitle {
     kind: "movie",
     id: m.id,
     title: m.title,
-    art: m.posterUrl,
-    wide: m.backdropUrl,
+    art: localMediaImage("movie", m.id, "poster", m.posterUrl),
+    wide: localMediaImage("movie", m.id, "backdrop", m.backdropUrl),
     subtitle: m.releaseDate ? m.releaseDate.slice(0, 4) : "Movie",
     progress: percent === null ? null : percent / 100,
     ach: null,
@@ -432,8 +456,8 @@ function showTitle(s: TVShow): HomeTitle {
     kind: "tv",
     id: s.id,
     title: s.title,
-    art: s.posterUrl,
-    wide: s.backdropUrl,
+    art: localMediaImage("tv", s.id, "poster", s.posterUrl),
+    wide: localMediaImage("tv", s.id, "backdrop", s.backdropUrl),
     subtitle: subtitle || "TV show",
     progress,
     ach: null,
@@ -465,8 +489,8 @@ function animeTitle(a: Anime): HomeTitle {
     kind: "anime",
     id: a.id,
     title: displayTitle(a),
-    art: a.posterUrl,
-    wide: a.backdropUrl,
+    art: localMediaImage("anime", a.id, "poster", a.posterUrl),
+    wide: localMediaImage("anime", a.id, "backdrop", a.backdropUrl),
     subtitle: subtitle || "Anime",
     progress,
     ach: null,

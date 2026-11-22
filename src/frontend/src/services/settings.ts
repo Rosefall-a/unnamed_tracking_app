@@ -474,6 +474,8 @@ export interface CleanupJob {
   lastSummary: string;
   lastResult: Record<string, number | string | boolean | null>;
   running: boolean;
+  // runs with the others at the set time instead of on its own timer
+  together: boolean;
 }
 interface BackendJob {
   id: string;
@@ -487,6 +489,7 @@ interface BackendJob {
   last_summary: string;
   last_result: Record<string, number | string | boolean | null>;
   running: boolean;
+  together?: boolean;
 }
 function mapJob(j: BackendJob): CleanupJob {
   return {
@@ -501,6 +504,7 @@ function mapJob(j: BackendJob): CleanupJob {
     lastSummary: j.last_summary,
     lastResult: j.last_result,
     running: j.running,
+    together: j.together === true,
   };
 }
 export async function fetchJobs(): Promise<CleanupJob[]> {
@@ -513,7 +517,7 @@ export async function fetchJobs(): Promise<CleanupJob[]> {
 }
 export async function updateJob(
   id: string,
-  changes: { enabled?: boolean; intervalMinutes?: number },
+  changes: { enabled?: boolean; intervalMinutes?: number; together?: boolean },
 ): Promise<CleanupJob> {
   const response = await fetch(`/api/settings/jobs/${id}`, {
     method: "PUT",
@@ -522,6 +526,7 @@ export async function updateJob(
     body: JSON.stringify({
       enabled: changes.enabled,
       interval_minutes: changes.intervalMinutes,
+      together: changes.together,
     }),
   });
   if (!response.ok)
@@ -535,6 +540,75 @@ export async function runJobNow(id: string): Promise<void> {
   });
   if (!response.ok)
     throw new Error(`Could not start the job: ${response.status}`);
+}
+
+// Tasks set to run together start once a day at a set time, in this browser's
+// time zone, the backup last (backend features/task_schedule.py).
+export interface TaskSchedule {
+  // "03:00"
+  time: string;
+  timezone: string;
+  // the tasks set to run together, in the order they run
+  members: string[];
+  lastRunAt: number | null;
+  nextRunAt: number | null;
+  running: boolean;
+  lastStatus: string | null;
+}
+interface BackendTaskSchedule {
+  time: string;
+  timezone: string;
+  members: string[];
+  last_run_at: number | null;
+  next_run_at: number | null;
+  running: boolean;
+  last_result: { status?: string };
+}
+function mapSchedule(s: BackendTaskSchedule): TaskSchedule {
+  return {
+    time: s.time,
+    timezone: s.timezone,
+    members: s.members ?? [],
+    lastRunAt: s.last_run_at,
+    nextRunAt: s.next_run_at,
+    running: s.running,
+    lastStatus: s.last_result?.status ?? null,
+  };
+}
+export function browserTimeZone(): string {
+  return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+}
+export async function fetchTaskSchedule(): Promise<TaskSchedule> {
+  const response = await fetch("/api/settings/jobs/schedule", {
+    credentials: "include",
+  });
+  if (!response.ok)
+    throw new Error(`Could not load the task time: ${response.status}`);
+  return mapSchedule(await response.json());
+}
+export async function updateTaskSchedule(changes: {
+  time?: string;
+}): Promise<TaskSchedule> {
+  const response = await fetch("/api/settings/jobs/schedule", {
+    method: "PUT",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    // the time is meant in this browser's own zone
+    body: JSON.stringify({ ...changes, timezone: browserTimeZone() }),
+  });
+  if (!response.ok) {
+    const body = await response.json().catch(() => null);
+    throw new Error(body?.detail ?? `Could not save: ${response.status}`);
+  }
+  return mapSchedule(await response.json());
+}
+export async function runDailyTasksNow(): Promise<void> {
+  const response = await fetch("/api/settings/jobs/schedule/run", {
+    method: "POST",
+    credentials: "include",
+  });
+  if (!response.ok)
+    throw new Error(`Could not start the tasks: ${response.status}`);
 }
 
 // Settings > Administration > Backups (see backend api/routes/backups.py).
@@ -572,6 +646,8 @@ export interface BackupOverview {
   includeFiles: boolean;
   filesKeep: number;
   maxFilesKeep: number;
+  // runs last when the tasks run together, instead of on its own timer
+  together: boolean;
   storage: BackupStorage;
   backups: BackupFile[];
 }
@@ -606,6 +682,7 @@ interface BackendBackupOverview {
   running: boolean;
   folder: string;
   include_files?: boolean;
+  together?: boolean;
   files_keep?: number;
   max_files_keep?: number;
   storage?: {
@@ -640,6 +717,7 @@ function mapBackupOverview(b: BackendBackupOverview): BackupOverview {
     running: b.running,
     folder: b.folder,
     includeFiles: b.include_files ?? false,
+    together: b.together === true,
     filesKeep: b.files_keep ?? 2,
     maxFilesKeep: b.max_files_keep ?? 30,
     storage: {
@@ -667,6 +745,7 @@ export async function updateBackupSettings(changes: {
   keep?: number;
   includeFiles?: boolean;
   filesKeep?: number;
+  together?: boolean;
 }): Promise<BackupOverview> {
   const response = await fetch("/api/settings/backups", {
     method: "PUT",
@@ -678,6 +757,7 @@ export async function updateBackupSettings(changes: {
       keep: changes.keep,
       include_files: changes.includeFiles,
       files_keep: changes.filesKeep,
+      together: changes.together,
     }),
   });
   if (!response.ok) throw await backupError(response, "Could not save");

@@ -8,12 +8,14 @@ address. This finds those and fetches them, and only ever adds files."""
 from __future__ import annotations
 
 import asyncio
+import os
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 from uuid import UUID
 
 from sqlalchemy import select
+from sqlalchemy.orm import noload
 
 from src.database.models.achievement import Achievement
 from src.database.models.anime import Anime, AnimeEpisode, AnimeSeason
@@ -43,6 +45,25 @@ def _online(url: str | None) -> bool:
 Missing = tuple[str, Path, Callable[[str, Path], None]]
 
 
+class _Saved:
+    """Which files are already saved, from each folder's list read once. On a
+    data folder shared from the host, asking about every file one by one took
+    half a minute for one library; a few folder reads take a moment."""
+
+    def __init__(self) -> None:
+        self._names: dict[Path, set[str]] = {}
+
+    def has(self, path: Path) -> bool:
+        names = self._names.get(path.parent)
+        if names is None:
+            try:
+                names = set(os.listdir(path.parent))
+            except OSError:
+                names = set()
+            self._names[path.parent] = names
+        return path.name in names
+
+
 def _resized(width: int) -> Callable[[str, Path], None]:
     return lambda url, target: fetch_and_store(url, target, width)
 
@@ -54,14 +75,17 @@ async def _missing(user_id: UUID) -> dict[str, list[Missing]]:
     found["still"] = []
     found["page"] = []
     cache = image_prefetch.MEDIA_ROOT / str(user_id) / ".cache"
+    saved = _Saved()
     async with SessionLocal() as db:
         for model, kind in _KINDS:
-            for row in (await db.execute(select(model).where(model.user_id == user_id))).scalars():
+            # only the title's own picture addresses, not every season and episode
+            query = select(model).where(model.user_id == user_id).options(noload("*"))
+            for row in (await db.execute(query)).scalars():
                 for name, url in image_prefetch.media_image_names(row):
                     if not _online(url):
                         continue
                     target = cache_path(cache, kind, str(row.id), name, url)
-                    if not target.is_file():
+                    if not saved.has(target):
                         found[kind].append((url, target, _resized(image_prefetch.WIDTHS[name])))
         icons = (
             await db.execute(
@@ -75,7 +99,7 @@ async def _missing(user_id: UUID) -> dict[str, list[Missing]]:
             if icon is None or not _online(icon):
                 continue
             target = icon_cache_path(image_prefetch.ICON_ROOT, icon)
-            if not target.is_file():
+            if not saved.has(target):
                 found["icon"].append((icon, target, fetch_icon))
         for episode, season, show in (
             (TVEpisode, TVSeason, TVShow),
@@ -93,7 +117,7 @@ async def _missing(user_id: UUID) -> dict[str, list[Missing]]:
                 if still is None or not _online(still):
                     continue
                 target = local_copies.still_path(cache, still)
-                if not target.is_file():
+                if not saved.has(target):
                     found["still"].append((still, target, local_copies.fetch_still))
         descriptions = (
             await db.execute(
@@ -106,7 +130,7 @@ async def _missing(user_id: UUID) -> dict[str, list[Missing]]:
         for description in descriptions:
             for url in local_copies.description_files(description):
                 target = local_copies.description_file_path(cache, url)
-                if target not in queued and not target.is_file():
+                if target not in queued and not saved.has(target):
                     queued.add(target)
                     found["page"].append((url, target, local_copies.fetch_description_file))
     return found

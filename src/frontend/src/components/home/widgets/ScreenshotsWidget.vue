@@ -6,7 +6,7 @@
 import { computed, onBeforeUnmount, ref, watch } from "vue";
 import WidgetFrame from "../WidgetFrame.vue";
 import { homeData } from "../../../home/data";
-import { shuffle } from "../../../home/select";
+import { dailyShuffle } from "../../../home/select";
 import type { WidgetProps } from "../../../home/registry";
 
 const props = defineProps<WidgetProps>();
@@ -31,7 +31,8 @@ const all = computed<Shot[]>(() => {
   const list = [...(homeData.screenshots.value ?? [])];
   const ordered =
     props.settings.order === "random"
-      ? shuffle(list)
+      ? // shuffled once a day, the same every visit until tomorrow
+        dailyShuffle(list, (s) => s.id)
       : list.sort(
           (a, b) => (b.taken_at ?? b.created_at) - (a.taken_at ?? a.created_at),
         );

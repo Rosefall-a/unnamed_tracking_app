@@ -6,6 +6,7 @@
 // the columns and warped the grid, and a library with dozens of airing
 // shows can't fit names in a cell anyway. Names live in the hover tooltip
 // and the day drawer that opens on click.
+import { getUi, setUi } from "../state/uiState";
 import {
   ref,
   reactive,
@@ -139,23 +140,16 @@ const filters = reactive({
   event: true,
   estimated: true,
 });
-try {
-  const saved = JSON.parse(localStorage.getItem(FILTER_KEY) ?? "null");
+{
+  const saved = getUi<Record<string, unknown> | null>(FILTER_KEY, null);
   if (saved && typeof saved === "object") {
     for (const k of Object.keys(filters) as (keyof typeof filters)[]) {
-      if (typeof saved[k] === "boolean") filters[k] = saved[k];
+      const value = saved[k];
+      if (typeof value === "boolean") filters[k] = value;
     }
   }
-} catch {
-  /* storage unavailable: defaults are fine */
 }
-watch(filters, () => {
-  try {
-    localStorage.setItem(FILTER_KEY, JSON.stringify(filters));
-  } catch {
-    /* ignore */
-  }
-});
+watch(filters, () => setUi(FILTER_KEY, { ...filters }));
 
 // ---- preferences (Settings > Calendar) ----
 const prefs = ref<Preferences>({ ...DEFAULT_PREFERENCES });

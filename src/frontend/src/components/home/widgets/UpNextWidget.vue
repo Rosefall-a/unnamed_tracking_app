@@ -5,6 +5,7 @@
 // be a made-up number.
 import { computed } from "vue";
 import WidgetFrame from "../WidgetFrame.vue";
+import { hideBrokenPicture } from "../../../utils/localPictures";
 import ArtRail from "../ArtRail.vue";
 import type { RailItem } from "../ArtRail.vue";
 import { allTitles, homeData, routeFor } from "../../../home/data";
@@ -83,7 +84,13 @@ const cards = computed<RailItem[]>(() =>
           class="row"
         >
           <span class="thumb">
-            <img v-if="e.posterUrl" :src="e.posterUrl" alt="" loading="lazy" />
+            <img
+              v-if="e.posterUrl"
+              :src="e.posterUrl"
+              alt=""
+              loading="lazy"
+              @error="hideBrokenPicture"
+            />
             <span v-else>{{ e.title.charAt(0) }}</span>
           </span>
           <span class="words">

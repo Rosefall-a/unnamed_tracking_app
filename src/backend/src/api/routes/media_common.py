@@ -9,6 +9,7 @@ from typing import Any
 from fastapi import HTTPException, status
 from sqlalchemy import ColumnElement, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from src.api.schemas.pagination import PaginatedResponse, score_ranks
 
@@ -138,6 +139,13 @@ async def library_page(  # pylint: disable=too-many-arguments,too-many-positiona
 
     total = await db.scalar(select(func.count()).select_from(stmt.subquery()))
     stmt = stmt.order_by(*library_order(model, sort, year_column)).offset(skip).limit(limit)
+    seasons = getattr(model, "seasons", None)
+    if seasons is not None:
+        # a list sends each season's counts, never its episodes, which would
+        # otherwise load with every season and make up most of the wait
+        stmt = stmt.options(
+            selectinload(seasons).noload(seasons.property.mapper.class_.episodes)
+        )
     result = await db.execute(stmt)
     return PaginatedResponse(
         items=list(result.scalars().unique().all()),

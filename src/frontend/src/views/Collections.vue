@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { getUi, setUi } from "../state/uiState";
 import { ref, computed, onMounted, watch } from "vue";
 import { useRouter } from "vue-router";
 import CollectionTile from "../components/CollectionTile.vue";
@@ -49,24 +50,17 @@ const SORT_OPTIONS: { value: SortBy; label: string }[] = [
 const kindFilter = ref<KindFilter>("all");
 
 // Empty collections (no games assigned yet) have nowhere to live on the
-// backend, so they're tracked locally until a game is actually added to them.
+// backend, so they're saved with the page choices until a game is added to them.
 const MANUAL_COLLECTIONS_KEY = "manualCollections";
 const manualCollectionNames = ref<string[]>(loadManualCollections());
 
 function loadManualCollections(): string[] {
-  try {
-    const raw = localStorage.getItem(MANUAL_COLLECTIONS_KEY);
-    return raw ? (JSON.parse(raw) as string[]) : [];
-  } catch {
-    return [];
-  }
+  const saved = getUi<unknown>(MANUAL_COLLECTIONS_KEY, []);
+  return Array.isArray(saved) ? [...(saved as string[])] : [];
 }
 
 function saveManualCollections() {
-  localStorage.setItem(
-    MANUAL_COLLECTIONS_KEY,
-    JSON.stringify(manualCollectionNames.value),
-  );
+  setUi(MANUAL_COLLECTIONS_KEY, [...manualCollectionNames.value]);
 }
 
 const createError = ref<string | null>(null);
@@ -135,12 +129,10 @@ interface CollectionSummary {
 // "Cover" picker, keyed by collection name since collections have no
 // backend row of their own to hang this off
 function loadCoverPicks(): Record<string, string> {
-  try {
-    const raw = localStorage.getItem("collectionCoverPicks");
-    return raw ? JSON.parse(raw) : {};
-  } catch {
-    return {};
-  }
+  const saved = getUi<unknown>("collectionCoverPicks", {});
+  return saved && typeof saved === "object"
+    ? { ...(saved as Record<string, string>) }
+    : {};
 }
 
 // description, pin and place in "My order" are kept locally per name
