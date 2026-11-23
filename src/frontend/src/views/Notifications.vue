@@ -24,13 +24,20 @@ import { useKeptAlive } from "../utils/useKeptAlive";
 import { useConfirm } from "../state/dialog";
 
 type Filter =
-  "all" | "unread" | "episodes" | "seasons" | "releases" | "library";
+  | "all"
+  | "unread"
+  | "episodes"
+  | "seasons"
+  | "releases"
+  | "achievements"
+  | "library";
 const FILTERS: { key: Filter; label: string }[] = [
   { key: "all", label: "All" },
   { key: "unread", label: "Unread" },
   { key: "episodes", label: "Episodes" },
   { key: "seasons", label: "Seasons" },
   { key: "releases", label: "Releases" },
+  { key: "achievements", label: "Achievements" },
   { key: "library", label: "Library" },
 ];
 
@@ -72,6 +79,11 @@ const KIND_META: Record<
     tone: "violet",
     group: "releases",
   },
+  milestone: {
+    label: "Milestone",
+    tone: "green",
+    group: "achievements",
+  },
   possible_duplicate: {
     label: "Possible duplicate",
     tone: "amber",
@@ -87,6 +99,7 @@ const counts = computed(() => {
     episodes: 0,
     seasons: 0,
     releases: 0,
+    achievements: 0,
     library: 0,
   };
   for (const n of items.value) c[KIND_META[n.kind].group] += 1;

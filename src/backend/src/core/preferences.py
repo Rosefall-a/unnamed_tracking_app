@@ -28,6 +28,8 @@ DEFAULTS: dict[str, Any] = {
     # a film, OVA or special listed for something you finished
     "notify_extras_announced": False,
     "notify_movie_released": True,
+    # a new achievement milestone (100th achievement, 10th perfect game, ...)
+    "notify_achievement_milestone": True,
     "notify_statuses": ["watching", "plan", "hold"],
     "notify_media_types": ["anime", "tv", "movie"],
     "notification_retention_days": 30,

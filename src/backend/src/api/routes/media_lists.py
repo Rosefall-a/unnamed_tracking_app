@@ -29,6 +29,7 @@ from src.core.titles import display_title
 from src.database.models.media_extras import MediaList, MediaListItem, MediaType
 from src.database.models.user import User
 from src.database.session import get_db
+from src.features import media_smart_rules
 
 router = APIRouter(prefix="/api", tags=["media-lists"], dependencies=[Depends(get_current_user)])
 
@@ -41,6 +42,9 @@ _BUCKET_STATUSES: dict[str, set[str]] = {
     "completed": {"WATCHED", "FAVORITE"},
     "dropped": {"DROPPED"},
 }
+
+
+_SMART_TYPES = ("movie", "tv", "anime")
 
 
 def _status_str(media: Any) -> str:
@@ -73,7 +77,9 @@ def _smart_query(model: Any, user_id: UUID, favorite: Any) -> Any:
 async def _resolve_smart_items(
     rule: dict, user_id: UUID, db: AsyncSession, language: str
 ) -> list[dict]:
-    wanted_types = rule.get("media_types") or list(_MODEL_BY_TYPE)
+    # movies, TV and anime only: the shared model map also holds games, which
+    # have their own collections
+    wanted_types = [t for t in rule.get("media_types") or _SMART_TYPES if t in _SMART_TYPES]
     allowed_statuses: set[str] | None = None
     if rule.get("status_buckets"):
         allowed_statuses = set()
@@ -89,6 +95,11 @@ async def _resolve_smart_items(
         if model is None:
             continue
         rows = (await db.execute(_smart_query(model, user_id, favorite))).scalars().all()
+        behind = (
+            await media_smart_rules.shows_behind(db, media_type, user_id)
+            if media_smart_rules.wants_behind(rule)
+            else set()
+        )
         for media in rows:
             if allowed_statuses is not None and _status_str(media) not in allowed_statuses:
                 continue
@@ -99,6 +110,8 @@ async def _resolve_smart_items(
             if min_score is not None and (
                 media.rating_overall is None or float(media.rating_overall) < min_score
             ):
+                continue
+            if not media_smart_rules.matches(media, media_type, rule, behind):
                 continue
             # a smart list has no membership rows, so the media's own id
             # stands in for the item id

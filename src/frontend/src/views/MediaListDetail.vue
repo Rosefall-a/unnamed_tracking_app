@@ -253,6 +253,18 @@ const ruleSummary = computed(() => {
   if (r.genre) parts.push(`genre ${r.genre}`);
   if (r.minScore != null) parts.push(`score ${r.minScore}+`);
   if (r.favorite) parts.push("favorites");
+  if (r.finishedYear != null) parts.push(`finished in ${r.finishedYear}`);
+  if (r.startedYear != null) parts.push(`started in ${r.startedYear}`);
+  if (r.addedWithinDays != null)
+    parts.push(`added in the last ${r.addedWithinDays} days`);
+  if (r.releasedFrom != null && r.releasedTo != null)
+    parts.push(`released ${r.releasedFrom} to ${r.releasedTo}`);
+  else if (r.releasedFrom != null)
+    parts.push(`released ${r.releasedFrom} or later`);
+  else if (r.releasedTo != null)
+    parts.push(`released ${r.releasedTo} or earlier`);
+  if (r.airing) parts.push("still airing");
+  if (r.episodesBehind) parts.push("episodes to catch up on");
   return parts.join(" · ");
 });
 

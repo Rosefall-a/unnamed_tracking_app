@@ -34,6 +34,17 @@ class SmartRule(BaseModel):
     genre: str | None = Field(default=None, max_length=100)
     min_score: float | None = Field(default=None, ge=0, le=10)
     favorite: bool | None = None
+    # the year it was finished or started (your own dates)
+    finished_year: int | None = Field(default=None, ge=1900, le=2100)
+    started_year: int | None = Field(default=None, ge=1900, le=2100)
+    # added to the library in the last N days
+    added_within_days: int | None = Field(default=None, ge=1, le=36500)
+    # released (or first aired) from / up to this year
+    released_from: int | None = Field(default=None, ge=1850, le=2100)
+    released_to: int | None = Field(default=None, ge=1850, le=2100)
+    # TV and anime: still airing, or with aired episodes not watched yet
+    airing: bool | None = None
+    episodes_behind: bool | None = None
 
 
 class MediaListCreate(BaseModel):

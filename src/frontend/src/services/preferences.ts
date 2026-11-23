@@ -18,6 +18,7 @@ export interface Preferences {
   notify_extras_announced: boolean;
   media_trash_retention_days: number;
   notify_movie_released: boolean;
+  notify_achievement_milestone: boolean;
   notify_statuses: ("watching" | "plan" | "hold")[];
   calendar_airing_statuses: ("watching" | "plan" | "hold")[];
   notify_media_types: ("anime" | "tv" | "movie")[];
@@ -61,6 +62,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   notify_extras_announced: false,
   media_trash_retention_days: 7,
   notify_movie_released: true,
+  notify_achievement_milestone: true,
   notify_statuses: ["watching", "plan", "hold"],
   notify_media_types: ["anime", "tv", "movie"],
   notification_retention_days: 30,

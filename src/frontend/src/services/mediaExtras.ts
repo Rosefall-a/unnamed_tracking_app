@@ -96,6 +96,17 @@ export interface SmartRule {
   genre?: string;
   minScore?: number;
   favorite?: boolean;
+  // your own finish and start dates
+  finishedYear?: number;
+  startedYear?: number;
+  // added to the library in the last N days
+  addedWithinDays?: number;
+  // released (first aired) from / up to this year
+  releasedFrom?: number;
+  releasedTo?: number;
+  // TV and anime only
+  airing?: boolean;
+  episodesBehind?: boolean;
 }
 
 export interface MediaListSummary {
@@ -140,6 +151,13 @@ interface BackendSmartRule {
   genre?: string | null;
   min_score?: number | null;
   favorite?: boolean | null;
+  finished_year?: number | null;
+  started_year?: number | null;
+  added_within_days?: number | null;
+  released_from?: number | null;
+  released_to?: number | null;
+  airing?: boolean | null;
+  episodes_behind?: boolean | null;
 }
 
 interface BackendMediaListSummary {
@@ -167,6 +185,13 @@ function mapSmartRule(r: BackendSmartRule | null): SmartRule | null {
   if (r.genre) rule.genre = r.genre;
   if (r.min_score != null) rule.minScore = r.min_score;
   if (r.favorite != null) rule.favorite = r.favorite;
+  if (r.finished_year != null) rule.finishedYear = r.finished_year;
+  if (r.started_year != null) rule.startedYear = r.started_year;
+  if (r.added_within_days != null) rule.addedWithinDays = r.added_within_days;
+  if (r.released_from != null) rule.releasedFrom = r.released_from;
+  if (r.released_to != null) rule.releasedTo = r.released_to;
+  if (r.airing != null) rule.airing = r.airing;
+  if (r.episodes_behind != null) rule.episodesBehind = r.episodes_behind;
   return rule;
 }
 
@@ -180,6 +205,13 @@ function smartRuleToBody(
     genre: r.genre?.trim() ? r.genre.trim() : null,
     min_score: r.minScore ?? null,
     favorite: r.favorite ?? null,
+    finished_year: r.finishedYear ?? null,
+    started_year: r.startedYear ?? null,
+    added_within_days: r.addedWithinDays ?? null,
+    released_from: r.releasedFrom ?? null,
+    released_to: r.releasedTo ?? null,
+    airing: r.airing ?? null,
+    episodes_behind: r.episodesBehind ?? null,
   };
 }
 

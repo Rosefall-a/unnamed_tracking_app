@@ -30,11 +30,7 @@ export async function saveCollectionEdit(args: {
   const name = payload.name;
 
   if (smartId && payload.smart) {
-    updateSmartCollection(smartId, {
-      name,
-      field: payload.smart.field,
-      value: payload.smart.value,
-    });
+    updateSmartCollection(smartId, { name, ...payload.smart });
   } else if (name !== oldName) {
     for (const game of members) {
       await addGameToCollection(game.id, name);

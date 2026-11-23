@@ -99,6 +99,8 @@ export interface Game {
   // independent of achievementPercent, since a game can have achievements
   // tracked with 0% unlocked so far
   achievementTotal: number;
+  // how many of those are unlocked, once the library has loaded the counts
+  achievementUnlocked?: number;
   achievements: Achievement[];
   description: string | null;
   developer: string | null;

@@ -95,3 +95,57 @@ export async function fetchWeeklyDigest(): Promise<WeeklyDigest> {
   }
   return await response.json();
 }
+
+// Achievement milestones (backend features/achievement_milestones.py), worked
+// out from the unlock times: newest first, plus the next one of each kind.
+export interface AchievementMilestone {
+  id: string;
+  kind: "unlocks" | "perfect" | "rarity";
+  label: string;
+  // null when an unlock had no time, so the moment cannot be known
+  at: number | null;
+  game_id: string | null;
+  game_title: string | null;
+  achievement: string | null;
+}
+
+export interface NextMilestone {
+  kind: "unlocks" | "perfect";
+  label: string;
+  current: number;
+  target: number;
+}
+
+export interface AchievementMilestones {
+  reached: AchievementMilestone[];
+  next: NextMilestone[];
+  totals: { unlocked: number; perfect: number };
+}
+
+export async function fetchAchievementMilestones(): Promise<AchievementMilestones> {
+  const response = await fetch("/api/stats/achievement-milestones", {
+    credentials: "include",
+  });
+  if (!response.ok) {
+    throw new Error(`Could not load milestones: ${response.status}`);
+  }
+  return await response.json();
+}
+
+// every unlock time and every time a game became perfect (seconds), for goals
+// counted over a year or month; totals also count unlocks with no time
+export interface AchievementTimes {
+  unlocks: number[];
+  perfect: number[];
+  totals: { unlocked: number; perfect: number };
+}
+
+export async function fetchAchievementTimes(): Promise<AchievementTimes> {
+  const response = await fetch("/api/stats/achievement-times", {
+    credentials: "include",
+  });
+  if (!response.ok) {
+    throw new Error(`Could not load achievement times: ${response.status}`);
+  }
+  return await response.json();
+}

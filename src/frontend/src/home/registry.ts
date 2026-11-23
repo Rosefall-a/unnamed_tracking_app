@@ -159,6 +159,9 @@ const lazy = (loader: () => Promise<{ default: Component }>) =>
   defineAsyncComponent(loader);
 
 const hasTitles = () => allTitles.value.length > 0;
+// the Tracker counts library titles unless it is set to count achievements
+const countsTitles = (s: Record<string, unknown>) =>
+  (s.counting ?? "titles") === "titles";
 
 const countField = (max = 40): SettingField => ({
   key: "count",
@@ -1369,6 +1372,8 @@ export const WIDGETS: WidgetDefinition[] = [
       goal: 0,
       style: "number",
       covers: 0,
+      counting: "titles",
+      period: "year",
     },
     fields: [
       {
@@ -1377,11 +1382,33 @@ export const WIDGETS: WidgetDefinition[] = [
         type: "text",
         placeholder: "For example Horror finished",
       },
-      kindsField,
+      {
+        key: "counting",
+        label: "What to count",
+        type: "select",
+        options: [
+          { value: "titles", label: "Titles in the library" },
+          { value: "achievements", label: "Achievements unlocked" },
+          { value: "perfect", label: "Perfect games (every achievement)" },
+        ],
+      },
+      {
+        key: "period",
+        label: "Counted over",
+        type: "select",
+        when: (s) => !countsTitles(s),
+        options: [
+          { value: "year", label: "This year" },
+          { value: "month", label: "This month" },
+          { value: "all", label: "All time" },
+        ],
+      },
+      { ...kindsField, when: countsTitles },
       {
         key: "status",
         label: "Count titles that are",
         type: "select",
+        when: countsTitles,
         options: [
           { value: "any", label: "Anything in the library" },
           { value: "done", label: "Finished" },
@@ -1392,24 +1419,27 @@ export const WIDGETS: WidgetDefinition[] = [
           { value: "favorite", label: "Favorites" },
         ],
       },
-      genreField,
+      { ...genreField, when: countsTitles },
       {
         key: "maker",
         label: "Developer or studio",
         type: "text",
+        when: countsTitles,
         placeholder: "Part of a name is enough",
       },
       {
         key: "platform",
         label: "Platform (games)",
         type: "text",
+        when: countsTitles,
         placeholder: "For example PC",
       },
-      minRatingField,
+      { ...minRatingField, when: countsTitles },
       {
         key: "yearFrom",
         label: "Released from year (0 for any)",
         type: "number",
+        when: countsTitles,
         min: 0,
         max: 2100,
       },
@@ -1417,6 +1447,7 @@ export const WIDGETS: WidgetDefinition[] = [
         key: "yearTo",
         label: "Released up to year (0 for any)",
         type: "number",
+        when: countsTitles,
         min: 0,
         max: 2100,
       },
@@ -1441,6 +1472,7 @@ export const WIDGETS: WidgetDefinition[] = [
         key: "covers",
         label: "Covers to show",
         type: "number",
+        when: countsTitles,
         min: 0,
         max: 8,
       },
@@ -1448,7 +1480,7 @@ export const WIDGETS: WidgetDefinition[] = [
     variants: [],
     cards: false,
     cog: true,
-    needs: ["games", "movies", "tv", "anime"],
+    needs: ["games", "movies", "tv", "anime", "unlockTimes"],
     hasData: hasTitles,
     component: lazy(
       () => import("../components/home/widgets/TrackerWidget.vue"),

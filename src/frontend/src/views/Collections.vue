@@ -6,11 +6,12 @@ import CollectionTile from "../components/CollectionTile.vue";
 import GameTopBar from "../components/GameTopBar.vue";
 import CollectionIndexHead from "../components/CollectionIndexHead.vue";
 import type { SegmentOption } from "../components/SegmentedTabs.vue";
-import { getGames } from "../services/games";
+import { getGamesWithAchievementCounts } from "../services/games";
 import type { Game } from "../types/game";
 import {
   smartCollections,
   addSmartCollection,
+  definitionOf,
   matchesSmartCollection,
   FAVORITES_NAME,
 } from "../state/smartCollections";
@@ -83,11 +84,7 @@ const showCreate = ref(false);
 function onCreate(payload: CollectionFormPayload) {
   createError.value = null;
   if (payload.smart) {
-    addSmartCollection({
-      name: payload.name,
-      field: payload.smart.field,
-      value: payload.smart.value,
-    });
+    addSmartCollection({ name: payload.name, ...payload.smart });
   } else if (!addCollectionName(payload.name)) {
     showCreate.value = false;
     return;
@@ -102,7 +99,7 @@ function onCreate(payload: CollectionFormPayload) {
 async function loadGames() {
   loading.value = true;
   try {
-    games.value = await getGames();
+    games.value = await getGamesWithAchievementCounts();
   } catch (err) {
     error.value = err instanceof Error ? err.message : "Could not load games";
   } finally {
@@ -272,7 +269,7 @@ const editingInfo = computed(() => {
   return {
     name: c.name,
     description: c.description,
-    smart: rule ? { field: rule.field, value: rule.value } : null,
+    smart: rule ? definitionOf(rule) : null,
   };
 });
 function editCollection(name: string) {

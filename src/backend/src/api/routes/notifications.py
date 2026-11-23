@@ -34,7 +34,10 @@ def _read(n: Notification) -> dict:
         "media_id": n.media_id,
         "title": n.title,
         "body": n.body,
-        "poster_url": f"/api/media-image/{n.media_type}/{n.media_id}/poster"
+        # a game's cover is already served by this app, so its own path is kept
+        "poster_url": n.poster_url
+        if n.media_type == "game"
+        else f"/api/media-image/{n.media_type}/{n.media_id}/poster"
         if n.poster_url
         else None,
         "event_at": n.event_at,

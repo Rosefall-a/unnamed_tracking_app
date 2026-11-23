@@ -507,7 +507,8 @@ async def _fetch_steam_rows(user: User, external_id: str) -> list[dict]:
             "account, and that this entry's Steam app id is the edition you own. If it "
             "keeps happening Steam may be limiting requests: wait a few minutes and retry.",
         )
-    percentages = await asyncio.to_thread(steam.get_global_percentages, app_id)
+    # an empty answer is Steam not saying, so the rarity already saved is kept
+    percentages = await asyncio.to_thread(steam.get_global_percentages, app_id) or None
     descriptions = None
     if _needs_community_descriptions(schema):
         descriptions = await asyncio.to_thread(steam.get_community_descriptions, steam_id, app_id)
@@ -591,11 +592,20 @@ async def sync_steam_library(
 
     semaphore = asyncio.Semaphore(_SYNC_CONCURRENCY)
 
-    async def _fetch_achievements(app_id: int) -> SteamAchievementData:
+    async def _fetch_achievements(
+        app_id: int,
+    ) -> tuple[SteamAchievementData, dict[str, float] | None]:
         if achievements == "later":
-            return {}, [], None
+            return ({}, [], None), None
         async with semaphore:
-            return await fetch_steam_achievements(steam_id, api_key, app_id)
+            data = await fetch_steam_achievements(steam_id, api_key, app_id)
+            # how rare each one is: a public call, only for games that have any
+            percentages = (
+                await asyncio.to_thread(steam.get_global_percentages, app_id) or None
+                if data[0]
+                else None
+            )
+            return data, percentages
 
     fetches = await asyncio.gather(
         *(
@@ -618,7 +628,7 @@ async def sync_steam_library(
         if not title or not app_id:
             continue
         title = title[:_MAX_TITLE]
-        schema, unlocked, descriptions = fetches[fetch_index]
+        (schema, unlocked, descriptions), percentages = fetches[fetch_index]
         fetch_index += 1
 
         game, created = await _get_or_create_game(
@@ -639,7 +649,7 @@ async def sync_steam_library(
             # than replace it with an all-locked list
             unreadable.append(title)
         elif schema and unlocked is not None:
-            rows = _steam_achievement_rows(schema, unlocked, None, descriptions)
+            rows = _steam_achievement_rows(schema, unlocked, percentages, descriptions)
             await _replace_achievements(db, game.id, "Steam", rows)
             achievements_synced += len(rows)
             total_achievements = len(rows)

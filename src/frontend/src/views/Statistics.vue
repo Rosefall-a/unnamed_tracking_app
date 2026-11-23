@@ -19,6 +19,7 @@ import ActivityHeatmap from "../components/stats/ActivityHeatmap.vue";
 import DonutChart from "../components/stats/DonutChart.vue";
 import StatCard from "../components/stats/StatCard.vue";
 import TopRatedRow from "../components/stats/TopRatedRow.vue";
+import MilestonesPanel from "../components/stats/MilestonesPanel.vue";
 import { fetchMediaStats, peekMediaStats } from "../services/mediaStats";
 import type {
   EpisodicStats,
@@ -539,6 +540,13 @@ const episodic = computed<EpisodicStats | null>(() => {
           >
             <h2>Top rated</h2>
             <TopRatedRow :items="stats.games.top_rated" @open="openTitle" />
+          </section>
+          <section
+            v-if="stats.games.achievements_total"
+            class="stats-panel toprated-panel"
+          >
+            <h2>Achievement milestones</h2>
+            <MilestonesPanel />
           </section>
           <div class="stats-panels">
             <section class="stats-panel">

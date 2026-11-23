@@ -51,6 +51,20 @@ const statusBuckets = ref<string[]>(
 const genre = ref(rule.genre ?? "");
 const minScore = ref<number | null>(rule.minScore ?? null);
 const favoriteOnly = ref(rule.favorite === true);
+const finishedYear = ref<number | null>(rule.finishedYear ?? null);
+const startedYear = ref<number | null>(rule.startedYear ?? null);
+const addedWithinDays = ref<number | null>(rule.addedWithinDays ?? null);
+const releasedFrom = ref<number | null>(rule.releasedFrom ?? null);
+const releasedTo = ref<number | null>(rule.releasedTo ?? null);
+const airingOnly = ref(rule.airing === true);
+const behindOnly = ref(rule.episodesBehind === true);
+
+// an emptied number box gives "" rather than null
+function whole(value: number | string | null): number | null {
+  return typeof value === "number" && Number.isFinite(value)
+    ? Math.round(value)
+    : null;
+}
 
 function toggle<T>(list: T[], value: T) {
   const i = list.indexOf(value);
@@ -68,6 +82,18 @@ function buildRule(): SmartRule {
   if (minScore.value !== null && !Number.isNaN(minScore.value))
     r.minScore = minScore.value;
   if (favoriteOnly.value) r.favorite = true;
+  const finished = whole(finishedYear.value);
+  if (finished !== null) r.finishedYear = finished;
+  const started = whole(startedYear.value);
+  if (started !== null) r.startedYear = started;
+  const added = whole(addedWithinDays.value);
+  if (added !== null && added > 0) r.addedWithinDays = added;
+  const from = whole(releasedFrom.value);
+  if (from !== null) r.releasedFrom = from;
+  const to = whole(releasedTo.value);
+  if (to !== null) r.releasedTo = to;
+  if (airingOnly.value) r.airing = true;
+  if (behindOnly.value) r.episodesBehind = true;
   return r;
 }
 
@@ -193,9 +219,76 @@ function submit() {
             />
           </label>
         </div>
+        <div class="row">
+          <label class="field">
+            <span>Finished in (year)</span>
+            <input
+              v-model.number="finishedYear"
+              type="number"
+              min="1900"
+              max="2100"
+              class="ui-field"
+              placeholder="e.g. 2026"
+            />
+          </label>
+          <label class="field">
+            <span>Started in (year)</span>
+            <input
+              v-model.number="startedYear"
+              type="number"
+              min="1900"
+              max="2100"
+              class="ui-field"
+              placeholder="e.g. 2026"
+            />
+          </label>
+        </div>
+        <div class="row">
+          <label class="field">
+            <span>Released from (year)</span>
+            <input
+              v-model.number="releasedFrom"
+              type="number"
+              min="1850"
+              max="2100"
+              class="ui-field"
+              placeholder="e.g. 1990"
+            />
+          </label>
+          <label class="field">
+            <span>Released up to (year)</span>
+            <input
+              v-model.number="releasedTo"
+              type="number"
+              min="1850"
+              max="2100"
+              class="ui-field"
+              placeholder="e.g. 1999"
+            />
+          </label>
+        </div>
+        <label class="field">
+          <span>Added in the last (days)</span>
+          <input
+            v-model.number="addedWithinDays"
+            type="number"
+            min="1"
+            max="36500"
+            class="ui-field"
+            placeholder="e.g. 30"
+          />
+        </label>
         <label class="check">
           <input v-model="favoriteOnly" type="checkbox" />
           Favorites only
+        </label>
+        <label class="check">
+          <input v-model="airingOnly" type="checkbox" />
+          Still airing (TV and anime)
+        </label>
+        <label class="check">
+          <input v-model="behindOnly" type="checkbox" />
+          Has aired episodes I have not watched (TV and anime)
         </label>
       </template>
 

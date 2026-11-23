@@ -129,12 +129,23 @@ async function poll() {
   }
 }
 
-async function start(userId: string | null, covers = false, pictures = false) {
+async function start(
+  userId: string | null,
+  covers = false,
+  pictures = false,
+  rarity = false,
+) {
   error.value = null;
   opened.value = null;
   unit.value = pictures ? "pictures" : "games";
   try {
-    run.value = await startRepair(userId, force.value, covers, pictures);
+    run.value = await startRepair(
+      userId,
+      force.value,
+      covers,
+      pictures,
+      rarity,
+    );
     void poll();
   } catch (err) {
     error.value = message(err, "Could not start the repair.");
@@ -172,6 +183,13 @@ function describe(r: Partial<RepairResult>): string {
   );
   add(r.times, "play times added");
   add(r.pictures, "pictures saved for offline");
+  add(
+    r.rarity,
+    r.rarity === 1
+      ? "achievement given its rarity"
+      : "achievements given their rarity",
+  );
+  add(r.no_rarity, "games Steam had no rarity for");
   add(r.folders, "folders renamed");
   add(r.failed, "failed");
   if (r.hltb_error)
@@ -356,6 +374,23 @@ onBeforeUnmount(() => {
             Save for offline
           </button>
         </template>
+      </div>
+
+      <div v-if="person.missing_rarity" class="offline">
+        <p class="tile-desc">
+          {{ person.missing_rarity }} Steam
+          {{ person.missing_rarity === 1 ? "game has" : "games have" }}
+          achievements with no rarity saved, so they are left out of rarest
+          unlocks and rarity milestones.
+        </p>
+        <button
+          class="secondary-button small"
+          :disabled="running"
+          type="button"
+          @click="start(person.user_id, false, false, true)"
+        >
+          Fill in rarity
+        </button>
       </div>
 
       <div v-if="missingFinish(person).length" class="offline">

@@ -23,6 +23,7 @@ import {
   deleteGame,
   setFavorite,
   fetchAchievementsSummary,
+  applyAchievementSummary,
   addGameToCollection,
   refreshGameMetadata,
 } from "../services/games";
@@ -65,13 +66,46 @@ const SORT_KEYS = [
   "priority",
   "release",
   "length",
+  "closest_100",
+  "fewest_left",
 ] as const;
 type SortBy = (typeof SORT_KEYS)[number];
-type AchievementsFilter = "all" | "has" | "none";
+type AchievementsFilter =
+  "all" | "has" | "none" | "in_progress" | "not_started" | "perfect";
 // "library" is every game you have, so everything except the wishlist
 type StatusTab = GameStatus | "all" | "library";
 type MissingFilter = "none" | "playtime" | "rating" | "tags" | "description";
 type CardDensity = "compact" | "cozy" | "large";
+
+const ACHIEVEMENT_FILTER_LABELS: Record<AchievementsFilter, string> = {
+  all: "Any achievements",
+  has: "Has achievements",
+  none: "No achievements",
+  in_progress: "Achievements in progress",
+  not_started: "No achievements unlocked yet",
+  perfect: "Every achievement unlocked",
+};
+
+function achievementState(
+  g: Game,
+): "none" | "not_started" | "in_progress" | "perfect" {
+  const unlocked = g.achievementUnlocked ?? 0;
+  if (!g.achievementTotal) return "none";
+  if (unlocked >= g.achievementTotal) return "perfect";
+  return unlocked ? "in_progress" : "not_started";
+}
+
+// the share unlocked, for games with achievements still to get
+function openShare(g: Game): number | null {
+  const state = achievementState(g);
+  if (state === "none" || state === "perfect") return null;
+  return (g.achievementUnlocked ?? 0) / g.achievementTotal;
+}
+
+function openLeft(g: Game): number | null {
+  if (openShare(g) === null) return null;
+  return g.achievementTotal - (g.achievementUnlocked ?? 0);
+}
 
 const router = useRouter();
 const route = useRoute();
@@ -723,16 +757,7 @@ async function loadGames() {
     ]);
     if (token !== loadGamesToken) return;
     games.value = fetched;
-    if (summary) {
-      for (const game of games.value) {
-        const entry = summary[game.id];
-        if (!entry) continue;
-        game.achievementTotal = entry.total;
-        game.achievementPercent = entry.total
-          ? Math.round((entry.unlocked / entry.total) * 100)
-          : 0;
-      }
-    }
+    if (summary) applyAchievementSummary(games.value, summary);
     selectFirstForDetailView();
   } catch (err) {
     if (token !== loadGamesToken) return;
@@ -1050,6 +1075,9 @@ const filteredGames = computed(() => {
     result = result.filter((g) => g.achievementTotal > 0);
   } else if (achievementsFilter.value === "none") {
     result = result.filter((g) => g.achievementTotal === 0);
+  } else if (achievementsFilter.value !== "all") {
+    const wanted = achievementsFilter.value;
+    result = result.filter((g) => achievementState(g) === wanted);
   }
   if (retroAchievementsOnly.value) {
     result = result.filter(
@@ -1135,6 +1163,18 @@ const filteredGames = computed(() => {
     // shortest first, for "something I can finish this weekend"
     if (sortBy.value === "length")
       return lastIfNull(chosenHours(a), chosenHours(b), (x, y) => x - y);
+    // games still to finish, nearest to done first; perfect games and games
+    // without achievements go last
+    if (sortBy.value === "closest_100")
+      return (
+        lastIfNull(openShare(a), openShare(b), (x, y) => y - x) ||
+        a.title.localeCompare(b.title)
+      );
+    if (sortBy.value === "fewest_left")
+      return (
+        lastIfNull(openLeft(a), openLeft(b), (x, y) => x - y) ||
+        a.title.localeCompare(b.title)
+      );
     return 0;
   });
 
@@ -1278,10 +1318,7 @@ const activeFilterPills = computed(() => {
   if (achievementsFilter.value !== "all") {
     pills.push({
       key: "achievements",
-      label:
-        achievementsFilter.value === "has"
-          ? "Has achievements"
-          : "No achievements",
+      label: ACHIEVEMENT_FILTER_LABELS[achievementsFilter.value],
       clear: () => (achievementsFilter.value = "all"),
     });
   }
@@ -1600,6 +1637,8 @@ function cardsInRow(rowIndex: number): Game[] {
           <option value="priority">Priority</option>
           <option value="release">Release date (newest)</option>
           <option value="length">Time to beat (shortest)</option>
+          <option value="closest_100">Closest to 100%</option>
+          <option value="fewest_left">Fewest achievements left</option>
         </select>
         <button
           type="button"
@@ -1749,9 +1788,13 @@ function cardsInRow(rowIndex: number): Game[] {
             class="filter-select"
             aria-label="Achievements"
           >
-            <option value="all">All games</option>
-            <option value="has">Has achievements</option>
-            <option value="none">No achievements</option>
+            <option
+              v-for="(label, value) in ACHIEVEMENT_FILTER_LABELS"
+              :key="value"
+              :value="value"
+            >
+              {{ value === "all" ? "All games" : label }}
+            </option>
           </select>
         </div>
         <div class="advanced-field">

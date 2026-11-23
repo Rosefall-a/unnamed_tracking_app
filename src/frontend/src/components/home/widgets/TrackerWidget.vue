@@ -2,9 +2,11 @@
 // Counts anything you can describe: finished horror games, anime from a studio,
 // films from the 90s, games on one platform. Choose what to match and it keeps the
 // count, with a goal to work toward if you set one. Add as many as you like.
+// It can also count achievements unlocked or perfect games over this year or
+// this month, in your own time zone, for goals like 12 perfect games a year.
 import { computed } from "vue";
 import WidgetFrame from "../WidgetFrame.vue";
-import { titlesOf } from "../../../home/data";
+import { homeData, titlesOf } from "../../../home/data";
 import type { HomeTitle } from "../../../home/data";
 import { sampleTitles } from "../../../home/samples";
 import { narrow } from "../../../home/select";
@@ -55,7 +57,33 @@ const matches = computed<HomeTitle[]>(() => {
   });
 });
 
-const count = computed(() => matches.value.length);
+const counting = computed(() => String(props.settings.counting || "titles"));
+const period = computed(() => String(props.settings.period || "year"));
+
+// when this year or this month began here, in seconds
+function periodStart(): number | null {
+  const now = new Date();
+  if (period.value === "year")
+    return new Date(now.getFullYear(), 0, 1).getTime() / 1000;
+  if (period.value === "month")
+    return new Date(now.getFullYear(), now.getMonth(), 1).getTime() / 1000;
+  return null;
+}
+
+const achievementCount = computed(() => {
+  if (props.sample) return counting.value === "perfect" ? 7 : 214;
+  const times = homeData.unlockTimes.value;
+  if (!times) return 0;
+  const which = counting.value === "perfect" ? "perfect" : "unlocks";
+  const since = periodStart();
+  if (since === null)
+    return which === "perfect" ? times.totals.perfect : times.totals.unlocked;
+  return times[which].filter((t) => t >= since).length;
+});
+
+const count = computed(() =>
+  counting.value === "titles" ? matches.value.length : achievementCount.value,
+);
 const goal = computed(() => Number(props.settings.goal) || 0);
 const share = computed(() =>
   goal.value ? Math.min(1, count.value / goal.value) : 0,
@@ -64,11 +92,28 @@ const style = computed(() => String(props.settings.style || "number"));
 const label = computed(() => String(props.settings.label ?? "").trim());
 const heading = computed(() => label.value || "Tracker");
 const covers = computed(() =>
-  matches.value
+  (counting.value === "titles" ? matches.value : [])
     .filter((t) => t.art)
     .slice(0, Number(props.settings.covers) || 0),
 );
-const word = computed(() => STATUS_WORD[String(props.settings.status)] ?? "");
+const PERIOD_WORD: Record<string, string> = {
+  year: "this year",
+  month: "this month",
+  all: "in total",
+};
+const word = computed(() => {
+  if (counting.value === "titles")
+    return STATUS_WORD[String(props.settings.status)] ?? "";
+  const what =
+    counting.value === "perfect"
+      ? count.value === 1
+        ? "perfect game"
+        : "perfect games"
+      : count.value === 1
+        ? "achievement unlocked"
+        : "achievements unlocked";
+  return `${what} ${PERIOD_WORD[period.value] ?? ""}`.trim();
+});
 
 // a ring drawn as a stroked circle
 const R = 44;
