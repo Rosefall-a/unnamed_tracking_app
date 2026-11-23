@@ -345,6 +345,15 @@ const props = withDefaults(
         <strong>Movie released</strong>: a movie you were waiting on has come
         out
       </ToggleButton>
+      <ToggleButton
+        :model-value="prefs.notify_achievement_milestone"
+        label="Achievement milestone"
+        :disabled="!loaded"
+        @update:model-value="change({ notify_achievement_milestone: $event })"
+      >
+        <strong>Achievement milestone</strong>: your 100th achievement, your
+        10th perfect game, your first unlock rarer than 1% and so on
+      </ToggleButton>
     </template>
   </section>
 </template>

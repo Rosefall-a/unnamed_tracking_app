@@ -22,8 +22,16 @@ import {
 import type { CalendarEntry, MediaListSummary } from "../services/mediaExtras";
 import { fetchMediaNotifications } from "../services/notifications";
 import type { MediaNotification } from "../services/notifications";
-import { fetchStatsOverview, fetchWeeklyDigest } from "../services/stats";
-import type { StatsOverview, WeeklyDigest } from "../services/stats";
+import {
+  fetchAchievementTimes,
+  fetchStatsOverview,
+  fetchWeeklyDigest,
+} from "../services/stats";
+import type {
+  AchievementTimes,
+  StatsOverview,
+  WeeklyDigest,
+} from "../services/stats";
 import { fetchAllMedia } from "../services/media";
 import type { MediaItem } from "../services/media";
 import { animeFormatLabel } from "../utils/animeFormat";
@@ -50,7 +58,8 @@ export type DataKey =
   | "digest"
   | "stats"
   | "screenshots"
-  | "lists";
+  | "lists"
+  | "unlockTimes";
 
 export type TitleKind = "game" | "movie" | "tv" | "anime";
 
@@ -125,6 +134,7 @@ const digest = shallowRef<WeeklyDigest | null>(null);
 const stats = shallowRef<StatsOverview | null>(null);
 const screenshots = shallowRef<MediaItem[] | null>(null);
 const lists = shallowRef<MediaListSummary[] | null>(null);
+const unlockTimes = shallowRef<AchievementTimes | null>(null);
 // The titles in a media list, by list id, as title keys ("tv:<id>"). Only the
 // lists a widget shows are fetched.
 const listMembers = ref<Record<string, string[]>>({});
@@ -178,6 +188,9 @@ async function load(key: DataKey, fresh: boolean): Promise<void> {
       break;
     case "lists":
       lists.value = await fetchMediaLists();
+      break;
+    case "unlockTimes":
+      unlockTimes.value = await fetchAchievementTimes();
       break;
   }
 }
@@ -558,4 +571,5 @@ export const homeData = {
   stats,
   screenshots,
   lists,
+  unlockTimes,
 };

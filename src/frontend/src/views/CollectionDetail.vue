@@ -14,7 +14,7 @@ import CollectionAddDialog from "../components/CollectionAddDialog.vue";
 import { useReorderGrid } from "../utils/useReorderGrid";
 import GameTopBar from "../components/GameTopBar.vue";
 import {
-  getGames,
+  getGamesWithAchievementCounts,
   addGameToCollection,
   removeGameFromCollection,
 } from "../services/games";
@@ -23,6 +23,7 @@ import {
   findSmartCollectionByName,
   matchesSmartCollection,
   describeSmartCollection,
+  definitionOf,
   removeSmartCollection,
   smartCollections,
   FAVORITES_NAME,
@@ -212,7 +213,7 @@ const coverGameId = computed(
 async function loadGames() {
   loading.value = true;
   try {
-    games.value = await getGames();
+    games.value = await getGamesWithAchievementCounts();
   } catch (err) {
     error.value = err instanceof Error ? err.message : "Could not load games";
   } finally {
@@ -284,9 +285,7 @@ const allNames = computed(() => {
 const editing = computed(() => ({
   name: collectionName.value,
   description: description.value || null,
-  smart: smartRule.value
-    ? { field: smartRule.value.field, value: smartRule.value.value }
-    : null,
+  smart: smartRule.value ? definitionOf(smartRule.value) : null,
 }));
 async function onEdit(payload: CollectionFormPayload) {
   const oldName = collectionName.value;

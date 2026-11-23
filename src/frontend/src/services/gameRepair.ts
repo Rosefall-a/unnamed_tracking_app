@@ -10,6 +10,8 @@ export interface RepairPerson {
   offline_missing?: Record<string, number>;
   // completed movies, shows and anime with no finish date
   missing_finish?: { movie: number; tv: number; anime: number };
+  // Steam games with achievements whose rarity was never saved
+  missing_rarity?: number;
 }
 
 export interface RepairGame {
@@ -33,6 +35,8 @@ export interface RepairResult {
   failed: number;
   hltb_error: string | null;
   pictures: number;
+  rarity: number;
+  no_rarity: number;
 }
 
 export interface RepairRun {
@@ -77,11 +81,12 @@ export const startRepair = (
   force: boolean,
   covers = false,
   pictures = false,
+  rarity = false,
 ) =>
   request<RepairRun>("/run", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ user_id: userId, force, covers, pictures }),
+    body: JSON.stringify({ user_id: userId, force, covers, pictures, rarity }),
   });
 
 export const fixOneGame = (gameId: string) =>

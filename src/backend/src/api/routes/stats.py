@@ -15,6 +15,7 @@ from src.database.models.game import Game
 from src.database.models.game_field_change import GameFieldChange
 from src.database.models.user import User
 from src.database.session import get_db
+from src.features.achievement_milestones import milestones_for, unlock_times
 
 router = APIRouter(prefix="/api/stats", tags=["stats"], dependencies=[Depends(get_current_user)])
 
@@ -208,3 +209,22 @@ async def get_weekly_digest(
         "achievements_unlocked": int(achievements_unlocked or 0),
         "metadata_changes": int(metadata_changes or 0),
     }
+
+
+@router.get("/achievement-milestones")
+async def achievement_milestones(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Milestones reached (100th achievement, 10th perfect game, first unlock
+    rarer than 1%), newest first, plus the next one of each kind."""
+    return await milestones_for(db, current_user.id)
+
+
+@router.get("/achievement-times")
+async def achievement_times(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Unlock times and perfect-game times, for Home's achievement goals."""
+    return await unlock_times(db, current_user.id)

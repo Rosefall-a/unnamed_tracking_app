@@ -24,6 +24,7 @@ from src.database.models.tv_show import TVShow
 from src.database.models.user import User
 from src.database.session import SessionLocal, get_db
 from src.features import jobs
+from src.features.achievement_rarity import count_missing_rarity, fill_missing_rarity
 from src.features.legacy_files import restore_old_files, scan_old_files
 from src.features.offline_pictures import count_missing, save_missing
 from src.features.metadata.games.repair import (
@@ -51,6 +52,8 @@ class RepairRequest(BaseModel):
     covers: bool = False
     # instead of filling blanks, save a local copy of every picture still only online
     pictures: bool = False
+    # instead of filling blanks, fill in how rare each Steam achievement is
+    rarity: bool = False
 
 
 @dataclass
@@ -73,9 +76,20 @@ def _progress(who: str, done: int, total: int) -> None:
 
 
 async def _go(
-    user_id: UUID | None, username: str | None, force: bool, covers: bool, pictures: bool = False
+    user_id: UUID | None,
+    username: str | None,
+    force: bool,
+    covers: bool,
+    pictures: bool = False,
+    *,
+    rarity: bool = False,
 ) -> None:
     try:
+        if rarity and user_id is not None:
+            _run.result = await fill_missing_rarity(
+                user_id, lambda done, total: _progress(username or "", done, total)
+            )
+            return
         if pictures and user_id is not None:
             _run.result = await save_missing(
                 user_id, lambda done, total: _progress(username or "", done, total)
@@ -114,6 +128,7 @@ async def scan() -> list[dict[str, Any]]:
         # pictures a page would have to fetch from another site, so not viewable offline
         person["offline_missing"] = await count_missing(UUID(str(person["user_id"])))
         person["missing_finish"] = await _missing_finish(UUID(str(person["user_id"])))
+        person["missing_rarity"] = await count_missing_rarity(UUID(str(person["user_id"])))
     return people
 
 
@@ -158,6 +173,15 @@ async def start_run(body: RepairRequest) -> dict[str, Any]:
             status_code=status.HTTP_409_CONFLICT,
             detail="The scheduled repair is running. Try again when it has finished.",
         )
+    # checked before the run is marked as started, so a refusal never leaves it stuck
+    if body.pictures and body.user_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Pick whose pictures to save."
+        )
+    if body.rarity and body.user_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Pick whose achievements to fill in."
+        )
     username = None
     if body.user_id is not None:
         async with SessionLocal() as db:
@@ -165,13 +189,9 @@ async def start_run(body: RepairRequest) -> dict[str, Any]:
         if username is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No such person.")
     _run.running, _run.who, _run.done, _run.total = True, username or "everyone", 0, 0
-    if body.pictures and body.user_id is None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Pick whose pictures to save."
-        )
     _run.result, _run.error, _run.finished_at = {}, None, None
     task = asyncio.get_running_loop().create_task(
-        _go(body.user_id, username, body.force, body.covers, body.pictures)
+        _go(body.user_id, username, body.force, body.covers, body.pictures, rarity=body.rarity)
     )
     _tasks.add(task)
     task.add_done_callback(_tasks.discard)

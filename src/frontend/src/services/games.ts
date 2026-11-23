@@ -445,6 +445,35 @@ export async function fetchAchievementsSummary(): Promise<
   return await response.json();
 }
 
+// Puts each game's achievement counts on it. 199 of 200 is not 100%: only a
+// game with every one unlocked shows that.
+export function applyAchievementSummary(
+  list: Game[],
+  summary: Record<string, AchievementsSummaryEntry>,
+): void {
+  for (const game of list) {
+    const entry = summary[game.id];
+    if (!entry) continue;
+    game.achievementTotal = entry.total;
+    game.achievementUnlocked = entry.unlocked;
+    game.achievementPercent = !entry.total
+      ? 0
+      : entry.unlocked === entry.total
+        ? 100
+        : Math.min(99, Math.round((entry.unlocked / entry.total) * 100));
+  }
+}
+
+// the library with achievement counts, for pages whose rules look at them
+export async function getGamesWithAchievementCounts(): Promise<Game[]> {
+  const [list, summary] = await Promise.all([
+    getGames(),
+    fetchAchievementsSummary().catch(() => null),
+  ]);
+  if (summary) applyAchievementSummary(list, summary);
+  return list;
+}
+
 // Re-reads one game's achievements from the service it came from (Steam,
 // PlayStation or RetroAchievements): what each is, whether it's hidden, what
 // you've unlocked and when, and how many players have it. The backend does that

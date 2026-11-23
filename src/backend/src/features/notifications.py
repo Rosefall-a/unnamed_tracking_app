@@ -15,15 +15,18 @@ from datetime import date, datetime, timezone
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.preferences import load_preferences
+from src.database.models.achievement import Achievement
 from src.database.models.anime import Anime, AnimeEpisode, AnimeSeason, AnimeStatus
+from src.database.models.game import Game
 from src.database.models.movies import Movie, MovieStatus
 from src.database.models.notification import Notification
 from src.database.models.tv_show import TVEpisode, TVSeason, TVShow, TVShowStatus
+from src.features.achievement_milestones import milestones_for
 
 # How far back "just aired" reaches. A week covers someone away for a few
 # days without turning first use into a flood of old episodes.
@@ -205,9 +208,41 @@ async def generate_for_user(db: AsyncSession, user_id: UUID) -> int:
                 }
             )
 
+    # 4) achievement milestones reached in the window, so first use is not a
+    # flood of old ones. Only worked out when something was unlocked lately.
+    if prefs["notify_achievement_milestone"]:
+        rows.extend(await _milestone_rows(db, user_id, since))
+
     created = await _insert(db, user_id, rows)
     await db.commit()
     return created
+
+
+async def _milestone_rows(db: AsyncSession, user_id: UUID, since: int) -> list[dict[str, Any]]:
+    latest = await db.scalar(
+        select(func.max(Achievement.unlocked_at))
+        .join(Game, Game.id == Achievement.game_id)
+        .where(Game.user_id == user_id, Game.deleted_at.is_(None), Achievement.unlocked)
+    )
+    if not latest or latest < since:
+        return []
+    rows = []
+    for m in (await milestones_for(db, user_id))["reached"]:
+        if m["at"] is None or m["at"] < since or m["game_id"] is None:
+            continue
+        rows.append(
+            {
+                "kind": "milestone",
+                "media_type": "game",
+                "media_id": UUID(m["game_id"]),
+                "title": m["label"],
+                "body": f"{m['achievement']} in {m['game_title']}",
+                "poster_url": f"/api/game/{m['game_id']}/assets/key_art",
+                "event_at": m["at"],
+                "dedupe_key": f"milestone:{m['id']}",
+            }
+        )
+    return rows
 
 
 async def record_sequel_announcements(
