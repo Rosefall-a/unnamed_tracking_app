@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any
 
 import requests
@@ -41,6 +41,19 @@ def _parse_date(value: str | None) -> str | None:
         return datetime.strptime(cleaned, "%d %b %Y").date().isoformat()
     except ValueError:
         return None
+
+
+def _exact_first(candidates: list[dict[str, Any]], query: str) -> list[dict[str, Any]]:
+    """Candidates named exactly what was searched for go first, in OMDb's own
+    order (best known first), so "Resident Evil" lists the films called that
+    before fan videos and spin-offs with longer names."""
+    wanted = _plain(query)
+    exact = [c for c in candidates if _plain(c.get("Title") or "") == wanted]
+    return exact + [c for c in candidates if _plain(c.get("Title") or "") != wanted]
+
+
+def _plain(text: str) -> str:
+    return "".join(ch.lower() for ch in text if ch.isalnum())
 
 
 class OMDBClient:
@@ -105,33 +118,72 @@ class OMDBClient:
             "seasons": [],
         }
 
+    def _candidates(self, query: str, kind: str, year: int | None) -> list[dict[str, Any]]:
+        """What a search finds. A short title such as "F1" matches so much that
+        OMDb refuses the search ("Too many results."), so that one is asked for
+        by its exact title instead, which works at any length. The exact answer
+        is already the full record, so it needs no second request."""
+        params = {"s": query, "type": kind}
+        if year:
+            params["y"] = str(year)
+        try:
+            found = self._get(params).get("Search") or []
+            # OMDb lists the older films of a name first, so a new or upcoming
+            # one ("Resident Evil", 2026) can be missing from a search with no
+            # year. Ask for that exact name from this year and next as well:
+            # two small requests, and only what really has that name is added.
+            if not year:
+                seen = {c.get("imdbID") for c in found}
+                for recent in self._recent_exact(query, kind):
+                    if recent.get("imdbID") not in seen:
+                        found.append(recent)
+            return found
+        except OMDBError as exc:
+            message = str(exc).lower()
+            # "Movie not found!" is OMDb's normal zero-results response, not
+            # a real failure — swallow only that one message so it reads as
+            # an empty search instead of a scary error. Anything else (bad
+            # key, rate limit, ...) propagates so the caller can surface it.
+            if "not found" in message:
+                return []
+            if "too many results" not in message:
+                raise
+        exact = {"t": query, "type": kind}
+        if year:
+            exact["y"] = str(year)
+        try:
+            return [self._get(exact)]
+        except OMDBError as exc:
+            if "not found" in str(exc).lower():
+                return []
+            raise
+
+    def _recent_exact(self, query: str, kind: str) -> list[dict[str, Any]]:
+        this_year = date.today().year
+        found = []
+        for year in (this_year + 1, this_year):
+            try:
+                found.append(self._get({"t": query, "type": kind, "y": str(year)}))
+            except OMDBError:
+                # not found, or OMDb is busy: the search itself still stands
+                continue
+        return found
+
     def search(
         self, query: str, limit: int = 8, light: bool = False, year: int | None = None
     ) -> list[dict[str, Any]]:
         if not query.strip():
             return []
-        try:
-            params = {"s": query, "type": "movie"}
-            if year:
-                params["y"] = str(year)
-            payload = self._get(params)
-        except OMDBError as exc:
-            # "Movie not found!" is OMDb's normal zero-results response, not
-            # a real failure — swallow only that one message so it reads as
-            # an empty search instead of a scary error. Anything else (bad
-            # key, rate limit, ...) propagates so the caller can surface it.
-            if "not found" in str(exc).lower():
-                return []
-            raise
-        candidates = payload.get("Search") or []
+        candidates = self._candidates(query, "movie", year)
 
         results: list[dict[str, Any]] = []
-        for candidate in candidates[:limit]:
+        for candidate in _exact_first(candidates, query)[:limit]:
             imdb_id = candidate.get("imdbID")
             if not imdb_id:
                 continue
             try:
-                details = candidate if light else self._get({"i": imdb_id})
+                full = light or "Plot" in candidate
+                details = candidate if full else self._get({"i": imdb_id})
             except OMDBError:
                 details = candidate
 
@@ -167,24 +219,16 @@ class OMDBClient:
         TMDB's `seasons` array, so this never contributes a season list."""
         if not query.strip():
             return []
-        try:
-            params = {"s": query, "type": "series"}
-            if year:
-                params["y"] = str(year)
-            payload = self._get(params)
-        except OMDBError as exc:
-            if "not found" in str(exc).lower():
-                return []
-            raise
-        candidates = payload.get("Search") or []
+        candidates = self._candidates(query, "series", year)
 
         results: list[dict[str, Any]] = []
-        for candidate in candidates[:limit]:
+        for candidate in _exact_first(candidates, query)[:limit]:
             imdb_id = candidate.get("imdbID")
             if not imdb_id:
                 continue
             try:
-                details = candidate if light else self._get({"i": imdb_id})
+                full = light or "Plot" in candidate
+                details = candidate if full else self._get({"i": imdb_id})
             except OMDBError:
                 details = candidate
 

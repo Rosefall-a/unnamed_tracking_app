@@ -4,6 +4,7 @@
 // artwork are read afterwards, in the background, so adding never waits on the
 // metadata providers.
 import { ref } from "vue";
+import { preferences } from "../state/preferences";
 import GameArtSection from "./GameArtSection.vue";
 import QuickAddDialog from "./library/QuickAddDialog.vue";
 import type { QuickAddResult } from "./library/QuickAddDialog.vue";
@@ -51,7 +52,8 @@ const STATUSES: GameStatus[] = [
   "mastered",
   "wishlist",
 ];
-const status = ref<GameStatus>("backlog");
+// what a new game starts as: Settings › Library › Adding
+const status = ref<GameStatus>(preferences.value.add_status_game ?? "backlog");
 const platform = ref("");
 const rating = ref<number | null>(null);
 // artwork picked in the form; null keeps what the search showed

@@ -258,7 +258,6 @@ let filterTimer: ReturnType<typeof setTimeout> | null = null;
 function emitFilters() {
   if (filterTimer !== null) clearTimeout(filterTimer);
   filterTimer = setTimeout(() => {
-    backgroundLoadedFrom = -1; // a new query starts its own first page
     emit("filters-change", {
       ...filters.value,
       statusBucket: activeStatus.value,
@@ -271,23 +270,8 @@ const sortKey = ref<SortKey>(readSavedSort(props.kind));
 watch(sortKey, (v) => {
   setUi(`librarySort:${props.kind}`, v);
 });
-// The server reads every page in the sort's own order, so the first page already
-// holds the right titles. Only "progress" is worked out from seasons and episodes
-// here, so only that sort needs the rest of the library fetched, in the
-// background, a page at a time. It stops if a request adds nothing instead of
-// asking forever.
-let backgroundLoadedFrom = -1;
-watch(
-  () =>
-    [props.items.length, props.total, props.loading, sortKey.value] as const,
-  ([loaded, total, loading, sort]) => {
-    if (sort !== "progress") return;
-    if (loading || loaded >= total || loaded === backgroundLoadedFrom) return;
-    backgroundLoadedFrom = loaded;
-    emit("load-more");
-  },
-  { immediate: true },
-);
+// The server reads every page in the sort's own order (progress included), so
+// the first page already holds the right titles and the rest load as you scroll.
 const selectedGenres = ref<Set<string>>(new Set());
 const genreMatchAll = ref(false);
 const selectedFormats = ref<Set<string>>(new Set());
@@ -807,8 +791,10 @@ function saveEdit() {
 // ---- quick add: the shared dialog; this view says what the form asks and what adding does ----
 const quickAddOpen = ref(false);
 const quickAddPick = ref<SearchResultVM | null>(null);
+// what a new title starts as: Settings › Library › Adding
+const addStatus = () => preferences.value[`add_status_${props.kind}`] ?? "plan";
 const quickAddForm = reactive<QuickAddForm>({
-  status: "plan",
+  status: addStatus(),
   watched: 0,
   seen: false,
   score: null,
@@ -826,7 +812,7 @@ function closeQuickAdd() {
 }
 function pickQuickAddResult(result: SearchResultVM) {
   quickAddPick.value = result;
-  quickAddForm.status = "plan";
+  quickAddForm.status = addStatus();
   quickAddForm.watched = 0;
   quickAddForm.seen = false;
   quickAddForm.score = null;

@@ -160,3 +160,24 @@ async def test_cover_marks_take_any_mix_of_known_marks_only() -> None:
                 await save_preferences(db, user_id, {"completion_marks": ["ticket"]})
     finally:
         await _cleanup(user_id)
+
+
+async def test_add_status_takes_only_a_real_status_for_each_library() -> None:
+    import pytest
+
+    user_id = await _user()
+    try:
+        async with SessionLocal() as db:
+            saved = await save_preferences(
+                db, user_id, {"add_status_game": "wishlist", "add_status_movie": "completed"}
+            )
+            assert saved["add_status_game"] == "wishlist"
+            assert saved["add_status_movie"] == "completed"
+            assert saved["add_status_tv"] == "plan"
+            # a game status is not a film one, and the other way round
+            with pytest.raises(ValueError):
+                await save_preferences(db, user_id, {"add_status_movie": "wishlist"})
+            with pytest.raises(ValueError):
+                await save_preferences(db, user_id, {"add_status_game": "plan"})
+    finally:
+        await _cleanup(user_id)

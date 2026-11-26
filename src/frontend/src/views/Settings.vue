@@ -65,6 +65,9 @@ const PARTS: Record<SettingsPart, { is: Component; props?: object }> = {
   sidebar: {
     is: lazy(() => import("../components/settings/SidebarSettingsSection.vue")),
   },
+  "add-defaults": {
+    is: lazy(() => import("../components/settings/AddDefaultsSection.vue")),
+  },
   "media-prefs": {
     is: lazy(
       () => import("../components/settings/MediaPreferencesSection.vue"),

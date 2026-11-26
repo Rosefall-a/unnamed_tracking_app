@@ -458,6 +458,20 @@ function mapActivityEntry(a: BackendActivityEntry): ActivityEntry {
   };
 }
 
+// When you last did something with each title ("movie:<id>" to Unix seconds),
+// from your own activity rather than when the server last edited the record.
+// null in sample mode, which has no activity log.
+export async function fetchLastTouched(): Promise<Record<
+  string,
+  number
+> | null> {
+  if (import.meta.env.VITE_USE_MOCK_DATA === "true") return null;
+  const response = await fetch("/api/activity/last-touched", {
+    credentials: "include",
+  });
+  return await handle<Record<string, number>>(response, "load recent activity");
+}
+
 export async function fetchActivity(days = 30): Promise<ActivityEntry[]> {
   const response = await fetch(`/api/activity?days=${days}`, {
     credentials: "include",

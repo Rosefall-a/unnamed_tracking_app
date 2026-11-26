@@ -143,7 +143,7 @@ def search_movie_metadata(
     if year is not None and not found["results"]:
         found = _search(query.strip(), limit, tmdb_api_key, omdb_api_key, light, None)
     found["query"] = query
-    found["results"] = year_first(found["results"], year)
+    found["results"] = year_first(found["results"], year, title)
     return found
 
 

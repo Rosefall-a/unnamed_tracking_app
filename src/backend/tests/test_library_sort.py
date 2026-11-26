@@ -60,3 +60,74 @@ async def test_ranks_come_with_the_first_page_only(flow) -> None:
 async def test_an_unknown_sort_is_refused(flow) -> None:
     response = await flow.client.get("/api/movie/list", params={"sort": "nonsense"})
     assert response.status_code == 400
+
+
+# ---- progress: worked out in the query, so the first page is the furthest along ----
+
+
+async def _show(user_id, title: str, seasons: list[tuple[int | None, int]]) -> None:
+    from src.database.models.tv_show import TVSeason, TVShow
+
+    async with SessionLocal() as db:
+        show = TVShow(user_id=user_id, title=title, sort_title=title.lower())
+        db.add(show)
+        await db.flush()
+        for number, (count, watched) in enumerate(seasons, start=1):
+            db.add(
+                TVSeason(
+                    show_id=show.id,
+                    season_number=number,
+                    episode_count=count,
+                    episodes_watched=watched,
+                )
+            )
+        await db.commit()
+
+
+async def test_progress_sort_puts_finished_shows_first_across_the_whole_library(flow) -> None:
+    # A to Z, the finished ones come last, so a first page sorted only in the
+    # browser would hold none of them
+    await _show(flow.user_id, "Aaa half", [(10, 5)])
+    await _show(flow.user_id, "Bbb none", [(10, 0)])
+    await _show(flow.user_id, "Ccc unknown length", [(10, 10), (None, 3)])
+    await _show(flow.user_id, "Ddd no seasons", [])
+    await _show(flow.user_id, "Yyy done", [(10, 10)])
+    await _show(flow.user_id, "Zzz done", [(6, 6), (4, 4)])
+    response = await flow.client.get("/api/tv/list", params={"sort": "progress", "limit": 3})
+    assert response.status_code == 200, response.text
+    assert [s["title"] for s in response.json()["items"]] == ["Yyy done", "Zzz done", "Aaa half"]
+    response = await flow.client.get(
+        "/api/tv/list", params={"sort": "progress", "limit": 3, "skip": 3}
+    )
+    # nothing to go on counts as 0, then A to Z, as the cards show it
+    assert [s["title"] for s in response.json()["items"]] == [
+        "Bbb none",
+        "Ccc unknown length",
+        "Ddd no seasons",
+    ]
+
+
+async def test_progress_sort_for_movies_counts_watched_as_finished(flow) -> None:
+    from src.database.models.movies import MovieStatus
+
+    async with SessionLocal() as db:
+        db.add_all(
+            [
+                Movie(user_id=flow.user_id, title="Aaa plan", sort_title="aaa plan"),
+                Movie(
+                    user_id=flow.user_id,
+                    title="Bbb part way",
+                    sort_title="bbb part way",
+                    progress_minutes=30,
+                    runtime_minutes=120,
+                ),
+                Movie(
+                    user_id=flow.user_id,
+                    title="Zzz watched",
+                    sort_title="zzz watched",
+                    status=MovieStatus.WATCHED,
+                ),
+            ]
+        )
+        await db.commit()
+    assert await _titles(flow, sort="progress") == ["Zzz watched", "Bbb part way", "Aaa plan"]

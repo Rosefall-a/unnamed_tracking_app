@@ -22,6 +22,7 @@ from src.features.metadata.games.steam_grid_db import SteamGridDBClient, SteamGr
 from src.features.metadata.search_utils import (
     format_provider_error,
     result_year,
+    run_providers,
     split_year,
     visible_errors,
     year_first,
@@ -30,6 +31,10 @@ from src.helpers.game_art_download import steam_cdn_art_urls
 
 if TYPE_CHECKING:
     from src.database.models.user import User
+
+# how much longer the quick game list waits for the other providers once one
+# has answered (see search_game_metadata)
+GAME_LIST_GRACE_SECONDS = 2.0
 
 
 def _parse_release_date(value: Any) -> str | None:
@@ -799,15 +804,24 @@ def search_game_metadata(
             return spec, None, str(exc)
 
     if primary_specs:
-        with ThreadPoolExecutor(max_workers=len(primary_specs)) as executor:
-            for spec, outcome, error in executor.map(_call_primary, primary_specs):
-                if error is not None:
-                    provider_errors.append(_friendly_provider_error(spec.name, error))
-                    continue
-                if outcome:
-                    for candidate in outcome:
-                        _merge_or_append(results, candidate)
-                providers_used.append(spec.name)
+        if light:
+            # The quick list while you search waits for a slow or unreachable
+            # provider only so long: up to 5 s, and 2 s once another has
+            # answered (longer than films get, so IGDB's console games still
+            # make the list). One that is down is skipped for a minute. The full
+            # lookup that fills a game in still waits for every provider.
+            answers = run_providers(primary_specs, _call_primary, grace=GAME_LIST_GRACE_SECONDS)
+        else:
+            with ThreadPoolExecutor(max_workers=len(primary_specs)) as executor:
+                answers = list(executor.map(_call_primary, primary_specs))
+        for spec, outcome, error in answers:
+            if error is not None:
+                provider_errors.append(_friendly_provider_error(spec.name, error))
+                continue
+            if outcome:
+                for candidate in outcome:
+                    _merge_or_append(results, candidate)
+            providers_used.append(spec.name)
 
     # Enrichment providers (SteamGridDB art, ScreenScraper art, HLTB time-to-
     # beat) are independent of each other — none reads another's output — so

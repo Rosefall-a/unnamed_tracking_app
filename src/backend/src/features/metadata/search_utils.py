@@ -25,6 +25,7 @@ def run_providers(
     specs: list[S],
     call: Callable[[S], tuple[S, list[dict[str, Any]] | None, str | None]],
     deadline: float = SEARCH_DEADLINE_SECONDS,
+    grace: float = GRACE_SECONDS,
 ) -> list[tuple[S, list[dict[str, Any]] | None, str | None]]:
     """Run every provider at once and return what each gave, in the order given.
     A provider that has not answered in time is reported as timed out and left to
@@ -49,7 +50,7 @@ def run_providers(
     while pending and time.monotonic() < end:
         done, pending = wait(pending, timeout=end - time.monotonic(), return_when=FIRST_COMPLETED)
         if any(future.result()[1] for future in done):
-            end = min(end, time.monotonic() + GRACE_SECONDS)
+            end = min(end, time.monotonic() + grace)
     answers: dict[int, tuple[S, list[dict[str, Any]] | None, str | None]] = {}
     for spec, future in futures:
         if future.done():
@@ -139,14 +140,24 @@ def years_conflict(first: dict[str, Any], second: dict[str, Any]) -> bool:
     return a is not None and b is not None and a != b
 
 
-def year_first(results: list[dict[str, Any]], year: int | None) -> list[dict[str, Any]]:
-    """Results from the year asked for first, the rest after, each in order."""
-    if year is None:
-        return results
-    wanted = str(year)
-    return [r for r in results if result_year(r) == wanted] + [
-        r for r in results if result_year(r) != wanted
-    ]
+def year_first(
+    results: list[dict[str, Any]], year: int | None, title: str | None = None
+) -> list[dict[str, Any]]:
+    """Results from the year asked for first, the rest after. Within each, a
+    result named exactly what was searched for comes before longer names (a fan
+    video called "Resident Evil Requiem - ..." never sits above the film
+    "Resident Evil"); otherwise everything keeps the providers' order."""
+    wanted = str(year) if year is not None else None
+
+    def exact(r: dict[str, Any]) -> bool:
+        return bool(title) and titles_match(str(r.get("title") or ""), str(title))
+
+    def key(item: tuple[int, dict[str, Any]]) -> tuple[int, int, int]:
+        index, r = item
+        off_year = 0 if wanted is None or result_year(r) == wanted else 1
+        return (off_year, 0 if exact(r) else 1, index)
+
+    return [r for _, r in sorted(enumerate(results), key=key)]
 
 
 def titles_match(first: str, second: str) -> bool:

@@ -66,6 +66,37 @@ async def _finish_series(db: AsyncSession, show, media_type: str) -> tuple[int, 
     return finish_seasons(seasons, status.WATCHED, keep=(status.WATCHED, status.FAVORITE))
 
 
+@router.get("/last-touched")
+async def last_touched(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict[str, int]:
+    """When you last did something with each title ("movie:<id>": Unix seconds),
+    from your own activity: watching, finishing, rating, a status change. Not when
+    the server last edited the record, which a metadata refresh or an airing check
+    does too, so "Jump back in" and "watched 2h ago" mean what they say.
+
+    A row logged on the day it happened gives its exact time; one logged later
+    for an earlier day (an import, a past watch filled in) counts as noon that
+    day, not as the moment it was typed in."""
+    rows = await db.execute(
+        select(
+            ActivityLog.media_type,
+            ActivityLog.media_id,
+            ActivityLog.event_date,
+            ActivityLog.updated_at,
+        ).where(ActivityLog.user_id == current_user.id)
+    )
+    touched: dict[str, int] = {}
+    for media_type, media_id, day, updated_at in rows:
+        logged = datetime.fromtimestamp(updated_at, UTC)
+        at = updated_at if logged.date() == day else _noon(day)
+        key = f"{media_type.value}:{media_id}"
+        if at > touched.get(key, 0):
+            touched[key] = at
+    return touched
+
+
 @router.post("/log", response_model=ActivityEntryRead, status_code=status.HTTP_201_CREATED)
 async def log_action(
     payload: LogAction,

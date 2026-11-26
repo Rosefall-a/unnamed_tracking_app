@@ -16,6 +16,7 @@ import { fetchMovies, peekAllMovies } from "../services/movies";
 import { fetchTVShows, peekAllTVShows } from "../services/tvShows";
 import {
   fetchCalendar,
+  fetchLastTouched,
   fetchMediaListDetail,
   fetchMediaLists,
 } from "../services/mediaExtras";
@@ -142,6 +143,36 @@ const listMembers = ref<Record<string, string[]>>({});
 export const failed = ref<Partial<Record<DataKey, string>>>({});
 const inflight = new Map<DataKey, Promise<void>>();
 const loaded = new Set<DataKey>();
+// When you last did something with each film, show or anime, from your activity
+// log (milliseconds, by "movie:<id>"). Loaded with those libraries and shared by
+// them; null until loaded, or in sample mode, when the record's own time is used.
+const lastTouched = shallowRef<Record<string, number> | null>(null);
+let touchedAt = 0;
+let touchedLoad: Promise<void> | null = null;
+function refreshTouched(fresh: boolean): Promise<void> {
+  if (touchedLoad) return touchedLoad;
+  if (!fresh && lastTouched.value && Date.now() - touchedAt < 60_000)
+    return Promise.resolve();
+  touchedLoad = fetchLastTouched()
+    .then((found) => {
+      lastTouched.value = found
+        ? Object.fromEntries(
+            Object.entries(found).map(([k, s]) => [k, s * 1000]),
+          )
+        : null;
+      touchedAt = Date.now();
+    })
+    .catch(() => {
+      // keeps what it had; the times fall back to the records' own
+    })
+    .finally(() => (touchedLoad = null));
+  return touchedLoad;
+}
+function mediaTouched(kind: string, id: string, updatedAt: string): number {
+  const log = lastTouched.value;
+  return log ? (log[`${kind}:${id}`] ?? 0) : ms(updatedAt);
+}
+
 // what each widget waits on, as something the page can react to
 const ready = ref<Partial<Record<DataKey, boolean>>>({});
 
@@ -152,13 +183,22 @@ async function load(key: DataKey, fresh: boolean): Promise<void> {
       games.value = fresh ? await fetchGames() : await getGames();
       break;
     case "movies":
-      movies.value = (!fresh && peekAllMovies()) || (await fetchMovies());
+      [movies.value] = await Promise.all([
+        (!fresh && peekAllMovies()) || fetchMovies(),
+        refreshTouched(fresh),
+      ]);
       break;
     case "tv":
-      tvShows.value = (!fresh && peekAllTVShows()) || (await fetchTVShows());
+      [tvShows.value] = await Promise.all([
+        (!fresh && peekAllTVShows()) || fetchTVShows(),
+        refreshTouched(fresh),
+      ]);
       break;
     case "anime":
-      anime.value = (!fresh && peekAllAnimes()) || (await fetchAnime());
+      [anime.value] = await Promise.all([
+        (!fresh && peekAllAnimes()) || fetchAnime(),
+        refreshTouched(fresh),
+      ]);
       break;
     case "achievements":
       achSummary.value = await fetchAchievementsSummary();
@@ -451,7 +491,7 @@ function movieTitle(m: Movie): HomeTitle {
     rating: m.ratingOverall,
     favorite: m.favorite,
     addedAt: ms(m.createdAt),
-    touchedAt: ms(m.updatedAt),
+    touchedAt: mediaTouched("movie", m.id, m.updatedAt),
     genres: m.genres,
     release: dayMs(m.releaseDate),
     platform: "",
@@ -480,7 +520,7 @@ function showTitle(s: TVShow): HomeTitle {
     rating: s.ratingOverall,
     favorite: s.favorite,
     addedAt: ms(s.createdAt),
-    touchedAt: ms(s.updatedAt),
+    touchedAt: mediaTouched("tv", s.id, s.updatedAt),
     genres: s.genres,
     release: dayMs(s.firstAirDate),
     platform: "",
@@ -513,7 +553,7 @@ function animeTitle(a: Anime): HomeTitle {
     rating: a.ratingOverall,
     favorite: a.favorite,
     addedAt: ms(a.createdAt),
-    touchedAt: ms(a.updatedAt),
+    touchedAt: mediaTouched("anime", a.id, a.updatedAt),
     genres: a.genres,
     release: dayMs(a.firstAirDate),
     platform: "",
