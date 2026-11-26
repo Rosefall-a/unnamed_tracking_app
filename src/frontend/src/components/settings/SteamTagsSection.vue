@@ -84,19 +84,16 @@ async function updateNow() {
 
 <template>
   <section class="settings-section steam-tags">
-    <h2>Steam tags as genres</h2>
-    <p class="section-hint">
-      Uses the most voted Steam tags as genres, excluding non-genre tags such as
-      Singleplayer, Co-op and Controller support, plus the official genres.
-      Applies when a Steam game is added or its metadata is refreshed.
-      <span v-if="savedNote" class="saved">{{ savedNote }}</span>
-    </p>
+    <h2>
+      Steam <span v-if="savedNote" class="saved">{{ savedNote }}</span>
+    </h2>
     <ToggleButton
       :model-value="enabled"
       label="Use popular Steam tags as genres"
       @update:model-value="change"
     >
-      <strong>Use popular Steam tags as genres</strong>
+      <strong>Popular tags as genres</strong>: leaves out tags like Singleplayer
+      and Co-op. Used when a Steam game is added or refreshed.
     </ToggleButton>
     <p v-if="error" class="error">{{ error }}</p>
     <div class="update-row">

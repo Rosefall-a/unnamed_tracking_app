@@ -1,14 +1,18 @@
 <script setup lang="ts">
 import { getUi, setUi } from "../../state/uiState";
+import SettingsCard from "./SettingsCard.vue";
+import SettingsRow from "./SettingsRow.vue";
+import SettingsSwitch from "./SettingsSwitch.vue";
 import { ref, watch } from "vue";
 import SegmentedControl from "./SegmentedControl.vue";
-import ToggleButton from "./ToggleButton.vue";
-import { sidebarMode } from "../../state/sidebarMode";
 import { preferences } from "../../state/preferences";
 import { queuePreferences } from "../../services/preferences";
 import type { TimeToBeatStyle } from "../../services/preferences";
-import type { SidebarMode } from "../../state/sidebarMode";
 import { TIME_TO_BEAT_STYLES } from "../../utils/timeToBeat";
+
+// display: the Compact and High contrast switches, shown on Appearance;
+// views (the default): the library defaults on Library views
+withDefaults(defineProps<{ part?: "views" | "display" }>(), { part: "views" });
 
 type ViewMode = "cards" | "list" | "detail";
 type SortBy =
@@ -43,12 +47,6 @@ const sortOptions = [
   { value: "last_played", label: "Recently played" },
   { value: "priority", label: "Priority" },
 ];
-const sidebarModeOptions = [
-  { value: "overlay", label: "Overlay" },
-  { value: "pinned", label: "Pinned open" },
-  { value: "rail", label: "Icon rail" },
-];
-
 const autoOptions = [
   { value: "tab", label: "Own tab" },
   { value: "mixed", label: "With mine" },
@@ -98,90 +96,67 @@ watch(highContrastMode, (enabled) => {
 </script>
 
 <template>
-  <section class="settings-section">
-    <h2>User interface</h2>
-    <p class="section-hint">
-      Defaults applied the next time the Games page opens.
-    </p>
-
-    <div class="field">
-      <span>Default view mode</span>
-      <SegmentedControl
-        :model-value="defaultViewMode"
-        :options="viewModeOptions"
-        @update:model-value="defaultViewMode = $event as ViewMode"
-      />
-    </div>
-
-    <div class="field">
-      <span>Default sort</span>
-      <SegmentedControl
-        :model-value="defaultSort"
-        :options="sortOptions"
-        @update:model-value="defaultSort = $event as SortBy"
-      />
-    </div>
-
-    <div class="field">
-      <span>Sidebar</span>
-      <SegmentedControl
-        :model-value="sidebarMode"
-        :options="sidebarModeOptions"
-        @update:model-value="sidebarMode = $event as SidebarMode"
-      />
-      <span class="field-hint">
-        <strong>Overlay</strong>: hidden until you open it, floats over the
-        page. <strong>Pinned open</strong>: always visible at full width.
-        <strong>Icon rail</strong>: a thin strip of icons, expands on hover.
-      </span>
-    </div>
-
-    <div class="field">
-      <span>Franchise collections</span>
-      <SegmentedControl
-        :model-value="preferences.collections_auto"
-        :options="autoOptions"
-        @update:model-value="setAuto"
-      />
-      <span class="field-hint">
-        Syncing a library files each game into a collection for its series and
-        one for where it came from. <strong>Own tab</strong>: they get a
-        Franchises tab on Collections and stay out of your own list.
-        <strong>With mine</strong>: they are listed with your own.
-        <strong>Hidden</strong>: they are not shown at all.
-      </span>
-      <span v-if="autoError" class="field-hint error">{{ autoError }}</span>
-    </div>
-
-    <div class="field">
-      <span>Time to beat</span>
-      <SegmentedControl
-        :model-value="preferences.time_to_beat_style"
-        :options="TIME_TO_BEAT_STYLES"
-        @update:model-value="setTimeStyle"
-      />
-      <span class="field-hint">
-        The time you go by: shown on game pages and used for the Time to beat
-        sort, the random picker, Home widgets and backlog hours. A game without
-        this time counts as unknown. Its page still lists every time it has.
-      </span>
-      <span v-if="timeError" class="field-hint error">{{ timeError }}</span>
-    </div>
-
-    <ToggleButton v-model="compactMode" label="Compact mode">
-      <strong>Compact mode</strong>: tighter spacing across the app
-    </ToggleButton>
-
-    <ToggleButton v-model="weeklyDigestEnabled" label="Weekly digest">
-      <strong>Weekly digest</strong>: a weekly recap card on Home showing games
-      played, achievements unlocked and metadata changes from the last 7 days
-    </ToggleButton>
-
-    <ToggleButton v-model="highContrastMode" label="High contrast">
-      <strong>High contrast</strong>: brighter secondary text, stronger borders,
-      and a bolder keyboard focus ring across the app
-    </ToggleButton>
-  </section>
+  <SettingsCard v-if="part === 'display'" title="Display">
+    <SettingsRow label="Compact mode" hint="Tighter spacing across the app">
+      <SettingsSwitch v-model="compactMode" label="Compact mode" />
+    </SettingsRow>
+    <SettingsRow
+      label="High contrast"
+      hint="Brighter secondary text, stronger borders and a bolder focus ring"
+    >
+      <SettingsSwitch v-model="highContrastMode" label="High contrast" />
+    </SettingsRow>
+  </SettingsCard>
+  <template v-else>
+    <SettingsCard title="Games" description="What the Games page starts on.">
+      <SettingsRow label="View">
+        <SegmentedControl
+          :model-value="defaultViewMode"
+          :options="viewModeOptions"
+          @update:model-value="defaultViewMode = $event as ViewMode"
+        />
+      </SettingsRow>
+      <SettingsRow label="Sort" stack>
+        <SegmentedControl
+          :model-value="defaultSort"
+          :options="sortOptions"
+          @update:model-value="defaultSort = $event as SortBy"
+        />
+      </SettingsRow>
+      <SettingsRow
+        label="Time to beat"
+        hint="Used on game pages, sorts, the picker, Home and backlog hours"
+        stack
+      >
+        <SegmentedControl
+          :model-value="preferences.time_to_beat_style"
+          :options="TIME_TO_BEAT_STYLES"
+          @update:model-value="setTimeStyle"
+        />
+      </SettingsRow>
+      <p v-if="timeError" class="st-error">{{ timeError }}</p>
+      <SettingsRow
+        label="Franchise collections"
+        hint="The series and source collections a sync makes. Own tab keeps them out of your list, With mine lists them with yours."
+        stack
+      >
+        <SegmentedControl
+          :model-value="preferences.collections_auto"
+          :options="autoOptions"
+          @update:model-value="setAuto"
+        />
+      </SettingsRow>
+      <p v-if="autoError" class="st-error">{{ autoError }}</p>
+    </SettingsCard>
+    <SettingsCard title="Everywhere">
+      <SettingsRow
+        label="Weekly digest on Home"
+        hint="Games played, achievements and changes from the last 7 days"
+      >
+        <SettingsSwitch v-model="weeklyDigestEnabled" label="Weekly digest" />
+      </SettingsRow>
+    </SettingsCard>
+  </template>
 </template>
 
 <style scoped>

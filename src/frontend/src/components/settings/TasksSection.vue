@@ -2,6 +2,7 @@
 // Each task runs one of three ways: off, on its own timer, or together with
 // the other tasks set that way, once a day at one time (the backup goes last).
 import { computed, ref, onMounted } from "vue";
+import SegmentedControl from "./SegmentedControl.vue";
 import {
   browserTimeZone,
   fetchJobs,
@@ -184,36 +185,19 @@ function formatTime(epochSeconds: number | null): string {
     minute: "2-digit",
   });
 }
+
+const MODE_OPTIONS = [
+  { value: "off", label: "Off" },
+  { value: "timer", label: "Own timer" },
+  { value: "together", label: "Together" },
+];
 </script>
 
 <template>
-  <section class="settings-section">
-    <h2>Tasks</h2>
-    <p class="section-hint">
-      Jobs the app runs by itself. Each one can be off, run on its own timer, or
-      run together with the others at one time of day. Run now works whatever is
-      picked.
-    </p>
-
-    <div v-if="schedule" class="tile">
-      <div class="tile-head">
-        <h3>Run together</h3>
-        <span class="status-badge" :class="{ on: schedule.members.length > 0 }">
-          {{
-            schedule.running
-              ? "Running now"
-              : schedule.members.length
-                ? `${schedule.members.length} selected`
-                : "None selected"
-          }}
-        </span>
-      </div>
-      <p class="tile-desc">
-        Tasks set to "Together with the others" run one after another, once a
-        day at this time. The backup can join too, in Backups, and always goes
-        last so it holds what the others just did.
-      </p>
-      <div class="job-controls">
+  <section v-if="schedule" class="settings-section">
+    <div class="card-head">
+      <h2>Run together</h2>
+      <div class="head-controls">
         <label class="job-every">
           Every day at
           <input
@@ -226,128 +210,140 @@ function formatTime(epochSeconds: number | null): string {
         <button
           v-if="scheduleTime !== schedule.time"
           type="button"
-          class="secondary-button"
+          class="st-btn"
           @click="saveTime"
         >
           Save
         </button>
         <button
           type="button"
-          class="secondary-button"
+          class="st-btn"
           :disabled="schedule.running || !schedule.members.length"
           @click="runTogetherNow"
         >
           {{ schedule.running ? "Running…" : "Run them now" }}
         </button>
       </div>
-      <div v-if="scheduleError" class="form-error">{{ scheduleError }}</div>
-      <p v-if="schedule.members.length" class="tile-desc">
-        Runs {{ memberList }}.
-      </p>
-      <p class="last-run">
-        <template v-if="schedule.nextRunAt">
-          Next: {{ formatTime(schedule.nextRunAt) }}
-          <template v-if="otherZone"> ({{ otherZone }} time)</template> ·
-        </template>
-        Last: {{ formatTime(schedule.lastRunAt) }}
-        <template v-if="schedule.lastStatus === 'failed'">
-          · it stopped partway, see the server log</template
-        >
-      </p>
     </div>
+    <p class="section-hint">
+      Tasks set to Together run one after another at this time. The backup
+      always goes last, so it holds what the others just did.
+      <template v-if="schedule.members.length">
+        Runs {{ memberList }}.</template
+      >
+    </p>
+    <div v-if="scheduleError" class="form-error">{{ scheduleError }}</div>
+    <p class="last-run">
+      <template v-if="schedule.nextRunAt">
+        Next: {{ formatTime(schedule.nextRunAt) }}
+        <template v-if="otherZone"> ({{ otherZone }} time)</template> ·
+      </template>
+      Last: {{ formatTime(schedule.lastRunAt) }}
+      <template v-if="schedule.lastStatus === 'failed'">
+        · it stopped partway, see the server log</template
+      >
+    </p>
+  </section>
 
+  <section class="settings-section">
+    <h2>Tasks</h2>
+    <p class="section-hint">
+      Jobs the app runs by itself: off, on their own timer, or together with the
+      others. Run now works whatever is picked.
+    </p>
     <div v-if="jobError" class="form-error">{{ jobError }}</div>
-    <div v-for="job in jobs" :key="job.id" class="tile">
-      <div class="tile-head">
-        <h3>{{ job.name }}</h3>
-        <span class="status-badge" :class="{ on: job.enabled }">
-          {{
-            job.running
-              ? "Running now"
-              : !job.enabled
-                ? "Off"
-                : job.together
-                  ? "Together"
-                  : "Own timer"
-          }}
-        </span>
-      </div>
-      <p class="tile-desc">{{ job.description }}</p>
-      <div class="job-controls">
-        <label class="job-every">
-          Runs
-          <select
-            :value="modeOf(job)"
-            class="job-interval"
-            :aria-label="`How ${job.name} runs`"
-            @change="
-              setMode(job, ($event.target as HTMLSelectElement).value as Mode)
-            "
-          >
-            <option value="off">Off</option>
-            <option value="timer">On its own timer</option>
-            <option value="together">
-              Together with the others{{
-                schedule ? ` (${schedule.time})` : ""
-              }}
-            </option>
-          </select>
-        </label>
-        <label
-          v-if="modeOf(job) === 'timer' && drafts[job.id]"
-          class="job-every"
+    <div v-for="job in jobs" :key="job.id" class="st-list-row task-row">
+      <div class="st-lbl">
+        <strong>{{ job.name }}</strong>
+        <span
+          >{{ formatTime(job.lastRunAt)
+          }}<template v-if="job.lastSummary">
+            · {{ job.lastSummary }}</template
+          ></span
         >
-          every
-          <input
-            v-model.number="drafts[job.id].amount"
-            type="number"
-            min="1"
-            class="job-amount"
-            :aria-label="`How often ${job.name} runs`"
-          />
-          <select
-            v-model="drafts[job.id].unit"
-            class="job-interval"
-            aria-label="Unit of time"
-          >
-            <option value="minutes">minutes</option>
-            <option value="hours">hours</option>
-            <option value="days">days</option>
-          </select>
-        </label>
+        <span v-if="jobErrors[job.id]" class="task-error">{{
+          jobErrors[job.id]
+        }}</span>
+      </div>
+      <SegmentedControl
+        :model-value="modeOf(job)"
+        :options="MODE_OPTIONS"
+        @update:model-value="setMode(job, $event as Mode)"
+      />
+      <span
+        v-if="modeOf(job) === 'timer' && drafts[job.id]"
+        class="job-every"
+        :title="`Allowed: every ${describe(job.minIntervalMinutes)} to ${describe(job.maxIntervalMinutes)}`"
+      >
+        every
+        <input
+          v-model.number="drafts[job.id].amount"
+          type="number"
+          min="1"
+          class="job-amount"
+          :aria-label="`How often ${job.name} runs`"
+        />
+        <select
+          v-model="drafts[job.id].unit"
+          class="job-interval"
+          aria-label="Unit of time"
+        >
+          <option value="minutes">minutes</option>
+          <option value="hours">hours</option>
+          <option value="days">days</option>
+        </select>
         <button
-          v-if="modeOf(job) === 'timer' && drafts[job.id] && draftChanged(job)"
+          v-if="draftChanged(job)"
           type="button"
-          class="secondary-button"
+          class="st-btn"
           @click="saveInterval(job)"
         >
           Save
         </button>
-        <button
-          type="button"
-          class="secondary-button"
-          :disabled="job.running"
-          @click="runNow(job)"
-        >
-          {{ job.running ? "Running…" : "Run now" }}
-        </button>
-      </div>
-      <div v-if="jobErrors[job.id]" class="form-error">
-        {{ jobErrors[job.id] }}
-      </div>
-      <p class="last-run">
-        Last run: {{ formatTime(job.lastRunAt) }}
-        <template v-if="job.lastSummary"> · {{ job.lastSummary }}</template>
-      </p>
-      <p v-if="modeOf(job) === 'timer'" class="tile-desc job-note">
-        Allowed: every {{ describe(job.minIntervalMinutes) }} to
-        {{ describe(job.maxIntervalMinutes) }}.
-      </p>
+      </span>
+      <span v-else class="st-muted every-text">{{
+        modeOf(job) === "together" && schedule
+          ? `Daily at ${schedule.time}`
+          : ""
+      }}</span>
+      <button
+        type="button"
+        class="st-btn"
+        :disabled="job.running"
+        @click="runNow(job)"
+      >
+        {{ job.running ? "Running…" : "Run now" }}
+      </button>
     </div>
   </section>
 </template>
 
 <style scoped>
+.card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+}
+.card-head h2 {
+  margin: 0 !important;
+}
+.head-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.task-row {
+  flex-wrap: wrap;
+}
+.task-error {
+  color: var(--ui-error-text) !important;
+}
+.every-text {
+  min-width: 110px;
+}
 .settings-section h2 {
   margin: 0 0 8px;
   padding-left: 12px;

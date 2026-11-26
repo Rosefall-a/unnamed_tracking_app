@@ -17,6 +17,14 @@ import { fetchGameTrash, restoreGame } from "../../services/gameTrash";
 import type { TrashedGame } from "../../services/gameTrash";
 import type { Game } from "../../types/game";
 import ToggleButton from "./ToggleButton.vue";
+
+// The tools here live on different tabs now: refresh on Data sources,
+// Refresh; the shared folders check on Library, Tidy up. Deleted games are
+// listed in the one Trash.
+const props = withDefaults(
+  defineProps<{ part?: "all" | "refresh" | "folders" | "trash" }>(),
+  { part: "all" },
+);
 import {
   startTask,
   updateTask,
@@ -360,7 +368,9 @@ async function refreshGameTrash() {
     loadingGameTrash.value = false;
   }
 }
-onMounted(refreshGameTrash);
+onMounted(() => {
+  if (props.part === "all" || props.part === "trash") void refreshGameTrash();
+});
 
 function daysUntil(unixSeconds: number): number {
   return Math.max(0, Math.ceil((unixSeconds - Date.now() / 1000) / 86400));
@@ -382,174 +392,178 @@ async function restoreGameById(game: TrashedGame) {
 </script>
 
 <template>
-  <section class="settings-section">
-    <h2>Refresh metadata</h2>
-    <p class="section-hint">
-      Fetches metadata from Steam and SteamGridDB for every game. Applied only
-      when the title matches exactly. Notes and achievements are never changed.
-    </p>
-
-    <div class="refresh-options">
-      <ToggleButton v-model="refreshUpdateText" label="Update text fields">
-        Update text fields: description, developer, publisher, release date, age
-        rating, tags and features. Replaces existing values.
-      </ToggleButton>
-      <ToggleButton
-        v-model="refreshFillMissingArt"
-        label="Fill missing art"
-        :disabled="refreshOverwriteArt"
-        reason="Not needed while existing art is being replaced."
-      >
-        Add cover and banner art to games that have none
-      </ToggleButton>
-      <ToggleButton v-model="refreshOverwriteArt" label="Overwrite art">
-        <span class="warning-text">Replace existing cover and banner art</span>
-      </ToggleButton>
-    </div>
-
-    <button
-      type="button"
-      class="secondary-button"
-      :disabled="refreshing || previewing"
-      @click="previewRefresh"
-    >
-      {{
-        previewing
-          ? "Checking…"
-          : refreshing
-            ? `Refreshing… (${refreshProgress.done}/${refreshProgress.total})`
-            : "Refresh"
-      }}
-    </button>
-    <p class="section-hint" style="margin: 8px 0 0">
-      Lists the games that would change. Nothing is saved until you confirm.
-    </p>
-
-    <div v-if="previewError" class="form-error">{{ previewError }}</div>
-    <div v-if="refreshError" class="form-error">{{ refreshError }}</div>
-
-    <div v-if="!refreshing && refreshResults.length" class="refresh-summary">
-      <p>
-        {{ updatedCount }} updated, {{ noMatchCount }} skipped (no exact title
-        match), {{ errorCount }} failed.
-        <template v-if="imagesAddedCount">
-          {{ imagesAddedCount }} image{{ imagesAddedCount === 1 ? "" : "s" }}
-          {{
-            lastRunOverwrote
-              ? "set (including replacing existing art)."
-              : "added for previously blank games."
-          }}
-        </template>
+  <template v-if="part === 'all' || part === 'refresh'">
+    <section class="settings-section">
+      <h2>Games: details and art</h2>
+      <p class="section-hint">
+        Fetches metadata from Steam and SteamGridDB for every game. Applied only
+        when the title matches exactly. Notes and achievements are never
+        changed.
       </p>
-      <ul v-if="unresolvedResults.length" class="refresh-list">
-        <li v-for="entry in unresolvedResults" :key="entry.title">
-          {{ entry.title }}:
-          {{ entry.result === "no-match" ? "no exact match" : "failed" }}
-        </li>
-      </ul>
-    </div>
-  </section>
 
-  <section class="settings-section">
-    <h2>Refresh achievements</h2>
-    <p class="section-hint">
-      Re-reads achievements for every game that has them, from Steam,
-      PlayStation or RetroAchievements. Updates names, descriptions, icons,
-      hidden status, unlock dates and player percentages. Library data, notes
-      and pins are not changed.
-    </p>
-    <button
-      type="button"
-      class="secondary-button"
-      :disabled="refreshingAchievements"
-      @click="refreshAllAchievements"
-    >
-      {{
-        refreshingAchievements
-          ? `Refreshing… (${achievementProgress.done}/${achievementProgress.total})`
-          : "Refresh achievements"
-      }}
-    </button>
-    <div v-if="achievementError" class="form-error">{{ achievementError }}</div>
-    <div
-      v-if="!refreshingAchievements && achievementSummary"
-      class="refresh-summary"
-    >
-      <p>
-        {{ achievementSummary.games }} game{{
-          achievementSummary.games === 1 ? "" : "s"
-        }}
-        refreshed:
-        {{ achievementSummary.achievements.toLocaleString() }} achievements,
-        {{ achievementSummary.unlocked.toLocaleString() }} unlocked,
-        {{ achievementSummary.hidden.toLocaleString() }} hidden<template
-          v-if="achievementSummary.failed"
+      <div class="refresh-options">
+        <ToggleButton v-model="refreshUpdateText" label="Update text fields">
+          Update text fields: description, developer, publisher, release date,
+          age rating, tags and features. Replaces existing values.
+        </ToggleButton>
+        <ToggleButton
+          v-model="refreshFillMissingArt"
+          label="Fill missing art"
+          :disabled="refreshOverwriteArt"
+          reason="Not needed while existing art is being replaced."
         >
-          . {{ achievementSummary.failed }} failed<template
-            v-if="achievementSummary.reason"
+          Add cover and banner art to games that have none
+        </ToggleButton>
+        <ToggleButton v-model="refreshOverwriteArt" label="Overwrite art">
+          <span class="warning-text"
+            >Replace existing cover and banner art</span
           >
-            ({{ achievementSummary.reason }})</template
-          ></template
-        >.
-      </p>
-    </div>
-  </section>
+        </ToggleButton>
+      </div>
 
-  <div
-    v-if="showPreviewDialog"
-    class="confirm-backdrop"
-    @click.self="showPreviewDialog = false"
-  >
-    <div class="confirm-dialog preview-dialog">
-      <h3>Changes to apply</h3>
-      <p>
-        <strong>{{ previewWithChanges.length }}</strong> game{{
-          previewWithChanges.length === 1 ? "" : "s"
+      <button
+        type="button"
+        class="secondary-button"
+        :disabled="refreshing || previewing"
+        @click="previewRefresh"
+      >
+        {{
+          previewing
+            ? "Checking…"
+            : refreshing
+              ? `Refreshing… (${refreshProgress.done}/${refreshProgress.total})`
+              : "Refresh"
         }}
-        would change. {{ previewUnchanged }} are up to date.
-        {{ previewNoMatch }} have no exact title match.
-        {{ previewErrors }} could not be checked.
+      </button>
+      <p class="section-hint" style="margin: 8px 0 0">
+        Lists the games that would change. Nothing is saved until you confirm.
       </p>
-      <ul v-if="previewWithChanges.length" class="preview-change-list">
-        <li v-for="entry in previewWithChanges" :key="entry.game.id">
-          <span class="preview-change-title">{{ entry.game.title }}</span>
-          <span class="preview-change-fields">{{
-            previewChangeSummary(entry.preview)
-          }}</span>
-        </li>
-      </ul>
-      <p v-else class="section-hint" style="margin-top: 10px">
-        No changes. Every matched game is up to date.
+
+      <div v-if="previewError" class="form-error">{{ previewError }}</div>
+      <div v-if="refreshError" class="form-error">{{ refreshError }}</div>
+
+      <div v-if="!refreshing && refreshResults.length" class="refresh-summary">
+        <p>
+          {{ updatedCount }} updated, {{ noMatchCount }} skipped (no exact title
+          match), {{ errorCount }} failed.
+          <template v-if="imagesAddedCount">
+            {{ imagesAddedCount }} image{{ imagesAddedCount === 1 ? "" : "s" }}
+            {{
+              lastRunOverwrote
+                ? "set (including replacing existing art)."
+                : "added for previously blank games."
+            }}
+          </template>
+        </p>
+        <ul v-if="unresolvedResults.length" class="refresh-list">
+          <li v-for="entry in unresolvedResults" :key="entry.title">
+            {{ entry.title }}:
+            {{ entry.result === "no-match" ? "no exact match" : "failed" }}
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="settings-section">
+      <h2>Games: achievements</h2>
+      <p class="section-hint">
+        Re-reads achievements for every game that has them, from Steam,
+        PlayStation or RetroAchievements. Updates names, descriptions, icons,
+        hidden status, unlock dates and player percentages. Library data, notes
+        and pins are not changed.
       </p>
-      <div class="confirm-actions">
-        <button
-          type="button"
-          class="secondary-button"
-          @click="showPreviewDialog = false"
-        >
-          Cancel
-        </button>
-        <button
-          type="button"
-          class="primary-button"
-          :disabled="!previewWithChanges.length"
-          @click="applyPreviewedRefresh"
-        >
-          Apply to {{ previewWithChanges.length }} game{{
+      <button
+        type="button"
+        class="secondary-button"
+        :disabled="refreshingAchievements"
+        @click="refreshAllAchievements"
+      >
+        {{
+          refreshingAchievements
+            ? `Refreshing… (${achievementProgress.done}/${achievementProgress.total})`
+            : "Refresh achievements"
+        }}
+      </button>
+      <div v-if="achievementError" class="form-error">
+        {{ achievementError }}
+      </div>
+      <div
+        v-if="!refreshingAchievements && achievementSummary"
+        class="refresh-summary"
+      >
+        <p>
+          {{ achievementSummary.games }} game{{
+            achievementSummary.games === 1 ? "" : "s"
+          }}
+          refreshed:
+          {{ achievementSummary.achievements.toLocaleString() }} achievements,
+          {{ achievementSummary.unlocked.toLocaleString() }} unlocked,
+          {{ achievementSummary.hidden.toLocaleString() }} hidden<template
+            v-if="achievementSummary.failed"
+          >
+            . {{ achievementSummary.failed }} failed<template
+              v-if="achievementSummary.reason"
+            >
+              ({{ achievementSummary.reason }})</template
+            ></template
+          >.
+        </p>
+      </div>
+    </section>
+
+    <div
+      v-if="showPreviewDialog"
+      class="confirm-backdrop"
+      @click.self="showPreviewDialog = false"
+    >
+      <div class="confirm-dialog preview-dialog">
+        <h3>Changes to apply</h3>
+        <p>
+          <strong>{{ previewWithChanges.length }}</strong> game{{
             previewWithChanges.length === 1 ? "" : "s"
           }}
-        </button>
+          would change. {{ previewUnchanged }} are up to date.
+          {{ previewNoMatch }} have no exact title match.
+          {{ previewErrors }} could not be checked.
+        </p>
+        <ul v-if="previewWithChanges.length" class="preview-change-list">
+          <li v-for="entry in previewWithChanges" :key="entry.game.id">
+            <span class="preview-change-title">{{ entry.game.title }}</span>
+            <span class="preview-change-fields">{{
+              previewChangeSummary(entry.preview)
+            }}</span>
+          </li>
+        </ul>
+        <p v-else class="section-hint" style="margin-top: 10px">
+          No changes. Every matched game is up to date.
+        </p>
+        <div class="confirm-actions">
+          <button
+            type="button"
+            class="secondary-button"
+            @click="showPreviewDialog = false"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            class="primary-button"
+            :disabled="!previewWithChanges.length"
+            @click="applyPreviewedRefresh"
+          >
+            Apply to {{ previewWithChanges.length }} game{{
+              previewWithChanges.length === 1 ? "" : "s"
+            }}
+          </button>
+        </div>
       </div>
     </div>
-  </div>
-
-  <div class="settings-divider"></div>
-
-  <section class="settings-section">
-    <h2>Duplicate folders</h2>
+  </template>
+  <section v-if="part === 'all' || part === 'folders'" class="settings-section">
+    <h2>Shared folders</h2>
     <p class="section-hint">
-      Checks whether more than one game is pointing at the same storage folder:
-      a sign something got mis-imported or renamed incorrectly.
+      Finds games pointing at the same storage folder, a sign of a mis-import or
+      rename.
     </p>
 
     <button
@@ -558,7 +572,7 @@ async function restoreGameById(game: TrashedGame) {
       :disabled="scanningDuplicates"
       @click="scanForDuplicateFolders"
     >
-      {{ scanningDuplicates ? "Scanning…" : "Scan for duplicates" }}
+      {{ scanningDuplicates ? "Checking…" : "Check folders" }}
     </button>
 
     <div v-if="duplicateScanError" class="form-error">
@@ -575,9 +589,7 @@ async function restoreGameById(game: TrashedGame) {
     </div>
   </section>
 
-  <div class="settings-divider"></div>
-
-  <section class="settings-section">
+  <section v-if="part === 'all' || part === 'trash'" class="settings-section">
     <h2>Deleted games</h2>
     <p class="section-hint">
       Deleted games stay here for 7 days, then are permanently deleted along

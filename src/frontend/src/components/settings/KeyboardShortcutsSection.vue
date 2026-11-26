@@ -1,86 +1,27 @@
 <script setup lang="ts">
 import { SHORTCUT_GROUPS } from "../../utils/shortcuts";
+import SettingsCard from "./SettingsCard.vue";
+import SettingsRow from "./SettingsRow.vue";
 </script>
 
 <template>
-  <section class="settings-section">
-    <h2>Keyboard shortcuts</h2>
-    <p class="hint">
-      Press <kbd>?</kbd> to open this list. Each shortcut works only on the page
-      it is listed under.
-    </p>
-    <div v-for="group in SHORTCUT_GROUPS" :key="group.title" class="group">
-      <h3>{{ group.title }}</h3>
-      <div v-for="s in group.shortcuts" :key="s.label" class="shortcut">
-        <span class="label">{{ s.label }}</span>
-        <kbd>{{ s.keys }}</kbd>
-      </div>
-    </div>
-  </section>
+  <p class="st-muted intro">
+    Press <span class="st-kbd">?</span> anywhere to open this list. Each
+    shortcut works on the page it is listed under.
+  </p>
+  <SettingsCard
+    v-for="group in SHORTCUT_GROUPS"
+    :key="group.title"
+    :title="group.title"
+  >
+    <SettingsRow v-for="s in group.shortcuts" :key="s.label" :label="s.label">
+      <span class="st-kbd">{{ s.keys }}</span>
+    </SettingsRow>
+  </SettingsCard>
 </template>
 
 <style scoped>
-.settings-section {
-  max-width: 560px;
-}
-.settings-section h2 {
-  margin: 0 0 8px;
-  padding-left: 12px;
-  border-left: 3px solid var(--ui-accent);
-  font-size: 1rem;
-  color: var(--ui-heading);
-}
-.hint {
-  color: var(--ui-dim-2);
-  font-size: 0.85rem;
-  line-height: 1.5;
-  margin: 0 0 12px;
-}
-.group {
-  margin-top: 22px;
-}
-.group:first-of-type {
-  margin-top: 18px;
-}
-h3 {
-  margin: 0 0 4px;
-  font-size: 0.8rem;
-  font-weight: 700;
-  color: var(--ui-dim-3);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-.shortcut {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 9px 4px;
-  border-bottom: 1px solid var(--ui-surface-2);
-}
-.label {
-  color: var(--ui-text-soft);
-  font-size: 0.88rem;
-  line-height: 1.4;
-}
-.shortcut kbd {
-  flex-shrink: 0;
-  max-width: 220px;
-  text-align: right;
-  white-space: normal;
-}
-kbd {
-  display: inline-block;
-  padding: 3px 8px;
-  border-radius: 6px;
-  border: 1px solid var(--ui-border-strong);
-  border-bottom-width: 2px;
-  background: var(--ui-bg-2);
-  color: var(--ui-text-soft);
-  font: inherit;
-  font-family: ui-monospace, "SF Mono", monospace;
-  font-size: 0.76rem;
-  font-weight: 600;
-  line-height: 1.5;
+.intro {
+  margin: 0;
 }
 </style>

@@ -832,17 +832,10 @@ async function toggleHltb(enabled: boolean) {
 <template>
   <section class="settings-section">
     <template v-if="!only">
-      <h2>Metadata/API</h2>
+      <h2>Providers</h2>
       <p class="section-hint">
-        Providers used to search for and fill in game metadata and art. Click a
-        tile's key icon to configure it: hover a name for details. Accounts you
-        import a library from are set up under Settings, Connections.
-      </p>
-      <p class="section-hint">
-        Keys saved here are yours alone. An administrator can also set
-        server-wide keys under Settings &rsaquo; Server Integrations; those are
-        used for anyone without their own, shown here as "Using server key". A
-        key of your own always takes precedence for your account.
+        Where game and media details and art come from. Use a tile's key button
+        to add or change its key. A key of your own wins over the server's.
       </p>
 
       <h3 class="group-heading">Metadata</h3>
@@ -2372,8 +2365,8 @@ async function toggleHltb(enabled: boolean) {
 }
 .source-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 10px;
   margin-bottom: 8px;
   align-items: start;
 }
@@ -2381,10 +2374,10 @@ async function toggleHltb(enabled: boolean) {
   display: flex;
   flex-direction: column;
   min-height: 148px;
-  background: var(--ui-bg-2);
-  border: 1px solid var(--ui-border);
-  border-radius: 8px;
-  padding: 10px;
+  background: #141414;
+  border: 1px solid #2b2b2b;
+  border-radius: 10px;
+  padding: 12px;
   transition:
     transform 0.15s ease,
     border-color 0.15s ease;
@@ -2429,22 +2422,34 @@ async function toggleHltb(enabled: boolean) {
   cursor: default;
 }
 .tile-status {
-  font-size: 0.68rem;
-  font-weight: 600;
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
-  letter-spacing: 0.03em;
+  border-radius: 999px;
+  padding: 3px 8px;
+  background: #262626;
+  color: #b5b5b5;
+  white-space: nowrap;
 }
 .tile-status.connected {
-  color: var(--ui-good-text);
+  background: rgba(111, 191, 115, 0.14);
+  color: #86efac;
 }
 .tile-status.saved {
-  color: var(--ui-dim-3);
+  background: rgba(123, 167, 217, 0.14);
+  color: #a9c7ea;
 }
 .tile-status.error {
-  color: var(--ui-error-text);
+  background: rgba(229, 115, 115, 0.14);
+  color: #fca5a5;
 }
 .tile-status.disconnected {
-  color: var(--ui-faint-2);
+  background: #262626;
+  color: #9c9c9c;
 }
 .tile-profile {
   display: flex;

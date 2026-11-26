@@ -41,20 +41,16 @@ async function change(next: boolean) {
 
 <template>
   <section class="settings-section steam-wishlist">
-    <h2>Steam wishlist</h2>
-    <p class="section-hint">
-      Adds games on your Steam wishlist during Steam imports, with status
-      Wishlist. Game details must be public on Steam. A purchased game becomes a
-      normal game on the next import. Turning this off does not remove games
-      already added.
-      <span v-if="savedNote" class="saved">{{ savedNote }}</span>
-    </p>
+    <h2>
+      Steam wishlist <span v-if="savedNote" class="saved">{{ savedNote }}</span>
+    </h2>
     <ToggleButton
       :model-value="enabled"
       label="Import my Steam wishlist"
       @update:model-value="change"
     >
-      <strong>Import my Steam wishlist</strong>
+      <strong>Bring in my wishlist</strong>: added with status Wishlist on each
+      import. Needs your Steam game details set to public.
     </ToggleButton>
     <p v-if="error" class="error">{{ error }}</p>
   </section>

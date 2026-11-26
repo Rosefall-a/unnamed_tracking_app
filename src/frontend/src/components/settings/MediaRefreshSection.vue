@@ -115,132 +115,129 @@ function formatTime(epochSeconds: number): string {
 
 <template>
   <section class="settings-section">
-    <h2>Refresh media</h2>
-    <p class="section-hint">
-      Runs when started here, or on a schedule if one is turned on under Tasks.
-      Picks up newly aired episodes, fills in missing episode titles and images,
-      and corrects wrong episode counts.
+    <h2>Shows and anime</h2>
+    <p class="tile-desc">
+      <strong>Refresh</strong> checks titles that are airing, have missing
+      episode titles, or have an episode count that differs from AniList.
+      <strong>Refresh all</strong> checks every title. Watched episodes and
+      ratings are never changed.
     </p>
+    <div v-if="error" class="form-error">{{ error }}</div>
 
-    <div class="tile">
-      <h3>Show and anime episodes</h3>
-      <p class="tile-desc">
-        <strong>Refresh</strong> checks titles that are airing, have missing
-        episode titles, or have an episode count that differs from AniList.
-        <strong>Refresh all</strong> checks every title. Watched episodes and
-        ratings are never changed.
-      </p>
-      <div v-if="error" class="form-error">{{ error }}</div>
-
-      <div v-if="progress && (running || finished)" class="refresh-result">
-        <template v-if="running">
-          <div class="progress-line">
-            <span>{{ progress.phase }}</span>
-            <span>{{ progress.done }} of {{ progress.total }}</span>
-          </div>
-          <div class="progress-track">
-            <div class="progress-fill" :style="{ width: percent + '%' }"></div>
-          </div>
-          <div class="progress-line">
-            <span class="progress-current">{{ progress.current }}</span>
-            <span
-              >{{ progress.checked }} refreshed,
-              {{ progress.skippedUpToDate }} up to date</span
-            >
-          </div>
-        </template>
-        <template v-else>
-          <div class="refresh-result-row">
-            <span class="refresh-result-label">Checked</span>
-            <span
-              >{{ progress.total }} titles: {{ progress.checked }} refreshed,
-              {{ progress.skippedUpToDate }} up to date</span
-            >
-          </div>
-          <div class="refresh-result-row">
-            <span class="refresh-result-label">Anime</span>
-            <span
-              >+{{ progress.animeEpisodesAdded }} new,
-              {{ progress.animeEpisodesUpdated }} updated</span
-            >
-          </div>
-          <div class="refresh-result-row">
-            <span class="refresh-result-label">TV</span>
-            <span
-              >+{{ progress.tvEpisodesAdded }} new,
-              {{ progress.tvEpisodesUpdated }} updated</span
-            >
-          </div>
-          <div v-if="progress.countsFixed" class="refresh-result-row">
-            <span class="refresh-result-label">Corrected</span>
-            <span
-              >{{ progress.countsFixed }} episode count{{
-                progress.countsFixed === 1 ? "" : "s"
-              }}</span
-            >
-          </div>
-          <p v-if="!progress.checked && !progress.error" class="refresh-note">
-            No titles needed updating. Use Refresh all to check every title.
-          </p>
-          <p v-if="progress.unreachable.length" class="refresh-note">
-            Could not refresh {{ progress.unreachable.length }} title{{
-              progress.unreachable.length === 1 ? "" : "s"
-            }}
-            (a source did not respond):
-            {{ progress.unreachable.slice(0, 5).join(", ")
-            }}{{ progress.unreachable.length > 5 ? "…" : "" }}
-          </p>
-          <p v-if="progress.error" class="form-error">{{ progress.error }}</p>
-        </template>
-      </div>
-
-      <div class="tile-footer">
-        <button
-          type="button"
-          class="primary-button"
-          :disabled="running"
-          @click="run('needed')"
-        >
-          {{ running ? "Refreshing…" : "Refresh" }}
-        </button>
-        <button
-          type="button"
-          class="refresh-secondary"
-          :disabled="running"
-          @click="run('all')"
-        >
-          Refresh all
-        </button>
-        <span v-if="progress?.finishedAt && !running" class="last-run"
-          >Last run {{ formatTime(progress.finishedAt) }}</span
-        >
-      </div>
+    <div v-if="progress && (running || finished)" class="refresh-result">
+      <template v-if="running">
+        <div class="progress-line">
+          <span>{{ progress.phase }}</span>
+          <span>{{ progress.done }} of {{ progress.total }}</span>
+        </div>
+        <div class="progress-track">
+          <div class="progress-fill" :style="{ width: percent + '%' }"></div>
+        </div>
+        <div class="progress-line">
+          <span class="progress-current">{{ progress.current }}</span>
+          <span
+            >{{ progress.checked }} refreshed, {{ progress.skippedUpToDate }} up
+            to date</span
+          >
+        </div>
+      </template>
+      <template v-else>
+        <div class="refresh-result-row">
+          <span class="refresh-result-label">Checked</span>
+          <span
+            >{{ progress.total }} titles: {{ progress.checked }} refreshed,
+            {{ progress.skippedUpToDate }} up to date</span
+          >
+        </div>
+        <div class="refresh-result-row">
+          <span class="refresh-result-label">Anime</span>
+          <span
+            >+{{ progress.animeEpisodesAdded }} new,
+            {{ progress.animeEpisodesUpdated }} updated</span
+          >
+        </div>
+        <div class="refresh-result-row">
+          <span class="refresh-result-label">TV</span>
+          <span
+            >+{{ progress.tvEpisodesAdded }} new,
+            {{ progress.tvEpisodesUpdated }} updated</span
+          >
+        </div>
+        <div v-if="progress.countsFixed" class="refresh-result-row">
+          <span class="refresh-result-label">Corrected</span>
+          <span
+            >{{ progress.countsFixed }} episode count{{
+              progress.countsFixed === 1 ? "" : "s"
+            }}</span
+          >
+        </div>
+        <p v-if="!progress.checked && !progress.error" class="refresh-note">
+          No titles needed updating. Use Refresh all to check every title.
+        </p>
+        <p v-if="progress.unreachable.length" class="refresh-note">
+          Could not refresh {{ progress.unreachable.length }} title{{
+            progress.unreachable.length === 1 ? "" : "s"
+          }}
+          (a source did not respond):
+          {{ progress.unreachable.slice(0, 5).join(", ")
+          }}{{ progress.unreachable.length > 5 ? "…" : "" }}
+        </p>
+        <p v-if="progress.error" class="form-error">{{ progress.error }}</p>
+      </template>
     </div>
 
-    <div class="tile">
-      <h3>Movie details</h3>
-      <p class="tile-desc">
-        A movie added before its length was being saved shows no time. This
-        looks up each movie that has none and fills in only what is empty: its
-        length, and the director, genres and so on. Anything you wrote or locked
-        is never changed.
-      </p>
-      <p v-if="movieProviders === false" class="tile-desc">
-        Needs a TMDB or OMDb key, added under Settings, Metadata.
-      </p>
-      <div v-if="movieError" class="form-error">{{ movieError }}</div>
-      <p v-if="movieResult" class="refresh-note">{{ movieResult }}</p>
-      <div class="tile-footer">
-        <button
-          type="button"
-          class="primary-button"
-          :disabled="movieFilling || movieProviders === false"
-          @click="fillMovies"
-        >
-          {{ movieFilling ? "Filling in…" : "Fill in missing movie details" }}
-        </button>
-      </div>
+    <div class="tile-footer">
+      <button
+        type="button"
+        class="primary-button"
+        :disabled="running"
+        @click="run('needed')"
+      >
+        {{ running ? "Refreshing…" : "Refresh" }}
+      </button>
+      <button
+        type="button"
+        class="refresh-secondary"
+        :disabled="running"
+        @click="run('all')"
+      >
+        Refresh all
+      </button>
+      <span v-if="progress?.finishedAt && !running" class="last-run"
+        >Last run {{ formatTime(progress.finishedAt) }}</span
+      >
     </div>
+  </section>
+  <section class="settings-section">
+    <h2>Movies</h2>
+    <p class="tile-desc">
+      A movie added before its length was being saved shows no time. This looks
+      up each movie that has none and fills in only what is empty: its length,
+      and the director, genres and so on. Anything you wrote or locked is never
+      changed.
+    </p>
+    <p v-if="movieProviders === false" class="tile-desc">
+      Needs a TMDB or OMDb key, added under Settings, Metadata.
+    </p>
+    <div v-if="movieError" class="form-error">{{ movieError }}</div>
+    <p v-if="movieResult" class="refresh-note">{{ movieResult }}</p>
+    <div class="tile-footer">
+      <button
+        type="button"
+        class="primary-button"
+        :disabled="movieFilling || movieProviders === false"
+        @click="fillMovies"
+      >
+        {{ movieFilling ? "Filling in…" : "Fill in missing movie details" }}
+      </button>
+    </div>
+  </section>
+  <section class="settings-section">
+    <h2>On a schedule</h2>
+    <p class="section-hint">
+      Each refresh can also run by itself. Admins set the timers in Server,
+      Tasks and backups.
+    </p>
   </section>
 </template>
 

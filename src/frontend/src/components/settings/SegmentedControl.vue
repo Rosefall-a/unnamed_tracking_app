@@ -31,20 +31,20 @@ const emit = defineEmits<{
   flex-wrap: wrap;
   max-width: 100%;
   box-sizing: border-box;
-  background: var(--ui-bg-2);
-  border: 1px solid var(--ui-border-strong);
+  background: #141414;
+  border: 1px solid #2b2b2b;
   border-radius: 8px;
-  padding: 3px;
+  padding: 2px;
   gap: 2px;
 }
 .segment {
   background: none;
   border: none;
   border-radius: 6px;
-  color: var(--ui-dim-3);
-  font-size: 0.82rem;
-  font-weight: 600;
-  padding: 8px 14px;
+  color: #b5b5b5;
+  font: inherit;
+  font-size: 13px;
+  padding: 6px 11px;
   cursor: pointer;
   transition:
     background 0.15s ease,
@@ -54,7 +54,8 @@ const emit = defineEmits<{
   color: var(--ui-heading);
 }
 .segment.active {
-  background: var(--ui-accent);
-  color: #111;
+  background: color-mix(in srgb, var(--ui-accent) 18%, transparent);
+  color: var(--ui-accent-bright);
+  font-weight: 600;
 }
 </style>

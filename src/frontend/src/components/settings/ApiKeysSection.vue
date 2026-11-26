@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
+import SettingsCard from "./SettingsCard.vue";
 import PasswordInput from "../PasswordInput.vue";
 import {
   createApiKey,
@@ -100,275 +101,103 @@ onMounted(loadKeys);
 </script>
 
 <template>
-  <section class="section">
-    <div class="section-header">
-      <div>
-        <h2>API Keys</h2>
-        <p>
-          Generate keys for external apps and integrations such as the Playnite
-          plugin.
-        </p>
-      </div>
-    </div>
-
-    <div class="notice">
-      API keys give full access to your account. Revoke keys that are no longer
-      used.
-    </div>
-
-    <form class="create-form" @submit.prevent="handleCreate">
-      <label for="api-key-name">Key name</label>
-      <div class="create-row">
-        <input
-          id="api-key-name"
-          v-model="name"
-          type="text"
-          maxlength="100"
-          placeholder="e.g. Playnite"
-          autocomplete="off"
-        />
-        <button type="submit" :disabled="isCreating || !name.trim()">
-          {{ isCreating ? "Generating…" : "Generate key" }}
+  <SettingsCard
+    title="New key"
+    description="For other apps that talk to your library, such as the Playnite plugin. A key can do anything you can, so give each app its own and revoke the ones you stop using."
+  >
+    <form @submit.prevent="handleCreate">
+      <label class="st-flabel" for="api-key-name">Name</label>
+      <input
+        id="api-key-name"
+        v-model="name"
+        class="st-field"
+        type="text"
+        maxlength="100"
+        placeholder="e.g. Playnite on desktop"
+        autocomplete="off"
+      />
+      <div class="st-btns create-actions">
+        <button
+          type="submit"
+          class="st-btn primary"
+          :disabled="isCreating || !name.trim()"
+        >
+          {{ isCreating ? "Creating…" : "Create key" }}
         </button>
       </div>
     </form>
 
-    <div v-if="createdKey" class="created-key">
-      <strong>API key created</strong>
-      <p>Copy this key now. It will not be shown again.</p>
-      <PasswordInput
-        v-model="createdKey"
-        mode="replace"
-        readonly
-        autocomplete="off"
-        input-aria-label="Generated API key"
-      />
-      <button type="button" class="primary-copy" @click="copyCreatedKey">
-        {{
-          copyStatus === "copied"
-            ? "Copied"
-            : copyStatus === "failed"
-              ? "Copy failed"
-              : "Copy key"
-        }}
-      </button>
-      <button
-        type="button"
-        class="secondary"
-        @click="
-          createdKey = '';
-          copyStatus = 'idle';
-        "
-      >
-        Done
-      </button>
-    </div>
-
-    <p v-if="error" class="error">{{ error }}</p>
-
-    <div class="keys">
-      <h3>Your keys</h3>
-      <p v-if="isLoading" class="muted">Loading…</p>
-      <p v-else-if="keys.length === 0" class="muted">No API keys.</p>
-      <div v-else class="key-list">
-        <div v-for="key in keys" :key="key.id" class="key-row">
-          <div>
-            <strong>{{ key.name }}</strong>
-            <span>
-              {{ key.key_prefix }} · created
-              {{ new Date(key.created_at * 1000).toLocaleDateString() }}
-            </span>
-          </div>
-          <button type="button" class="danger" @click="handleRevoke(key)">
-            Revoke
+    <div v-if="createdKey" class="st-note created-key">
+      <div class="created-inner">
+        <strong>Key created</strong>
+        <span>Copy it now. It will not be shown again.</span>
+        <PasswordInput
+          v-model="createdKey"
+          mode="replace"
+          readonly
+          autocomplete="off"
+          input-aria-label="Generated API key"
+        />
+        <div class="st-btns">
+          <button type="button" class="st-btn primary" @click="copyCreatedKey">
+            {{
+              copyStatus === "copied"
+                ? "Copied"
+                : copyStatus === "failed"
+                  ? "Copy failed"
+                  : "Copy key"
+            }}
+          </button>
+          <button
+            type="button"
+            class="st-btn"
+            @click="
+              createdKey = '';
+              copyStatus = 'idle';
+            "
+          >
+            Done
           </button>
         </div>
       </div>
     </div>
-  </section>
+    <p v-if="error" class="st-error">{{ error }}</p>
+  </SettingsCard>
+
+  <SettingsCard title="Your keys">
+    <p v-if="isLoading" class="st-muted">Loading…</p>
+    <p v-else-if="keys.length === 0" class="st-muted">No keys yet.</p>
+    <div v-for="key in keys" v-else :key="key.id" class="st-list-row">
+      <div class="st-lbl">
+        <strong>{{ key.name }}</strong>
+        <span>
+          {{ key.key_prefix }} · created
+          {{ new Date(key.created_at * 1000).toLocaleDateString() }} ·
+          {{
+            key.last_used_at
+              ? `last used ${new Date(key.last_used_at * 1000).toLocaleDateString()}`
+              : "never used"
+          }}
+        </span>
+      </div>
+      <button type="button" class="st-btn danger" @click="handleRevoke(key)">
+        Revoke
+      </button>
+    </div>
+  </SettingsCard>
 </template>
 
 <style scoped>
-.section {
-  color: var(--ui-heading);
+.create-actions {
+  margin-top: 14px;
 }
-
-.section-header {
-  margin-bottom: 24px;
-}
-
-h2 {
-  margin: 0 0 8px;
-  font-size: 1.35rem;
-}
-
-h3 {
-  margin: 0 0 12px;
-  font-size: 1rem;
-}
-
-p {
-  margin: 0;
-  color: color-mix(in srgb, var(--ui-wash-base) 68%, transparent);
-  line-height: 1.5;
-}
-
-.notice {
-  margin-bottom: 24px;
-  padding: 12px 14px;
-  border: 1px solid color-mix(in srgb, var(--ui-wash-base) 10%, transparent);
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--ui-wash-base) 3.5%, transparent);
-  color: color-mix(in srgb, var(--ui-wash-base) 75%, transparent);
-  font-size: 0.9rem;
-}
-
-.create-form {
-  margin-bottom: 32px;
-}
-
-label {
-  display: block;
-  margin-bottom: 8px;
-  font-size: 0.9rem;
-  font-weight: 600;
-}
-
-.create-row {
+.created-inner {
   display: flex;
-  gap: 10px;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
 }
-
-input {
-  flex: 1;
-  min-width: 0;
-  padding: 10px 12px;
-  border: 1px solid #383838;
-  border-radius: 7px;
-  background: var(--ui-bg-2);
+.created-inner strong {
   color: var(--ui-heading);
-  font: inherit;
-}
-
-input:focus {
-  outline: none;
-  border-color: #666;
-}
-
-button {
-  padding: 10px 14px;
-  border: 0;
-  border-radius: 7px;
-  background: #fff;
-  color: #111;
-  font: inherit;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-button:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-.primary-copy {
-  margin-top: 12px;
-  margin-right: 8px;
-}
-
-.secondary {
-  margin-top: 12px;
-  background: color-mix(in srgb, var(--ui-wash-base) 10%, transparent);
-  color: var(--ui-heading);
-}
-
-.danger {
-  border: 1px solid rgba(255, 143, 143, 0.25);
-  background: transparent;
-  color: #ff8f8f;
-}
-
-.created-key {
-  margin-bottom: 32px;
-  padding: 16px;
-  border: 1px solid color-mix(in srgb, var(--ui-wash-base) 14%, transparent);
-  border-radius: 9px;
-  background: color-mix(in srgb, var(--ui-wash-base) 4%, transparent);
-}
-
-.created-key :deep(.password-input-field) {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-}
-
-.created-key strong {
-  display: block;
-  margin-bottom: 4px;
-}
-
-.created-key p {
-  margin-bottom: 12px;
-}
-
-code {
-  display: block;
-  overflow-x: auto;
-  padding: 12px;
-  border-radius: 6px;
-  background: var(--ui-bg);
-  color: var(--ui-heading);
-  font:
-    0.85rem/1.5 ui-monospace,
-    SFMono-Regular,
-    Menlo,
-    monospace;
-  user-select: all;
-}
-
-.error {
-  margin-bottom: 20px;
-  color: #ff9d9d;
-}
-
-.muted {
-  font-size: 0.9rem;
-}
-
-.keys {
-  padding-top: 8px;
-}
-
-.key-list {
-  border-top: 1px solid var(--ui-border);
-}
-
-.key-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 14px 0;
-  border-bottom: 1px solid var(--ui-border);
-}
-
-.key-row strong,
-.key-row span {
-  display: block;
-}
-
-.key-row span {
-  margin-top: 4px;
-  color: color-mix(in srgb, var(--ui-wash-base) 50%, transparent);
-  font-size: 0.82rem;
-}
-
-@media (max-width: 600px) {
-  .create-row {
-    flex-direction: column;
-  }
-
-  .key-row {
-    align-items: flex-start;
-    flex-direction: column;
-  }
 }
 </style>

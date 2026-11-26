@@ -1,11 +1,13 @@
 <script setup lang="ts">
 // The search box at the top of Settings: type a word, pick a page, and Settings
-// opens it. Arrow keys move through the results, Enter opens one, Escape clears.
+// opens the page and tab that holds it. Arrow keys move through the results, Enter opens one, Escape clears.
 import { computed, ref } from "vue";
-import { searchSettings } from "../../utils/settingsSearch";
+import { searchSettings, type SettingsEntry } from "../../utils/settingsSearch";
 
 const props = defineProps<{ isAdmin: boolean }>();
-const emit = defineEmits<{ select: [id: string] }>();
+const emit = defineEmits<{
+  select: [place: { section: string; tab: string }];
+}>();
 
 const query = ref("");
 const open = ref(false);
@@ -13,8 +15,8 @@ const active = ref(0);
 
 const results = computed(() => searchSettings(query.value, props.isAdmin));
 
-function pick(id: string) {
-  emit("select", id);
+function pick(entry: SettingsEntry) {
+  emit("select", { section: entry.section, tab: entry.tab });
   query.value = "";
   open.value = false;
   active.value = 0;
@@ -36,7 +38,7 @@ function onKeydown(e: KeyboardEvent) {
       (active.value - 1 + results.value.length) % results.value.length;
   } else if (e.key === "Enter") {
     e.preventDefault();
-    pick(results.value[active.value].id);
+    pick(results.value[active.value]);
   }
 }
 
@@ -80,11 +82,11 @@ function onBlur() {
         role="option"
         :aria-selected="index === active"
         :class="{ active: index === active }"
-        @mousedown.prevent="pick(entry.id)"
+        @mousedown.prevent="pick(entry)"
         @mousemove="active = index"
       >
         <span class="result-label">{{ entry.label }}</span>
-        <span class="result-group">{{ entry.group }}</span>
+        <span class="result-group">{{ entry.where }}</span>
       </li>
       <li v-if="!results.length" class="none" role="presentation">
         No settings match "{{ query.trim() }}"

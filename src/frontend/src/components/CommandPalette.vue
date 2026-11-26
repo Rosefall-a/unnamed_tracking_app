@@ -41,20 +41,20 @@ interface Result {
 
 const SETTINGS_SHORTCUTS: { label: string; section: string }[] = [
   { label: "Profile", section: "profile" },
-  { label: "User Interface", section: "interface" },
-  { label: "Game Page", section: "game-page" },
+  { label: "Library views", section: "interface" },
+  { label: "Game page", section: "game-page" },
   { label: "Appearance", section: "appearance" },
   { label: "Upload", section: "upload" },
   { label: "Notifications", section: "notifications" },
   { label: "Calendar", section: "calendar" },
-  { label: "Keyboard Shortcuts", section: "shortcuts" },
-  { label: "Connections", section: "connections" },
-  { label: "Library", section: "library" },
-  { label: "Media Trash", section: "media-trash" },
-  { label: "Metadata", section: "metadata" },
-  { label: "Metadata API keys", section: "sources" },
-  { label: "Server Stats", section: "stats" },
-  { label: "Export / Import", section: "export" },
+  { label: "Keyboard shortcuts", section: "shortcuts" },
+  { label: "Linked accounts", section: "connections" },
+  { label: "Tidy up library", section: "library" },
+  { label: "Trash", section: "media-trash" },
+  { label: "Data sources", section: "metadata" },
+  { label: "Providers and keys", section: "sources" },
+  { label: "Server stats", section: "stats" },
+  { label: "Import and export", section: "export" },
 ];
 
 const PAGE_SHORTCUTS: { label: string; to: string }[] = [
@@ -186,6 +186,15 @@ function close() {
   query.value = "";
   noteHits.value = [];
 }
+
+// The sidebar's search bar opens the palette by setting the shared flag, so
+// load and focus whenever it opens, however it was opened.
+watch(open, async (isOpen) => {
+  if (!isOpen) return;
+  void ensureLoaded();
+  await nextTick();
+  inputRef.value?.focus();
+});
 
 async function openPalette() {
   open.value = true;

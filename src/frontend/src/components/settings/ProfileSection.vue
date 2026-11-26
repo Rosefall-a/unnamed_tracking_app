@@ -3,6 +3,7 @@ import { ref, computed, watch, onMounted } from "vue";
 import PasswordInput from "../PasswordInput.vue";
 import { currentUser, checkAuth } from "../../state/auth";
 import PasswordRequirements from "./PasswordRequirements.vue";
+import SettingsCard from "./SettingsCard.vue";
 import {
   fetchPasswordPolicy,
   passwordValidationErrors,
@@ -64,45 +65,69 @@ const uploading = ref(false);
 const uploadError = ref<string | null>(null);
 
 async function saveProfile() {
-  if (newPassword.value) {
-    const validationErrors = passwordPolicy.value
-      ? passwordValidationErrors(newPassword.value, passwordPolicy.value)
-      : ["Password requirements could not be loaded."];
-    if (validationErrors.length) {
-      saveError.value = validationErrors[0];
-      return;
-    }
-  }
-  if (newPassword.value && newPassword.value !== confirmPassword.value) {
-    saveError.value = "The new passwords do not match.";
-    return;
-  }
-  if (newPassword.value && !currentPassword.value) {
-    saveError.value = "Enter your current password to set a new one.";
-    return;
-  }
-
   saving.value = true;
   saveError.value = null;
   saveSuccess.value = false;
-
   try {
     await updateProfile({
       username: username.value.trim() || undefined,
       email: email.value.trim() || undefined,
-      currentPassword: currentPassword.value || undefined,
-      newPassword: newPassword.value || undefined,
     });
     await checkAuth();
-    currentPassword.value = "";
-    newPassword.value = "";
-    confirmPassword.value = "";
     saveSuccess.value = true;
   } catch (err) {
     saveError.value =
       err instanceof Error ? err.message : "Could not update profile";
   } finally {
     saving.value = false;
+  }
+}
+
+// The password has its own card and button, so changing your name never asks
+// about your password and a typo in one never blocks saving the other.
+const savingPassword = ref(false);
+const passwordError = ref<string | null>(null);
+const passwordSaved = ref(false);
+watch([currentPassword, newPassword, confirmPassword], () => {
+  if (newPassword.value || currentPassword.value) passwordSaved.value = false;
+});
+
+async function savePassword() {
+  passwordError.value = null;
+  if (!newPassword.value) {
+    passwordError.value = "Type a new password.";
+    return;
+  }
+  const validationErrors = passwordPolicy.value
+    ? passwordValidationErrors(newPassword.value, passwordPolicy.value)
+    : ["Password requirements could not be loaded."];
+  if (validationErrors.length) {
+    passwordError.value = validationErrors[0];
+    return;
+  }
+  if (newPassword.value !== confirmPassword.value) {
+    passwordError.value = "The new passwords do not match.";
+    return;
+  }
+  if (!currentPassword.value) {
+    passwordError.value = "Enter your current password to set a new one.";
+    return;
+  }
+  savingPassword.value = true;
+  try {
+    await updateProfile({
+      currentPassword: currentPassword.value,
+      newPassword: newPassword.value,
+    });
+    currentPassword.value = "";
+    newPassword.value = "";
+    confirmPassword.value = "";
+    passwordSaved.value = true;
+  } catch (err) {
+    passwordError.value =
+      err instanceof Error ? err.message : "Could not change password";
+  } finally {
+    savingPassword.value = false;
   }
 }
 
@@ -132,9 +157,10 @@ async function onAvatarFileChange(e: Event) {
 </script>
 
 <template>
-  <section class="settings-section">
-    <h2>Profile</h2>
-
+  <SettingsCard
+    title="Profile"
+    description="How you appear to other people on this server."
+  >
     <div class="avatar-row">
       <img
         v-if="!isMock && avatarUrl && !avatarFailed"
@@ -146,114 +172,117 @@ async function onAvatarFileChange(e: Event) {
       <div v-else class="avatar-fallback">
         {{ (currentUser?.username ?? "?").slice(0, 2).toUpperCase() }}
       </div>
-
       <div class="avatar-meta">
-        <div class="avatar-name">{{ currentUser?.username }}</div>
-        <div v-if="currentUser?.email" class="avatar-email">
-          {{ currentUser.email }}
-        </div>
-        <label v-if="!isMock" class="upload-label">
-          <input
-            type="file"
-            accept="image/*"
-            @change="onAvatarFileChange"
-            hidden
-          />
-          {{ uploading ? "Uploading…" : "Change picture" }}
-        </label>
-        <p v-if="isMock" class="mock-note">
-          Profile pictures aren't available in mock mode.
-        </p>
+        <strong>{{ currentUser?.username }}</strong>
+        <span class="st-muted">{{
+          currentUser?.is_admin ? "Admin" : "Member"
+        }}</span>
       </div>
+      <label v-if="!isMock" class="st-btn upload-btn">
+        <input
+          type="file"
+          accept="image/*"
+          hidden
+          @change="onAvatarFileChange"
+        />
+        {{ uploading ? "Uploading…" : "Change picture" }}
+      </label>
+      <p v-else class="st-muted mock-note">
+        Profile pictures aren't available in mock mode.
+      </p>
     </div>
-
-    <div v-if="uploadError" class="form-error">{{ uploadError }}</div>
+    <p v-if="uploadError" class="st-error">{{ uploadError }}</p>
 
     <form @submit.prevent="saveProfile">
-      <label class="field">
-        <span>Username</span>
-        <input v-model="username" type="text" />
-      </label>
+      <label class="st-flabel" for="profile-username">Username</label>
+      <input
+        id="profile-username"
+        v-model="username"
+        class="st-field"
+        type="text"
+        autocomplete="username"
+      />
+      <label class="st-flabel" for="profile-email">Email</label>
+      <input
+        id="profile-email"
+        v-model="email"
+        class="st-field"
+        type="email"
+        autocomplete="email"
+      />
+      <p v-if="saveError" class="st-error">{{ saveError }}</p>
+      <div class="st-btns form-actions">
+        <button type="submit" class="st-btn primary" :disabled="saving">
+          {{ saving ? "Saving…" : "Save profile" }}
+        </button>
+        <span v-if="saveSuccess" class="saved">Saved</span>
+      </div>
+    </form>
+  </SettingsCard>
 
-      <label class="field">
-        <span>Email</span>
-        <input v-model="email" type="email" />
-      </label>
-
-      <label class="field">
-        <span>New password (optional)</span>
-        <PasswordInput
-          v-model="newPassword"
-          mode="new"
-          autocomplete="new-password"
-        />
-      </label>
-
+  <SettingsCard
+    title="Password"
+    description="Its own box, so changing your name never asks about your password."
+  >
+    <form @submit.prevent="savePassword">
+      <label class="st-flabel">Current password</label>
+      <PasswordInput
+        v-model="currentPassword"
+        mode="new"
+        autocomplete="current-password"
+      />
+      <label class="st-flabel">New password</label>
+      <PasswordInput
+        v-model="newPassword"
+        mode="new"
+        autocomplete="new-password"
+      />
       <PasswordRequirements
         v-if="newPassword && passwordPolicy"
         :password="newPassword"
         :policy="passwordPolicy"
       />
-
-      <label v-if="newPassword" class="field">
-        <span>Confirm new password</span>
+      <template v-if="newPassword">
+        <label class="st-flabel">Confirm new password</label>
         <PasswordInput
           v-model="confirmPassword"
           mode="new"
           autocomplete="new-password"
-          :required="true"
         />
-      </label>
-
-      <label v-if="newPassword" class="field">
-        <span>Current password (required to set a new one)</span>
-        <PasswordInput
-          v-model="currentPassword"
-          mode="new"
-          autocomplete="current-password"
-          :required="true"
-        />
-      </label>
-
-      <div v-if="saveError" class="form-error">{{ saveError }}</div>
-      <div v-if="saveSuccess" class="form-success">Saved</div>
-
-      <button type="submit" class="primary-button" :disabled="saving">
-        {{ saving ? "Saving…" : "Save changes" }}
-      </button>
+      </template>
+      <p v-if="passwordError" class="st-error">{{ passwordError }}</p>
+      <div class="st-btns form-actions">
+        <button type="submit" class="st-btn" :disabled="savingPassword">
+          {{ savingPassword ? "Changing…" : "Change password" }}
+        </button>
+        <span v-if="passwordSaved" class="saved">Password changed</span>
+      </div>
     </form>
-  </section>
+  </SettingsCard>
 </template>
 
 <style scoped>
-.settings-section h2 {
-  margin: 0 0 16px;
-  padding-left: 12px;
-  border-left: 3px solid var(--ui-accent);
-  font-size: 1rem;
-  color: var(--ui-heading);
-}
 .avatar-row {
   display: flex;
   align-items: center;
-  gap: 16px;
-  margin-bottom: 20px;
+  gap: 12px;
+  padding: 4px 0 6px;
 }
 .avatar-image,
 .avatar-fallback {
-  width: 64px;
-  height: 64px;
+  width: 52px;
+  height: 52px;
   border-radius: 50%;
   object-fit: cover;
   flex-shrink: 0;
 }
 .avatar-fallback {
   background: var(--ui-accent);
-  color: #111;
+  color: var(--ui-on-accent);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 20px;
+  font-size: 16px;
   font-weight: 700;
 }
 .avatar-meta {
@@ -262,81 +291,21 @@ async function onAvatarFileChange(e: Event) {
   gap: 2px;
   min-width: 0;
 }
-.avatar-name {
+.avatar-meta strong {
   color: var(--ui-heading);
-  font-size: 1.05rem;
-  font-weight: 700;
 }
-.avatar-email {
-  color: var(--ui-dim-2);
-  font-size: 0.82rem;
-  margin-bottom: 4px;
-}
-.upload-label {
-  color: var(--ui-accent);
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.upload-label:hover {
-  text-decoration: underline;
+.upload-btn {
+  margin-left: auto;
 }
 .mock-note {
-  color: var(--ui-faint-2);
-  font-size: 13px;
-  margin: 0;
+  margin: 0 0 0 auto;
 }
-form {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
+.form-actions {
+  align-items: center;
+  margin-top: 14px;
 }
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  font-size: 0.85rem;
-  color: var(--ui-text-soft);
-}
-.field input {
-  background: var(--ui-bg-2);
-  border: 1px solid var(--ui-border-strong);
-  border-radius: 8px;
-  color: var(--ui-heading);
-  padding: 10px 12px;
-  font: inherit;
-}
-.field input:focus {
-  outline: none;
-  border-color: var(--ui-accent);
-}
-.form-error {
-  color: var(--ui-error-text);
-  font-size: 13px;
-  background: color-mix(in srgb, var(--ui-danger) 10%, transparent);
-  border: 1px solid color-mix(in srgb, var(--ui-danger) 30%, transparent);
-  border-radius: 8px;
-  padding: 8px 10px;
-}
-.form-success {
+.saved {
   color: var(--ui-good-text);
-  font-size: 13px;
-  background: color-mix(in srgb, var(--ui-success) 10%, transparent);
-  border: 1px solid color-mix(in srgb, var(--ui-success) 30%, transparent);
-  border-radius: 8px;
-  padding: 8px 10px;
-}
-.primary-button {
-  background: var(--ui-accent);
-  color: #111;
-  border: none;
-  border-radius: 8px;
-  padding: 11px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.primary-button:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
+  font-size: 12.5px;
 }
 </style>

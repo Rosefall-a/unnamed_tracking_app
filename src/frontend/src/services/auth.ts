@@ -16,6 +16,8 @@ export interface ApiKeySummary {
   key_prefix: string;
   scopes: string[];
   created_at: number;
+  // to the nearest few minutes; null until the key is first used
+  last_used_at?: number | null;
 }
 
 export interface CreatedApiKey {
@@ -153,6 +155,51 @@ export async function revokeApiKey(keyId: string): Promise<void> {
       `Could not revoke API key: ${response.status} ${response.statusText} ${message}`,
     );
   }
+}
+
+// A browser or app signed in as you, for Settings > Account > Signed-in devices.
+export interface SignedInSession {
+  id: string;
+  user_agent: string | null;
+  created_at: number;
+  last_seen_at: number | null;
+  current: boolean;
+}
+
+async function failWith(response: Response, what: string): Promise<never> {
+  let detail = "";
+  try {
+    detail = (await response.json())?.detail ?? "";
+  } catch {
+    // not JSON
+  }
+  throw new Error(detail || `${what} (${response.status})`);
+}
+
+export async function fetchSessions(): Promise<SignedInSession[]> {
+  const response = await fetch("/api/auth/sessions", {
+    credentials: "include",
+  });
+  if (!response.ok)
+    await failWith(response, "Could not load signed-in devices");
+  return await response.json();
+}
+
+export async function signOutSession(id: string): Promise<void> {
+  const response = await fetch(`/api/auth/sessions/${id}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  if (!response.ok) await failWith(response, "Could not sign that device out");
+}
+
+export async function signOutOtherSessions(): Promise<number> {
+  const response = await fetch("/api/auth/sessions/sign-out-others", {
+    method: "POST",
+    credentials: "include",
+  });
+  if (!response.ok) await failWith(response, "Could not sign the others out");
+  return (await response.json()).signed_out ?? 0;
 }
 
 export interface UpdateProfilePayload {

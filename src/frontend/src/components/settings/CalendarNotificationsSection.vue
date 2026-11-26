@@ -3,8 +3,11 @@
 // (not in this browser), so they follow you between devices, and each
 // change saves as soon as it is made.
 import { ref, computed, onMounted } from "vue";
+import SettingsCard from "./SettingsCard.vue";
+import SettingsRow from "./SettingsRow.vue";
+import SettingsSwitch from "./SettingsSwitch.vue";
+import MultiSegment from "./MultiSegment.vue";
 import SegmentedControl from "./SegmentedControl.vue";
-import ToggleButton from "./ToggleButton.vue";
 import {
   DEFAULT_PREFERENCES,
   fetchPreferences,
@@ -107,11 +110,11 @@ const episodicOn = computed(
     prefs.value.notify_media_types.includes("anime") ||
     prefs.value.notify_media_types.includes("tv"),
 );
-const episodicReason = "Turn on Anime or TV shows under Notify me about.";
+const episodicReason = "Turn on Anime or TV shows under Kinds above.";
 const animeOn = computed(() =>
   prefs.value.notify_media_types.includes("anime"),
 );
-const animeReason = "Turn on Anime under Notify me about.";
+const animeReason = "Turn on Anime under Kinds above.";
 // a film is never "watching", so it needs Plan to Watch or On Hold as well
 const moviesOn = computed(
   () =>
@@ -128,79 +131,88 @@ const props = withDefaults(
 </script>
 
 <template>
-  <section class="settings-section">
-    <h2>{{ props.part === "calendar" ? "Calendar" : "Notifications" }}</h2>
-    <p class="section-hint">
-      Saved on the server, so they follow you between browsers.
-      <span v-if="savedNote" class="saved">{{ savedNote }}</span>
-    </p>
-    <p v-if="error" class="error">{{ error }}</p>
-
-    <template v-if="props.part === 'calendar'">
-      <ToggleButton
-        :model-value="prefs.calendar_game_releases"
+  <p v-if="error" class="st-error">{{ error }}</p>
+  <p v-if="savedNote" class="saved">{{ savedNote }}</p>
+  <template v-if="props.part === 'calendar'">
+    <SettingsCard title="What the calendar shows">
+      <SettingsRow
         label="Game releases"
-        :disabled="!loaded || prefs.calendar_hide_games"
-        :reason="hiddenReason"
-        @update:model-value="change({ calendar_game_releases: $event })"
-      >
-        <strong>Game releases</strong>: show the release date of every game in
-        your library, past and upcoming
-      </ToggleButton>
-      <ToggleButton
-        :model-value="prefs.calendar_game_history"
-        label="Games history"
-        :disabled="!loaded || prefs.calendar_hide_games"
-        :reason="hiddenReason"
-        @update:model-value="change({ calendar_game_history: $event })"
-      >
-        <strong>Games history</strong>: show the day you finished a game and the
-        days you unlocked achievements
-      </ToggleButton>
-
-      <ToggleButton
-        :model-value="prefs.calendar_show_estimated"
-        label="Estimated episodes"
-        :disabled="!loaded"
-        @update:model-value="change({ calendar_show_estimated: $event })"
-      >
-        <strong>Estimated episodes</strong>: show later episodes projected from
-        the show's usual schedule (drawn dashed). Only the next episode of a
-        show is a confirmed date.
-      </ToggleButton>
-      <ToggleButton
-        :model-value="prefs.calendar_hide_games"
-        label="Hide all Games layers"
-        :disabled="!loaded"
-        @update:model-value="change({ calendar_hide_games: $event })"
-      >
-        <strong>Hide all Games layers</strong>: keep games off the calendar even
-        when the two options above are on
-      </ToggleButton>
-
-      <h4 class="scope-title">Show airing episodes for titles that are</h4>
-      <ToggleButton
-        v-for="row in NOTIFY_STATUS_ROWS"
-        :key="row.key"
-        :model-value="prefs.calendar_airing_statuses.includes(row.key)"
-        :label="row.label"
-        :disabled="!loaded"
-        @update:model-value="
-          change({
-            calendar_airing_statuses: setMember(
-              prefs.calendar_airing_statuses,
-              row.key,
-              $event,
-            ),
-          })
+        :hint="
+          prefs.calendar_hide_games && hiddenReason
+            ? hiddenReason
+            : 'The release date of every game, past and upcoming'
         "
       >
-        <strong>{{ row.label }}</strong
-        >: {{ row.hint }}
-      </ToggleButton>
-
-      <div class="field">
-        <span>Opens in</span>
+        <SettingsSwitch
+          :model-value="prefs.calendar_game_releases"
+          label="Game releases"
+          :disabled="!loaded || prefs.calendar_hide_games"
+          @update:model-value="change({ calendar_game_releases: $event })"
+        />
+      </SettingsRow>
+      <SettingsRow
+        label="Games history"
+        :hint="
+          prefs.calendar_hide_games && hiddenReason
+            ? hiddenReason
+            : 'The day you finished a game and the days you unlocked achievements'
+        "
+      >
+        <SettingsSwitch
+          :model-value="prefs.calendar_game_history"
+          label="Games history"
+          :disabled="!loaded || prefs.calendar_hide_games"
+          @update:model-value="change({ calendar_game_history: $event })"
+        />
+      </SettingsRow>
+      <SettingsRow
+        label="Estimated episodes"
+        hint="Later episodes projected from the usual schedule, drawn dashed. Only the next episode is a confirmed date."
+      >
+        <SettingsSwitch
+          :model-value="prefs.calendar_show_estimated"
+          label="Estimated episodes"
+          :disabled="!loaded"
+          @update:model-value="change({ calendar_show_estimated: $event })"
+        />
+      </SettingsRow>
+      <SettingsRow
+        label="Hide all Games layers"
+        hint="Keeps games off the calendar even when the two above are on"
+      >
+        <SettingsSwitch
+          :model-value="prefs.calendar_hide_games"
+          label="Hide all Games layers"
+          :disabled="!loaded"
+          @update:model-value="change({ calendar_hide_games: $event })"
+        />
+      </SettingsRow>
+    </SettingsCard>
+    <SettingsCard title="Episodes for titles that are">
+      <SettingsRow
+        v-for="row in NOTIFY_STATUS_ROWS"
+        :key="row.key"
+        :label="row.label"
+        :hint="row.hint"
+      >
+        <SettingsSwitch
+          :model-value="prefs.calendar_airing_statuses.includes(row.key)"
+          :label="row.label"
+          :disabled="!loaded"
+          @update:model-value="
+            change({
+              calendar_airing_statuses: setMember(
+                prefs.calendar_airing_statuses,
+                row.key,
+                $event,
+              ),
+            })
+          "
+        />
+      </SettingsRow>
+    </SettingsCard>
+    <SettingsCard title="Layout">
+      <SettingsRow label="Opens in">
         <SegmentedControl
           :model-value="prefs.calendar_default_view"
           :options="viewOptions"
@@ -211,9 +223,8 @@ const props = withDefaults(
             })
           "
         />
-      </div>
-      <div class="field">
-        <span>Week starts on</span>
+      </SettingsRow>
+      <SettingsRow label="Week starts on">
         <SegmentedControl
           :model-value="String(prefs.calendar_week_start)"
           :options="weekOptions"
@@ -225,16 +236,155 @@ const props = withDefaults(
             })
           "
         />
-      </div>
-    </template>
+      </SettingsRow>
+    </SettingsCard>
+  </template>
 
-    <template v-else>
-      <p class="section-hint">
-        Built from exact air times and release dates, never from estimates. They
-        show in the bell at the top of every page.
-      </p>
-      <div class="field">
-        <span>Clear notifications after</span>
+  <template v-else>
+    <SettingsCard
+      title="Which titles"
+      description="Episode alerts come only from these. Completed and Dropped never send them; new season and sequel notices follow their own switches."
+    >
+      <SettingsRow label="Kinds">
+        <MultiSegment
+          :model-value="prefs.notify_media_types"
+          :options="
+            NOTIFY_TYPE_ROWS.map((r) => ({ value: r.key, label: r.label }))
+          "
+          :disabled="!loaded"
+          @update:model-value="
+            change({
+              notify_media_types: $event as typeof prefs.notify_media_types,
+            })
+          "
+        />
+      </SettingsRow>
+      <SettingsRow
+        v-for="row in NOTIFY_STATUS_ROWS"
+        :key="row.key"
+        :label="row.label"
+        :hint="row.hint"
+      >
+        <SettingsSwitch
+          :model-value="prefs.notify_statuses.includes(row.key)"
+          :label="row.label"
+          :disabled="!loaded"
+          @update:model-value="
+            change({
+              notify_statuses: setMember(
+                prefs.notify_statuses,
+                row.key,
+                $event,
+              ),
+            })
+          "
+        />
+      </SettingsRow>
+    </SettingsCard>
+    <SettingsCard
+      title="What to tell me about"
+      description="Built from exact air times and release dates, never estimates. They show in the bell at the top of every page."
+    >
+      <SettingsRow
+        label="Episode aired"
+        :hint="
+          !episodicOn && episodicReason
+            ? episodicReason
+            : 'A new episode of something you are watching, planning to watch or have on hold'
+        "
+      >
+        <SettingsSwitch
+          :model-value="prefs.notify_episode_aired"
+          label="Episode aired"
+          :disabled="!loaded || !episodicOn"
+          @update:model-value="change({ notify_episode_aired: $event })"
+        />
+      </SettingsRow>
+      <SettingsRow
+        label="Season started airing"
+        :hint="
+          !episodicOn && episodicReason
+            ? episodicReason
+            : 'The first episode of a season aired'
+        "
+      >
+        <SettingsSwitch
+          :model-value="prefs.notify_season_started"
+          label="Season started airing"
+          :disabled="!loaded || !episodicOn"
+          @update:model-value="change({ notify_season_started: $event })"
+        />
+      </SettingsRow>
+      <SettingsRow
+        label="New season listed"
+        :hint="
+          !animeOn && animeReason
+            ? animeReason
+            : 'A sequel appears for an anime you completed. Needs the New season check task.'
+        "
+      >
+        <SettingsSwitch
+          :model-value="prefs.notify_sequel_announced"
+          label="New season listed"
+          :disabled="!loaded || !animeOn"
+          @update:model-value="change({ notify_sequel_announced: $event })"
+        />
+      </SettingsRow>
+      <SettingsRow
+        label="New movie or special listed"
+        :hint="
+          !animeOn && animeReason
+            ? animeReason
+            : 'A film, OVA or special appears for an anime you completed. Needs the New season check task.'
+        "
+      >
+        <SettingsSwitch
+          :model-value="prefs.notify_extras_announced"
+          label="New movie or special listed"
+          :disabled="!loaded || !animeOn"
+          @update:model-value="change({ notify_extras_announced: $event })"
+        />
+      </SettingsRow>
+      <SettingsRow
+        label="Movie released"
+        :hint="
+          !moviesOn && moviesReason
+            ? moviesReason
+            : 'A movie you were waiting on has come out'
+        "
+      >
+        <SettingsSwitch
+          :model-value="prefs.notify_movie_released"
+          label="Movie released"
+          :disabled="!loaded || !moviesOn"
+          @update:model-value="change({ notify_movie_released: $event })"
+        />
+      </SettingsRow>
+      <SettingsRow
+        label="Achievement milestone"
+        hint="100th unlock, 10th perfect game, first under 1%"
+      >
+        <SettingsSwitch
+          :model-value="prefs.notify_achievement_milestone"
+          label="Achievement milestone"
+          :disabled="!loaded"
+          @update:model-value="change({ notify_achievement_milestone: $event })"
+        />
+      </SettingsRow>
+      <SettingsRow
+        label="Game hits 100%"
+        hint="A pop-up the moment the last achievement syncs, and a line here"
+      >
+        <SettingsSwitch
+          :model-value="prefs.notify_game_complete"
+          label="Game hits 100%"
+          :disabled="!loaded"
+          @update:model-value="change({ notify_game_complete: $event })"
+        />
+      </SettingsRow>
+    </SettingsCard>
+    <SettingsCard title="Clean up">
+      <SettingsRow label="Clear read notifications after">
         <SegmentedControl
           :model-value="String(prefs.notification_retention_days)"
           :options="retentionOptions"
@@ -246,166 +396,15 @@ const props = withDefaults(
             })
           "
         />
-      </div>
-      <h4 class="scope-title">Notify me about titles that are</h4>
-      <ToggleButton
-        v-for="row in NOTIFY_STATUS_ROWS"
-        :key="row.key"
-        :model-value="prefs.notify_statuses.includes(row.key)"
-        :label="row.label"
-        :disabled="!loaded"
-        @update:model-value="
-          change({
-            notify_statuses: setMember(prefs.notify_statuses, row.key, $event),
-          })
-        "
-      >
-        <strong>{{ row.label }}</strong
-        >: {{ row.hint }}
-      </ToggleButton>
-      <h4 class="scope-title">Notify me about</h4>
-      <ToggleButton
-        v-for="row in NOTIFY_TYPE_ROWS"
-        :key="row.key"
-        :model-value="prefs.notify_media_types.includes(row.key)"
-        :label="row.label"
-        :disabled="!loaded"
-        @update:model-value="
-          change({
-            notify_media_types: setMember(
-              prefs.notify_media_types,
-              row.key,
-              $event,
-            ),
-          })
-        "
-      >
-        <strong>{{ row.label }}</strong>
-      </ToggleButton>
-      <p class="section-hint scope-note">
-        Only watching? Leave Watching on and switch off the other two. Completed
-        and Dropped titles never send episode alerts. New season and sequel
-        notices are about titles you finished, so they follow the kinds above
-        and their own switches below, not this list.
-      </p>
-      <h4 class="scope-title">What to notify me about</h4>
-      <ToggleButton
-        :model-value="prefs.notify_episode_aired"
-        label="Episode aired"
-        :disabled="!loaded || !episodicOn"
-        :reason="episodicReason"
-        @update:model-value="change({ notify_episode_aired: $event })"
-      >
-        <strong>Episode aired</strong>: a new episode of something you are
-        watching, planning to watch or have on hold
-      </ToggleButton>
-      <ToggleButton
-        :model-value="prefs.notify_season_started"
-        label="Season started airing"
-        :disabled="!loaded || !episodicOn"
-        :reason="episodicReason"
-        @update:model-value="change({ notify_season_started: $event })"
-      >
-        <strong>Season started airing</strong>: the first episode of a season
-        aired
-      </ToggleButton>
-      <ToggleButton
-        :model-value="prefs.notify_sequel_announced"
-        label="New season listed"
-        :disabled="!loaded || !animeOn"
-        :reason="animeReason"
-        @update:model-value="change({ notify_sequel_announced: $event })"
-      >
-        <strong>New season listed</strong>: a sequel appears for an anime you
-        completed
-      </ToggleButton>
-      <ToggleButton
-        :model-value="prefs.notify_extras_announced"
-        label="New movie or special listed"
-        :disabled="!loaded || !animeOn"
-        :reason="animeReason"
-        @update:model-value="change({ notify_extras_announced: $event })"
-      >
-        <strong>New movie or special listed</strong>: a film, OVA or special
-        appears for an anime you completed
-      </ToggleButton>
-      <p class="section-hint scope-note">
-        New season and movie notices need the New season check task (Settings,
-        Tasks) turned on. It is off until you switch it on, and it looks at a
-        few finished anime franchises a day. Without it, they only appear when
-        you open a title's Related tab.
-      </p>
-      <ToggleButton
-        :model-value="prefs.notify_movie_released"
-        label="Movie released"
-        :disabled="!loaded || !moviesOn"
-        :reason="moviesReason"
-        @update:model-value="change({ notify_movie_released: $event })"
-      >
-        <strong>Movie released</strong>: a movie you were waiting on has come
-        out
-      </ToggleButton>
-      <ToggleButton
-        :model-value="prefs.notify_achievement_milestone"
-        label="Achievement milestone"
-        :disabled="!loaded"
-        @update:model-value="change({ notify_achievement_milestone: $event })"
-      >
-        <strong>Achievement milestone</strong>: your 100th achievement, your
-        10th perfect game, your first unlock rarer than 1% and so on
-      </ToggleButton>
-    </template>
-  </section>
+      </SettingsRow>
+    </SettingsCard>
+  </template>
 </template>
 
 <style scoped>
-.settings-section h2 {
-  margin: 0 0 8px;
-  padding-left: 12px;
-  border-left: 3px solid var(--ui-accent);
-  font-size: 1rem;
-  color: var(--ui-heading);
-}
-.settings-section h3 {
-  margin: 22px 0 8px;
-  font-size: 0.86rem;
-  color: var(--ui-text-soft);
-}
-.scope-title {
-  margin: 18px 0 8px;
-  font-size: 0.78rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: #b9b9b9;
-}
-.scope-note {
-  margin-top: 10px;
-}
-.section-hint {
-  color: var(--ui-dim);
-  font-size: 0.82rem;
-  line-height: 1.6;
-  margin: 0 0 14px;
-}
 .saved {
-  color: var(--ui-good);
-  margin-left: 8px;
-  font-weight: 700;
-}
-.error {
-  color: var(--ui-error);
-  font-size: 0.82rem;
-}
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin: 14px 0;
-  font-size: 0.82rem;
-  color: var(--ui-text-soft);
-}
-.settings-section :deep(.toggle-button) {
-  margin: 12px 0;
+  margin: 0;
+  color: var(--ui-good-text);
+  font-size: 12.5px;
 }
 </style>

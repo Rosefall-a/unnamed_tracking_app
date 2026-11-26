@@ -2,6 +2,7 @@
 import { DEFAULT_PAGE_SETTINGS } from "../utils/gamePage";
 import type { PageSettings } from "../utils/gamePage";
 import type { HomeLayout } from "../home/layout";
+import type { CompletionMark } from "../utils/completionMarks";
 
 export type TimeToBeatStyle = "main" | "extras" | "completionist" | "all";
 
@@ -19,6 +20,10 @@ export interface Preferences {
   media_trash_retention_days: number;
   notify_movie_released: boolean;
   notify_achievement_milestone: boolean;
+  // a pop-up and a line in the bell when a game reaches 100%
+  notify_game_complete: boolean;
+  // how 100% games are marked on covers; null keeps the older badge style
+  completion_marks: CompletionMark[] | null;
   notify_statuses: ("watching" | "plan" | "hold")[];
   calendar_airing_statuses: ("watching" | "plan" | "hold")[];
   notify_media_types: ("anime" | "tv" | "movie")[];
@@ -63,6 +68,8 @@ export const DEFAULT_PREFERENCES: Preferences = {
   media_trash_retention_days: 7,
   notify_movie_released: true,
   notify_achievement_milestone: true,
+  notify_game_complete: true,
+  completion_marks: null,
   notify_statuses: ["watching", "plan", "hold"],
   notify_media_types: ["anime", "tv", "movie"],
   notification_retention_days: 30,

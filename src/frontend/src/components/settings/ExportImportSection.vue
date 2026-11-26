@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
+import SettingsRow from "./SettingsRow.vue";
 import SegmentedControl from "./SegmentedControl.vue";
 import {
   fetchLibraryExport,
@@ -282,268 +283,234 @@ async function onFileSelected(e: Event) {
 
 <template>
   <section class="settings-section">
-    <h2>Export and import</h2>
+    <h2>Export</h2>
     <p class="section-hint">
-      Exports the library (games, movies, TV shows and anime) as JSON for backup
-      or moving to a new server. Includes title data and metadata, not attached
-      files such as screenshots, saves or documents.
+      A file you keep yourself. Titles and details only, not screenshots, saves
+      or documents.
     </p>
-
-    <div v-if="backupStatus" class="tile backup-status-tile">
-      <h3>Automatic backups</h3>
-      <p v-if="backupStatus.enabled" class="tile-desc">
-        The server's whole database, your library, notes and achievements
-        included, is backed up every {{ backupStatus.interval_hours }} hours.
-        <template v-if="backupStatus.backups_kept > 0">
-          The last {{ backupStatus.backups_kept }} are kept.
-        </template>
-        <template v-else>Every backup is kept.</template>
-        Only an admin can delete them. Use Export for a file you can keep
-        yourself.
-      </p>
-      <p v-else class="tile-desc">
-        Automatic backups are turned off on this server. Ask an admin to turn
-        them on, and use Export for a file you can keep yourself.
-      </p>
-      <p class="backup-status-line">
-        <span v-if="backupStatus.last_backup_at">
-          Last backup {{ formatBackupDate(backupStatus.last_backup_at) }} ·
-          {{ backupStatus.backup_count }} kept
-        </span>
-        <span v-else-if="backupStatus.enabled"
-          >No backup yet. The first backup is saved within
-          {{ backupStatus.interval_hours }} hours.</span
-        >
-      </p>
-    </div>
-
-    <div class="tile">
-      <h3>Export</h3>
-      <p class="tile-desc">
-        Downloads your games, movies, TV shows, and anime as a single JSON file.
-      </p>
-      <div v-if="exportError" class="form-error">{{ exportError }}</div>
+    <SettingsRow
+      label="Whole library"
+      hint="Games, movies, TV and anime as JSON"
+    >
       <button
         type="button"
-        class="primary-button"
+        class="st-btn"
         :disabled="exporting"
         @click="exportLibrary"
       >
-        {{ exporting ? "Exporting…" : "Export library" }}
+        {{ exporting ? "Exporting…" : "Download" }}
       </button>
-    </div>
-
-    <div class="tile">
-      <h3>Export CSV</h3>
-      <p class="tile-desc">
-        Movies, TV shows and anime as one CSV: status, score, favorite,
-        rewatches, genres and episodes watched.
-      </p>
-      <div v-if="csvError" class="form-error">{{ csvError }}</div>
+    </SettingsRow>
+    <div v-if="exportError" class="form-error">{{ exportError }}</div>
+    <SettingsRow label="Movies, TV and anime as CSV" hint="For spreadsheets">
       <button
         type="button"
-        class="secondary-button"
+        class="st-btn"
         :disabled="csvBusy"
         @click="exportCsv"
       >
-        {{ csvBusy ? "Exporting…" : "Export CSV" }}
+        {{ csvBusy ? "Exporting…" : "Download" }}
       </button>
+    </SettingsRow>
+    <div v-if="csvError" class="form-error">{{ csvError }}</div>
+    <div v-if="backupStatus" class="st-note">
+      <span v-if="backupStatus.enabled">
+        The whole server is also backed up every
+        {{ backupStatus.interval_hours }} hours<template
+          v-if="backupStatus.last_backup_at"
+        >
+          (last {{ formatBackupDate(backupStatus.last_backup_at) }},
+          {{ backupStatus.backup_count }} kept)</template
+        >. Admins manage them in Server, Tasks and backups.
+      </span>
+      <span v-else>
+        Automatic server backups are off. Ask an admin to turn them on in
+        Server, Tasks and backups.
+      </span>
+    </div>
+  </section>
+  <section class="settings-section">
+    <h2>Import from another service</h2>
+    <div class="mal-source">
+      <SegmentedControl
+        :model-value="source"
+        :options="SOURCES.map((s) => ({ value: s.value, label: s.label }))"
+        @update:model-value="changeSource"
+      />
+    </div>
+    <p class="tile-desc">
+      Add your {{ sourceInfo.what }}. {{ sourceInfo.how }}
+      <template v-if="source !== 'yamtrack'">
+        A preview of additions and changes is shown before anything is saved.
+        For titles already in the library, choose per title whether to keep the
+        current data or use the file's data.
+      </template>
+      <template v-else>
+        Yamtrack imports directly and skips items already in your library.
+      </template>
+    </p>
+    <div v-if="source === 'yamtrack'" class="form-warning">
+      Yamtrack anime is not imported. Movies and TV shows are.
+    </div>
+    <div v-if="malError" class="form-error">{{ malError }}</div>
+    <div v-if="yamtrackError" class="form-error">{{ yamtrackError }}</div>
+    <div v-if="yamtrackResult" class="form-success">
+      Movies: {{ yamtrackResult.created.movies ?? 0 }} added, TV shows:
+      {{ yamtrackResult.created.tv_shows ?? 0 }} added, anime:
+      {{ yamtrackResult.created.anime ?? 0 }} added.
+      {{ yamtrackResult.seasons_created }} seasons and
+      {{ yamtrackResult.episodes_created }} episodes imported.
+      <template
+        v-if="
+          yamtrackResult.skipped.movies ||
+          yamtrackResult.skipped.tv_shows ||
+          yamtrackResult.skipped.anime
+        "
+      >
+        Existing items skipped:
+        {{
+          (yamtrackResult.skipped.movies ?? 0) +
+          (yamtrackResult.skipped.tv_shows ?? 0) +
+          (yamtrackResult.skipped.anime ?? 0)
+        }}.
+      </template>
+      <ul v-if="yamtrackResult.errors.length" class="import-errors">
+        <li v-for="(err, i) in yamtrackResult.errors" :key="i">{{ err }}</li>
+      </ul>
+    </div>
+    <div v-if="malResult" class="form-success">
+      Added {{ malResult.created }}, updated {{ malResult.updated }} from the
+      file, kept {{ malResult.kept }} as they were.
+      <template v-if="malResult.details_filled"
+        >Filled in details for {{ malResult.details_filled }}.</template
+      >
+      <template v-if="malResult.details_not_found">
+        {{ malResult.details_source ?? "AniList" }} had no match for
+        {{ malResult.details_not_found }}.</template
+      >
+      <template v-if="malResult.details_lookup_failed">
+        AniList could not be reached for
+        {{ malResult.details_lookup_failed }}. Their details are blank. Import
+        the same file again later to fill them.</template
+      >
+      <template v-if="malResult.details_unavailable">
+        No TMDB or OMDb key is set, so posters and details were not fetched. Add
+        a key under Settings, Library, Metadata, then import the same file
+        again.</template
+      >
+      <template v-if="malResult.assumed_complete">
+        {{ malResult.assumed_complete }} marked Completed with no episodes
+        listed, so counted as fully watched.</template
+      >
+      <template v-if="malResult.seasons_assumed_watched">
+        {{ malResult.seasons_assumed_watched }} TV show{{
+          malResult.seasons_assumed_watched === 1 ? "" : "s"
+        }}
+        were rated, so all their seasons are counted as fully watched: change
+        any of them in the library.</template
+      >
+      <template v-if="malResult.skipped_other">
+        {{ malResult.skipped_other }} rows were episodes or other kinds and were
+        skipped.</template
+      >
     </div>
 
-    <div class="tile">
-      <h3>Import from another service</h3>
-      <div class="mal-source">
-        <SegmentedControl
-          :model-value="source"
-          :options="SOURCES.map((s) => ({ value: s.value, label: s.label }))"
-          @update:model-value="changeSource"
-        />
-      </div>
+    <div v-if="malPreview" class="mal-review">
       <p class="tile-desc">
-        Add your {{ sourceInfo.what }}. {{ sourceInfo.how }}
-        <template v-if="source !== 'yamtrack'">
-          A preview of additions and changes is shown before anything is saved.
-          For titles already in the library, choose per title whether to keep
-          the current data or use the file's data.
-        </template>
-        <template v-else>
-          Yamtrack imports directly and skips items already in your library.
-        </template>
+        {{ malPreview.total }} titles in the file:
+        <strong>{{ malPreview.new_count }} new</strong>,
+        {{ malPreview.existing.length }} already here with differences,
+        {{ malPreview.identical }} already here and identical.
       </p>
-      <div v-if="source === 'yamtrack'" class="form-warning">
-        Yamtrack anime is not imported. Movies and TV shows are.
-      </div>
-      <div v-if="malError" class="form-error">{{ malError }}</div>
-      <div v-if="yamtrackError" class="form-error">{{ yamtrackError }}</div>
-      <div v-if="yamtrackResult" class="form-success">
-        Movies: {{ yamtrackResult.created.movies ?? 0 }} added, TV shows:
-        {{ yamtrackResult.created.tv_shows ?? 0 }} added, anime:
-        {{ yamtrackResult.created.anime ?? 0 }} added.
-        {{ yamtrackResult.seasons_created }} seasons and
-        {{ yamtrackResult.episodes_created }} episodes imported.
-        <template
-          v-if="
-            yamtrackResult.skipped.movies ||
-            yamtrackResult.skipped.tv_shows ||
-            yamtrackResult.skipped.anime
-          "
-        >
-          Existing items skipped:
-          {{
-            (yamtrackResult.skipped.movies ?? 0) +
-            (yamtrackResult.skipped.tv_shows ?? 0) +
-            (yamtrackResult.skipped.anime ?? 0)
-          }}.
-        </template>
-        <ul v-if="yamtrackResult.errors.length" class="import-errors">
-          <li v-for="(err, i) in yamtrackResult.errors" :key="i">{{ err }}</li>
-        </ul>
-      </div>
-      <div v-if="malResult" class="form-success">
-        Added {{ malResult.created }}, updated {{ malResult.updated }} from the
-        file, kept {{ malResult.kept }} as they were.
-        <template v-if="malResult.details_filled"
-          >Filled in details for {{ malResult.details_filled }}.</template
-        >
-        <template v-if="malResult.details_not_found">
-          {{ malResult.details_source ?? "AniList" }} had no match for
-          {{ malResult.details_not_found }}.</template
-        >
-        <template v-if="malResult.details_lookup_failed">
-          AniList could not be reached for
-          {{ malResult.details_lookup_failed }}. Their details are blank. Import
-          the same file again later to fill them.</template
-        >
-        <template v-if="malResult.details_unavailable">
-          No TMDB or OMDb key is set, so posters and details were not fetched.
-          Add a key under Settings, Library, Metadata, then import the same file
-          again.</template
-        >
-        <template v-if="malResult.assumed_complete">
-          {{ malResult.assumed_complete }} marked Completed with no episodes
-          listed, so counted as fully watched.</template
-        >
-        <template v-if="malResult.seasons_assumed_watched">
-          {{ malResult.seasons_assumed_watched }} TV show{{
-            malResult.seasons_assumed_watched === 1 ? "" : "s"
-          }}
-          were rated, so all their seasons are counted as fully watched: change
-          any of them in the library.</template
-        >
-        <template v-if="malResult.skipped_other">
-          {{ malResult.skipped_other }} rows were episodes or other kinds and
-          were skipped.</template
-        >
-      </div>
-
-      <div v-if="malPreview" class="mal-review">
-        <p class="tile-desc">
-          {{ malPreview.total }} titles in the file:
-          <strong>{{ malPreview.new_count }} new</strong>,
-          {{ malPreview.existing.length }} already here with differences,
-          {{ malPreview.identical }} already here and identical.
-        </p>
-        <template v-if="malPreview.existing.length">
-          <div class="mal-bulk">
-            <button
-              type="button"
-              class="secondary-button"
-              @click="chooseAllMal(true)"
-            >
-              Use file data for all
-            </button>
-            <button
-              type="button"
-              class="secondary-button"
-              @click="chooseAllMal(false)"
-            >
-              Keep all
-            </button>
-          </div>
-          <ul class="mal-list">
-            <li v-for="item in malPreview.existing" :key="item.mal_id">
-              <label class="mal-row">
-                <input
-                  type="checkbox"
-                  :checked="useMal.has(item.mal_id)"
-                  @change="toggleMal(item.mal_id)"
-                />
-                <span class="mal-title">{{ item.site_title }}</span>
-                <span class="mal-choice">{{
-                  useMal.has(item.mal_id) ? "Use file" : "Keep current"
-                }}</span>
-              </label>
-              <ul class="mal-diffs">
-                <li v-for="d in item.differences" :key="d.field">
-                  {{ d.field }}: {{ d.site ?? "empty" }} (library),
-                  {{ d.mal }} (file)
-                </li>
-              </ul>
-            </li>
-          </ul>
-        </template>
-        <label class="mal-details">
-          <input v-model="fetchDetails" type="checkbox" />
-          Fill in missing posters, genres and details from
-          {{ source === "mal" ? "AniList" : "TMDB or OMDb" }}. This only fills
-          blank fields and never replaces anything already there.
-        </label>
-        <div class="mal-actions">
+      <template v-if="malPreview.existing.length">
+        <div class="mal-bulk">
           <button
             type="button"
-            class="primary-button"
-            :disabled="malBusy"
-            @click="runMalImport"
+            class="secondary-button"
+            @click="chooseAllMal(true)"
           >
-            {{ malBusy ? "Importing…" : "Import" }}
+            Use file data for all
           </button>
           <button
             type="button"
             class="secondary-button"
-            :disabled="malBusy"
-            @click="cancelMal"
+            @click="chooseAllMal(false)"
           >
-            Cancel
+            Keep all
           </button>
         </div>
-      </div>
-      <label v-else class="secondary-button upload-label">
-        {{
-          source === "yamtrack"
-            ? "Import from Yamtrack CSV"
-            : malBusy
-              ? "Reading…"
-              : "Import from file"
-        }}
-        <input
-          type="file"
-          :accept="sourceInfo.accept"
-          class="hidden-input"
-          :disabled="malBusy || yamtrackBusy"
-          @change="onMalSelected"
-        />
-      </label>
-    </div>
-
-    <div class="tile">
-      <h3>Restore movies, TV shows and anime</h3>
-      <p class="tile-desc">
-        Restores movies, TV shows and anime, with seasons and watched episodes,
-        from a library export or backup file. Items with the same title and year
-        are skipped.
-      </p>
-      <div v-if="restoreError" class="form-error">{{ restoreError }}</div>
-      <div v-if="restoreResult" class="form-success">
-        <template v-for="(label, key) in RESTORE_LABEL" :key="key"
-          >{{ label }}: {{ restoreResult.created[key] ?? 0 }} added,
-          {{ restoreResult.skipped[key] ?? 0 }} skipped.
-        </template>
-        <ul v-if="restoreResult.errors.length" class="import-errors">
-          <li v-for="(err, i) in restoreResult.errors" :key="i">{{ err }}</li>
+        <ul class="mal-list">
+          <li v-for="item in malPreview.existing" :key="item.mal_id">
+            <label class="mal-row">
+              <input
+                type="checkbox"
+                :checked="useMal.has(item.mal_id)"
+                @change="toggleMal(item.mal_id)"
+              />
+              <span class="mal-title">{{ item.site_title }}</span>
+              <span class="mal-choice">{{
+                useMal.has(item.mal_id) ? "Use file" : "Keep current"
+              }}</span>
+            </label>
+            <ul class="mal-diffs">
+              <li v-for="d in item.differences" :key="d.field">
+                {{ d.field }}: {{ d.site ?? "empty" }} (library),
+                {{ d.mal }} (file)
+              </li>
+            </ul>
+          </li>
         </ul>
+      </template>
+      <label class="mal-details">
+        <input v-model="fetchDetails" type="checkbox" />
+        Fill in missing posters, genres and details from
+        {{ source === "mal" ? "AniList" : "TMDB or OMDb" }}. This only fills
+        blank fields and never replaces anything already there.
+      </label>
+      <div class="mal-actions">
+        <button
+          type="button"
+          class="primary-button"
+          :disabled="malBusy"
+          @click="runMalImport"
+        >
+          {{ malBusy ? "Importing…" : "Import" }}
+        </button>
+        <button
+          type="button"
+          class="secondary-button"
+          :disabled="malBusy"
+          @click="cancelMal"
+        >
+          Cancel
+        </button>
       </div>
-      <label class="secondary-button upload-label">
-        {{ restoreBusy ? "Restoring…" : "Restore from file" }}
+    </div>
+    <label v-else class="secondary-button upload-label">
+      {{
+        source === "yamtrack"
+          ? "Import from Yamtrack CSV"
+          : malBusy
+            ? "Reading…"
+            : "Import from file"
+      }}
+      <input
+        type="file"
+        :accept="sourceInfo.accept"
+        class="hidden-input"
+        :disabled="malBusy || yamtrackBusy"
+        @change="onMalSelected"
+      />
+    </label>
+  </section>
+  <section class="settings-section">
+    <h2>Restore from an export</h2>
+    <SettingsRow
+      label="Movies, TV and anime"
+      hint="With seasons and watched episodes. Same title and year is skipped."
+    >
+      <label class="st-btn upload-label">
+        {{ restoreBusy ? "Restoring…" : "Choose file" }}
         <input
           type="file"
           accept="application/json,.json"
@@ -552,28 +519,20 @@ async function onFileSelected(e: Event) {
           @change="onRestoreSelected"
         />
       </label>
+    </SettingsRow>
+    <div v-if="restoreError" class="form-error">{{ restoreError }}</div>
+    <div v-if="restoreResult" class="form-success">
+      <template v-for="(label, key) in RESTORE_LABEL" :key="key"
+        >{{ label }}: {{ restoreResult.created[key] ?? 0 }} added,
+        {{ restoreResult.skipped[key] ?? 0 }} skipped.
+      </template>
+      <ul v-if="restoreResult.errors.length" class="import-errors">
+        <li v-for="(err, i) in restoreResult.errors" :key="i">{{ err }}</li>
+      </ul>
     </div>
-
-    <div class="tile">
-      <h3>Import games</h3>
-      <p class="tile-desc">
-        Imports games from an exported file. Existing games are not overwritten.
-        A duplicate folder name gets a numbered suffix.
-      </p>
-      <div v-if="importError" class="form-error">{{ importError }}</div>
-      <div v-if="importResult" class="form-success">
-        Imported {{ importResult.created }} game{{
-          importResult.created === 1 ? "" : "s"
-        }}.
-        <template v-if="importResult.skipped"
-          >{{ importResult.skipped }} skipped.</template
-        >
-        <ul v-if="importResult.errors.length" class="import-errors">
-          <li v-for="(err, i) in importResult.errors" :key="i">{{ err }}</li>
-        </ul>
-      </div>
-      <label class="secondary-button upload-label">
-        {{ importing ? "Importing…" : "Import from file" }}
+    <SettingsRow label="Games" hint="Existing games are never overwritten">
+      <label class="st-btn upload-label">
+        {{ importing ? "Importing…" : "Choose file" }}
         <input
           type="file"
           accept="application/json"
@@ -582,6 +541,18 @@ async function onFileSelected(e: Event) {
           @change="onFileSelected"
         />
       </label>
+    </SettingsRow>
+    <div v-if="importError" class="form-error">{{ importError }}</div>
+    <div v-if="importResult" class="form-success">
+      Imported {{ importResult.created }} game{{
+        importResult.created === 1 ? "" : "s"
+      }}.
+      <template v-if="importResult.skipped"
+        >{{ importResult.skipped }} skipped.</template
+      >
+      <ul v-if="importResult.errors.length" class="import-errors">
+        <li v-for="(err, i) in importResult.errors" :key="i">{{ err }}</li>
+      </ul>
     </div>
   </section>
 </template>

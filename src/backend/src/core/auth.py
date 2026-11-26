@@ -1,13 +1,15 @@
 from __future__ import annotations
 
+import asyncio
 import hashlib
+import logging
 import re
 import secrets
 import time
 from typing import Final
 
 from fastapi import Depends, HTTPException, Request, status
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.config import settings
@@ -24,6 +26,55 @@ _DB_DEPENDENCY = Depends(get_db)
 SESSION_COOKIE_PREFIX: Final = "session_"
 SESSION_TTL_SECONDS: Final = 30 * 24 * 60 * 60
 API_KEY_PREFIX: Final = "utk_"
+# how often a session or key's "last used" time is written: every request would
+# be a write per page load for no real gain
+ACTIVITY_INTERVAL_SECONDS: Final = 5 * 60
+
+_log = logging.getLogger(__name__)
+_last_noted: dict[str, int] = {}
+_pending: set[asyncio.Task[None]] = set()
+
+
+async def _write_activity(kind: str, token_hash: str, now: int) -> None:
+    from src.database.session import SessionLocal
+
+    try:
+        async with SessionLocal() as db:
+            if kind == "session":
+                stmt = (
+                    update(UserSession)
+                    .where(UserSession.token_hash == token_hash)
+                    .values(last_seen_at=now)
+                )
+            else:
+                stmt = (
+                    update(UserApiKey)
+                    .where(UserApiKey.key_hash == token_hash)
+                    .values(last_used_at=now)
+                )
+            await db.execute(stmt)
+            await db.commit()
+    except Exception:  # noqa: BLE001 - a missed "last seen" must never break sign-in
+        _log.debug("could not record %s activity", kind, exc_info=True)
+
+
+def note_activity(kind: str, token_hash: str, now: int) -> bool:
+    """Record that a session or key was used, at most every few minutes, on
+    its own connection after the request is answered. Returns whether a write
+    was started."""
+    last = _last_noted.get(token_hash, 0)
+    if now - last < ACTIVITY_INTERVAL_SECONDS:
+        return False
+    _last_noted[token_hash] = now
+    if len(_last_noted) > 10_000:
+        _last_noted.clear()
+    try:
+        task = asyncio.get_running_loop().create_task(_write_activity(kind, token_hash, now))
+    except RuntimeError:
+        return False
+    _pending.add(task)
+    task.add_done_callback(_pending.discard)
+    return True
 
 _password_policy_override: dict[str, int | bool] | None = None
 
@@ -167,6 +218,7 @@ async def get_current_user(
                 detail="Invalid or revoked API key.",
                 headers={"WWW-Authenticate": "Bearer"},
             )
+        note_activity("key", hash_token(api_key), now)
     elif session_token:
         user = await db.scalar(
             select(User)
@@ -177,6 +229,8 @@ async def get_current_user(
                 User.is_active.is_(True),
             )
         )
+        if user is not None:
+            note_activity("session", hash_token(session_token), now)
 
     if user is None:
         raise HTTPException(

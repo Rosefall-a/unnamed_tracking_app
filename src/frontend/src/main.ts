@@ -3,6 +3,7 @@ import App from "./App.vue";
 import router from "./router";
 import "./style.css";
 import "./styles/ui.css";
+import "./styles/nav.css";
 import { applyThemeColors, readCachedThemeColors } from "./state/themeColors";
 
 document.documentElement.classList.toggle(

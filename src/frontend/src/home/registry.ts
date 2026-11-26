@@ -696,6 +696,24 @@ export const WIDGETS: WidgetDefinition[] = [
     },
   ),
   {
+    type: "showcase",
+    name: "Showcase",
+    description: "A shelf of the games you are proudest of, in your order.",
+    details:
+      "You pick what goes on it and drag it into order; each game shows its rarest unlock with the real icon. One click adds every game you have all the achievements for.",
+    category: "Achievements",
+    size: { w: 12, h: 5, minW: 4, minH: 4 },
+    defaults: { games: [] },
+    fields: [],
+    variants: [],
+    cards: false,
+    needs: ["games", "achievements"],
+    hasData: () => Object.keys(homeData.achSummary.value).length > 0,
+    component: lazy(
+      () => import("../components/home/widgets/ShowcaseWidget.vue"),
+    ),
+  },
+  {
     type: "stats",
     name: "Numbers",
     description: "Counts from your library, as many as you pick.",

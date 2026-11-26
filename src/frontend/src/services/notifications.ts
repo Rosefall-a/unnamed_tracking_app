@@ -9,6 +9,7 @@ export type MediaNotificationKind =
   | "sequel_announced"
   | "movie_released"
   | "milestone"
+  | "game_complete"
   | "possible_duplicate";
 
 export interface MediaNotification {

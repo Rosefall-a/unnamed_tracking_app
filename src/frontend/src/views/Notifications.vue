@@ -84,6 +84,11 @@ const KIND_META: Record<
     tone: "green",
     group: "achievements",
   },
+  game_complete: {
+    label: "100% complete",
+    tone: "amber",
+    group: "achievements",
+  },
   possible_duplicate: {
     label: "Possible duplicate",
     tone: "amber",

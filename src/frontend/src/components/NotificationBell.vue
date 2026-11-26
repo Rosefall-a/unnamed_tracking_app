@@ -173,7 +173,8 @@ onBeforeUnmount(() => {
             <span class="notification-text">
               <span class="notification-title">{{ n.title }}</span>
               <span class="notification-detail"
-                >{{ n.body }} · {{ timeAgo(n.eventAt) }}</span
+                >{{ n.kind === "game_complete" ? "100% complete" : n.body }} ·
+                {{ timeAgo(n.eventAt) }}</span
               >
             </span>
             <span v-if="!n.read" class="notification-unread-dot"></span>

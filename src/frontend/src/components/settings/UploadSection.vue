@@ -309,11 +309,10 @@ async function restoreItem(item: TrashedInboxItem) {
 
 <template>
   <section class="settings-section">
-    <h2>Upload</h2>
+    <h2>Screenshots and clips</h2>
     <p class="section-hint">
-      Bulk-upload screenshots and clips without picking a game first: drop in
-      everything at once, then group and assign them below. Images become
-      screenshots, videos become clips automatically.
+      Drop everything at once, then sort it onto games below. Images become
+      screenshots, videos become clips.
       <template v-if="maxUploadSizeMb"
         >Each file must be under {{ maxUploadSizeMb }} MB.</template
       >
@@ -322,20 +321,19 @@ async function restoreItem(item: TrashedInboxItem) {
     <UploadDropzone
       accept="image/*,video/*"
       :uploading="uploading"
-      title="Drop screenshots or clips here"
-      hint="Drag and drop files here, or click to browse."
+      title="Drop files here"
+      hint="or click to browse"
       @files-selected="onFilesSelected"
       @drop-error="onDropError"
     />
 
     <div v-if="uploadSummary" class="form-success">{{ uploadSummary }}</div>
     <div v-if="uploadError" class="form-error">{{ uploadError }}</div>
-
-    <div class="settings-divider"></div>
-
+  </section>
+  <section class="settings-section">
     <div class="inbox-header">
       <h3>
-        Unassigned
+        Waiting to be sorted
         <span v-if="inboxMedia.length" class="count-pill">{{
           inboxMedia.length
         }}</span>

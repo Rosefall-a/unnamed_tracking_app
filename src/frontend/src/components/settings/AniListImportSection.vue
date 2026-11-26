@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import SegmentedControl from "./SegmentedControl.vue";
-import ToggleButton from "./ToggleButton.vue";
+import SettingsCard from "./SettingsCard.vue";
+import SettingsRow from "./SettingsRow.vue";
+import SettingsSwitch from "./SettingsSwitch.vue";
 import {
   DEFAULT_PREFERENCES,
   fetchPreferences,
@@ -98,27 +100,19 @@ async function setCustomCadence(hours: number) {
 </script>
 
 <template>
-  <section class="settings-section">
-    <h2>AniList import</h2>
-    <p class="section-hint">
-      Imports your public AniList anime list into this library. AniList data is
-      only read.
+  <SettingsCard
+    title="AniList"
+    description="Reads your public AniList list into your anime library. AniList itself is never changed."
+  >
+    <template #actions>
       <span v-if="saved" class="saved">Saved</span>
-    </p>
-    <p v-if="error" class="error">{{ error }}</p>
-    <ToggleButton
-      :model-value="prefs.anilist_import_enabled"
-      label="Automatic AniList import"
-      :disabled="!loaded"
-      @update:model-value="change({ anilist_import_enabled: $event })"
-    >
-      <strong>Automatic import</strong>: imports the list below into your anime
-      library on a schedule
-    </ToggleButton>
-    <div class="field">
-      <label for="anilist-username">AniList username</label>
+    </template>
+    <p v-if="error" class="st-error">{{ error }}</p>
+    <SettingsRow label="AniList username">
       <input
         id="anilist-username"
+        class="st-field name-field"
+        aria-label="AniList username"
         :value="prefs.anilist_import_username"
         maxlength="100"
         placeholder="Your AniList username"
@@ -129,28 +123,39 @@ async function setCustomCadence(hours: number) {
           })
         "
       />
-    </div>
-    <div class="field">
-      <span>Import frequency</span>
-      <SegmentedControl
-        v-if="!customCadence"
-        :model-value="String(prefs.anilist_import_interval_minutes)"
-        :options="cadenceOptions"
-        @update:model-value="setCadence"
-      />
-      <button
-        v-else
-        type="button"
-        class="custom-button"
-        @click="customCadence = false"
-      >
-        Custom: every {{ customHours }} hour{{ customHours === 1 ? "" : "s" }}
-      </button>
-    </div>
-    <div class="field custom-field">
-      <label for="anilist-hours">Custom interval (hours)</label>
+    </SettingsRow>
+    <SettingsRow
+      label="Import automatically"
+      hint="On a schedule, in the background"
+    >
+      <div class="cadence">
+        <SegmentedControl
+          v-if="!customCadence"
+          :model-value="String(prefs.anilist_import_interval_minutes)"
+          :options="cadenceOptions"
+          @update:model-value="setCadence"
+        />
+        <button
+          v-else
+          type="button"
+          class="st-btn"
+          @click="customCadence = false"
+        >
+          Custom: every {{ customHours }} hour{{ customHours === 1 ? "" : "s" }}
+        </button>
+        <SettingsSwitch
+          :model-value="prefs.anilist_import_enabled"
+          label="Import automatically"
+          :disabled="!loaded"
+          @update:model-value="change({ anilist_import_enabled: $event })"
+        />
+      </div>
+    </SettingsRow>
+    <SettingsRow label="Custom interval" hint="Hours between imports">
       <input
         id="anilist-hours"
+        class="st-field hours-field"
+        aria-label="Custom interval in hours"
         type="number"
         min="1"
         max="720"
@@ -160,20 +165,22 @@ async function setCustomCadence(hours: number) {
           setCustomCadence(Number(($event.target as HTMLInputElement).value))
         "
       />
-    </div>
-    <ToggleButton
-      :model-value="prefs.anilist_import_update_existing"
-      label="Update existing titles"
-      :disabled="!loaded"
-      @update:model-value="change({ anilist_import_update_existing: $event })"
+    </SettingsRow>
+    <SettingsRow
+      label="Update titles already in the library"
+      hint="Apply AniList changes to anime you already have"
     >
-      <strong>Update existing titles</strong>: apply AniList list changes to
-      titles already in the library
-    </ToggleButton>
-    <div class="import-now">
+      <SettingsSwitch
+        :model-value="prefs.anilist_import_update_existing"
+        label="Update titles already in the library"
+        :disabled="!loaded"
+        @update:model-value="change({ anilist_import_update_existing: $event })"
+      />
+    </SettingsRow>
+    <div class="st-btns import-now">
       <button
         type="button"
-        class="ui-btn ui-btn-secondary"
+        class="st-btn"
         :disabled="
           !loaded || importing || !prefs.anilist_import_username.trim()
         "
@@ -183,69 +190,29 @@ async function setCustomCadence(hours: number) {
       </button>
       <span v-if="importMessage" class="saved">{{ importMessage }}</span>
     </div>
-    <p class="section-hint">Imports run in the background.</p>
-  </section>
+  </SettingsCard>
 </template>
 
 <style scoped>
-.settings-section h2 {
-  margin: 0 0 8px;
-  padding-left: 12px;
-  border-left: 3px solid var(--ui-accent);
-  font-size: 1rem;
-  color: var(--ui-heading);
-}
-.section-hint {
-  color: var(--ui-dim);
-  font-size: 0.82rem;
-  line-height: 1.6;
-  margin: 0 0 14px;
-}
 .saved {
-  color: var(--ui-good);
-  margin-left: 8px;
-  font-weight: 700;
+  color: var(--ui-good-text);
+  font-size: 12.5px;
 }
-.error {
-  color: var(--ui-error);
-  font-size: 0.82rem;
+.name-field {
+  max-width: 260px;
 }
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin: 14px 0;
-  font-size: 0.82rem;
-  color: var(--ui-text-soft);
+.hours-field {
+  width: 90px;
 }
-.field input {
-  width: min(100%, 420px);
-  box-sizing: border-box;
-  padding: 9px 11px;
-  border: 1px solid var(--ui-border-strong);
-  border-radius: 7px;
-  background: var(--ui-bg-2);
-  color: var(--ui-text-soft);
-}
-.custom-field {
-  max-width: 420px;
-}
-.custom-button {
-  align-self: flex-start;
-  padding: 8px 12px;
-  border: 1px solid var(--ui-border-hover);
-  border-radius: 7px;
-  background: var(--ui-surface-2);
-  color: var(--ui-text-soft);
-  cursor: pointer;
-}
-.import-now {
+.cadence {
   display: flex;
   align-items: center;
   gap: 12px;
-  margin: 14px 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
-.settings-section :deep(.toggle-button) {
-  margin: 12px 0;
+.import-now {
+  align-items: center;
+  margin-top: 6px;
 }
 </style>

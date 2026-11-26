@@ -423,6 +423,8 @@ export async function fetchGameAchievements(
 export interface AchievementsSummaryEntry {
   total: number;
   unlocked: number;
+  // the unlocked one the fewest players have, when there is rarity data
+  rarest?: { name: string; icon_url: string | null; percent: number };
 }
 
 // one grouped query for every game's {total, unlocked} counts, used to
@@ -432,7 +434,7 @@ export async function fetchAchievementsSummary(): Promise<
   Record<string, AchievementsSummaryEntry>
 > {
   if (import.meta.env.VITE_USE_MOCK_DATA === "true") {
-    return {};
+    return mockAchievementsSummary();
   }
   const response = await fetch("/api/game/achievements-summary", {
     credentials: "include",
@@ -443,6 +445,34 @@ export async function fetchAchievementsSummary(): Promise<
     );
   }
   return await response.json();
+}
+
+// the sample games' own achievements, counted the way the server counts them
+function mockAchievementsSummary(): Record<string, AchievementsSummaryEntry> {
+  const out: Record<string, AchievementsSummaryEntry> = {};
+  for (const g of mockGames) {
+    if (!g.achievements.length) continue;
+    const got = g.achievements.filter(
+      (a) => a.unlocked ?? a.unlockedAt !== null,
+    );
+    const rarest = got
+      .filter((a) => typeof a.rarityPercent === "number")
+      .sort((a, b) => (a.rarityPercent ?? 0) - (b.rarityPercent ?? 0))[0];
+    out[g.id] = {
+      total: g.achievements.length,
+      unlocked: got.length,
+      ...(rarest
+        ? {
+            rarest: {
+              name: rarest.name,
+              icon_url: rarest.iconUrl ?? null,
+              percent: rarest.rarityPercent as number,
+            },
+          }
+        : {}),
+    };
+  }
+  return out;
 }
 
 // Puts each game's achievement counts on it. 199 of 200 is not 100%: only a

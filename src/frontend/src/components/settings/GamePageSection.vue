@@ -50,44 +50,20 @@ async function change(next: PageSettings) {
 </script>
 
 <template>
-  <section class="settings-section">
-    <h2>Game page</h2>
-    <p class="section-hint">
-      Sets which tabs appear on every game page. Auto shows a tab only when it
-      has content. Each game can override these in its Edit dialog, on the Page
-      tab.
-      <span v-if="savedNote" class="saved">{{ savedNote }}</span>
-    </p>
-    <p v-if="error" class="error">{{ error }}</p>
-    <PageSettingsEditor
-      v-if="loaded"
-      :model-value="settings"
-      @update:model-value="change($event as PageSettings)"
-    />
-  </section>
+  <p v-if="error" class="st-error">{{ error }}</p>
+  <p v-if="savedNote" class="saved">{{ savedNote }}</p>
+  <PageSettingsEditor
+    v-if="loaded"
+    layout="cards"
+    :model-value="settings"
+    @update:model-value="change($event as PageSettings)"
+  />
 </template>
 
 <style scoped>
-.settings-section h2 {
-  margin: 0 0 8px;
-  padding-left: 12px;
-  border-left: 3px solid var(--ui-accent);
-  font-size: 1rem;
-  color: var(--ui-heading);
-}
-.section-hint {
-  color: var(--ui-dim-3);
-  font-size: 0.82rem;
-  line-height: 1.6;
-  margin: 0 0 20px;
-}
 .saved {
-  margin-left: 8px;
-  color: var(--ui-accent);
-  font-weight: 700;
-}
-.error {
-  color: var(--ui-error-text);
-  font-size: 0.85rem;
+  margin: 0;
+  color: var(--ui-good-text);
+  font-size: 12.5px;
 }
 </style>

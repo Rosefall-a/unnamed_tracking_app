@@ -131,9 +131,12 @@ async def test_a_new_milestone_is_notified_once_and_old_ones_never() -> None:
                 )
             ).scalars().all()
             assert titles == ["Your first perfect game"]
+            # the 100% notice for the same game is its own kind (see test_game_complete)
             assert (
                 await db.scalar(
-                    select(func.count()).select_from(Notification).where(Notification.user_id == user_id)
+                    select(func.count())
+                    .select_from(Notification)
+                    .where(Notification.user_id == user_id, Notification.kind != "game_complete")
                 )
             ) == 1
     finally:

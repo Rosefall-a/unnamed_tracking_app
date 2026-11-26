@@ -2,6 +2,10 @@
 export interface SettingsSection {
   id: string;
   label: string;
+  // one line under the name saying what the page holds
+  sub?: string;
+  // how many things on the page need a look
+  badge?: number;
   comingSoon?: boolean;
 }
 
@@ -20,6 +24,11 @@ const emit = defineEmits<{
 }>();
 
 const ICON_PATHS: Record<string, string> = {
+  account: "M20 21a8 8 0 0 0-16 0 M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z",
+  look: "M12 3a9 9 0 1 0 0 18c1 0 1.5-.8 1.5-1.6 0-.9-.7-1.4-.7-2.2 0-.8.7-1.4 1.6-1.4H17a4 4 0 0 0 4-4c0-4.9-4-8.8-9-8.8Z M7.5 11.5h.01 M10.5 7.5h.01 M15 7.5h.01",
+  notify:
+    "M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9 M13.7 21a2 2 0 0 1-3.4 0",
+  server: "M4 4h16v6H4z M4 14h16v6H4z M8 7h.01 M8 17h.01",
   profile: "M20 21a8 8 0 0 0-16 0 M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z",
   interface: "M3 4h18v12H3z M8 20h8 M12 16v4",
   upload: "M12 16V4 M6 10l6-6 6 6 M4 20h16",
@@ -83,9 +92,20 @@ function iconPath(id: string): string {
           >
             <path :d="iconPath(section.id)" />
           </svg>
-          <span>{{ section.label }}</span>
+          <span class="settings-nav-text">
+            <span>{{ section.label }}</span>
+            <span v-if="section.sub" class="settings-nav-sub">{{
+              section.sub
+            }}</span>
+          </span>
         </span>
         <span v-if="section.comingSoon" class="soon-badge">soon</span>
+        <span
+          v-else-if="section.badge"
+          class="warn-badge"
+          :title="`${section.badge} thing${section.badge === 1 ? '' : 's'} to look at`"
+          >{{ section.badge }}</span
+        >
       </button>
     </div>
   </nav>
@@ -136,12 +156,26 @@ function iconPath(id: string): string {
 }
 .settings-nav-item-main {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 10px;
 }
 .nav-icon {
   flex-shrink: 0;
   opacity: 0.8;
+  margin-top: 2px;
+}
+.settings-nav-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.settings-nav-sub {
+  font-size: 11.5px;
+  color: var(--ui-faint-2);
+}
+.settings-nav-item.active .settings-nav-sub {
+  color: color-mix(in srgb, var(--ui-accent) 70%, var(--ui-faint-2));
 }
 .settings-nav-item:hover {
   background: color-mix(in srgb, var(--ui-wash-base) 6%, transparent);
@@ -150,6 +184,22 @@ function iconPath(id: string): string {
 .settings-nav-item.active {
   background: color-mix(in srgb, var(--ui-accent) 14%, transparent);
   color: var(--ui-accent);
+}
+.warn-badge {
+  min-width: 18px;
+  height: 18px;
+  box-sizing: border-box;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: rgba(229, 115, 115, 0.16);
+  color: #fca5a5;
+  font-size: 11px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  align-self: center;
 }
 .soon-badge {
   font-size: 10px;

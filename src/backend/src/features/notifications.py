@@ -213,6 +213,10 @@ async def generate_for_user(db: AsyncSession, user_id: UUID) -> int:
     if prefs["notify_achievement_milestone"]:
         rows.extend(await _milestone_rows(db, user_id, since))
 
+    # 5) a game whose last achievement came in during the window
+    if prefs["notify_game_complete"]:
+        rows.extend(await _game_complete_rows(db, user_id, since))
+
     created = await _insert(db, user_id, rows)
     await db.commit()
     return created
@@ -243,6 +247,62 @@ async def _milestone_rows(db: AsyncSession, user_id: UUID, since: int) -> list[d
             }
         )
     return rows
+
+
+async def _game_complete_rows(db: AsyncSession, user_id: UUID, since: int) -> list[dict[str, Any]]:
+    """A game counts once every achievement it has is unlocked, at the time the
+    last one was (or, without unlock times, when it was marked Mastered). A game
+    with no achievements, or one set to Mastered by hand while some are still
+    locked, is not one."""
+    stmt = (
+        select(
+            Game.id,
+            Game.title,
+            Game.completion_date,
+            func.count(Achievement.id),
+            func.count(Achievement.id).filter(Achievement.unlocked),
+            func.max(Achievement.unlocked_at),
+            func.min(Achievement.global_percent).filter(Achievement.unlocked),
+        )
+        .join(Achievement, Achievement.game_id == Game.id)
+        .where(Game.user_id == user_id, Game.deleted_at.is_(None))
+        .group_by(Game.id)
+    )
+    rows = []
+    for game_id, title, completed, total, unlocked, last_at, rarest in (
+        await db.execute(stmt)
+    ).all():
+        if not total or unlocked < total:
+            continue
+        at = last_at or completed
+        if at is None or at < since:
+            continue
+        body = f"All {total} achievements"
+        if rarest is not None:
+            body += f" · rarest {_percent(float(rarest))} of players"
+        rows.append(
+            {
+                "kind": "game_complete",
+                "media_type": "game",
+                "media_id": game_id,
+                "title": title,
+                "body": body,
+                "poster_url": f"/api/game/{game_id}/assets/key_art",
+                "event_at": int(at),
+                # once per game and set: a set that grows and is finished again
+                # tells you again
+                "dedupe_key": f"complete:{game_id}:{total}",
+            }
+        )
+    return rows
+
+
+def _percent(value: float) -> str:
+    """Written the way the achievement lists write it (utils/achievements.ts
+    formatPercent): one decimal, and anything under 0.1 as <0.1%."""
+    if 0 < value < 0.1:
+        return "<0.1%"
+    return f"{value:.1f}%"
 
 
 async def record_sequel_announcements(

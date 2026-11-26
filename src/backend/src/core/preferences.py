@@ -30,6 +30,11 @@ DEFAULTS: dict[str, Any] = {
     "notify_movie_released": True,
     # a new achievement milestone (100th achievement, 10th perfect game, ...)
     "notify_achievement_milestone": True,
+    # a game you have every achievement for: a pop-up when it happens, and a line in the bell
+    "notify_game_complete": True,
+    # how a 100% game is marked on library covers, any mix of these. None until
+    # chosen, so the older single "completion badge style" keeps deciding it.
+    "completion_marks": None,
     "notify_statuses": ["watching", "plan", "hold"],
     "notify_media_types": ["anime", "tv", "movie"],
     "notification_retention_days": 30,
@@ -80,6 +85,7 @@ _SET_CHOICES: dict[str, tuple[str, ...]] = {
     "notify_statuses": ("watching", "plan", "hold"),
     "calendar_airing_statuses": ("watching", "plan", "hold"),
     "notify_media_types": ("anime", "tv", "movie"),
+    "completion_marks": ("caption", "seal", "gold_title", "sheen", "rarest_pin"),
 }
 
 
@@ -194,6 +200,9 @@ def validate_preference(key: str, value: Any) -> Any:
         return validate_home_layout(value)
     if key == "theme_colors":
         return validate_theme_colors(value)
+    # not chosen yet: the older single badge style still decides the look
+    if key == "completion_marks" and value is None:
+        return None
     if key in _SET_CHOICES:
         allowed = _SET_CHOICES[key]
         if not isinstance(value, list) or any(v not in allowed for v in value):

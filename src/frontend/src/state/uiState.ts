@@ -17,6 +17,7 @@ const SERVER_NAMES = new Set([
   "gameLibraryFilterPresets",
   "seenWelcomeTour",
   "seenBulkEditHint",
+  "sidebarPins",
 ]);
 const SERVER_PREFIXES = ["achievementLocal:", "noteDraft:", "homePick:"];
 // kept only while the tab is open

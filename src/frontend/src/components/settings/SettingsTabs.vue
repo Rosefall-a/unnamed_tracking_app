@@ -2,6 +2,7 @@
 export interface SettingsTab {
   id: string;
   label: string;
+  badge?: number;
 }
 
 defineProps<{ tabs: SettingsTab[]; modelValue: string }>();
@@ -21,6 +22,7 @@ defineEmits<{ "update:modelValue": [id: string] }>();
       @click="$emit('update:modelValue', t.id)"
     >
       {{ t.label }}
+      <span v-if="t.badge" class="tab-badge">{{ t.badge }}</span>
     </button>
   </div>
 </template>
@@ -47,6 +49,22 @@ defineEmits<{ "update:modelValue": [id: string] }>();
   transition:
     color 0.15s ease,
     border-color 0.15s ease;
+}
+.tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  margin-left: 6px;
+  padding: 0 4px;
+  box-sizing: border-box;
+  border-radius: 999px;
+  background: rgba(229, 115, 115, 0.16);
+  color: #fca5a5;
+  font-size: 10.5px;
+  font-weight: 700;
+  vertical-align: 1px;
 }
 .settings-tab:hover {
   color: var(--ui-heading);

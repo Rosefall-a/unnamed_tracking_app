@@ -168,18 +168,17 @@ async function save() {
 </script>
 
 <template>
-  <section class="settings-section">
-    <h2>Scan settings</h2>
-    <p class="section-hint">
-      Sets the provider order and which fields a search result can save to a
-      game.
-    </p>
-
-    <p v-if="loading">Loading…</p>
-    <template v-else>
+  <p v-if="loading" class="st-muted">Loading…</p>
+  <template v-else>
+    <section class="settings-section">
+      <h2>Who answers first</h2>
+      <p class="section-hint">
+        The first provider with a match fills in the text. Use the arrows to
+        change the order.
+      </p>
       <div class="provider-order-row">
         <div class="field-block">
-          <span class="field-label">Data provider order</span>
+          <span class="field-label">Details</span>
           <p class="field-sublabel">
             The first provider with a match supplies the text fields.
           </p>
@@ -214,9 +213,8 @@ async function save() {
             </li>
           </ol>
         </div>
-
         <div class="field-block">
-          <span class="field-label">Image provider order</span>
+          <span class="field-label">Art</span>
           <p class="field-sublabel">
             Which provider's art wins when more than one has art.
           </p>
@@ -252,9 +250,12 @@ async function save() {
           </ol>
         </div>
       </div>
-
+    </section>
+    <section class="settings-section">
+      <h2>What a search or refresh may change</h2>
+      <p class="section-hint">Turn one off and nothing will overwrite it.</p>
       <div class="field-block">
-        <span class="field-label">Images to save from a search result</span>
+        <span class="field-label">Images</span>
         <p class="field-sublabel">
           Turn off a type to stop search and refresh from changing it.
         </p>
@@ -273,9 +274,8 @@ async function save() {
           </ToggleButton>
         </div>
       </div>
-
       <div class="field-block">
-        <span class="field-label">Data to save from a search result</span>
+        <span class="field-label">Details</span>
         <p class="field-sublabel">
           Turn off a field to stop search and refresh from changing it.
         </p>
@@ -311,9 +311,10 @@ async function save() {
           </ToggleButton>
         </div>
       </div>
-
+    </section>
+    <section class="settings-section">
+      <h2>Achievements</h2>
       <div class="field-block">
-        <span class="field-label">Achievements</span>
         <p class="field-sublabel">
           A game that gets new achievements after you master it goes back to
           Played. The day you finished it stays on the calendar.
@@ -329,10 +330,8 @@ async function save() {
           </ToggleButton>
         </div>
       </div>
-
       <div v-if="error" class="form-error">{{ error }}</div>
       <div v-if="saveSuccess" class="form-success">Saved</div>
-
       <button
         type="button"
         class="primary-button"
@@ -341,11 +340,16 @@ async function save() {
       >
         {{ saving ? "Saving…" : "Save" }}
       </button>
-    </template>
-  </section>
+    </section>
+  </template>
 </template>
 
 <style scoped>
+.refresh-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  column-gap: 28px;
+}
 .settings-section h2 {
   margin: 0 0 8px;
   padding-left: 12px;
