@@ -14,7 +14,7 @@ import {
   createAnime,
   updateSeason,
 } from "../services/anime";
-import type { SeasonUpdateInput } from "../services/anime";
+import type { AnimeMetadataResult, SeasonUpdateInput } from "../services/anime";
 import type { Anime, AnimeStatus } from "../types/anime";
 import { localMediaImage } from "../utils/mediaImages";
 import MediaLibraryView from "../components/library/MediaLibraryView.vue";
@@ -337,10 +337,17 @@ async function onBulkDelete(ids: string[]) {
   refreshMeta();
 }
 
+// The full results of the last search, so adding one saves exactly the title
+// that was picked without searching every provider a second time.
+let lastResults = new Map<string, AnimeMetadataResult>();
+const resultKey = (r: AnimeMetadataResult) =>
+  `${r.provider}:${r.providerId}:${r.title}`;
+
 async function search(
   query: string,
 ): Promise<{ results: SearchResultVM[]; providerErrors: string[] }> {
   const { results, providerErrors } = await searchAnimeMetadata(query);
+  lastResults = new Map(results.map((r) => [resultKey(r), r]));
   return {
     results: results.map((r) => ({
       title: r.title,
@@ -348,6 +355,7 @@ async function search(
       description: r.description,
       episodeTotal: r.episodeCount,
       releaseYear: r.firstAirDate ? r.firstAirDate.slice(0, 4) : null,
+      providerId: resultKey(r),
     })),
     providerErrors,
   };
@@ -357,8 +365,15 @@ async function createFromResult(
   result: SearchResultVM,
   form: QuickAddForm,
 ): Promise<void> {
-  const { results } = await searchAnimeMetadata(result.title, 1);
-  const match = results.find((r) => r.title === result.title) ?? results[0];
+  // the picked result as the search gave it; only a title added some other way
+  // is looked up again
+  let match = result.providerId
+    ? lastResults.get(result.providerId)
+    : undefined;
+  if (!match) {
+    const { results } = await searchAnimeMetadata(result.title, 1);
+    match = results.find((r) => r.title === result.title) ?? results[0];
+  }
   // Pass the episode count through explicitly instead of leaving seasons
   // omitted (which auto-creates a default Season 1 with no count) — the
   // metadata search already knows the total, so there's no reason the

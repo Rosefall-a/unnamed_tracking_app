@@ -55,7 +55,7 @@ class _FakeOMDb:
         _FakeOMDb.asked.append(dict(params))
         if params.get("y") == "2015":
             return {"Search": [{"Title": "Extinction", "Year": "2015", "imdbID": "tt3467412"}]}
-        if params["s"] == "Extinction":
+        if params.get("s") == "Extinction":
             return {
                 "Search": [
                     {"Title": "Extinction", "Year": "2018", "imdbID": "tt3201640"},
@@ -64,6 +64,8 @@ class _FakeOMDb:
             }
         raise omdb_module.OMDBError("Movie not found!")
 
+    _candidates = omdb_module.OMDBClient._candidates
+    _recent_exact = omdb_module.OMDBClient._recent_exact
     search = omdb_module.OMDBClient.search
 
 

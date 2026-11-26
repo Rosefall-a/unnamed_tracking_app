@@ -3,6 +3,8 @@ import { DEFAULT_PAGE_SETTINGS } from "../utils/gamePage";
 import type { PageSettings } from "../utils/gamePage";
 import type { HomeLayout } from "../home/layout";
 import type { CompletionMark } from "../utils/completionMarks";
+import type { GameStatus } from "../types/game";
+import type { StatusBucketKey } from "../utils/mediaStatus";
 
 export type TimeToBeatStyle = "main" | "extras" | "completionist" | "all";
 
@@ -22,6 +24,11 @@ export interface Preferences {
   notify_achievement_milestone: boolean;
   // a pop-up and a line in the bell when a game reaches 100%
   notify_game_complete: boolean;
+  // the status a title starts as when you press Add to Library
+  add_status_game: GameStatus;
+  add_status_movie: StatusBucketKey;
+  add_status_tv: StatusBucketKey;
+  add_status_anime: StatusBucketKey;
   // how 100% games are marked on covers; null keeps the older badge style
   completion_marks: CompletionMark[] | null;
   notify_statuses: ("watching" | "plan" | "hold")[];
@@ -69,6 +76,10 @@ export const DEFAULT_PREFERENCES: Preferences = {
   notify_movie_released: true,
   notify_achievement_milestone: true,
   notify_game_complete: true,
+  add_status_game: "backlog",
+  add_status_movie: "plan",
+  add_status_tv: "plan",
+  add_status_anime: "plan",
   completion_marks: null,
   notify_statuses: ["watching", "plan", "hold"],
   notify_media_types: ["anime", "tv", "movie"],

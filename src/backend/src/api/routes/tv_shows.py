@@ -20,6 +20,7 @@ from src.api.routes.media_common import (
     empty_trash,
     purge_row,
     restore_row,
+    season_progress,
     soft_delete,
     title_search,
     trash_listing,
@@ -268,6 +269,7 @@ async def list_shows(
         formats=format, only_unrated=only_unrated, only_with_note=only_with_note, missing_finish=missing_finish,
         min_score=min_score, year_column=TVShow.first_air_date, year_from=year_from, year_to=year_to,
         sort=sort,
+        progress_column=season_progress(TVShow, TVSeason),
     )
 
 

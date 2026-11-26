@@ -55,10 +55,13 @@ function toNav(t: HomeTitle): NavTitle {
   };
 }
 
-// everything, most recently played or watched first
+// what you can pick up again, most recently played or watched first: a title
+// you finished or dropped has nothing to jump back into
 export const recentTitles = computed<NavTitle[]>(() =>
   allTitles.value
-    .filter((t) => t.touchedAt > 0)
+    .filter(
+      (t) => t.touchedAt > 0 && t.group !== "done" && t.group !== "dropped",
+    )
     .sort((a, b) => b.touchedAt - a.touchedAt)
     .slice(0, 40)
     .map(toNav),

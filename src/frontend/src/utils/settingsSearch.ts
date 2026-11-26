@@ -166,6 +166,12 @@ const RAW: Raw[] = [
     "upload",
     "files size limit screenshots clips saves maximum inbox sort",
   ],
+  [
+    "Status when you add",
+    "library",
+    "adding",
+    "add to library default status starts wishlist backlog playing plan to watch completed new game movie show anime",
+  ],
   ["Possible duplicates", "library", "tidy", "duplicate games merge reviewed"],
   [
     "Shared folders",

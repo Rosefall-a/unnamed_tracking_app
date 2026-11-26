@@ -7,7 +7,7 @@ from datetime import date
 from typing import Any
 
 from fastapi import HTTPException, status
-from sqlalchemy import ColumnElement, func, or_, select
+from sqlalchemy import ColumnElement, case, func, literal, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -24,12 +24,35 @@ def title_search(columns: list[Any], search: str | None) -> ColumnElement[bool] 
     return or_(*(column.ilike(f"%{escaped}%", escape="\\") for column in columns))
 
 
-# the sorts a library page can be read in; "progress" is worked out from seasons
-# and episodes, so the browser does that one over what it has loaded
+# the sorts a library page can be read in
 LIBRARY_SORTS = {"rank", "score", "title", "title_desc", "added", "year_new", "year_old", "progress"}
 
 
-def library_order(model: Any, sort: str | None, year_column: Any | None) -> list[Any]:
+def season_progress(model: Any, season_model: Any) -> Any:
+    """How far through a show or anime you are, 0 to 100, worked out the way the
+    library cards show it: episodes watched over episodes in all its seasons, and
+    0 while any season's length is unknown. Done in the query so a page sorted by
+    progress already holds the furthest-along titles of the whole library."""
+    total = func.sum(season_model.episode_count)
+    unknown = func.count().filter(season_model.episode_count.is_(None))
+    watched = func.coalesce(func.sum(season_model.episodes_watched), 0)
+    return (
+        select(
+            case(
+                (unknown > 0, literal(0.0)),
+                (func.coalesce(total, 0) == 0, literal(0.0)),
+                else_=watched * 100.0 / total,
+            )
+        )
+        .where(season_model.show_id == model.id)
+        .correlate(model)
+        .scalar_subquery()
+    )
+
+
+def library_order(
+    model: Any, sort: str | None, year_column: Any | None, progress: Any | None = None
+) -> list[Any]:
     """The order a page is read in. It is the order the library shows, so the first
     page already holds the best of the whole library: a sort done only over the
     titles loaded so far would show the best of the first page, then shuffle as more
@@ -44,6 +67,8 @@ def library_order(model: Any, sort: str | None, year_column: Any | None) -> list
     if sort in ("year_new", "year_old") and year_column is not None:
         by_year = year_column.desc() if sort == "year_new" else year_column.asc()
         return [by_year.nulls_last(), model.sort_title, model.id]
+    if sort == "progress" and progress is not None:
+        return [progress.desc(), model.sort_title, model.id]
     return [model.sort_title, model.id]
 
 
@@ -76,6 +101,7 @@ async def library_page(  # pylint: disable=too-many-arguments,too-many-positiona
     year_from: int | None = None,
     year_to: int | None = None,
     sort: str | None = None,
+    progress_column: Any | None = None,
 ) -> PaginatedResponse[Any]:
     """One page of a user's library, applying all active filters before pagination.\n\n    The total matching it, how many titles
     sit in each status, and every rated title's rank. The status counts
@@ -138,7 +164,11 @@ async def library_page(  # pylint: disable=too-many-arguments,too-many-positiona
     status_counts = {row_status.value: count for row_status, count in counts_result.all()}
 
     total = await db.scalar(select(func.count()).select_from(stmt.subquery()))
-    stmt = stmt.order_by(*library_order(model, sort, year_column)).offset(skip).limit(limit)
+    stmt = (
+        stmt.order_by(*library_order(model, sort, year_column, progress_column))
+        .offset(skip)
+        .limit(limit)
+    )
     seasons = getattr(model, "seasons", None)
     if seasons is not None:
         # a list sends each season's counts, never its episodes, which would

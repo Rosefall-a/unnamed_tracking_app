@@ -7,7 +7,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import and_, case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.routes.media_extras import log_activity, status_change_detail
@@ -193,6 +193,16 @@ async def list_movies(
         formats=format, only_unrated=only_unrated, only_with_note=only_with_note, missing_finish=missing_finish,
         min_score=min_score, year_column=Movie.release_date, year_from=year_from, year_to=year_to,
         sort=sort,
+        # watched (or rewatched, or a favourite) is 100; otherwise how far into it
+        # you are, as the cards show it
+        progress_column=case(
+            (Movie.status.in_([MovieStatus.WATCHED, MovieStatus.FAVORITE, MovieStatus.REWATCH]), 100.0),
+            (
+                and_(Movie.progress_minutes.is_not(None), Movie.runtime_minutes > 0),
+                func.least(100.0, func.round(Movie.progress_minutes * 100.0 / Movie.runtime_minutes)),
+            ),
+            else_=0.0,
+        ),
     )
 
 

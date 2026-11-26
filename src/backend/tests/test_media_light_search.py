@@ -73,7 +73,11 @@ def omdb(monkeypatch):
 
 def test_a_light_omdb_search_reads_no_title_pages(omdb) -> None:
     found = OMDBClient("key").search("inception", limit=8, light=True)
-    assert [list(c) for c in omdb] == [["s", "type"]]
+    # the search, then only the exact name for this year and next (new films
+    # OMDb lists late); never a detail page per result
+    assert list(omdb[0]) == ["s", "type"]
+    assert not any("i" in c for c in omdb)
+    assert all("t" in c for c in omdb[1:]) and len(omdb) == 3
     assert [m["title"] for m in found] == ["Inception", "Other"]
 
 

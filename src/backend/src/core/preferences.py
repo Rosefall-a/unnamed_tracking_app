@@ -32,6 +32,11 @@ DEFAULTS: dict[str, Any] = {
     "notify_achievement_milestone": True,
     # a game you have every achievement for: a pop-up when it happens, and a line in the bell
     "notify_game_complete": True,
+    # the status a title starts as when you press Add to Library
+    "add_status_game": "backlog",
+    "add_status_movie": "plan",
+    "add_status_tv": "plan",
+    "add_status_anime": "plan",
     # how a 100% game is marked on library covers, any mix of these. None until
     # chosen, so the older single "completion badge style" keeps deciding it.
     "completion_marks": None,
@@ -69,6 +74,9 @@ DEFAULTS: dict[str, Any] = {
     "time_to_beat_style": "main",
 }
 
+# the five groups a film, show or anime sits in, as the libraries show them
+_MEDIA_BUCKETS = ("plan", "watching", "completed", "hold", "dropped")
+
 _CHOICES: dict[str, tuple[Any, ...]] = {
     "calendar_default_view": ("month", "week", "agenda"),
     "calendar_week_start": (0, 1, 2, 3, 4, 5, 6),
@@ -79,6 +87,19 @@ _CHOICES: dict[str, tuple[Any, ...]] = {
     "title_language": ("english", "romaji", "native"),
     "collections_auto": ("tab", "mixed", "hidden"),
     "time_to_beat_style": ("main", "extras", "completionist", "all"),
+    "add_status_game": (
+        "wishlist",
+        "backlog",
+        "playing",
+        "on hold",
+        "played",
+        "beaten",
+        "mastered",
+        "dropped",
+    ),
+    "add_status_movie": _MEDIA_BUCKETS,
+    "add_status_tv": _MEDIA_BUCKETS,
+    "add_status_anime": _MEDIA_BUCKETS,
 }
 
 _SET_CHOICES: dict[str, tuple[str, ...]] = {
