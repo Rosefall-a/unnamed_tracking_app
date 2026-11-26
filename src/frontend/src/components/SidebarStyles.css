@@ -1,0 +1,506 @@
+/* SidebarNav styles kept out of the .vue file so it stays under the line limit. Loaded after its own <style>, so these win on equal selectors. */
+/* ---- look and motion ----
+   The overlay is a floating panel rather than a full-height slab; one quiet
+   highlight marks where you are, with the accent kept for its icon. */
+.sidebar {
+  padding: 12px 10px;
+  gap: 1px;
+  background: color-mix(in srgb, var(--ui-popover) 92%, transparent);
+  backdrop-filter: blur(18px) saturate(1.15);
+  -webkit-backdrop-filter: blur(18px) saturate(1.15);
+}
+.sidebar:not(.pinned-mode):not(.rail-mode) {
+  top: 10px;
+  left: 10px;
+  bottom: 10px;
+  border: 1px solid var(--ui-border-strong);
+  border-radius: 16px;
+  box-shadow:
+    0 24px 64px color-mix(in srgb, var(--ui-scrim-base) 55%, transparent),
+    0 2px 10px color-mix(in srgb, var(--ui-scrim-base) 35%, transparent);
+}
+.sidebar-backdrop {
+  background: color-mix(in srgb, var(--ui-scrim-base) 40%, transparent);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+}
+.sidebar-brand {
+  padding: 2px 6px 12px 8px;
+  margin: 0;
+  border-bottom: 0;
+  min-height: 34px;
+}
+.sidebar-avatar {
+  margin-left: auto;
+}
+.sidebar-group-label {
+  padding: 16px 10px 5px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  color: color-mix(in srgb, var(--ui-wash-base) 38%, transparent);
+}
+.sidebar-item {
+  height: 34px;
+  box-sizing: border-box;
+  padding: 0 10px;
+  gap: 10px;
+  border-radius: 8px;
+  font-size: 13.5px;
+  color: var(--ui-text-soft);
+}
+.sidebar-item svg {
+  color: color-mix(in srgb, var(--ui-wash-base) 55%, transparent);
+  transition: color 0.15s ease;
+}
+.sidebar-item:hover svg {
+  color: var(--ui-heading);
+}
+.sidebar-item.active,
+.sidebar-parent-row.active {
+  background: color-mix(in srgb, var(--ui-wash-base) 8%, transparent);
+  color: var(--ui-heading);
+  box-shadow: none;
+  font-weight: 600;
+}
+.sidebar-item.active svg,
+.sidebar-parent-row.active .sidebar-parent-link svg {
+  color: var(--ui-accent);
+}
+.sidebar-parent-row.active .sidebar-parent-link,
+.sidebar-parent-row.active .sidebar-expand-toggle {
+  color: var(--ui-heading);
+}
+.sidebar-parent-row:hover {
+  background: color-mix(in srgb, var(--ui-wash-base) 5%, transparent);
+}
+.sidebar-parent-row .sidebar-item:hover {
+  background: none;
+}
+.sidebar-expand-toggle {
+  width: 26px;
+  height: 26px;
+  margin-right: 4px;
+  color: color-mix(in srgb, var(--ui-wash-base) 40%, transparent);
+}
+.sidebar-subitems {
+  margin: 1px 0 4px 21px;
+  padding-left: 8px;
+  gap: 1px;
+}
+.sidebar-subitem {
+  height: 30px;
+  font-size: 13px;
+}
+.sidebar-bottom {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid color-mix(in srgb, var(--ui-wash-base) 6%, transparent);
+}
+.sidebar-search {
+  margin: 0 0 6px;
+  height: 34px;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--ui-wash-base) 4%, transparent);
+  border-color: color-mix(in srgb, var(--ui-wash-base) 8%, transparent);
+}
+.sidebar-jump {
+  height: 30px;
+  padding: 0 10px;
+}
+.sidebar-jump img,
+.sidebar-jump-blank {
+  width: 20px;
+  height: 28px;
+  border-radius: 4px;
+}
+.sidebar-flyout {
+  border-radius: 14px;
+  padding: 6px;
+  background: color-mix(in srgb, var(--ui-popover) 94%, transparent);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+/* opening: a short glide in from the left with a fade; closing is quicker */
+.sidebar-slide-enter-active {
+  transition:
+    transform 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.2s ease;
+}
+.sidebar-slide-leave-active {
+  transition:
+    transform 0.18s cubic-bezier(0.4, 0, 1, 1),
+    opacity 0.16s ease;
+}
+.sidebar-slide-enter-from,
+.sidebar-slide-leave-to {
+  transform: translateX(-28px) scale(0.985);
+  opacity: 0;
+}
+.sidebar-backdrop-enter-active {
+  transition: opacity 0.24s ease;
+}
+.sidebar-backdrop-leave-active {
+  transition: opacity 0.18s ease;
+}
+.sidebar.rail-mode {
+  transition:
+    width 0.24s cubic-bezier(0.22, 1, 0.36, 1),
+    padding 0.24s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.24s ease;
+}
+.sidebar.rail-mode:hover,
+.sidebar.rail-mode:focus-within {
+  box-shadow: 16px 0 48px
+    color-mix(in srgb, var(--ui-scrim-base) 45%, transparent);
+}
+.sidebar-flyout-enter-active {
+  transition:
+    opacity 0.16s ease,
+    transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.sidebar-flyout-leave-active {
+  transition:
+    opacity 0.12s ease,
+    transform 0.12s ease;
+}
+.sidebar-flyout-enter-from,
+.sidebar-flyout-leave-to {
+  opacity: 0;
+  transform: translateX(-8px) scale(0.98);
+}
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-slide-enter-active,
+  .sidebar-slide-leave-active,
+  .sidebar-backdrop-enter-active,
+  .sidebar-backdrop-leave-active,
+  .sidebar-flyout-enter-active,
+  .sidebar-flyout-leave-active,
+  .sidebar.rail-mode {
+    transition: none;
+  }
+}
+/* ---- Peek ---- */
+.peek-edge {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 10px;
+  z-index: 100;
+}
+.peek-edge::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 30%;
+  bottom: 30%;
+  width: 3px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--ui-accent) 45%, transparent);
+  opacity: 0.6;
+}
+.peek-pin {
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--ui-dim-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  margin-left: 4px;
+}
+.peek-pin:hover {
+  color: var(--ui-heading);
+  background: color-mix(in srgb, var(--ui-wash-base) 7%, transparent);
+}
+.peek-pin.on {
+  color: var(--ui-accent);
+  background: color-mix(in srgb, var(--ui-accent) 14%, transparent);
+}
+
+/* ---- Your library ---- */
+.lib-card {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  margin-top: 6px;
+  padding: 8px 6px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--ui-wash-base) 3%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ui-wash-base) 6%, transparent);
+}
+.lib-head {
+  padding: 2px 6px 8px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ui-heading);
+}
+/* one line that scrolls sideways, so a narrow sidebar never wraps "TV" onto a
+   row of its own */
+.lib-chips {
+  display: flex;
+  gap: 5px;
+  padding: 0 4px 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.lib-chips::-webkit-scrollbar {
+  display: none;
+}
+.lib-chip {
+  flex-shrink: 0;
+  border: 0;
+  border-radius: 999px;
+  padding: 4px 9px;
+  background: color-mix(in srgb, var(--ui-wash-base) 8%, transparent);
+  color: var(--ui-text-soft);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.lib-chip.on {
+  background: var(--ui-text);
+  color: var(--ui-bg);
+}
+.lib-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+.lib-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 6px;
+  border-radius: 8px;
+  color: inherit;
+  text-decoration: none;
+  min-width: 0;
+}
+.lib-row:hover {
+  background: color-mix(in srgb, var(--ui-wash-base) 6%, transparent);
+}
+.lib-row img,
+.lib-blank {
+  width: 38px;
+  height: 38px;
+  border-radius: 7px;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: var(--ui-surface-2);
+}
+.lib-text {
+  min-width: 0;
+  flex: 1;
+}
+.lib-text b {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ui-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lib-text small {
+  display: block;
+  margin-top: 1px;
+  font-size: 11.5px;
+  color: var(--ui-faint-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lib-empty {
+  margin: 0;
+  padding: 10px 6px;
+  font-size: 12.5px;
+  color: var(--ui-dim-2);
+}
+.lib-icons {
+  display: flex;
+  justify-content: space-around;
+  margin-top: 8px;
+  padding: 6px 4px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--ui-wash-base) 3%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ui-wash-base) 6%, transparent);
+}
+.lib-icon,
+.rp-icon {
+  position: relative;
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: color-mix(in srgb, var(--ui-wash-base) 60%, transparent);
+  text-decoration: none;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+.lib-icon:hover,
+.rp-icon:hover {
+  background: color-mix(in srgb, var(--ui-wash-base) 7%, transparent);
+  color: var(--ui-heading);
+}
+.lib-icon.active,
+.rp-icon.active {
+  background: color-mix(in srgb, var(--ui-accent) 15%, transparent);
+  color: var(--ui-accent);
+}
+.lib-icon-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 3px;
+  box-sizing: border-box;
+  border-radius: 999px;
+  background: var(--ui-accent);
+  color: var(--ui-on-accent);
+  font-size: 10px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.sidebar.style-library .sidebar-spacer {
+  display: none;
+}
+/* Your library as an icon rail: covers only, centred in the strip, and the
+   page icons stacked. Heights of the heading and chips stay put (they only
+   fade), so widening the rail moves nothing up or down. */
+.sidebar.rail-mode .lib-card {
+  padding-left: 0;
+  padding-right: 0;
+}
+.sidebar.rail-mode .lib-row {
+  padding-left: 4px;
+  padding-right: 4px;
+}
+.sidebar.rail-mode .lib-row img,
+.sidebar.rail-mode .lib-blank {
+  width: 32px;
+  height: 32px;
+}
+.sidebar.rail-mode .lib-head,
+.sidebar.rail-mode .lib-chips {
+  white-space: nowrap;
+  transition: opacity 0.14s ease 0.05s;
+}
+.sidebar.rail-mode:not(:hover):not(:focus-within) .lib-card {
+  background: none;
+  border-color: transparent;
+}
+.sidebar.rail-mode:not(:hover):not(:focus-within) .lib-head,
+.sidebar.rail-mode:not(:hover):not(:focus-within) .lib-chips,
+.sidebar.rail-mode:not(:hover):not(:focus-within) .lib-text,
+.sidebar.rail-mode:not(:hover):not(:focus-within) .lib-empty {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.08s ease;
+}
+.sidebar.rail-mode:not(:hover):not(:focus-within) .lib-chips {
+  overflow: hidden;
+}
+.sidebar.rail-mode:not(:hover):not(:focus-within) .lib-icons {
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 0;
+  background: none;
+  border-color: transparent;
+}
+
+/* ---- Rail and panel ---- */
+.railpanel {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 300px;
+  z-index: 110;
+  display: flex;
+  background: color-mix(in srgb, var(--ui-popover) 94%, transparent);
+  backdrop-filter: blur(18px) saturate(1.15);
+  border-right: 1px solid var(--ui-border);
+  font-family: system-ui, sans-serif;
+}
+.rp-rail {
+  width: 58px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 14px 0;
+  border-right: 1px solid
+    color-mix(in srgb, var(--ui-wash-base) 6%, transparent);
+}
+.rp-brand {
+  font-size: 20px;
+  margin-bottom: 10px;
+}
+.rp-spacer {
+  flex: 1;
+}
+.rp-avatar {
+  margin-top: 6px;
+}
+.rp-panel {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 14px 8px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+.rp-head {
+  display: flex;
+  align-items: center;
+  padding: 4px 10px 10px;
+}
+.rp-head b {
+  font-size: 16px;
+  color: var(--ui-heading);
+}
+.rp-coll {
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ui-dim-2);
+}
+.rp-more {
+  padding: 6px 10px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ui-accent-bright);
+  text-decoration: none;
+}
+.railpanel .sidebar-item,
+.railpanel .sidebar-jump {
+  text-decoration: none;
+}
+@media (max-width: 760px) {
+  .railpanel {
+    width: 58px;
+  }
+  .rp-panel {
+    display: none;
+  }
+}

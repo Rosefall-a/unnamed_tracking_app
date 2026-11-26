@@ -1,0 +1,378 @@
+/* Shared look for the Settings pages, matching the approved Settings redo
+   mockup. Every class starts with st- so nothing outside Settings is touched. */
+
+.st-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.st-card {
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  border-radius: 12px;
+  padding: 18px 20px;
+}
+.st-card.warn {
+  border-color: color-mix(in srgb, var(--ui-danger) 45%, transparent);
+}
+.st-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  margin: 0 0 4px;
+}
+.st-card h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ui-heading);
+}
+.st-desc {
+  margin: 4px 0 12px;
+  color: var(--ui-dim);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+/* a setting: name and hint on the left, its control on the right */
+.st-row {
+  display: flex;
+  align-items: center;
+  gap: 10px 16px;
+  padding: 13px 0;
+  border-top: 1px solid #242424;
+}
+.st-row:first-of-type,
+.st-desc + .st-row {
+  border-top: 0;
+}
+.st-row > :last-child {
+  margin-left: auto;
+}
+.st-row.stack {
+  flex-wrap: wrap;
+}
+.st-row.stack > .st-lbl {
+  flex-basis: 100%;
+}
+.st-row.stack > :last-child {
+  margin-left: 0;
+}
+.st-lbl {
+  flex: 1 1 0;
+  min-width: 180px;
+}
+.st-lbl strong {
+  display: block;
+  font-size: 14px;
+  color: #e5e5e5;
+  font-weight: 600;
+}
+.st-lbl > span {
+  display: block;
+  font-size: 12.5px;
+  color: #8a8a8a;
+  margin-top: 2px;
+  line-height: 1.4;
+}
+@media (max-width: 700px) {
+  .st-row,
+  .st-list-row {
+    flex-wrap: wrap;
+  }
+  .st-row > .st-lbl,
+  .st-list-row > .st-lbl {
+    flex-basis: 100%;
+  }
+}
+
+.st-list-row {
+  display: flex;
+  align-items: center;
+  gap: 10px 12px;
+  padding: 12px 0;
+  border-top: 1px solid #242424;
+}
+.st-list-row:first-of-type {
+  border-top: 0;
+}
+.st-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+  background: #262626;
+  color: #e5e5e5;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 12px;
+  flex: 0 0 auto;
+  overflow: hidden;
+}
+.st-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.st-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #222;
+  border: 1px solid #3a3a3a;
+  border-radius: 8px;
+  color: #e5e5e5;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 13px;
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.st-btn:hover:not(:disabled) {
+  border-color: #4a4a4a;
+  color: #fff;
+}
+.st-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.st-btn.primary {
+  background: var(--ui-accent);
+  border-color: var(--ui-accent);
+  color: var(--ui-on-accent);
+}
+.st-btn.danger {
+  color: #fca5a5;
+}
+.st-btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.st-field {
+  width: 100%;
+  box-sizing: border-box;
+  background: #141414;
+  border: 1px solid #2b2b2b;
+  border-radius: 8px;
+  color: var(--ui-text);
+  font: inherit;
+  padding: 9px 11px;
+}
+.st-field:focus,
+.st-select:focus {
+  outline: 2px solid color-mix(in srgb, var(--ui-accent) 60%, transparent);
+  outline-offset: 1px;
+}
+.st-flabel {
+  display: block;
+  font-size: 12.5px;
+  color: var(--ui-dim);
+  margin: 10px 0 5px;
+}
+.st-select {
+  background: #141414;
+  border: 1px solid #2b2b2b;
+  border-radius: 8px;
+  color: var(--ui-text);
+  font: inherit;
+  font-size: 13px;
+  padding: 7px 10px;
+  color-scheme: dark;
+}
+
+.st-chip {
+  display: inline-flex;
+  align-items: center;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  border-radius: 999px;
+  padding: 3px 8px;
+  background: #262626;
+  color: #b5b5b5;
+  white-space: nowrap;
+}
+.st-chip.good {
+  background: rgba(111, 191, 115, 0.14);
+  color: #86efac;
+}
+.st-chip.acc {
+  background: color-mix(in srgb, var(--ui-accent) 16%, transparent);
+  color: var(--ui-accent-bright);
+}
+.st-chip.bad {
+  background: rgba(229, 115, 115, 0.14);
+  color: #fca5a5;
+}
+.st-chip.info {
+  background: rgba(123, 167, 217, 0.14);
+  color: #a9c7ea;
+}
+
+.st-note {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #141414;
+  border: 1px solid #2b2b2b;
+  border-radius: 10px;
+  padding: 11px 13px;
+  color: #b5b5b5;
+  font-size: 13px;
+  line-height: 1.45;
+  margin-top: 12px;
+}
+.st-note.bad {
+  border-color: rgba(229, 115, 115, 0.4);
+  color: #f0c0c0;
+}
+.st-muted {
+  color: #8a8a8a;
+  font-size: 12.5px;
+}
+.st-error {
+  color: var(--ui-error-text);
+  font-size: 12.5px;
+  margin: 8px 0 0;
+}
+.st-kbd {
+  display: inline-block;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 12px;
+  background: #262626;
+  border: 1px solid #3a3a3a;
+  border-bottom-width: 2px;
+  border-radius: 6px;
+  padding: 2px 7px;
+  color: #e5e5e5;
+  white-space: nowrap;
+}
+.st-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 10px;
+}
+.st-tile {
+  background: #141414;
+  border: 1px solid #2b2b2b;
+  border-radius: 10px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.st-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
+}
+.st-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.st-stat b {
+  font-size: 20px;
+  color: var(--ui-heading);
+}
+.st-tbl {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+.st-tbl th {
+  text-align: left;
+  color: #8a8a8a;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-weight: 700;
+  padding: 0 8px 8px;
+}
+.st-tbl td {
+  padding: 10px 8px;
+  border-top: 1px solid #242424;
+  color: #e5e5e5;
+}
+.st-scroll {
+  overflow-x: auto;
+}
+
+/* Sections not yet rebuilt from SettingsCard and SettingsRow get the same
+   card, heading and switch rows from here, so every tab looks alike. */
+.settings-card .st-cards > .settings-section,
+.settings-card .st-cards > .section,
+.settings-card .st-cards > div > .settings-section {
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  border-radius: 12px;
+  padding: 18px 20px;
+  margin: 0;
+  max-width: none;
+}
+.settings-card .st-cards > div > .settings-section + .settings-section {
+  margin-top: 16px;
+}
+.settings-card .st-cards .settings-section > h2,
+.settings-card .st-cards .section > h2,
+.settings-card .st-cards .section-header h2 {
+  margin: 0 0 4px;
+  padding: 0;
+  border: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ui-heading);
+}
+.settings-card .st-cards .settings-section > h3 {
+  margin: 18px 0 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ui-text-soft);
+  text-transform: none;
+  letter-spacing: 0;
+}
+.settings-card .st-cards .toggle-button {
+  width: 100%;
+  flex-direction: row-reverse;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 0;
+  padding: 13px 0;
+  border-top: 1px solid #242424;
+  font-size: 12.5px;
+  color: #8a8a8a;
+}
+.settings-card .st-cards .toggle-button .toggle-track {
+  width: 40px;
+  height: 22px;
+  border: 1px solid #3a3a3a;
+  background: #262626;
+  box-sizing: border-box;
+}
+.settings-card .st-cards .toggle-button.on .toggle-track {
+  background: var(--ui-accent);
+  border-color: var(--ui-accent);
+}
+.settings-card .st-cards .toggle-button .toggle-knob {
+  top: 2px;
+  left: 2px;
+  background: #8a8a8a;
+}
+.settings-card .st-cards .toggle-button.on .toggle-knob {
+  transform: translateX(18px);
+  background: var(--ui-on-accent);
+}
+.settings-card .st-cards .toggle-button .toggle-label strong {
+  font-size: 14px;
+  font-weight: 600;
+  color: #e5e5e5;
+}

@@ -1,37 +1,45 @@
 import { describe, expect, it } from "vitest";
 import { searchSettings } from "../utils/settingsSearch";
 
-const ids = (query: string, admin = false) =>
-  searchSettings(query, admin).map((e) => e.id);
+const places = (query: string, admin = false) =>
+  searchSettings(query, admin).map((e) => `${e.section}:${e.tab}`);
+const labels = (query: string, admin = false) =>
+  searchSettings(query, admin).map((e) => e.label);
 
 describe("searchSettings", () => {
   it("finds nothing for an empty search", () => {
-    expect(ids("")).toEqual([]);
-    expect(ids("   ")).toEqual([]);
+    expect(places("")).toEqual([]);
+    expect(places("   ")).toEqual([]);
   });
 
-  it("puts a page whose name starts with the word first", () => {
-    expect(ids("appear")[0]).toBe("appearance");
-    expect(ids("noti")[0]).toBe("notifications");
+  it("puts a setting whose name starts with the word first", () => {
+    expect(labels("compact")[0]).toBe("Compact mode");
+    expect(labels("episode aired")[0]).toBe("Episode aired");
   });
 
-  it("finds a page by what is on it", () => {
-    expect(ids("wishlist")).toContain("scan");
-    expect(ids("tmdb")).toContain("sources");
-    expect(ids("backup")).toContain("export");
+  it("finds a setting by what it does and opens its tab", () => {
+    expect(places("wishlist")).toContain("sources:saved");
+    expect(places("tmdb")).toContain("sources:providers");
+    expect(places("csv")).toContain("library:io");
+    expect(places("ribbon")).toContain("look:appearance");
   });
 
   it("needs every word to match", () => {
-    expect(ids("steam wishlist")).toContain("scan");
-    expect(ids("steam zzzz")).toEqual([]);
+    expect(places("steam wishlist")).toContain("sources:saved");
+    expect(places("steam zzzz")).toEqual([]);
   });
 
   it("is not thrown by case or punctuation", () => {
-    expect(ids("EXPORT / import")).toContain("export");
+    expect(places("IMPORT / export")).toContain("library:io");
   });
 
-  it("keeps admin pages to admins", () => {
-    expect(ids("sso")).toEqual([]);
-    expect(ids("sso", true)).toContain("oidc");
+  it("keeps admin settings to admins", () => {
+    expect(places("sso")).toEqual([]);
+    expect(places("sso", true)).toContain("server:access");
+  });
+
+  it("shows where each result lives", () => {
+    const [first] = searchSettings("compact", false);
+    expect(first.where).toBe("Look and feel, Library views");
   });
 });

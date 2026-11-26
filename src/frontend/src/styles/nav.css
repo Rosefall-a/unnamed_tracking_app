@@ -1,0 +1,79 @@
+/* What the navigation styles change on the pages around them. App.vue sets
+   data-nav on <html> to the style in use. */
+
+/* Top bar: it carries the bell and profile itself, so the page's own chip
+   goes, and the page's header row becomes a plain first row of the page
+   (no second sticky bar stacked under the first). */
+html[data-nav="topbar"] .account-chip {
+  display: none;
+}
+html[data-nav="topbar"] .media-topbar {
+  position: relative;
+  top: 0;
+  min-height: 0;
+  padding: 14px 24px 4px;
+  background: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border-bottom: 0;
+}
+html[data-nav="topbar"] .detail > .back-spot {
+  top: 68px;
+}
+
+/* No menu button sits in the corner in these styles, so the header does not
+   need to leave room for one. */
+html[data-nav="topbar"] .media-topbar .topbar-left,
+html[data-nav="guide"] .media-topbar .topbar-left,
+html[data-nav="dock"] .media-topbar .topbar-left,
+html[data-nav="peek"] .media-topbar .topbar-left,
+html[data-nav="railpanel"] .media-topbar .topbar-left {
+  margin-left: 0;
+}
+html[data-nav="guide"] .media-topbar,
+html[data-nav="dock"] .media-topbar,
+html[data-nav="peek"] .media-topbar,
+html[data-nav="railpanel"] .media-topbar {
+  padding-left: 24px;
+}
+@media (max-width: 720px) {
+  html[data-nav="topbar"] .media-topbar .topbar-left {
+    margin-right: 0;
+  }
+  html[data-nav] .media-topbar {
+    padding-left: 16px;
+  }
+}
+
+/* Rail and panel: the icon strip and its panel are always there. On a narrow
+   window the panel would take half the screen, so only the strip stays. */
+html[data-nav="railpanel"] .app-content {
+  margin-left: 300px;
+}
+@media (max-width: 760px) {
+  html[data-nav="railpanel"] .app-content {
+    margin-left: 58px;
+  }
+}
+
+/* Dock and Guide button sit at the bottom of the window: things pinned there
+   by pages (Home's edit toolbar, task progress, upload toasts, the phone
+   first-use tip) move up above them instead of underneath. */
+html[data-nav="dock"] .home .toolbar,
+html[data-nav="dock"] .task-toast-stack {
+  bottom: 84px;
+}
+html[data-nav="dock"] .gm-toast {
+  bottom: 94px;
+}
+@media (max-width: 600px) {
+  html[data-nav="dock"] .first-use-hint {
+    bottom: 84px;
+  }
+  html[data-nav="guide"] .first-use-hint {
+    bottom: 80px;
+  }
+  html[data-nav="railpanel"] .first-use-hint {
+    left: 74px;
+  }
+}

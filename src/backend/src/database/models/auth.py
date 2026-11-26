@@ -3,7 +3,7 @@ from __future__ import annotations
 import time
 from uuid import UUID, uuid4
 
-from sqlalchemy import BigInteger, ForeignKey, String
+from sqlalchemy import BigInteger, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
@@ -21,6 +21,10 @@ class UserSession(Base):
     token_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
     expires_at: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
     created_at: Mapped[int] = mapped_column(BigInteger, nullable=False, default=time.time)
+    # which browser signed in, and when it was last seen (to the nearest few
+    # minutes), for Settings > Account > Signed-in devices
+    user_agent: Mapped[str | None] = mapped_column(Text, nullable=True)
+    last_seen_at: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
 
 
 class UserApiKey(Base):
@@ -36,3 +40,5 @@ class UserApiKey(Base):
     scopes: Mapped[list[str]] = mapped_column(ARRAY(String), nullable=False, default=list)
     revoked_at: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     created_at: Mapped[int] = mapped_column(BigInteger, nullable=False, default=time.time)
+    # to the nearest few minutes, so an unused key is easy to spot
+    last_used_at: Mapped[int | None] = mapped_column(BigInteger, nullable=True)

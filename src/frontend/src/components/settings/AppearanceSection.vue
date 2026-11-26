@@ -1,17 +1,22 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from "vue";
-import SegmentedControl from "./SegmentedControl.vue";
+import { ref, computed, onMounted } from "vue";
+import SettingsCard from "./SettingsCard.vue";
+import SettingsRow from "./SettingsRow.vue";
+import SettingsSwitch from "./SettingsSwitch.vue";
+import CoverMarks from "../CoverMarks.vue";
+import TrophyIcon from "../TrophyIcon.vue";
 import {
   fetchAppearanceSettings,
   updateAppearanceSettings,
   uploadBadgeImage,
   deleteBadgeImage,
 } from "../../services/appearanceSettings";
-import type {
-  BadgeStyle,
-  BadgePlacement,
-} from "../../services/appearanceSettings";
 import { loadAppearanceSettings } from "../../state/appearance";
+import {
+  MARKS,
+  activeMarks,
+  type CompletionMark,
+} from "../../utils/completionMarks";
 import { preferences } from "../../state/preferences";
 import { queuePreferences } from "../../services/preferences";
 import {
@@ -22,6 +27,11 @@ import {
   cacheThemeColors,
 } from "../../state/themeColors";
 import type { ThemeColorKey, ThemeColors } from "../../state/themeColors";
+
+// colors or badge shows one card, so Display can sit between them
+withDefaults(defineProps<{ part?: "all" | "colors" | "badge" }>(), {
+  part: "all",
+});
 
 // ---- the app's colours ----
 const colors = ref<ThemeColors>({ ...preferences.value.theme_colors });
@@ -59,42 +69,14 @@ function resetColor(key: ThemeColorKey) {
 const anyColor = computed(() => Object.keys(colors.value).length > 0);
 
 const loading = ref(true);
-const saving = ref(false);
 const error = ref<string | null>(null);
-const saveSuccess = ref(false);
-
-const style = ref<BadgeStyle>("glow");
-const color = ref("#e5e4e2");
-const placement = ref<BadgePlacement>("top-right");
+const color = ref("#d4af37");
 const imageUrl = ref<string | null>(null);
-
-const styleOptions = [
-  { value: "none", label: "Off" },
-  { value: "glow", label: "Glow" },
-  { value: "border", label: "Border" },
-  { value: "ribbon", label: "Ribbon" },
-  { value: "corner_badge", label: "Corner badge" },
-];
-const placementOptions = [
-  { value: "top-left", label: "Top left" },
-  { value: "top-right", label: "Top right" },
-  { value: "bottom-left", label: "Bottom left" },
-  { value: "bottom-right", label: "Bottom right" },
-];
-
-const usesPlacement = computed(
-  () => style.value === "ribbon" || style.value === "corner_badge",
-);
-const usesImage = computed(
-  () => style.value === "ribbon" || style.value === "corner_badge",
-);
 
 onMounted(async () => {
   try {
     const settings = await fetchAppearanceSettings();
-    style.value = settings.completion_badge_style;
     color.value = settings.completion_badge_color;
-    placement.value = settings.completion_badge_placement;
     imageUrl.value = settings.completion_badge_image_url;
   } catch (err) {
     error.value =
@@ -104,28 +86,74 @@ onMounted(async () => {
   }
 });
 
-async function save() {
-  saving.value = true;
-  error.value = null;
-  saveSuccess.value = false;
+// Marks and the pop-up save the moment they change, like the rest of Settings.
+// Only the newest save's answer is applied, so quick clicks never undo each
+// other when an older answer arrives late.
+let saveSeq = 0;
+async function savePrefs(changes: {
+  completion_marks?: CompletionMark[];
+  notify_game_complete?: boolean;
+}) {
+  const seq = ++saveSeq;
+  const before = preferences.value;
+  preferences.value = { ...before, ...changes };
   try {
-    await updateAppearanceSettings({
-      completion_badge_style: style.value,
-      completion_badge_color: color.value,
-      completion_badge_placement: placement.value,
-    });
-    await loadAppearanceSettings();
-    saveSuccess.value = true;
+    const { prefs } = await queuePreferences(changes);
+    if (seq !== saveSeq) return;
+    preferences.value = { ...preferences.value, ...prefs };
+    error.value = null;
   } catch (err) {
+    if (seq !== saveSeq) return;
+    preferences.value = before;
     error.value =
-      err instanceof Error ? err.message : "Could not save appearance settings";
-  } finally {
-    saving.value = false;
+      err instanceof Error ? err.message : "Could not save that change";
   }
 }
+function toggleMark(id: CompletionMark) {
+  const next = new Set(activeMarks.value);
+  if (next.has(id)) next.delete(id);
+  else next.add(id);
+  void savePrefs({
+    completion_marks: MARKS.map((m) => m.id).filter((m) => next.has(m)),
+  });
+}
 
-watch([style, color, placement], () => {
-  saveSuccess.value = false;
+// the colour is saved a moment after the last change
+let colorTimer: number | undefined;
+function setBadgeColor(value: string) {
+  color.value = value;
+  if (!/^#[0-9a-fA-F]{6}$/.test(value)) return;
+  window.clearTimeout(colorTimer);
+  colorTimer = window.setTimeout(async () => {
+    try {
+      await updateAppearanceSettings({
+        completion_badge_color: value.toLowerCase(),
+      });
+      await loadAppearanceSettings();
+      error.value = null;
+    } catch (err) {
+      error.value =
+        err instanceof Error ? err.message : "Could not save the colour";
+    }
+  }, 400);
+}
+
+// the preview uses the same marks a real cover does, with a sample count
+const previewEntry = {
+  total: 66,
+  unlocked: 66,
+  rarest: { name: "Rarest unlock", icon_url: null, percent: 1.4 },
+};
+const has = (m: CompletionMark) => activeMarks.value.has(m);
+const previewVars = computed(() => {
+  const c = color.value.toLowerCase();
+  const gold = c === "#d4af37" || !/^#[0-9a-f]{6}$/.test(c);
+  const hi = gold ? "#f1cd6a" : `color-mix(in srgb, ${c} 72%, #fff)`;
+  return {
+    "--mk": gold ? "#e9be5a" : c,
+    "--mk-hi": hi,
+    "--mk-ring": `color-mix(in srgb, ${hi} 55%, transparent)`,
+  };
 });
 
 const uploading = ref(false);
@@ -165,46 +193,29 @@ async function removeImage() {
 </script>
 
 <template>
-  <section class="settings-section">
-    <h2>Appearance</h2>
-
-    <h3 class="sub">Colors</h3>
-    <p class="section-hint">
-      Change the colors the whole app uses. Changes show right away and follow
-      your account.
-    </p>
-    <div class="colors">
-      <div v-for="key in THEME_COLOR_KEYS" :key="key" class="color-line">
-        <div class="color-info">
-          <strong>{{ THEME_COLOR_INFO[key].label }}</strong>
-          <span>{{ THEME_COLOR_INFO[key].hint }}</span>
-        </div>
-        <div class="color-row">
-          <input
-            type="color"
-            class="color-input"
-            :value="colors[key] ?? THEME_COLOR_INFO[key].fallback"
-            :aria-label="`${THEME_COLOR_INFO[key].label} color`"
-            @input="setColor(key, ($event.target as HTMLInputElement).value)"
-          />
-          <input
-            type="text"
-            class="color-text"
-            maxlength="7"
-            :value="colors[key] ?? THEME_COLOR_INFO[key].fallback"
-            :aria-label="`${THEME_COLOR_INFO[key].label} hex value`"
-            @change="setColor(key, ($event.target as HTMLInputElement).value)"
-          />
-          <button
-            v-if="colors[key]"
-            type="button"
-            class="reset"
-            @click="resetColor(key)"
-          >
-            Reset
-          </button>
-        </div>
-        <div v-if="key === 'accent'" class="presets">
+  <SettingsCard
+    v-if="part !== 'badge'"
+    title="Colours"
+    description="Changes show right away and follow your account to every browser."
+  >
+    <template #actions>
+      <button
+        v-if="anyColor"
+        type="button"
+        class="st-btn"
+        @click="changeColors({})"
+      >
+        Reset to default
+      </button>
+    </template>
+    <SettingsRow
+      v-for="key in THEME_COLOR_KEYS"
+      :key="key"
+      :label="THEME_COLOR_INFO[key].label"
+      :hint="THEME_COLOR_INFO[key].hint"
+    >
+      <div class="color-row">
+        <template v-if="key === 'accent'">
           <button
             v-for="c in ACCENT_PRESETS"
             :key="c"
@@ -217,75 +228,132 @@ async function removeImage() {
             :aria-label="`Use ${c} as the accent`"
             @click="setColor('accent', c)"
           ></button>
-        </div>
+        </template>
+        <input
+          type="color"
+          class="color-input"
+          :value="colors[key] ?? THEME_COLOR_INFO[key].fallback"
+          :aria-label="`${THEME_COLOR_INFO[key].label} color`"
+          @input="setColor(key, ($event.target as HTMLInputElement).value)"
+        />
+        <input
+          type="text"
+          class="color-text"
+          maxlength="7"
+          :value="colors[key] ?? THEME_COLOR_INFO[key].fallback"
+          :aria-label="`${THEME_COLOR_INFO[key].label} hex value`"
+          @change="setColor(key, ($event.target as HTMLInputElement).value)"
+        />
+        <button
+          v-if="colors[key]"
+          type="button"
+          class="st-btn reset"
+          @click="resetColor(key)"
+        >
+          Reset
+        </button>
       </div>
-      <button
-        v-if="anyColor"
-        type="button"
-        class="reset-all"
-        @click="changeColors({})"
-      >
-        Reset all colors
-      </button>
-      <p v-if="colorsError" class="colors-error">{{ colorsError }}</p>
-    </div>
+    </SettingsRow>
+    <p v-if="colorsError" class="st-error">{{ colorsError }}</p>
+  </SettingsCard>
 
-    <h3 class="sub">Mastered games</h3>
-    <p class="section-hint">
-      How Mastered (100% complete) games are highlighted in the library.
-    </p>
-
-    <p v-if="loading">Loading…</p>
+  <SettingsCard
+    v-if="part !== 'colors'"
+    title="100% games"
+    description="How a game with every achievement unlocked stands out."
+  >
+    <p v-if="loading" class="st-muted">Loading…</p>
     <template v-else>
-      <div class="field">
-        <span>Badge style</span>
-        <SegmentedControl
-          :model-value="style"
-          :options="styleOptions"
-          @update:model-value="style = $event as BadgeStyle"
-        />
-      </div>
-
-      <div v-if="style !== 'none'" class="field">
-        <span>Color</span>
-        <div class="color-row">
-          <input v-model="color" type="color" class="color-input" />
-          <input v-model="color" type="text" class="color-text" maxlength="7" />
+      <SettingsRow
+        label="100% mark on covers"
+        hint="Pick any mix. Shown on games where every achievement is unlocked."
+        stack
+      >
+        <div class="marks">
+          <button
+            v-for="m in MARKS"
+            :key="m.id"
+            type="button"
+            class="mark"
+            :class="{ on: has(m.id) }"
+            :aria-pressed="has(m.id)"
+            :title="m.hint"
+            @click="toggleMark(m.id)"
+          >
+            {{ m.label }}
+          </button>
         </div>
-      </div>
-
-      <div v-if="usesPlacement" class="field">
-        <span>Placement</span>
-        <SegmentedControl
-          :model-value="placement"
-          :options="placementOptions"
-          @update:model-value="placement = $event as BadgePlacement"
-        />
-      </div>
-
-      <div v-if="usesImage" class="field">
-        <span>Custom badge image</span>
-        <p class="field-sublabel">
-          Replaces the default trophy icon. Use a small square or round image.
-        </p>
+      </SettingsRow>
+      <SettingsRow label="Preview" hint="Hover it to see the Foil sheen">
+        <div class="mk-preview" :style="previewVars">
+          <div class="game-card-wrap">
+            <div class="game-card">
+              <div class="cover">
+                <span class="cover-art" aria-hidden="true"></span>
+                <CoverMarks
+                  :marks="activeMarks"
+                  :entry="previewEntry"
+                  :image-url="imageUrl"
+                />
+              </div>
+            </div>
+            <div class="card-info">
+              <b class="p-title" :class="{ 'gold-t': has('gold_title') }"
+                >Your 100% game</b
+              >
+              <span v-if="has('caption')" class="tro"><TrophyIcon />100%</span>
+              <span v-else-if="has('gold_title')" class="tro"
+                ><TrophyIcon />66 / 66</span
+              >
+              <span v-else class="plain">Mastered</span>
+            </div>
+          </div>
+        </div>
+      </SettingsRow>
+      <SettingsRow
+        v-if="activeMarks.size"
+        label="Colour"
+        hint="The gold the marks are drawn in"
+      >
+        <div class="color-row">
+          <input
+            :value="color"
+            type="color"
+            class="color-input"
+            aria-label="Mark colour"
+            @input="setBadgeColor(($event.target as HTMLInputElement).value)"
+          />
+          <input
+            :value="color"
+            type="text"
+            class="color-text"
+            maxlength="7"
+            aria-label="Mark colour hex value"
+            @change="setBadgeColor(($event.target as HTMLInputElement).value)"
+          />
+          <button
+            v-if="color.toLowerCase() !== '#d4af37'"
+            type="button"
+            class="st-btn reset"
+            @click="setBadgeColor('#d4af37')"
+          >
+            Reset
+          </button>
+        </div>
+      </SettingsRow>
+      <SettingsRow
+        v-if="has('seal')"
+        label="Seal picture"
+        hint="Replaces the trophy in the Seal. Use a small square or round image."
+      >
         <div class="image-row">
           <div
             class="image-preview"
             :style="imageUrl ? { backgroundImage: `url(${imageUrl})` } : {}"
           >
-            <svg
-              v-if="!imageUrl"
-              viewBox="0 0 24 24"
-              width="18"
-              height="18"
-              fill="currentColor"
-            >
-              <path
-                d="M12 2l2.4 6.6L21 9l-5 4.6L17.4 21 12 17.3 6.6 21 8 13.6 3 9l6.6-.4z"
-              />
-            </svg>
+            <TrophyIcon v-if="!imageUrl" />
           </div>
-          <label class="secondary-button upload-label">
+          <label class="st-btn upload-label">
             {{ uploading ? "Uploading…" : "Upload image" }}
             <input
               type="file"
@@ -298,69 +366,124 @@ async function removeImage() {
           <button
             v-if="imageUrl"
             type="button"
-            class="secondary-button"
+            class="st-btn"
             :disabled="uploading"
             @click="removeImage"
           >
             Remove
           </button>
         </div>
-      </div>
-
-      <div v-if="style !== 'none'" class="field">
-        <span>Preview</span>
-        <div class="preview-row">
-          <div
-            class="preview-card"
-            :class="[`badge-${style}`]"
-            :style="{ '--badge-color': color }"
-          >
-            <div class="preview-cover">
-              <div
-                v-if="usesPlacement"
-                class="preview-badge"
-                :class="[style, placement]"
-              >
-                <img
-                  v-if="imageUrl"
-                  :src="imageUrl"
-                  alt=""
-                  class="preview-badge-image"
-                />
-                <svg
-                  v-else
-                  viewBox="0 0 24 24"
-                  width="14"
-                  height="14"
-                  fill="currentColor"
-                >
-                  <path
-                    d="M12 2l2.4 6.6L21 9l-5 4.6L17.4 21 12 17.3 6.6 21 8 13.6 3 9l6.6-.4z"
-                  />
-                </svg>
-              </div>
-            </div>
-            <div class="preview-title">Mastered game</div>
-          </div>
-        </div>
-      </div>
-
-      <div v-if="error" class="form-error">{{ error }}</div>
-      <div v-if="saveSuccess" class="form-success">Saved</div>
-
-      <button
-        type="button"
-        class="primary-button"
-        :disabled="saving"
-        @click="save"
+      </SettingsRow>
+      <SettingsRow
+        label="Pop-up when a game hits 100%"
+        hint="Also adds a line to the bell"
       >
-        {{ saving ? "Saving…" : "Save" }}
-      </button>
+        <SettingsSwitch
+          :model-value="preferences.notify_game_complete"
+          label="Pop-up when a game hits 100%"
+          @update:model-value="savePrefs({ notify_game_complete: $event })"
+        />
+      </SettingsRow>
+      <p v-if="error" class="st-error">{{ error }}</p>
     </template>
-  </section>
+  </SettingsCard>
 </template>
 
 <style scoped>
+/* 100% marks: chips you can mix, and a cover that shows the mix */
+.marks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.mark {
+  border: 1px solid var(--ui-border);
+  border-radius: 999px;
+  padding: 5px 12px;
+  background: transparent;
+  color: var(--ui-text-soft);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.mark:hover {
+  border-color: var(--ui-border-strong);
+  color: var(--ui-heading);
+}
+.mark.on {
+  border-color: var(--ui-accent-line);
+  background: color-mix(in srgb, var(--ui-accent) 14%, transparent);
+  color: var(--ui-accent-bright);
+}
+.mk-preview {
+  width: 150px;
+}
+.mk-preview .game-card {
+  position: relative;
+  border-radius: 10px;
+  transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.mk-preview .game-card:hover {
+  transform: translateY(-3px);
+}
+.mk-preview .cover {
+  position: relative;
+  aspect-ratio: 2 / 3;
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--ui-surface-2);
+}
+.cover-art {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(
+      circle at 30% 25%,
+      color-mix(in srgb, var(--ui-accent) 45%, transparent),
+      transparent 55%
+    ),
+    linear-gradient(160deg, #2a3446, #121722 70%);
+}
+.mk-preview .card-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 8px;
+  min-width: 0;
+}
+.p-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--ui-text);
+}
+.p-title.gold-t {
+  color: var(--mk-hi);
+}
+.plain {
+  font-size: 0.7rem;
+  color: var(--ui-faint);
+}
+.tro {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.7rem;
+  font-variant-numeric: tabular-nums;
+}
+.tro {
+  color: var(--mk);
+  font-weight: 600;
+}
+.image-preview :deep(svg) {
+  width: 16px;
+  height: 16px;
+  color: var(--mk-hi, #f1cd6a);
+}
+
+.color-row .reset {
+  padding: 6px 10px;
+}
 .settings-section h2 {
   margin: 0 0 8px;
   padding-left: 12px;
@@ -391,8 +514,10 @@ async function removeImage() {
 }
 .color-row {
   display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   align-items: center;
-  gap: 10px;
+  gap: 6px 8px;
 }
 .color-input {
   width: 40px;
@@ -440,67 +565,6 @@ async function removeImage() {
 }
 .preview-row {
   display: flex;
-}
-.preview-card {
-  width: 140px;
-  border-radius: 10px;
-  padding: 6px;
-  background: var(--ui-bg-2);
-}
-.preview-cover {
-  position: relative;
-  aspect-ratio: 2 / 3;
-  border-radius: 6px;
-  background: linear-gradient(135deg, var(--ui-border), var(--ui-surface));
-  margin-bottom: 6px;
-}
-.preview-title {
-  color: var(--ui-text-soft);
-  font-size: 0.72rem;
-  text-align: center;
-}
-.preview-card.badge-glow {
-  box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--badge-color) 55%, transparent),
-    0 0 22px 2px color-mix(in srgb, var(--badge-color) 45%, transparent);
-}
-.preview-card.badge-border {
-  box-shadow: 0 0 0 2px var(--badge-color);
-}
-.preview-badge {
-  position: absolute;
-  width: 22px;
-  height: 22px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--badge-color);
-}
-.preview-badge.top-left {
-  top: 6px;
-  left: 6px;
-}
-.preview-badge.top-right {
-  top: 6px;
-  right: 6px;
-}
-.preview-badge.bottom-left {
-  bottom: 6px;
-  left: 6px;
-}
-.preview-badge.bottom-right {
-  bottom: 6px;
-  right: 6px;
-}
-.preview-badge.corner_badge {
-  background: rgba(20, 20, 20, 0.55);
-  border-radius: 50%;
-  border: 1px solid color-mix(in srgb, var(--badge-color) 60%, transparent);
-}
-.preview-badge-image {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
 }
 .form-error {
   color: var(--ui-error-text);
@@ -583,14 +647,16 @@ async function removeImage() {
   gap: 8px;
 }
 .swatch {
-  width: 26px;
-  height: 26px;
-  border: 2px solid transparent;
-  border-radius: 50%;
+  width: 30px;
+  height: 30px;
+  border: 1px solid #3a3a3a;
+  border-radius: 7px;
   cursor: pointer;
+  padding: 0;
 }
 .swatch.on {
-  border-color: var(--ui-text);
+  outline: 2px solid var(--ui-text);
+  outline-offset: 1px;
 }
 .reset,
 .reset-all {

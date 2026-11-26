@@ -140,6 +140,7 @@ import BackButton from "../components/BackButton.vue";
 import GameTopBar from "../components/GameTopBar.vue";
 import HeartIcon from "../components/HeartIcon.vue";
 import SegmentedTabs from "../components/SegmentedTabs.vue";
+import CompletionCard from "../components/CompletionCard.vue";
 import type { SegmentOption } from "../components/SegmentedTabs.vue";
 import {
   isUnlocked,
@@ -2651,6 +2652,7 @@ void loadGame(route.params.id as string);
               v-if="game.achievementTotal > 0 && achievementsOn"
               type="button"
               class="badge achievement-progress-badge"
+              :class="{ gold: game.achievementPercent === 100 }"
               title="Jump to Achievements"
               @click="activeTab = 'Achievements'"
             >
@@ -3174,6 +3176,15 @@ void loadGame(route.params.id as string);
           <span class="ach-hint">Only you can see this</span>
         </div>
       </div>
+
+      <CompletionCard
+        v-if="
+          game.achievements.length > 0 &&
+          unlockedCount === game.achievements.length
+        "
+        :game="game"
+        :banner="sizedAssetUrl(game.bannerImageUrl, HERO_WIDTH)"
+      />
 
       <div v-if="achStats.length" class="ach-stats">
         <span v-for="st in achStats" :key="st.label"
@@ -4371,6 +4382,16 @@ void loadGame(route.params.id as string);
 .achievement-progress-badge:hover {
   background: color-mix(in srgb, var(--ui-accent) 22%, transparent);
   color: var(--ui-accent);
+}
+/* every achievement unlocked */
+.achievement-progress-badge.gold {
+  background: rgba(232, 182, 76, 0.14);
+  border-color: rgba(241, 205, 106, 0.45);
+  color: #f1cd6a;
+}
+.achievement-progress-badge.gold:hover {
+  background: rgba(232, 182, 76, 0.24);
+  color: #f1cd6a;
 }
 .meta {
   text-transform: capitalize;

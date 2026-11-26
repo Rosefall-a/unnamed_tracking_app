@@ -345,291 +345,272 @@ function setMode(next: Mode) {
 </script>
 
 <template>
-  <section class="settings-section">
-    <h2>Backups</h2>
-    <p class="section-hint">
-      The whole database is saved to one file: every account, library, note,
-      achievement, setting and link. Covers, screenshots and saves are not
-      inside it; they can be copied with it, below. A backup is opened and
-      checked after it is written before anything older is removed, and only an
-      admin can delete backups, here.
+  <div v-if="error" class="form-error">{{ error }}</div>
+  <section v-if="overview" class="settings-section">
+    <div class="tile-head">
+      <h2>Backups</h2>
+      <span class="status-badge" :class="{ on: overview.enabled }">
+        {{
+          overview.running
+            ? "Running now"
+            : mode === "off"
+              ? "Off"
+              : mode === "together"
+                ? "Together"
+                : "Own timer"
+        }}
+      </span>
+    </div>
+    <div class="controls">
+      <label class="inline">
+        Runs
+        <select
+          :value="mode"
+          class="unit"
+          aria-label="How backups run"
+          @change="setMode(($event.target as HTMLSelectElement).value as Mode)"
+        >
+          <option value="off">Off</option>
+          <option value="timer">On its own timer</option>
+          <option value="together">
+            Last, with the other tasks{{
+              togetherTime ? ` (${togetherTime})` : ""
+            }}
+          </option>
+        </select>
+      </label>
+      <label v-if="mode === 'timer'" class="inline">
+        every
+        <input
+          v-model.number="draft.amount"
+          type="number"
+          min="1"
+          class="num"
+          :disabled="!overview.enabled"
+          aria-label="How often backups run"
+          @change="saveInterval"
+        />
+        <select
+          :value="draft.unit"
+          class="unit"
+          :disabled="!overview.enabled"
+          aria-label="Unit of time"
+          @change="
+            changeUnit(($event.target as HTMLSelectElement).value as Unit)
+          "
+        >
+          <option value="hours">
+            {{ draft.amount === 1 ? "hour" : "hours" }}
+          </option>
+          <option value="days">
+            {{ draft.amount === 1 ? "day" : "days" }}
+          </option>
+        </select>
+      </label>
+      <label class="inline">
+        Keep
+        <input
+          v-model.number="draft.keep"
+          type="number"
+          min="0"
+          :max="overview.maxKeep"
+          class="num"
+          aria-label="Backups kept"
+          @change="saveKeep"
+        />
+        {{ backupWord(draft.keep) }}
+      </label>
+      <button
+        type="button"
+        class="secondary-button"
+        :disabled="overview.running"
+        @click="runNow"
+      >
+        {{ overview.running ? "Backing up…" : "Back up now" }}
+      </button>
+    </div>
+    <p class="tile-desc">
+      <template v-if="overview.keep > 0">
+        After a new backup passes its check, anything past the newest
+        {{ overview.keep }} is removed.
+      </template>
+      <template v-else
+        >Keep 0: every backup is kept until deleted here.</template
+      >
+      Saved in {{ overview.folder }} on the server.
     </p>
-
-    <div v-if="error" class="form-error">{{ error }}</div>
-
-    <div v-if="overview" class="tile">
-      <div class="tile-head">
-        <h3>Schedule</h3>
-        <span class="status-badge" :class="{ on: overview.enabled }">
-          {{
-            overview.running
-              ? "Running now"
-              : mode === "off"
-                ? "Off"
-                : mode === "together"
-                  ? "Together"
-                  : "Own timer"
-          }}
+    <p v-if="storage?.backups && !storage.backups.mounted" class="form-error">
+      Backups are only inside the container, so removing or rebuilding it loses
+      them. Mount a folder at /data/backups (BACKUP_FOLDER in .env).
+    </p>
+    <p v-else-if="storage?.sameDrive" class="warning">
+      Backups are on {{ storage.backups?.label }}, the same drive as the data
+      they protect, so a failed drive loses both. To keep them on another drive,
+      set BACKUP_FOLDER in .env (for example D:/ArchiveBackups) and run
+      <code>docker compose up -d</code>.
+    </p>
+    <p v-else-if="storage?.sameDrive === false" class="tile-desc">
+      Backups are on {{ storage.backups?.label }}, a different drive from the
+      data on {{ storage.data?.label }}.
+    </p>
+    <p class="last-run">
+      Last run: {{ formatTime(overview.lastRunAt) }}
+      <template v-if="lastSummary"> · {{ lastSummary }}</template>
+    </p>
+    <p v-if="failedReason" class="form-error">
+      The last backup failed: {{ failedReason }}. Nothing older was removed.
+      <template v-if="overview.enabled">
+        Automatic backups try again an hour after a failure.
+      </template>
+    </p>
+    <p v-if="filesFailed" class="warning">
+      The database was backed up, but the copy of files failed:
+      {{ filesFailed }}.
+    </p>
+    <p v-if="held" class="warning">
+      Old backups were kept: {{ held }}. Check the libraries before deleting
+      anything.
+    </p>
+  </section>
+  <section v-if="overview" class="settings-section">
+    <h2>Covers and files</h2>
+    <p class="tile-desc">
+      Covers, screenshots, clips, saves and uploads are not in the database
+      backup. Turned on, each backup also gets a copy of them, about as big as
+      the files themselves. Downloaded copies the app fetches again by itself,
+      and the trash, are left out.
+    </p>
+    <div class="controls">
+      <label class="inline">
+        <input
+          type="checkbox"
+          :checked="overview.includeFiles"
+          @change="
+            save({
+              includeFiles: ($event.target as HTMLInputElement).checked,
+            })
+          "
+        />
+        Also copy files with each backup
+      </label>
+      <label class="inline">
+        Keep files with the newest
+        <input
+          v-model.number="filesKeepDraft"
+          type="number"
+          min="1"
+          :max="overview.maxFilesKeep"
+          class="num"
+          :disabled="!overview.includeFiles"
+          aria-label="Backups that keep their files"
+          @change="saveFilesKeep"
+        />
+        {{ backupWord(filesKeepDraft) }}
+      </label>
+    </div>
+    <p class="tile-desc restore">
+      To put files back, stop the app and run
+      <code>tar -xf database-&lt;time&gt;.files.tar -C data</code>
+      in the folder that holds data.
+    </p>
+  </section>
+  <section v-if="overview" class="settings-section">
+    <h2>Saved backups</h2>
+    <p v-if="!overview.backups.length" class="tile-desc">No backups yet.</p>
+    <ul v-else class="backup-list">
+      <li v-for="b in overview.backups" :key="b.name" class="backup-row">
+        <span class="backup-when">{{ formatTime(b.createdAt) }}</span>
+        <span class="backup-meta">
+          {{ formatBytes(b.size) }}
+          <template v-if="b.items !== null"> · {{ b.items }} titles</template>
+          <template v-if="b.tables !== null"> · {{ b.tables }} tables</template>
+          <template v-if="b.files">
+            · files {{ formatBytes(b.files.size) }}</template
+          >
         </span>
-      </div>
-      <div class="controls">
-        <label class="inline">
-          Runs
-          <select
-            :value="mode"
-            class="unit"
-            aria-label="How backups run"
-            @change="
-              setMode(($event.target as HTMLSelectElement).value as Mode)
-            "
-          >
-            <option value="off">Off</option>
-            <option value="timer">On its own timer</option>
-            <option value="together">
-              Last, with the other tasks{{
-                togetherTime ? ` (${togetherTime})` : ""
-              }}
-            </option>
-          </select>
-        </label>
-        <label v-if="mode === 'timer'" class="inline">
-          every
-          <input
-            v-model.number="draft.amount"
-            type="number"
-            min="1"
-            class="num"
-            :disabled="!overview.enabled"
-            aria-label="How often backups run"
-            @change="saveInterval"
-          />
-          <select
-            :value="draft.unit"
-            class="unit"
-            :disabled="!overview.enabled"
-            aria-label="Unit of time"
-            @change="
-              changeUnit(($event.target as HTMLSelectElement).value as Unit)
-            "
-          >
-            <option value="hours">
-              {{ draft.amount === 1 ? "hour" : "hours" }}
-            </option>
-            <option value="days">
-              {{ draft.amount === 1 ? "day" : "days" }}
-            </option>
-          </select>
-        </label>
-        <label class="inline">
-          Keep
-          <input
-            v-model.number="draft.keep"
-            type="number"
-            min="0"
-            :max="overview.maxKeep"
-            class="num"
-            aria-label="Backups kept"
-            @change="saveKeep"
-          />
-          {{ backupWord(draft.keep) }}
-        </label>
+        <a
+          v-if="b.files"
+          class="secondary-button small"
+          :href="backupFilesDownloadUrl(b.name)"
+          download
+        >
+          Files
+        </a>
+        <a
+          class="secondary-button small"
+          :href="backupDownloadUrl(b.name)"
+          download
+        >
+          Download
+        </a>
         <button
           type="button"
-          class="secondary-button"
-          :disabled="overview.running"
-          @click="runNow"
+          class="danger-button small"
+          :disabled="busy === `database/${b.name}`"
+          @click="removeBackup(b)"
         >
-          {{ overview.running ? "Backing up…" : "Back up now" }}
+          Delete
         </button>
-      </div>
-      <p class="tile-desc">
-        <template v-if="overview.keep > 0">
-          After a new backup passes its check, anything past the newest
-          {{ overview.keep }} is removed.
-        </template>
-        <template v-else
-          >Keep 0: every backup is kept until deleted here.</template
-        >
-        Saved in {{ overview.folder }} on the server.
-      </p>
-      <p v-if="storage?.backups && !storage.backups.mounted" class="form-error">
-        Backups are only inside the container, so removing or rebuilding it
-        loses them. Mount a folder at /data/backups (BACKUP_FOLDER in .env).
-      </p>
-      <p v-else-if="storage?.sameDrive" class="warning">
-        Backups are on {{ storage.backups?.label }}, the same drive as the data
-        they protect, so a failed drive loses both. To keep them on another
-        drive, set BACKUP_FOLDER in .env (for example D:/ArchiveBackups) and run
-        <code>docker compose up -d</code>.
-      </p>
-      <p v-else-if="storage?.sameDrive === false" class="tile-desc">
-        Backups are on {{ storage.backups?.label }}, a different drive from the
-        data on {{ storage.data?.label }}.
-      </p>
-      <p class="last-run">
-        Last run: {{ formatTime(overview.lastRunAt) }}
-        <template v-if="lastSummary"> · {{ lastSummary }}</template>
-      </p>
-      <p v-if="failedReason" class="form-error">
-        The last backup failed: {{ failedReason }}. Nothing older was removed.
-        <template v-if="overview.enabled">
-          Automatic backups try again an hour after a failure.
-        </template>
-      </p>
-      <p v-if="filesFailed" class="warning">
-        The database was backed up, but the copy of files failed:
-        {{ filesFailed }}.
-      </p>
-      <p v-if="held" class="warning">
-        Old backups were kept: {{ held }}. Check the libraries before deleting
-        anything.
-      </p>
-    </div>
-
-    <div v-if="overview" class="tile">
-      <h3>Covers and files</h3>
-      <p class="tile-desc">
-        Covers, screenshots, clips, saves and uploads are not in the database
-        backup. Turned on, each backup also gets a copy of them, about as big as
-        the files themselves. Downloaded copies the app fetches again by itself,
-        and the trash, are left out.
-      </p>
-      <div class="controls">
-        <label class="inline">
-          <input
-            type="checkbox"
-            :checked="overview.includeFiles"
-            @change="
-              save({
-                includeFiles: ($event.target as HTMLInputElement).checked,
-              })
-            "
-          />
-          Also copy files with each backup
-        </label>
-        <label class="inline">
-          Keep files with the newest
-          <input
-            v-model.number="filesKeepDraft"
-            type="number"
-            min="1"
-            :max="overview.maxFilesKeep"
-            class="num"
-            :disabled="!overview.includeFiles"
-            aria-label="Backups that keep their files"
-            @change="saveFilesKeep"
-          />
-          {{ backupWord(filesKeepDraft) }}
-        </label>
-      </div>
-      <p class="tile-desc restore">
-        To put files back, stop the app and run
-        <code>tar -xf database-&lt;time&gt;.files.tar -C data</code>
-        in the folder that holds data.
-      </p>
-    </div>
-
-    <div v-if="overview" class="tile">
-      <h3>Saved backups</h3>
-      <p v-if="!overview.backups.length" class="tile-desc">No backups yet.</p>
-      <ul v-else class="backup-list">
-        <li v-for="b in overview.backups" :key="b.name" class="backup-row">
-          <span class="backup-when">{{ formatTime(b.createdAt) }}</span>
-          <span class="backup-meta">
-            {{ formatBytes(b.size) }}
-            <template v-if="b.items !== null"> · {{ b.items }} titles</template>
-            <template v-if="b.tables !== null">
-              · {{ b.tables }} tables</template
-            >
-            <template v-if="b.files">
-              · files {{ formatBytes(b.files.size) }}</template
-            >
-          </span>
-          <a
-            v-if="b.files"
-            class="secondary-button small"
-            :href="backupFilesDownloadUrl(b.name)"
-            download
-          >
-            Files
-          </a>
-          <a
-            class="secondary-button small"
-            :href="backupDownloadUrl(b.name)"
-            download
-          >
-            Download
-          </a>
-          <button
-            type="button"
-            class="danger-button small"
-            :disabled="busy === `database/${b.name}`"
-            @click="removeBackup(b)"
-          >
-            Delete
-          </button>
-        </li>
-      </ul>
-      <p class="tile-desc restore">
-        To restore one, stop the backend and run
-        <code
-          >docker exec -i &lt;db container&gt; pg_restore --clean --if-exists -U
-          &lt;user&gt; -d &lt;database&gt; &lt; backup.dump</code
-        >
-      </p>
-    </div>
-
-    <div class="tile">
-      <h3>Leftover files</h3>
-      <p class="tile-desc">
-        Files nothing in the app points at any more: games that were emptied
-        from the trash before the cleanup knew where to look, files of deleted
-        accounts, and the older per-account backups made before whole-database
-        backups. They are only removed from here.
-      </p>
-      <p v-if="leftoversError" class="form-error">{{ leftoversError }}</p>
-      <p v-else-if="leftovers === null" class="tile-desc">
-        Checking for leftover files…
-      </p>
-      <p v-else-if="!leftovers.length" class="tile-desc">Nothing left over.</p>
-      <div
-        v-if="leftoverGroups.some((g) => g.count > 1)"
-        class="controls leftover-groups"
+      </li>
+    </ul>
+    <p class="tile-desc restore">
+      To restore one, stop the backend and run
+      <code
+        >docker exec -i &lt;db container&gt; pg_restore --clean --if-exists -U
+        &lt;user&gt; -d &lt;database&gt; &lt; backup.dump</code
       >
-        <template v-for="g in leftoverGroups" :key="g.kind">
-          <button
-            v-if="g.count > 1"
-            type="button"
-            class="danger-button small"
-            :disabled="busy === `kind/${g.kind}`"
-            @click="removeLeftoverKind(g)"
-          >
-            Delete all {{ g.count }} {{ g.name }}
-          </button>
-        </template>
-      </div>
-      <ul v-else class="backup-list">
-        <li
-          v-for="item in leftovers"
-          :key="item.kind + item.name"
-          class="backup-row"
+    </p>
+  </section>
+  <section class="settings-section">
+    <h2>Leftover files</h2>
+    <p class="tile-desc">
+      Files nothing in the app points at any more: games that were emptied from
+      the trash before the cleanup knew where to look, files of deleted
+      accounts, and the older per-account backups made before whole-database
+      backups. They are only removed from here.
+    </p>
+    <p v-if="leftoversError" class="form-error">{{ leftoversError }}</p>
+    <p v-else-if="leftovers === null" class="tile-desc">
+      Checking for leftover files…
+    </p>
+    <p v-else-if="!leftovers.length" class="tile-desc">Nothing left over.</p>
+    <div
+      v-if="leftoverGroups.some((g) => g.count > 1)"
+      class="controls leftover-groups"
+    >
+      <template v-for="g in leftoverGroups" :key="g.kind">
+        <button
+          v-if="g.count > 1"
+          type="button"
+          class="danger-button small"
+          :disabled="busy === `kind/${g.kind}`"
+          @click="removeLeftoverKind(g)"
         >
-          <span class="backup-when">{{ item.label }}</span>
-          <span class="backup-meta">
-            {{ item.name }} · {{ formatBytes(item.bytes) }} · last changed
-            {{ formatTime(item.modifiedAt) }}
-          </span>
-          <button
-            type="button"
-            class="danger-button small"
-            :disabled="busy === `${item.kind}/${item.name}`"
-            @click="removeLeftover(item)"
-          >
-            Delete
-          </button>
-        </li>
-      </ul>
+          Delete all {{ g.count }} {{ g.name }}
+        </button>
+      </template>
     </div>
+    <ul v-else class="backup-list">
+      <li
+        v-for="item in leftovers"
+        :key="item.kind + item.name"
+        class="backup-row"
+      >
+        <span class="backup-when">{{ item.label }}</span>
+        <span class="backup-meta">
+          {{ item.name }} · {{ formatBytes(item.bytes) }} · last changed
+          {{ formatTime(item.modifiedAt) }}
+        </span>
+        <button
+          type="button"
+          class="danger-button small"
+          :disabled="busy === `${item.kind}/${item.name}`"
+          @click="removeLeftover(item)"
+        >
+          Delete
+        </button>
+      </li>
+    </ul>
   </section>
 </template>
 

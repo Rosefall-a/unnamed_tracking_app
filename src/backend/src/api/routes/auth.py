@@ -12,9 +12,9 @@ from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.api.routes.users import profile_picture_version
 from src.core.auth import (
     SESSION_TTL_SECONDS,
-    session_cookie_name,
     create_api_key,
     get_current_admin,
     get_current_user,
@@ -22,16 +22,16 @@ from src.core.auth import (
     hash_token,
     password_policy,
     revoke_session,
+    session_cookie_name,
     set_password_policy_override,
     validate_password,
     verify_password,
 )
 from src.core.config import settings
-from src.api.routes.users import profile_picture_version
 from src.core.crypto import encrypt_secret
+from src.database.models.app_integration_settings import AppIntegrationSettings
 from src.database.models.auth import UserApiKey, UserSession
 from src.database.models.user import User
-from src.database.models.app_integration_settings import AppIntegrationSettings
 from src.database.session import get_db
 from src.features.backup import snapshot
 from src.features.metadata.games.psn import PSNClient, PSNError
@@ -170,6 +170,8 @@ async def login(
             user_id=user.id,
             token_hash=hash_token(session_token),
             expires_at=int(time.time()) + SESSION_TTL_SECONDS,
+            user_agent=(request.headers.get("user-agent") or "")[:300] or None,
+            last_seen_at=int(time.time()),
         )
     )
     await db.commit()
@@ -496,3 +498,70 @@ async def delete_user(
             dest.parent.mkdir(parents=True, exist_ok=True)
             shutil.move(str(folder), str(dest))
     return {"status": "deleted", "user_id": str(user_id)}
+
+
+
+@router.get("/sessions")
+async def list_my_sessions(
+    request: Request,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[dict[str, str | int | bool | None]]:
+    """The browsers and apps signed in as you, newest activity first. The
+    token itself never leaves the server; only which one is this browser."""
+    now = int(time.time())
+    current = request.cookies.get(session_cookie_name(request.headers.get("host", "")))
+    current_hash = hash_token(current) if current else None
+    rows = await db.scalars(
+        select(UserSession).where(UserSession.user_id == user.id, UserSession.expires_at > now)
+    )
+    out = [
+        {
+            "id": str(row.id),
+            "user_agent": row.user_agent,
+            "created_at": row.created_at,
+            "last_seen_at": row.last_seen_at,
+            "current": row.token_hash == current_hash,
+        }
+        for row in rows
+    ]
+    out.sort(key=lambda r: (not r["current"], -int(r["last_seen_at"] or r["created_at"] or 0)))
+    return out
+
+
+@router.delete("/sessions/{session_id}")
+async def sign_out_session(
+    session_id: UUID,
+    request: Request,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, str]:
+    row = await db.scalar(
+        select(UserSession).where(UserSession.id == session_id, UserSession.user_id == user.id)
+    )
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not signed in there.")
+    current = request.cookies.get(session_cookie_name(request.headers.get("host", "")))
+    if current and row.token_hash == hash_token(current):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Use Log Out to sign out of this browser.",
+        )
+    await db.delete(row)
+    await db.commit()
+    return {"status": "signed_out"}
+
+
+@router.post("/sessions/sign-out-others")
+async def sign_out_other_sessions(
+    request: Request,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, int]:
+    current = request.cookies.get(session_cookie_name(request.headers.get("host", "")))
+    stmt = delete(UserSession).where(UserSession.user_id == user.id)
+    if current:
+        stmt = stmt.where(UserSession.token_hash != hash_token(current))
+    result = await db.execute(stmt)
+    await db.commit()
+    return {"signed_out": int(result.rowcount or 0)}

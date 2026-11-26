@@ -33,6 +33,7 @@ async def list_user_api_keys(
             "scopes": api_key.scopes,
             "created_at": api_key.created_at,
             "revoked_at": api_key.revoked_at,
+            "last_used_at": api_key.last_used_at,
         }
         for api_key in keys
     ]

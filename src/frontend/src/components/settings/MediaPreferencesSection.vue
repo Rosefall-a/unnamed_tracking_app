@@ -2,8 +2,10 @@
 // Defaults for the Movies, TV and Anime libraries, Lists and Statistics.
 // Saved on the server as they are changed.
 import { ref, onMounted } from "vue";
+import SettingsCard from "./SettingsCard.vue";
+import SettingsRow from "./SettingsRow.vue";
+import SettingsSwitch from "./SettingsSwitch.vue";
 import SegmentedControl from "./SegmentedControl.vue";
-import ToggleButton from "./ToggleButton.vue";
 import {
   DEFAULT_PREFERENCES,
   fetchPreferences,
@@ -93,16 +95,15 @@ const listSortOptions = [
 </script>
 
 <template>
-  <section class="settings-section">
-    <h2>Media preferences</h2>
-    <p class="section-hint">
-      Defaults for movies, TV shows, anime, lists and statistics.
+  <SettingsCard title="Movies, TV and anime">
+    <template #actions>
       <span v-if="savedNote" class="saved">{{ savedNote }}</span>
-    </p>
-    <p v-if="error" class="error">{{ error }}</p>
-
-    <div class="field">
-      <span>Library layout</span>
+    </template>
+    <p v-if="error" class="st-error">{{ error }}</p>
+    <SettingsRow
+      label="Layout"
+      hint="Until a layout is picked on a library page"
+    >
       <SegmentedControl
         :model-value="prefs.library_default_layout"
         :options="layoutOptions"
@@ -113,37 +114,35 @@ const listSortOptions = [
           })
         "
       />
-      <small>Applies until a layout is chosen on a library page.</small>
-    </div>
-    <div class="field">
-      <span>Anime names</span>
-      <SegmentedControl
-        :model-value="prefs.title_language"
-        :options="titleLanguageOptions"
-        @update:model-value="
-          change({
-            title_language: $event as Preferences['title_language'],
-          })
-        "
-      />
-      <small
-        >Chooses which title spelling is the main name, for example ERASED or
-        Boku dake ga Inai Machi. Other spellings appear under the name. If a
-        spelling is missing, the next available one is used. Anime added earlier
-        need Look up titles once.</small
-      >
-      <button
-        type="button"
-        class="ui-btn ui-btn-secondary ui-btn-sm"
-        :disabled="fillingTitles"
-        @click="lookUpTitles"
-      >
-        {{ fillingTitles ? "Looking up…" : "Look up titles" }}
-      </button>
-      <small v-if="titlesNote">{{ titlesNote }}</small>
-    </div>
-    <div class="field">
-      <span>Default collection sort</span>
+    </SettingsRow>
+    <SettingsRow label="Anime names" stack>
+      <template #hint>
+        Which spelling is the main name, for example ERASED or Boku dake ga Inai
+        Machi. Others show under it. Anime added earlier need Look up titles
+        once.
+      </template>
+      <div class="names">
+        <SegmentedControl
+          :model-value="prefs.title_language"
+          :options="titleLanguageOptions"
+          @update:model-value="
+            change({
+              title_language: $event as Preferences['title_language'],
+            })
+          "
+        />
+        <button
+          type="button"
+          class="st-btn"
+          :disabled="fillingTitles"
+          @click="lookUpTitles"
+        >
+          {{ fillingTitles ? "Looking up…" : "Look up titles" }}
+        </button>
+        <span v-if="titlesNote" class="st-muted">{{ titlesNote }}</span>
+      </div>
+    </SettingsRow>
+    <SettingsRow label="Collection sort">
       <SegmentedControl
         :model-value="prefs.lists_default_sort"
         :options="listSortOptions"
@@ -153,21 +152,32 @@ const listSortOptions = [
           })
         "
       />
-    </div>
-    <ToggleButton
-      :model-value="prefs.stats_include_plan"
+    </SettingsRow>
+    <SettingsRow
       label="Count Plan to Watch in Statistics"
-      :disabled="!loaded"
-      @update:model-value="change({ stats_include_plan: $event })"
+      hint="Adds Plan to Watch to totals, genre and score charts. Watch time only counts watched episodes."
     >
-      <strong>Count Plan to Watch in Statistics</strong>: includes Plan to Watch
-      titles in totals, genre charts and score charts. Watch time counts only
-      watched episodes.
-    </ToggleButton>
-  </section>
+      <SettingsSwitch
+        :model-value="prefs.stats_include_plan"
+        label="Count Plan to Watch in Statistics"
+        :disabled="!loaded"
+        @update:model-value="change({ stats_include_plan: $event })"
+      />
+    </SettingsRow>
+  </SettingsCard>
 </template>
 
 <style scoped>
+.names {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+}
+.saved {
+  color: var(--ui-good-text);
+  font-size: 12.5px;
+}
 .settings-section h2 {
   margin: 0 0 8px;
   padding-left: 12px;

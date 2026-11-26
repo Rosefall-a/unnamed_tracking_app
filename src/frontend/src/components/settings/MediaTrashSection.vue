@@ -27,10 +27,28 @@ import {
   emptyAnimeTrash,
 } from "../../services/anime";
 import type { TrashedAnime } from "../../services/anime";
+import { fetchGameTrash, restoreGame } from "../../services/gameTrash";
+import type { TrashedGame } from "../../services/gameTrash";
+import SegmentedControl from "./SegmentedControl.vue";
+import SettingsRow from "./SettingsRow.vue";
 
 const movieTrash = ref<TrashedMovie[]>([]);
 const tvTrash = ref<TrashedTVShow[]>([]);
 const animeTrash = ref<TrashedAnime[]>([]);
+// games have their own trash on the server, kept for a fixed 7 days; they are
+// listed here too so everything deleted is in one place
+const gameTrash = ref<TrashedGame[]>([]);
+const gameError = ref<string | null>(null);
+const restoringGameId = ref<string | null>(null);
+type Filter = "all" | "game" | Kind;
+const filter = ref<Filter>("all");
+const FILTERS = [
+  { value: "all", label: "All" },
+  { value: "game", label: "Games" },
+  { value: "movie", label: "Movies" },
+  { value: "tv", label: "TV" },
+  { value: "anime", label: "Anime" },
+];
 const loading = ref(false);
 // the list stays on screen while it reloads after a restore or delete
 const loadedOnce = ref(false);
@@ -79,9 +97,47 @@ const groups = computed<
   ];
 });
 
+async function loadGames() {
+  gameError.value = null;
+  try {
+    gameTrash.value = await fetchGameTrash();
+  } catch (e) {
+    gameError.value =
+      e instanceof Error ? e.message : "Could not load deleted games";
+  }
+}
+
+const shownGames = computed(() => {
+  const q = search.value.trim().toLowerCase();
+  return q
+    ? gameTrash.value.filter((g) => g.title.toLowerCase().includes(q))
+    : gameTrash.value;
+});
+const shownGroups = computed(() =>
+  groups.value.filter((g) => filter.value === "all" || filter.value === g.kind),
+);
+
+function daysUntil(unixSeconds: number): number {
+  return Math.max(0, Math.ceil((unixSeconds - Date.now() / 1000) / 86400));
+}
+
+async function restoreGameById(game: TrashedGame) {
+  restoringGameId.value = game.id;
+  gameError.value = null;
+  try {
+    await restoreGame(game.id);
+    await loadGames();
+  } catch (e) {
+    gameError.value = e instanceof Error ? e.message : "Could not restore.";
+  } finally {
+    restoringGameId.value = null;
+  }
+}
+
 async function loadAll() {
   loading.value = true;
   error.value = null;
+  void loadGames();
   try {
     [movieTrash.value, tvTrash.value, animeTrash.value] = await Promise.all([
       fetchMovieTrash(),
@@ -100,11 +156,11 @@ async function loadAll() {
 const retentionDays = ref(DEFAULT_PREFERENCES.media_trash_retention_days);
 const retentionSaved = ref(false);
 const RETENTION_CHOICES = [
-  { value: 0, label: "Never" },
-  { value: 7, label: "After 7 days" },
-  { value: 14, label: "After 14 days" },
-  { value: 30, label: "After 30 days" },
-  { value: 90, label: "After 90 days" },
+  { value: "0", label: "Never" },
+  { value: "7", label: "7 days" },
+  { value: "14", label: "14" },
+  { value: "30", label: "30" },
+  { value: "90", label: "90" },
 ];
 
 onMounted(async () => {
@@ -199,35 +255,37 @@ async function emptyGroup(kind: Kind, label: string, count: number) {
 
 <template>
   <section class="settings-section">
-    <h2>Media trash</h2>
-    <p class="section-hint">
-      Deleted movies, shows and anime are kept here until you restore or delete
-      them. Deleting from the trash is permanent.
-    </p>
-    <div class="retention-row">
-      <label for="media-trash-retention">Delete trash automatically</label>
-      <select
-        id="media-trash-retention"
-        class="retention-select"
-        :value="retentionDays"
-        @change="
-          setRetention(Number(($event.target as HTMLSelectElement).value))
-        "
-      >
-        <option
-          v-for="choice in RETENTION_CHOICES"
-          :key="choice.value"
-          :value="choice.value"
-        >
-          {{ choice.label }}
-        </option>
-      </select>
-      <span v-if="retentionSaved" class="saved-note">Saved</span>
+    <div class="trash-head">
+      <h2>Trash</h2>
+      <SegmentedControl
+        :model-value="filter"
+        :options="FILTERS"
+        @update:model-value="filter = $event as Filter"
+      />
     </div>
-
-    <p v-if="!loadedOnce">Loading…</p>
+    <p class="section-hint">
+      One trash for everything you delete. Restore puts a title back exactly as
+      it was.
+    </p>
+    <SettingsRow
+      label="Delete games for good after"
+      hint="Their screenshots, clips, saves and notes go with them"
+    >
+      <span class="st-muted">7 days</span>
+    </SettingsRow>
+    <SettingsRow label="Delete movies, shows and anime for good after">
+      <span class="retention">
+        <span v-if="retentionSaved" class="saved-note">Saved</span>
+        <SegmentedControl
+          :model-value="String(retentionDays)"
+          :options="RETENTION_CHOICES"
+          @update:model-value="setRetention(Number($event))"
+        />
+      </span>
+    </SettingsRow>
+    <p v-if="!loadedOnce" class="st-muted">Loading…</p>
     <div v-if="error" class="form-error">{{ error }}</div>
-
+    <div v-if="gameError" class="form-error">{{ gameError }}</div>
     <template v-if="loadedOnce">
       <input
         v-model="search"
@@ -236,7 +294,35 @@ async function emptyGroup(kind: Kind, label: string, count: number) {
         placeholder="Search deleted titles"
         aria-label="Search deleted titles"
       />
-      <div v-for="group in groups" :key="group.kind" class="trash-group">
+      <div v-if="filter === 'all' || filter === 'game'" class="trash-group">
+        <h3 class="trash-group-title">
+          <span>
+            Games
+            <span v-if="gameTrash.length" class="trash-count">{{
+              gameTrash.length
+            }}</span>
+          </span>
+        </h3>
+        <p v-if="!gameTrash.length" class="empty-hint">Trash is empty.</p>
+        <p v-else-if="!shownGames.length" class="empty-hint">No matches.</p>
+        <ul v-else class="trash-list">
+          <li v-for="game in shownGames" :key="game.id" class="trash-row">
+            <span class="trash-name">{{ game.title }}</span>
+            <span class="trash-meta"
+              >Deleted for good in {{ daysUntil(game.purge_at) }} days</span
+            >
+            <button
+              type="button"
+              class="secondary-button"
+              :disabled="restoringGameId === game.id"
+              @click="restoreGameById(game)"
+            >
+              {{ restoringGameId === game.id ? "Restoring…" : "Restore" }}
+            </button>
+          </li>
+        </ul>
+      </div>
+      <div v-for="group in shownGroups" :key="group.kind" class="trash-group">
         <h3 class="trash-group-title">
           <span>
             {{ group.label }}
@@ -294,6 +380,21 @@ async function emptyGroup(kind: Kind, label: string, count: number) {
 </template>
 
 <style scoped>
+.trash-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+}
+.trash-head h2 {
+  margin: 0;
+}
+.retention {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
 .settings-section h2 {
   margin: 0 0 8px;
   padding-left: 12px;

@@ -471,10 +471,13 @@ async def _get_game_or_404(
 async def get_achievements_summary(
     db: AsyncSession = _DB_DEPENDENCY,
     current_user: User = _CURRENT_USER_DEPENDENCY,
-) -> dict[str, dict[str, int]]:
+) -> dict[str, dict[str, Any]]:
     """Per-game {total, unlocked} counts for every one of the caller's games
     that has any achievements at all, in one grouped query — powers the
-    completion badge on library/card views without an N+1 request per game."""
+    completion badge on library/card views without an N+1 request per game.
+    A game with any rarity data also carries its rarest unlocked achievement
+    (name, icon and % of players), which the 100% cover marks show."""
+    owned = (Game.user_id == current_user.id, Game.deleted_at.is_(None))
     rows = await db.execute(
         select(
             Achievement.game_id,
@@ -482,13 +485,34 @@ async def get_achievements_summary(
             func.sum(func.cast(Achievement.unlocked, Integer)),
         )
         .join(Game, Game.id == Achievement.game_id)
-        .where(Game.user_id == current_user.id, Game.deleted_at.is_(None))
+        .where(*owned)
         .group_by(Achievement.game_id)
     )
-    return {
+    summary: dict[str, dict[str, Any]] = {
         str(game_id): {"total": total, "unlocked": unlocked or 0}
         for game_id, total, unlocked in rows
     }
+    # one row per game: its unlocked achievement with the lowest % of players
+    rarest = await db.execute(
+        select(Achievement)
+        .join(Game, Game.id == Achievement.game_id)
+        .where(*owned, Achievement.unlocked, Achievement.global_percent.is_not(None))
+        .order_by(Achievement.game_id, Achievement.global_percent.asc(), Achievement.name)
+        .distinct(Achievement.game_id)
+    )
+    for achievement in rarest.scalars():
+        entry = summary.get(str(achievement.game_id))
+        if entry is None:
+            continue
+        entry["rarest"] = {
+            "name": achievement.name,
+            "icon_url": f"/api/achievement-icon/{achievement.id}"
+            if achievement.icon_url
+            and achievement.icon_url.startswith(("http://", "https://"))
+            else achievement.icon_url,
+            "percent": achievement.global_percent,
+        }
+    return summary
 
 
 def _feed_row(achievement: Achievement, game: Game) -> dict:

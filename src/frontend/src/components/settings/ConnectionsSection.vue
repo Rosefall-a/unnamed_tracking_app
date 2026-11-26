@@ -3,6 +3,7 @@ import { ref, computed, defineAsyncComponent, onMounted } from "vue";
 import { fetchProviderCredentials } from "../../services/settings";
 import type { ProviderCredentialStatus } from "../../services/settings";
 import { syncLibrary } from "../../services/librarySync";
+import SettingsCard from "./SettingsCard.vue";
 import type { LibrarySyncProvider } from "../../services/librarySync";
 
 const MetadataSourcesSection = defineAsyncComponent(
@@ -127,6 +128,17 @@ function toggleManage(name: string) {
   if (closing) void load();
 }
 
+const syncableRows = computed(() =>
+  accountRows.value.filter((r) => r.syncable && r.connected),
+);
+
+// one at a time, so two libraries never write the same games at once
+async function syncAll() {
+  for (const row of syncableRows.value) {
+    await sync(row);
+  }
+}
+
 async function sync(row: Row) {
   if (!row.syncable) return;
   syncing.value = row.name;
@@ -147,50 +159,73 @@ async function sync(row: Row) {
 </script>
 
 <template>
-  <section class="settings-section">
-    <h2>Connections</h2>
-    <p class="hint">
-      The accounts your library is linked to. Choose Manage to add or change
-      one.
-    </p>
-    <p v-if="error" class="error">{{ error }}</p>
+  <SettingsCard
+    title="Linked accounts"
+    description="Where your games and achievements come from. Each one shows when it last synced, and can sync on its own."
+  >
+    <template #actions>
+      <button
+        v-if="syncableRows.length > 1"
+        type="button"
+        class="st-btn"
+        :disabled="syncing !== null"
+        @click="syncAll"
+      >
+        {{ syncing ? "Syncing…" : "Sync all now" }}
+      </button>
+    </template>
+    <p v-if="error" class="st-error">{{ error }}</p>
     <p v-if="syncMessage" class="note">{{ syncMessage }}</p>
 
-    <p v-if="loading" class="hint">Loading…</p>
+    <p v-if="loading" class="st-muted">Loading…</p>
     <ul v-else class="rows">
-      <li v-for="row in accountRows" :key="row.name" class="row-block">
-        <div class="row">
+      <li v-for="row in accountRows" :key="row.name" class="st-list-row-block">
+        <div class="st-list-row">
           <span
-            class="mark"
+            class="st-avatar"
             :style="{
               background: markFor(row.name).bg,
               color: markFor(row.name).fg,
             }"
             >{{ markFor(row.name).mark }}</span
           >
-          <span class="info">
+          <span class="st-lbl info">
             <strong>{{ row.name }}</strong>
             <span class="detail">{{ row.detail }}</span>
           </span>
-          <span class="pill" :class="{ ok: row.connected, bad: row.error }">{{
-            row.error ? "Error" : row.connected ? "Connected" : "Not connected"
-          }}</span>
+          <span
+            class="st-chip pill"
+            :class="{ good: row.connected, bad: row.error }"
+            >{{
+              row.error
+                ? "Error"
+                : row.connected
+                  ? "Connected"
+                  : "Not connected"
+            }}</span
+          >
           <button
             v-if="row.syncable && row.connected"
             type="button"
-            class="btn"
+            class="st-btn"
             :disabled="syncing !== null"
             @click="sync(row)"
           >
-            {{ syncing === row.name ? "Syncing…" : "Sync" }}
+            {{ syncing === row.name ? "Syncing…" : "Sync now" }}
           </button>
           <button
             type="button"
-            class="btn ghost"
+            class="st-btn"
             :aria-expanded="managing === row.name"
             @click="toggleManage(row.name)"
           >
-            {{ managing === row.name ? "Close" : "Manage" }}
+            {{
+              managing === row.name
+                ? "Close"
+                : row.connected
+                  ? "Manage"
+                  : "Connect"
+            }}
           </button>
         </div>
         <MetadataSourcesSection
@@ -200,136 +235,45 @@ async function sync(row: Row) {
         />
       </li>
     </ul>
-  </section>
+  </SettingsCard>
 </template>
 
 <style scoped>
-.settings-section h2 {
-  margin: 0 0 8px;
-  padding-left: 12px;
-  border-left: 3px solid var(--ui-accent);
-  font-size: 1rem;
-  color: var(--ui-heading);
-}
-h3 {
-  margin: 24px 0 10px;
-  font-size: 0.85rem;
-  color: var(--ui-dim-3);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-.hint {
-  color: var(--ui-dim-2);
-  font-size: 0.85rem;
-  margin: 0 0 8px;
-}
-.error {
-  color: var(--ui-error-text);
-  font-size: 0.85rem;
-}
 .note {
   color: var(--ui-good-text);
   font-size: 0.85rem;
+  margin: 0 0 6px;
 }
 .rows {
   list-style: none;
   margin: 0;
   padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+}
+.st-list-row-block + .st-list-row-block .st-list-row {
+  border-top: 1px solid #242424;
 }
 .manage-card {
-  margin: 8px 0 4px;
-}
-.row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 12px;
-  background: var(--ui-bg-2);
-  border: 1px solid var(--ui-surface-3);
-  border-radius: 10px;
-}
-.mark {
-  width: 34px;
-  height: 34px;
-  border-radius: 9px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  font-weight: 800;
-  flex-shrink: 0;
+  margin: 4px 0 12px;
 }
 .info {
-  flex: 1;
   min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  color: var(--ui-text-soft);
-  font-size: 0.9rem;
 }
 .detail {
-  color: var(--ui-dim-2);
-  font-size: 0.78rem;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.pill {
-  font-size: 0.72rem;
-  font-weight: 700;
-  padding: 3px 9px;
-  border-radius: 999px;
-  color: var(--ui-dim-3);
-  background: color-mix(in srgb, var(--ui-wash-base) 6%, transparent);
-  white-space: nowrap;
-}
-.pill.ok {
-  color: var(--ui-good-text);
-  background: color-mix(in srgb, var(--ui-success) 12%, transparent);
-}
-.pill.bad {
-  color: var(--ui-error-text);
-  background: color-mix(in srgb, var(--ui-danger) 14%, transparent);
-}
-.btn {
-  background: var(--ui-accent);
-  color: #111;
-  border: none;
-  border-radius: 8px;
-  padding: 7px 12px;
-  font: inherit;
-  font-size: 0.8rem;
-  font-weight: 700;
-  cursor: pointer;
-}
-.btn.ghost {
-  background: color-mix(in srgb, var(--ui-wash-base) 6%, transparent);
-  color: var(--ui-text-soft);
-}
-.btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-/* a phone can't fit the name, the status and both buttons on one line (the
-   status pill covered the name and "Sync" broke in two): the buttons move
-   to a second line, and the pill goes, since the line under the name already
-   says "Not connected" or what went wrong */
+/* a phone can't fit the name, the status and both buttons on one line: the
+   buttons move to a second line, and the status goes, since the line under
+   the name already says "Not connected" or what went wrong */
 @media (max-width: 560px) {
-  .row {
-    flex-wrap: wrap;
-    gap: 10px 8px;
-  }
   .info {
-    flex-basis: calc(100% - 42px);
+    flex-basis: calc(100% - 48px) !important;
   }
   .pill {
     display: none;
   }
-  .pill + .btn {
+  .pill + .st-btn {
     margin-left: auto;
   }
 }

@@ -71,12 +71,11 @@ onMounted(load);
 
 <template>
   <section class="settings-section">
-    <h2>Possible Duplicates</h2>
+    <h2>Possible duplicates</h2>
     <p class="section-hint">
-      A game you added yourself can show up a second time when a Steam sync
-      brings it in. Matches are found by title, and nothing is merged until you
-      say so. You can change a decision at any time here, and a merge can be
-      undone while the Steam copy is still in the trash.
+      A game you added yourself can come in again from a Steam sync. Nothing is
+      merged until you say so, and a merge can be undone while the Steam copy is
+      in the trash.
     </p>
 
     <div class="tile">
@@ -86,7 +85,7 @@ onMounted(load);
           <span v-if="pending.length" class="count">{{ pending.length }}</span>
         </h3>
         <button type="button" class="scan" :disabled="scanning" @click="scan">
-          {{ scanning ? "Looking…" : "Look for duplicates" }}
+          {{ scanning ? "Looking…" : "Look again" }}
         </button>
       </div>
       <p v-if="message" class="note">{{ message }}</p>

@@ -1,12 +1,16 @@
 <script setup lang="ts">
 import { useRoute } from "vue-router";
 import SidebarNav from "./components/SidebarNav.vue";
+import NavAlternate from "./components/NavAlternate.vue";
+import { sidebarStyle } from "./state/sidebarPrefs";
+import { usesSideNav } from "./state/navData";
 import TaskProgressToast from "./components/TaskProgressToast.vue";
 import ShortcutsHelp from "./components/ShortcutsHelp.vue";
 import CommandPalette from "./components/CommandPalette.vue";
 import AppDialog from "./components/AppDialog.vue";
+import CompletionToast from "./components/CompletionToast.vue";
 import { authChecked, currentUser } from "./state/auth";
-import { mediaUnread } from "./state/notifications";
+import { mediaUnread, refreshMediaNotifications } from "./state/notifications";
 import { formatDocumentTitle, pageTitleOverride } from "./state/pageTitle";
 import { loadSharedPreferences, preferences } from "./state/preferences";
 import { applySavedThemeColors } from "./state/themeColors";
@@ -40,6 +44,24 @@ watchEffect(() => {
     currentUser.value ? mediaUnread.value : 0,
   );
 });
+// Asking the server for notifications is also what makes it create the newly
+// due ones, so this check is the whole "delivery": every 5 minutes while the
+// app is open and someone is signed in, nothing running otherwise. It lives
+// here, not in a sidebar, so every navigation style gets it.
+let notificationTimer: number | undefined;
+watch(
+  () => currentUser.value?.id ?? null,
+  (id) => {
+    window.clearInterval(notificationTimer);
+    if (!id) return;
+    void refreshMediaNotifications({ maxAgeMs: 30_000 });
+    notificationTimer = window.setInterval(
+      () => void refreshMediaNotifications(),
+      5 * 60 * 1000,
+    );
+  },
+  { immediate: true },
+);
 // preferences are per user, so load them once someone is signed in
 watch(
   () => currentUser.value?.id,
@@ -75,12 +97,27 @@ const sidebarShown = computed(
 // make room for them. Overlay floats above everything and reserves nothing.
 // Pinned's reserved width tracks the sidebar's own (resizable) width;
 // rail's collapsed width is fixed, since that's the "just icons" point.
+const sideNav = computed(() => usesSideNav(sidebarStyle.value));
 const contentStyle = computed(() => {
   if (!sidebarShown.value) return {};
+  // the styles without a sidebar keep room only for what stays on screen
+  if (sidebarStyle.value === "topbar") return { paddingTop: "56px" };
+  if (sidebarStyle.value === "dock") return { paddingBottom: "84px" };
+  if (sidebarStyle.value === "guide" || sidebarStyle.value === "peek")
+    return {};
+  // rail and panel: styles/nav.css keeps room for it, narrower on a phone
+  if (sidebarStyle.value === "railpanel") return {};
   if (sidebarMode.value === "pinned")
     return { marginLeft: `${sidebarWidth.value}px` };
   if (sidebarMode.value === "rail") return { marginLeft: "56px" };
   return {};
+});
+// Pages read the navigation style off <html> (styles/nav.css): the top bar
+// replaces their account chip and must not have their header slide under it.
+watchEffect(() => {
+  const root = document.documentElement;
+  if (sidebarShown.value) root.dataset.nav = sidebarStyle.value;
+  else delete root.dataset.nav;
 });
 const KEPT_ALIVE = [
   "MovieLibrary",
@@ -103,7 +140,8 @@ const KEPT_ALIVE = [
       route.path === '/login/oidcstart'
     "
   >
-    <SidebarNav v-if="sidebarShown" />
+    <SidebarNav v-if="sidebarShown && sideNav" />
+    <NavAlternate v-else-if="sidebarShown" />
     <!-- Library, calendar and list pages stay mounted when you leave them, so
          switching tabs is instant instead of reloading from empty. Detail
          pages are deliberately not kept: they must reload per title. -->
@@ -122,6 +160,7 @@ const KEPT_ALIVE = [
       v-if="route.path !== '/setup' && route.path !== '/login/oidcstart'"
     />
     <AppDialog />
+    <CompletionToast v-if="currentUser && sidebarShown" />
     <ShortcutsHelp
       v-if="
         route.path !== '/login' &&

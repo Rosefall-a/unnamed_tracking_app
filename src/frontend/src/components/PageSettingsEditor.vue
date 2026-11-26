@@ -5,6 +5,9 @@
 // follows Settings again, and a row shows what the default currently is.
 import { computed } from "vue";
 import SegmentedControl from "./settings/SegmentedControl.vue";
+import SettingsCard from "./settings/SettingsCard.vue";
+import SettingsRow from "./settings/SettingsRow.vue";
+import SettingsSwitch from "./settings/SettingsSwitch.vue";
 import {
   FLAG_LABELS,
   HIDE_FLAGS,
@@ -25,6 +28,8 @@ const props = defineProps<{
   modelValue: PageSettings | PageOverrides;
   // set in the Edit dialog: the defaults the overrides sit on top of
   defaults?: PageSettings | null;
+  // "cards" is the Settings look: two cards, switches that say what is shown
+  layout?: "plain" | "cards";
 }>();
 const emit = defineEmits<{
   "update:modelValue": [value: PageSettings | PageOverrides];
@@ -100,6 +105,24 @@ const flagOptions = computed(() => [
   { value: "hide", label: "Hide" },
 ]);
 
+// In Settings each switch says what is shown, so on means visible, rather
+// than the "Hide the ..." wording the dialog uses next to Show and Hide.
+const SHOW_LABELS: Record<HideFlag, { label: string; hint?: string }> = {
+  hide_rating: {
+    label: "Score button",
+    hint: "The stars in the header and the score in Stats",
+  },
+  hide_collections: { label: "Collections button" },
+  hide_favorite: { label: "Favorite heart" },
+  hide_credits: { label: "Developer and publisher" },
+  hide_date_badge: { label: "Date badge" },
+  hide_platform_badge: { label: "Platform badge" },
+  hide_history: {
+    label: "History timeline",
+    hint: "Stats keeps its numbers either way",
+  },
+};
+
 const achievementsGone = computed(() => {
   const mode = tabValue("Achievements");
   const effective = mode === "default" ? base.value.tabs.Achievements : mode;
@@ -108,7 +131,64 @@ const achievementsGone = computed(() => {
 </script>
 
 <template>
-  <div class="pse">
+  <template v-if="layout === 'cards'">
+    <SettingsCard>
+      <template #actions>
+        <h3>Tabs</h3>
+        <label class="opens-on">
+          <span class="st-muted">Opens on</span>
+          <select
+            class="st-select"
+            :value="openValue"
+            @change="setOpen(($event.target as HTMLSelectElement).value)"
+          >
+            <option v-for="o in openOptions" :key="o.value" :value="o.value">
+              {{ o.label }}
+            </option>
+          </select>
+        </label>
+      </template>
+      <p class="st-desc">
+        Auto shows a tab once the game has something in it. Any game can
+        override this in its Edit dialog.
+      </p>
+      <SettingsRow
+        v-for="tab in OPTIONAL_TABS"
+        :key="tab"
+        :label="tab"
+        :hint="TAB_HINTS[tab]"
+      >
+        <SegmentedControl
+          :model-value="tabValue(tab)"
+          :options="tabOptions"
+          @update:model-value="setTab(tab, $event)"
+        />
+      </SettingsRow>
+      <p v-if="achievementsGone" class="st-note">
+        With Achievements hidden, the achievement badge, the achievement stats
+        and the timeline entries for them, and tying files and notes to
+        achievements, are hidden too.
+      </p>
+    </SettingsCard>
+    <SettingsCard
+      title="Header and details"
+      description="Each switch shows the thing when it is on."
+    >
+      <SettingsRow
+        v-for="flag in HIDE_FLAGS"
+        :key="flag"
+        :label="SHOW_LABELS[flag].label"
+        :hint="SHOW_LABELS[flag].hint"
+      >
+        <SettingsSwitch
+          :model-value="flagValue(flag) !== 'hide'"
+          :label="SHOW_LABELS[flag].label"
+          @update:model-value="setFlag(flag, $event ? 'show' : 'hide')"
+        />
+      </SettingsRow>
+    </SettingsCard>
+  </template>
+  <div v-else class="pse">
     <section class="pse-block">
       <h3>Tabs</h3>
       <p class="pse-hint">
@@ -174,6 +254,11 @@ const achievementsGone = computed(() => {
 </template>
 
 <style scoped>
+.opens-on {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
 .pse {
   display: flex;
   flex-direction: column;

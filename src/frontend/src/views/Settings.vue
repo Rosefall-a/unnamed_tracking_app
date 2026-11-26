@@ -7,69 +7,177 @@ import {
   ref,
   watch,
   defineAsyncComponent,
+  type Component,
 } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { currentUser } from "../state/auth";
 import { startTrackingSaves, stopTrackingSaves } from "../state/saveStatus";
 import SettingsNav from "../components/settings/SettingsNav.vue";
 import type { SettingsGroup } from "../components/settings/SettingsNav.vue";
+import SettingsTabs from "../components/settings/SettingsTabs.vue";
 import SaveStatus from "../components/settings/SaveStatus.vue";
 import ProfileSection from "../components/settings/ProfileSection.vue";
-// only the open section is downloaded
-const InterfaceSection = defineAsyncComponent(
-  () => import("../components/settings/InterfaceSection.vue"),
-);
-const GamePageSection = defineAsyncComponent(
-  () => import("../components/settings/GamePageSection.vue"),
-);
-const AppearanceSection = defineAsyncComponent(
-  () => import("../components/settings/AppearanceSection.vue"),
-);
-const UploadSection = defineAsyncComponent(
-  () => import("../components/settings/UploadSection.vue"),
-);
-const LibrarySettings = defineAsyncComponent(
-  () => import("../components/settings/LibrarySettings.vue"),
-);
-const MetadataSettings = defineAsyncComponent(
-  () => import("../components/settings/MetadataSettings.vue"),
-);
-const AdminSettings = defineAsyncComponent(
-  () => import("../components/settings/AdminSettings.vue"),
-);
-const TasksSection = defineAsyncComponent(
-  () => import("../components/settings/TasksSection.vue"),
-);
-const ComingSoonSection = defineAsyncComponent(
-  () => import("../components/settings/ComingSoonSection.vue"),
-);
-const StatsSection = defineAsyncComponent(
-  () => import("../components/settings/StatsSection.vue"),
-);
-const ExportImportSection = defineAsyncComponent(
-  () => import("../components/settings/ExportImportSection.vue"),
-);
-const CalendarNotificationsSection = defineAsyncComponent(
-  () => import("../components/settings/CalendarNotificationsSection.vue"),
-);
-const KeyboardShortcutsSection = defineAsyncComponent(
-  () => import("../components/settings/KeyboardShortcutsSection.vue"),
-);
-const ConnectionsSection = defineAsyncComponent(
-  () => import("../components/settings/ConnectionsSection.vue"),
-);
-const AniListImportSection = defineAsyncComponent(
-  () => import("../components/settings/AniListImportSection.vue"),
-);
-const ApiKeysSection = defineAsyncComponent(
-  () => import("../components/settings/ApiKeysSection.vue"),
-);
-const PasswordPolicySection = defineAsyncComponent(
-  () => import("../components/settings/PasswordPolicySection.vue"),
-);
 import AccountChip from "../components/AccountChip.vue";
 import SettingsSearch from "../components/settings/SettingsSearch.vue";
 import BackButton from "../components/BackButton.vue";
+import "../styles/settings.css";
+import { fetchBackups, fetchProviderCredentials } from "../services/settings";
+import {
+  SETTINGS_PAGES,
+  resolveSettingsPlace,
+  visiblePages,
+  visibleTabs,
+  type SettingsPart,
+} from "../utils/settingsPages";
+
+// only the open tab's sections are downloaded
+const lazy = (load: () => Promise<{ default: Component }>) =>
+  defineAsyncComponent(load);
+const PARTS: Record<SettingsPart, { is: Component; props?: object }> = {
+  profile: { is: ProfileSection },
+  connections: {
+    is: lazy(() => import("../components/settings/ConnectionsSection.vue")),
+  },
+  anilist: {
+    is: lazy(() => import("../components/settings/AniListImportSection.vue")),
+  },
+  "api-keys": {
+    is: lazy(() => import("../components/settings/ApiKeysSection.vue")),
+  },
+  devices: {
+    is: lazy(() => import("../components/settings/DevicesSection.vue")),
+  },
+  appearance: {
+    is: lazy(() => import("../components/settings/AppearanceSection.vue")),
+    props: { part: "colors" },
+  },
+  display: {
+    is: lazy(() => import("../components/settings/InterfaceSection.vue")),
+    props: { part: "display" },
+  },
+  "appearance-badge": {
+    is: lazy(() => import("../components/settings/AppearanceSection.vue")),
+    props: { part: "badge" },
+  },
+  interface: {
+    is: lazy(() => import("../components/settings/InterfaceSection.vue")),
+  },
+  sidebar: {
+    is: lazy(() => import("../components/settings/SidebarSettingsSection.vue")),
+  },
+  "media-prefs": {
+    is: lazy(
+      () => import("../components/settings/MediaPreferencesSection.vue"),
+    ),
+  },
+  "game-page": {
+    is: lazy(() => import("../components/settings/GamePageSection.vue")),
+  },
+  shortcuts: {
+    is: lazy(
+      () => import("../components/settings/KeyboardShortcutsSection.vue"),
+    ),
+  },
+  notifications: {
+    is: lazy(
+      () => import("../components/settings/CalendarNotificationsSection.vue"),
+    ),
+    props: { part: "notifications" },
+  },
+  calendar: {
+    is: lazy(
+      () => import("../components/settings/CalendarNotificationsSection.vue"),
+    ),
+    props: { part: "calendar" },
+  },
+  upload: {
+    is: lazy(() => import("../components/settings/UploadSection.vue")),
+  },
+  duplicates: {
+    is: lazy(() => import("../components/settings/DuplicateGamesSection.vue")),
+  },
+  "library-folders": {
+    is: lazy(
+      () => import("../components/settings/LibraryManagementSection.vue"),
+    ),
+    props: { part: "folders" },
+  },
+  "library-refresh": {
+    is: lazy(
+      () => import("../components/settings/LibraryManagementSection.vue"),
+    ),
+    props: { part: "refresh" },
+  },
+  "media-trash": {
+    is: lazy(() => import("../components/settings/MediaTrashSection.vue")),
+  },
+  export: {
+    is: lazy(() => import("../components/settings/ExportImportSection.vue")),
+  },
+  "metadata-sources": {
+    is: lazy(() => import("../components/settings/MetadataSourcesSection.vue")),
+  },
+  scan: {
+    is: lazy(() => import("../components/settings/ScanSettingsSection.vue")),
+  },
+  "steam-tags": {
+    is: lazy(() => import("../components/settings/SteamTagsSection.vue")),
+  },
+  "steam-wishlist": {
+    is: lazy(() => import("../components/settings/SteamWishlistSection.vue")),
+  },
+  "media-refresh": {
+    is: lazy(() => import("../components/settings/MediaRefreshSection.vue")),
+  },
+  "server-overview": {
+    is: lazy(() => import("../components/settings/ServerOverviewSection.vue")),
+  },
+  stats: {
+    is: lazy(() => import("../components/settings/StatsSection.vue")),
+  },
+  users: {
+    is: lazy(() => import("../components/settings/AdminSection.vue")),
+  },
+  tasks: {
+    is: lazy(() => import("../components/settings/TasksSection.vue")),
+  },
+  backups: {
+    is: lazy(() => import("../components/settings/BackupsSection.vue")),
+  },
+  repair: {
+    is: lazy(() => import("../components/settings/RepairSection.vue")),
+  },
+  oidc: {
+    is: lazy(() => import("../components/settings/OidcSettingsSection.vue")),
+  },
+  "server-integrations": {
+    is: lazy(
+      () => import("../components/settings/ServerIntegrationsSection.vue"),
+    ),
+  },
+  limits: {
+    is: lazy(() => import("../components/settings/LimitsSection.vue")),
+  },
+  "password-policy": {
+    is: lazy(() => import("../components/settings/PasswordPolicySection.vue")),
+  },
+  "dev-tools": {
+    is: lazy(() => import("../components/settings/DevToolsSection.vue")),
+  },
+  logs: {
+    is: lazy(() => import("../components/settings/ComingSoonSection.vue")),
+    props: {
+      title: "Logs",
+      description:
+        "An audit trail of edits made across the library, including changes made by other users.",
+      plannedFeatures: [
+        "Who changed what, and when",
+        "Filter by user, game, or field",
+        "Restore a previous value",
+      ],
+    },
+  },
+};
 
 const router = useRouter();
 const route = useRoute();
@@ -81,111 +189,126 @@ function goBack() {
 onMounted(startTrackingSaves);
 onBeforeUnmount(stopTrackingSaves);
 
+const isAdmin = computed(() => !!currentUser.value?.is_admin);
+
+// Things that need a look, counted on the tab that fixes them and on its page
+// in the menu: a missing TMDB key (new shows get no art or seasons), and for
+// admins, backups that would be lost with the data or are switched off.
+const warnings = ref<Record<string, number>>({});
+onMounted(async () => {
+  const found: Record<string, number> = {};
+  try {
+    const creds = await fetchProviderCredentials();
+    const tmdb = creds.TMDB;
+    if (tmdb && tmdb.status === "not_configured" && !tmdb.server_configured)
+      found["sources:providers"] = 1;
+  } catch {
+    // no badge is better than a wrong one
+  }
+  if (isAdmin.value) {
+    try {
+      const b = await fetchBackups();
+      const n =
+        Number(!b.enabled) +
+        Number(!!b.storage.sameDrive) +
+        Number(!!b.storage.backups && !b.storage.backups.mounted);
+      if (n) {
+        found["server:overview"] = n;
+        found["server:tasks"] = n;
+      }
+    } catch {
+      // as above
+    }
+  }
+  warnings.value = found;
+});
+function pageWarnings(pageId: string): number {
+  const page = SETTINGS_PAGES.find((p) => p.id === pageId);
+  if (!page) return 0;
+  // the overview repeats the tasks count, so count each problem once
+  if (pageId === "server") return warnings.value["server:tasks"] ?? 0;
+  return page.tabs.reduce(
+    (n, t) => n + (warnings.value[`${pageId}:${t.id}`] ?? 0),
+    0,
+  );
+}
+
 const groups = computed<SettingsGroup[]>(() => {
-  const result: SettingsGroup[] = [
-    {
-      label: "Account",
-      sections: [
-        { id: "profile", label: "Profile" },
-        { id: "connections", label: "Connections" },
-        { id: "api-keys", label: "API Keys" },
-      ],
-    },
-    {
-      label: "Preferences",
-      sections: [
-        { id: "interface", label: "User Interface" },
-        { id: "game-page", label: "Game Page" },
-        { id: "appearance", label: "Appearance" },
-        { id: "notifications", label: "Notifications" },
-        { id: "calendar", label: "Calendar" },
-        { id: "shortcuts", label: "Keyboard Shortcuts" },
-      ],
-    },
-    {
-      label: "Library",
-      sections: [
-        { id: "upload", label: "Upload" },
-        { id: "library", label: "Library" },
-        { id: "metadata", label: "Metadata" },
-        { id: "export", label: "Export / Import" },
-      ],
-    },
-  ];
-  result.push({
-    label: "System",
-    sections: [
-      { id: "stats", label: "Server Stats" },
-      ...(currentUser.value?.is_admin
-        ? [
-            { id: "admin", label: "Administration" },
-            { id: "tasks", label: "Tasks" },
-            { id: "logs", label: "Logs", comingSoon: true },
-          ]
-        : []),
-    ],
-  });
-  return result;
+  const out: SettingsGroup[] = [];
+  for (const page of visiblePages(isAdmin.value)) {
+    let group = out.find((g) => g.label === page.group);
+    if (!group) {
+      group = { label: page.group, sections: [] };
+      out.push(group);
+    }
+    group.sections.push({
+      id: page.id,
+      label: page.label,
+      sub: page.sub,
+      badge: pageWarnings(page.id),
+    });
+  }
+  return out;
 });
 
-// Sections that used to be their own entries and now live inside a
-// merged page as a tab, so old links (command palette, bookmarks) still
-// land in the right place.
-const SECTION_ALIASES: Record<string, { section: string; tab?: string }> = {
-  "calendar-notifications": { section: "notifications" },
-  "media-prefs": { section: "library", tab: "preferences" },
-  "media-trash": { section: "library", tab: "trash" },
-  sources: { section: "metadata", tab: "sources" },
-  scan: { section: "metadata", tab: "scan" },
-  "media-refresh": { section: "metadata", tab: "refresh" },
-  users: { section: "admin", tab: "users" },
-  backups: { section: "admin", tab: "backups" },
-  repair: { section: "admin", tab: "repair" },
-  oidc: { section: "admin", tab: "sso" },
-  "server-integrations": { section: "admin", tab: "integrations" },
-};
-function resolveSection(id: string | undefined): {
-  section: string;
-  tab?: string;
-} {
-  const raw = id || "profile";
-  return SECTION_ALIASES[raw] ?? { section: raw };
-}
-const initial = resolveSection(route.query.section as string | undefined);
-const activeSection = ref(initial.section);
-const initialTab = ref<string | undefined>(
-  (route.query.tab as string | undefined) ?? initial.tab,
-);
-function openSection(id: string) {
-  const r = resolveSection(id);
-  initialTab.value = r.tab;
-  activeSection.value = r.section;
+function queryString(key: string): string | undefined {
+  const v = route.query[key];
+  return typeof v === "string" && v ? v : undefined;
 }
 
+const place = computed(() =>
+  resolveSettingsPlace(
+    queryString("section"),
+    queryString("tab"),
+    isAdmin.value,
+  ),
+);
+const page = computed(() =>
+  SETTINGS_PAGES.find((p) => p.id === place.value.section)!,
+);
+const tabs = computed(() => visibleTabs(page.value, isAdmin.value));
+const tab = computed(() => tabs.value.find((t) => t.id === place.value.tab)!);
+
+// keep the address bar on the real page and tab, so a refresh, a bookmark or
+// an old link all settle on the same place
 watch(
-  () => route.query.section,
-  (section) => {
-    const next = typeof section === "string" && section ? section : "profile";
-    if (activeSection.value !== next) openSection(next);
+  place,
+  (p) => {
+    if (queryString("section") === p.section && queryString("tab") === p.tab)
+      return;
+    void router.replace({
+      query: { ...route.query, section: p.section, tab: p.tab },
+    });
   },
+  { immediate: true },
 );
 
-watch(activeSection, (section) => {
-  const current =
-    typeof route.query.section === "string" ? route.query.section : "profile";
-  if (current === section) return;
-  // the tab belongs to the section being left
-  const rest = { ...route.query };
-  delete rest.tab;
-  void router.replace({ query: { ...rest, section } });
-});
+function openPage(id: string) {
+  const p = resolveSettingsPlace(id, undefined, isAdmin.value);
+  void router.replace({
+    query: { ...route.query, section: p.section, tab: p.tab },
+  });
+}
+function openTab(id: string) {
+  void router.replace({
+    query: { ...route.query, section: place.value.section, tab: id },
+  });
+}
+function openFromSearch(target: { section: string; tab: string }) {
+  void router.replace({
+    query: { ...route.query, section: target.section, tab: target.tab },
+  });
+}
 
 const card = ref<HTMLElement | null>(null);
-watch(activeSection, async () => {
-  if (!window.matchMedia("(max-width: 760px)").matches) return;
-  await nextTick();
-  card.value?.scrollIntoView({ behavior: "smooth", block: "start" });
-});
+watch(
+  () => place.value.section,
+  async () => {
+    if (!window.matchMedia("(max-width: 760px)").matches) return;
+    await nextTick();
+    card.value?.scrollIntoView({ behavior: "smooth", block: "start" });
+  },
+);
 </script>
 
 <template>
@@ -195,71 +318,42 @@ watch(activeSection, async () => {
     <div class="settings-layout">
       <div class="settings-head">
         <h1>Settings</h1>
-        <SettingsSearch
-          :is-admin="!!currentUser?.is_admin"
-          @select="openSection"
-        />
+        <SettingsSearch :is-admin="isAdmin" @select="openFromSearch" />
         <SaveStatus />
       </div>
       <div class="settings-body">
         <SettingsNav
-          :active-section="activeSection"
+          :active-section="place.section"
           :groups="groups"
-          @update:active-section="openSection"
+          @update:active-section="openPage"
         />
         <div ref="card" class="settings-card">
-          <ProfileSection v-if="activeSection === 'profile'" />
-          <InterfaceSection v-else-if="activeSection === 'interface'" />
-          <GamePageSection v-else-if="activeSection === 'game-page'" />
-          <AppearanceSection v-else-if="activeSection === 'appearance'" />
-          <CalendarNotificationsSection
-            v-else-if="activeSection === 'notifications'"
-            part="notifications"
+          <div class="page-head">
+            <h2>{{ page.label }}</h2>
+            <p class="page-lead">{{ page.lead }}</p>
+          </div>
+          <SettingsTabs
+            v-if="tabs.length > 1"
+            :model-value="place.tab"
+            :tabs="
+              tabs.map((t) => ({
+                ...t,
+                badge: warnings[`${place.section}:${t.id}`] ?? 0,
+              }))
+            "
+            @update:model-value="openTab"
           />
-          <CalendarNotificationsSection
-            v-else-if="activeSection === 'calendar'"
-            part="calendar"
-          />
-          <KeyboardShortcutsSection v-else-if="activeSection === 'shortcuts'" />
-          <ConnectionsSection v-else-if="activeSection === 'connections'" />
-          <ApiKeysSection v-else-if="activeSection === 'api-keys'" />
-          <UploadSection v-else-if="activeSection === 'upload'" />
-          <LibrarySettings
-            v-else-if="activeSection === 'library'"
-            :key="'library' + initialTab"
-            :initial-tab="initialTab"
-          />
-          <PasswordPolicySection
-            v-else-if="activeSection === 'password-policy'"
-          />
-          <StatsSection v-else-if="activeSection === 'stats'" />
-          <template v-else-if="activeSection === 'export'">
-            <ExportImportSection />
-            <AniListImportSection />
-          </template>
-          <MetadataSettings
-            v-else-if="activeSection === 'metadata'"
-            :key="'metadata' + initialTab"
-            :initial-tab="initialTab"
-          />
-          <AdminSettings
-            v-else-if="activeSection === 'admin' && currentUser?.is_admin"
-            :key="'admin' + initialTab"
-            :initial-tab="initialTab"
-          />
-          <TasksSection
-            v-else-if="activeSection === 'tasks' && currentUser?.is_admin"
-          />
-          <ComingSoonSection
-            v-else-if="activeSection === 'logs' && currentUser?.is_admin"
-            title="Logs"
-            description="An audit trail of edits made across the library, including changes made by other users."
-            :planned-features="[
-              'Who changed what, and when',
-              'Filter by user, game, or field',
-              'Restore a previous value',
-            ]"
-          />
+          <div
+            :key="place.section + ':' + place.tab"
+            class="tab-parts st-cards"
+          >
+            <component
+              :is="PARTS[part].is"
+              v-for="part in tab.parts"
+              :key="part"
+              v-bind="PARTS[part].props"
+            />
+          </div>
         </div>
       </div>
     </div>
@@ -279,12 +373,13 @@ watch(activeSection, async () => {
   color: var(--ui-heading);
 }
 .settings-head {
+  max-width: 1140px;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 12px 16px;
-  margin: 0 0 24px;
+  margin: 0 auto 24px;
 }
 .settings-head h1 {
   margin-right: auto;
@@ -298,23 +393,32 @@ watch(activeSection, async () => {
   display: flex;
   gap: 32px;
   align-items: flex-start;
+  max-width: 1140px;
+  margin: 0 auto;
 }
 .settings-card {
-  flex: 1;
+  flex: 999 1 560px;
   min-width: 0;
   scroll-margin-top: 64px;
-  background: var(--ui-surface);
-  border: 1px solid var(--ui-border);
-  border-radius: 14px;
-  padding: 32px;
 }
+.page-head h2 {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 750;
+  color: var(--ui-heading);
+}
+.page-lead {
+  margin: 4px 0 14px;
+  color: var(--ui-dim);
+  font-size: 13.5px;
+}
+
 @media (max-width: 760px) {
   .settings-body {
     flex-direction: column;
   }
   .settings-card {
     width: 100%;
-    padding: 20px;
     /* at least a screen tall, so there is always room to scroll a section to
        the top while its content is still loading (a short card left the page
        too short to scroll that far, and the section half off-screen) */

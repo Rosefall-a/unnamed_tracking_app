@@ -5,9 +5,16 @@ import { useRouter } from "vue-router";
 import CheckIcon from "./CheckIcon.vue";
 import type { Game, GameStatus } from "../types/game";
 import { setFavorite, setStatus } from "../services/games";
-import { ref, computed, nextTick, onUnmounted, watch } from "vue";
+import { ref, computed, nextTick, onMounted, onUnmounted, watch } from "vue";
 import { computeScore } from "../utils/scoring";
 import { appearanceSettings } from "../state/appearance";
+import {
+  achievementSummary,
+  ensureAchievementSummary,
+} from "../state/achievementSummary";
+import { activeMarks, type CompletionMark } from "../utils/completionMarks";
+import CoverMarks from "./CoverMarks.vue";
+import TrophyIcon from "./TrophyIcon.vue";
 
 const props = defineProps<{
   game: Game;
@@ -30,33 +37,37 @@ const router = useRouter();
 
 const score = computed(() => computeScore(props.game));
 
-// completion-badge appearance, customized in Settings > Appearance,
-// shared across every card via state/appearance.ts rather than fetched
-// per-card
+// How a 100% game is marked (Settings › Look and feel › Appearance), shared
+// by every card rather than fetched per card. The colour and the custom badge
+// picture come from the same settings.
 const localStatus = ref(props.game.status);
 const isMastered = computed(() => localStatus.value === "mastered");
-const badgeStyle = computed(
-  () => appearanceSettings.value?.completion_badge_style ?? "none",
-);
-const badgeColor = computed(
-  () => appearanceSettings.value?.completion_badge_color ?? "#e5e4e2",
-);
-const badgePlacement = computed(
-  () => appearanceSettings.value?.completion_badge_placement ?? "top-right",
-);
+const has = (m: CompletionMark) => activeMarks.value.has(m);
+const done = computed(() => isMastered.value && activeMarks.value.size > 0);
 const badgeImageUrl = computed(
   () => appearanceSettings.value?.completion_badge_image_url ?? null,
 );
-const showBadge = computed(
-  () => isMastered.value && badgeStyle.value !== "none",
+// counts and the rarest unlock, loaded once for the whole library
+const entry = computed(() => achievementSummary.value[props.game.id]);
+onMounted(() => {
+  if (activeMarks.value.size) void ensureAchievementSummary();
+});
+const countText = computed(() =>
+  entry.value ? `${entry.value.unlocked} / ${entry.value.total}` : null,
 );
-const badgeCardStyle = computed(() => {
-  if (
-    !showBadge.value ||
-    (badgeStyle.value !== "glow" && badgeStyle.value !== "border")
-  )
-    return {};
-  return { "--badge-color": badgeColor.value };
+// The gold the marks are drawn in. The app's own gold gets the exact shades
+// the design used; a colour picked in Settings gets shades made from it.
+const markVars = computed(() => {
+  const c = (
+    appearanceSettings.value?.completion_badge_color ?? "#d4af37"
+  ).toLowerCase();
+  const gold = c === "#d4af37";
+  const hi = gold ? "#f1cd6a" : `color-mix(in srgb, ${c} 72%, #fff)`;
+  return {
+    "--mk": gold ? "#e9be5a" : c,
+    "--mk-hi": hi,
+    "--mk-ring": `color-mix(in srgb, ${hi} 55%, transparent)`,
+  };
 });
 
 const menuOpen = ref(false);
@@ -215,16 +226,14 @@ function copyFolderPath() {
 </script>
 
 <template>
-  <div class="game-card-wrap">
+  <div class="game-card-wrap" :style="activeMarks.size ? markVars : undefined">
     <div
       class="game-card"
       :class="{
         'menu-open': menuOpen,
         'select-mode': selectMode,
-        [`badge-${badgeStyle}`]: showBadge,
         'keyboard-focused': keyboardFocused,
       }"
-      :style="badgeCardStyle"
     >
       <div
         ref="coverRef"
@@ -279,33 +288,12 @@ function copyFolderPath() {
           </svg>
         </div>
 
-        <div
-          v-if="
-            showBadge &&
-            (badgeStyle === 'ribbon' || badgeStyle === 'corner_badge')
-          "
-          class="completion-badge"
-          :class="[badgeStyle, badgePlacement]"
-          :style="{ '--badge-color': badgeColor }"
-        >
-          <img
-            v-if="badgeImageUrl"
-            :src="badgeImageUrl"
-            alt=""
-            class="completion-badge-image"
-          />
-          <svg
-            v-else
-            viewBox="0 0 24 24"
-            width="16"
-            height="16"
-            fill="currentColor"
-          >
-            <path
-              d="M12 2l2.4 6.6L21 9l-5 4.6L17.4 21 12 17.3 6.6 21 8 13.6 3 9l6.6-.4z"
-            />
-          </svg>
-        </div>
+        <CoverMarks
+          v-if="done && !selectMode"
+          :marks="activeMarks"
+          :entry="entry"
+          :image-url="badgeImageUrl"
+        />
 
         <div v-if="!selectMode" class="cover-actions">
           <button
@@ -434,13 +422,21 @@ function copyFolderPath() {
 
     <div class="card-info">
       <div class="title-row">
-        <h3 class="title">{{ game.title }}</h3>
+        <h3 class="title" :class="{ 'gold-t': done && has('gold_title') }">
+          {{ game.title }}
+        </h3>
         <span class="score-tag" :class="{ empty: !score }">{{
           score ? `★ ${score.sum.toFixed(1)}` : "–"
         }}</span>
       </div>
       <div class="meta-row">
-        <span class="status">{{ localStatus }}</span>
+        <span v-if="done && has('caption')" class="tro"
+          ><TrophyIcon />100%</span
+        >
+        <span v-else-if="done && has('gold_title')" class="tro"
+          ><TrophyIcon />{{ countText ?? "100%" }}</span
+        >
+        <span v-else class="status">{{ localStatus }}</span>
         <span class="playtime">{{ playtimeLabel }}</span>
       </div>
     </div>
@@ -480,75 +476,22 @@ function copyFolderPath() {
   outline-offset: 3px;
 }
 
-/* completion badge, "glow"/"border" style the whole card (via --badge-color,
-   set inline from Settings > Appearance); "ribbon"/"corner_badge" are
-   positioned elements inside .cover instead, see .completion-badge below */
-.game-card.badge-glow {
-  box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--badge-color) 55%, transparent),
-    0 0 22px 2px color-mix(in srgb, var(--badge-color) 45%, transparent);
+/* the 100% marks that live under the cover (CoverMarks.vue has the ones on
+   the art); --mk and its shades are set on the card from Settings */
+.title.gold-t {
+  color: var(--mk-hi);
 }
-.game-card.badge-glow:hover,
-.game-card.badge-glow.menu-open {
-  box-shadow:
-    0 0 0 1px var(--badge-color),
-    0 0 32px 6px color-mix(in srgb, var(--badge-color) 65%, transparent),
-    0 24px 56px color-mix(in srgb, var(--ui-scrim-base) 50%, transparent);
-}
-.game-card.badge-border {
-  box-shadow: 0 0 0 2px var(--badge-color);
-}
-.game-card.badge-border:hover,
-.game-card.badge-border.menu-open {
-  box-shadow:
-    0 0 0 2px var(--badge-color),
-    0 24px 56px color-mix(in srgb, var(--ui-scrim-base) 50%, transparent);
-}
-.completion-badge {
-  position: absolute;
-  z-index: 3;
-  width: 30px;
-  height: 30px;
-  display: flex;
+.meta-row .tro {
+  display: inline-flex;
   align-items: center;
-  justify-content: center;
-  color: var(--badge-color);
-  pointer-events: none;
+  gap: 4px;
+  min-width: 0;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
-.completion-badge.top-left {
-  top: 8px;
-  left: 8px;
-}
-.completion-badge.top-right {
-  top: 8px;
-  right: 8px;
-}
-.completion-badge.bottom-left {
-  bottom: 8px;
-  left: 8px;
-}
-.completion-badge.bottom-right {
-  bottom: 8px;
-  right: 8px;
-}
-.completion-badge.corner_badge {
-  background: rgba(20, 20, 20, 0.55);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  border-radius: 50%;
-  border: 1px solid color-mix(in srgb, var(--badge-color) 60%, transparent);
-}
-.completion-badge.ribbon {
-  width: 46px;
-  height: 46px;
-  filter: drop-shadow(
-    0 2px 6px color-mix(in srgb, var(--ui-scrim-base) 50%, transparent)
-  );
-}
-.completion-badge-image {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
+.meta-row .tro {
+  color: var(--mk);
+  font-weight: 600;
 }
 .cover {
   position: relative;

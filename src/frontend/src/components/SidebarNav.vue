@@ -1,10 +1,9 @@
 <script setup lang="ts">
-import { computed, ref, onMounted, onUnmounted } from "vue";
+import { computed, ref, onMounted, onUnmounted, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { logout } from "../services/auth";
 import { currentUser } from "../state/auth";
 import { inboxCount, refreshInboxCount } from "../state/inbox";
-import { mediaUnread, refreshMediaNotifications } from "../state/notifications";
+import { mediaUnread } from "../state/notifications";
 import {
   sidebarMode,
   sidebarWidth,
@@ -13,24 +12,32 @@ import {
   sidebarResizing,
 } from "../state/sidebarMode";
 import ProfileMenu from "./ProfileMenu.vue";
+import {
+  lastMediaPage,
+  mediaHome,
+  sidebarPins,
+  sidebarShowCounts,
+  sidebarShowJump,
+  sidebarShowSearch,
+  sidebarStyle,
+} from "../state/sidebarPrefs";
+import {
+  ICONS,
+  MEDIA_PAGES,
+  counts,
+  gameCollections,
+  isActivePath,
+  jumpItems,
+  loadNavData,
+  mediaCount,
+  navPages,
+  openSearch as openPalette,
+  recentTitles,
+} from "../state/navData";
 
 onMounted(refreshInboxCount);
-// Asking the server for notifications is also what makes it create the
-// newly due ones, so this poll is the whole "delivery" mechanism: cheap,
-// every 5 minutes while the app is open, nothing running when it is not.
-// The sidebar keeps this timer even though it no longer shows the list
-// itself (that moved to the topbar bell) because nothing else in the app
-// polls — NotificationBell.vue only refreshes once on mount.
-let notificationTimer: number | undefined;
-onMounted(() => {
-  // shared with the topbar bell, which mounts at the same moment
-  void refreshMediaNotifications({ maxAgeMs: 30_000 });
-  notificationTimer = window.setInterval(
-    () => void refreshMediaNotifications(),
-    5 * 60 * 1000,
-  );
-});
-onUnmounted(() => window.clearInterval(notificationTimer));
+// (the 5-minute notification check lives in App.vue, so it runs whichever
+// navigation style is on)
 onUnmounted(() => {
   document.removeEventListener("mousemove", onResizeMove);
   document.removeEventListener("mouseup", stopResize);
@@ -38,6 +45,106 @@ onUnmounted(() => {
 
 const route = useRoute();
 const open = ref(false);
+
+onMounted(loadNavData);
+const gameCount = computed(() => counts.value.game);
+// remembered so "Media opens on: Last used" goes back to it
+watch(
+  () => route.path,
+  (path) => {
+    for (const page of ["/anime", "/movies", "/tv"])
+      if (path === page || path.startsWith(`${page}/`))
+        lastMediaPage.value = page;
+  },
+  { immediate: true },
+);
+
+const flyout = ref<"" | "jump" | "pins">("");
+const flyoutTop = ref(0);
+const flyoutLeft = ref(0);
+function toggleFlyout(which: "jump" | "pins", e: MouseEvent) {
+  const row = (e.currentTarget as HTMLElement).getBoundingClientRect();
+  flyoutTop.value = Math.max(8, Math.min(row.top, window.innerHeight - 360));
+  // Past the sidebar's full width, not its width right now: in the icon rail
+  // the click lands while the rail is still widening, which put the flyout on
+  // top of the sidebar. The floating styles sit 10px in from the edge.
+  const floating = mode.value === "overlay";
+  flyoutLeft.value = (floating ? 10 : 0) + sidebarWidth.value + 8;
+  flyout.value = flyout.value === which ? "" : which;
+  cancelFlyoutClose();
+}
+// Leaving the sidebar and the flyout closes it after a short grace, so
+// crossing the gap between them does not, but it never lingers.
+let flyoutTimer: number | undefined;
+function cancelFlyoutClose() {
+  window.clearTimeout(flyoutTimer);
+}
+function scheduleFlyoutClose() {
+  if (!flyout.value) return;
+  cancelFlyoutClose();
+  flyoutTimer = window.setTimeout(closeFlyout, 350);
+}
+function closeFlyout() {
+  cancelFlyoutClose();
+  if (!flyout.value) return;
+  flyout.value = "";
+  // the rail and Peek stayed open for the flyout; let them go now if the
+  // mouse is already elsewhere
+  if (!asideRef.value?.matches(":hover")) {
+    onRailMouseLeave();
+    onPeekLeave();
+  }
+}
+// clicking anywhere else closes it
+function onDocClick(e: MouseEvent) {
+  const t = e.target as HTMLElement | null;
+  // a click out on the page puts Peek away, unless it is pinned
+  if (
+    peek.value &&
+    open.value &&
+    !peekPinned.value &&
+    !t?.closest("aside.sidebar, .sidebar-flyout, .profile-menu-panel")
+  )
+    close();
+  if (!flyout.value) return;
+  if (t?.closest(".sidebar-flyout, .sidebar-stackrow")) return;
+  closeFlyout();
+}
+function onKey(e: KeyboardEvent) {
+  if (e.key !== "Escape") return;
+  if (flyout.value) closeFlyout();
+  else if (open.value && mode.value === "overlay") {
+    peekPinned.value = false;
+    close();
+  }
+}
+onMounted(() => {
+  document.addEventListener("mousedown", onDocClick);
+  document.addEventListener("keydown", onKey);
+});
+onUnmounted(() => {
+  document.removeEventListener("mousedown", onDocClick);
+  document.removeEventListener("keydown", onKey);
+  cancelFlyoutClose();
+  window.clearTimeout(peekTimer);
+});
+// going somewhere else, by any route, closes whatever was open for the trip
+watch(
+  () => route.fullPath,
+  () => {
+    flyout.value = "";
+    if (mode.value === "overlay" && !peekPinned.value) close();
+  },
+);
+function openSearch() {
+  close();
+  openPalette();
+}
+function go(to: string) {
+  flyout.value = "";
+  close();
+  void router.push(to);
+}
 
 function isActive(path: string) {
   return route.path === path || route.path.startsWith(`${path}/`);
@@ -55,11 +162,134 @@ const mediaExpanded = ref(
 
 const isMockData = import.meta.env.VITE_USE_MOCK_DATA === "true";
 
+const mode = computed(() =>
+  sidebarStyle.value === "peek" ? "overlay" : sidebarMode.value,
+);
+const peek = computed(() => sidebarStyle.value === "peek");
+// Peek: touching the left edge opens it, leaving it closes it, unless the pin
+// keeps it open for now
+const peekPinned = ref(false);
+// A short wait each way: brushing the edge on the way to the back button
+// does not open it, and a mouse that slips off for a moment does not slam it
+// shut. The flyout and the profile menu keep it open while they are up.
+let peekTimer: number | undefined;
+function onPeekEdgeEnter() {
+  window.clearTimeout(peekTimer);
+  peekTimer = window.setTimeout(() => (open.value = true), 90);
+}
+function onPeekEdgeLeave() {
+  if (!open.value) window.clearTimeout(peekTimer);
+}
+let peekLeaving = false;
+function onPeekEnter() {
+  if (!peekLeaving) return;
+  peekLeaving = false;
+  window.clearTimeout(peekTimer);
+}
+function onPeekLeave() {
+  if (!peek.value || peekPinned.value || flyout.value || peekLeaving) return;
+  window.clearTimeout(peekTimer);
+  peekLeaving = true;
+  peekTimer = window.setTimeout(() => {
+    peekLeaving = false;
+    if (document.querySelector(".profile-menu-panel")) return;
+    if (asideRef.value?.matches(":hover")) return;
+    close();
+  }, 260);
+}
+watch(peek, (on) => {
+  if (!on) peekPinned.value = false;
+});
+// The panel floats a little in from the edge, so a mouse that touches the edge
+// and then heads off never enters it, and so never leaves it either. Watch
+// where the mouse goes instead while it is out.
+function onPeekMove(e: MouseEvent) {
+  if (!peek.value || !open.value || peekPinned.value) return;
+  const t = e.target as HTMLElement | null;
+  if (t?.closest("aside.sidebar, .sidebar-flyout, .profile-menu-panel"))
+    onPeekEnter();
+  else if (e.clientX > 24) onPeekLeave();
+}
+onMounted(() => document.addEventListener("mousemove", onPeekMove));
+onUnmounted(() => document.removeEventListener("mousemove", onPeekMove));
+
+// Your library: one list of pins, then what you touched last, filtered by kind
+type LibraryFilter = "all" | "game" | "anime" | "movie" | "tv";
+const libraryFilter = ref<LibraryFilter>("all");
+const LIBRARY_FILTERS: { id: LibraryFilter; label: string }[] = [
+  { id: "all", label: "All" },
+  { id: "game", label: "Games" },
+  { id: "anime", label: "Anime" },
+  { id: "movie", label: "Movies" },
+  { id: "tv", label: "TV" },
+];
+const KIND_NAME: Record<string, string> = {
+  game: "Game",
+  anime: "Anime",
+  movie: "Movie",
+  tv: "TV",
+};
+const libraryList = computed(() => {
+  const pinnedKeys = new Set(sidebarPins.value.map((p) => p.key));
+  const pinned = sidebarPins.value.map((p) => ({
+    key: p.key,
+    title: p.title,
+    art: p.art,
+    to: p.to,
+    kind: p.key.split(":")[0],
+    sub: `${p.kind} · Pinned`,
+    pinned: true,
+  }));
+  const recent = (sidebarShowJump.value ? recentTitles.value : [])
+    .filter((t) => !pinnedKeys.has(t.key))
+    .map((t) => ({
+      key: t.key,
+      title: t.title,
+      art: t.art,
+      to: t.to,
+      kind: t.kind as string,
+      sub: `${KIND_NAME[t.kind] ?? ""} · ${t.meta}`,
+      pinned: false,
+    }));
+  const all = [...pinned, ...recent];
+  return (
+    libraryFilter.value === "all"
+      ? all
+      : all.filter((r) => r.kind === libraryFilter.value)
+  ).slice(0, 24);
+});
+
+// Rail and panel: the panel follows the section you are in
+const railSection = computed(() => {
+  const p = route.path;
+  if (p.startsWith("/games")) return "games";
+  if (["/anime", "/movies", "/tv", "/media"].some((x) => p.startsWith(x)))
+    return "media";
+  return "home";
+});
+const panelTitle = computed(() =>
+  railSection.value === "games"
+    ? "Games"
+    : railSection.value === "media"
+      ? "Media"
+      : "Home",
+);
+const panelRecent = computed(() =>
+  (sidebarShowJump.value ? recentTitles.value : [])
+    .filter((t) =>
+      railSection.value === "games"
+        ? t.kind === "game"
+        : railSection.value === "media"
+          ? t.kind !== "game"
+          : true,
+    )
+    .slice(0, 5),
+);
+const isActiveNav = (to: string) => isActivePath(to, route.path);
+
 // Pinned and rail modes are always on screen, so "open" only governs the
 // overlay's own show/hide and the backdrop/menu button that go with it.
-const sidebarVisible = computed(
-  () => sidebarMode.value !== "overlay" || open.value,
-);
+const sidebarVisible = computed(() => mode.value !== "overlay" || open.value);
 
 function close() {
   open.value = false;
@@ -71,7 +301,7 @@ const router = useRouter();
 // Rail mode skips this — its collapsed width is fixed on purpose, and
 // resizing mid-hover would fight the hover-expand transition.
 function startResize(e: MouseEvent) {
-  if (sidebarMode.value === "rail") return;
+  if (mode.value === "rail") return;
   sidebarResizing.value = true;
   e.preventDefault();
   document.addEventListener("mousemove", onResizeMove);
@@ -94,22 +324,24 @@ function stopResize() {
 // closes the gap: focus no longer outlives the hover once you've moved on.
 const asideRef = ref<HTMLElement | null>(null);
 function onRailMouseLeave() {
-  if (sidebarMode.value !== "rail") return;
+  // the open flyout keeps the rail wide (by keeping focus) until it closes
+  if (mode.value !== "rail" || flyout.value) return;
   const active = document.activeElement as HTMLElement | null;
   if (active && asideRef.value?.contains(active)) active.blur();
-}
-
-async function handleLogout() {
-  await logout();
-  currentUser.value = null;
-  close();
-  router.push("/login");
 }
 </script>
 
 <template>
+  <!-- Peek: the left edge of the window opens the panel -->
+  <div
+    v-if="peek && !open"
+    class="peek-edge"
+    aria-hidden="true"
+    @mouseenter="onPeekEdgeEnter"
+    @mouseleave="onPeekEdgeLeave"
+  ></div>
   <button
-    v-if="sidebarMode === 'overlay'"
+    v-if="mode === 'overlay' && !peek && sidebarStyle !== 'railpanel'"
     type="button"
     class="menu-toggle"
     aria-label="Open menu"
@@ -135,7 +367,7 @@ async function handleLogout() {
 
   <Transition name="sidebar-backdrop">
     <div
-      v-if="open && sidebarMode === 'overlay'"
+      v-if="open && mode === 'overlay' && !peek"
       class="sidebar-backdrop"
       @click="close"
     ></div>
@@ -143,19 +375,30 @@ async function handleLogout() {
 
   <Transition name="sidebar-slide">
     <aside
-      v-if="sidebarVisible"
+      v-if="sidebarVisible && sidebarStyle !== 'railpanel'"
       ref="asideRef"
       class="sidebar"
       :class="{
-        'pinned-mode': sidebarMode === 'pinned',
-        'rail-mode': sidebarMode === 'rail',
+        'pinned-mode': mode === 'pinned',
+        'rail-mode': mode === 'rail',
+        'style-minimal': sidebarStyle === 'minimal',
+        'style-library': sidebarStyle === 'library',
+        'style-peek': peek,
         resizing: sidebarResizing,
       }"
       :style="{ '--sidebar-w': `${sidebarWidth}px` }"
-      @mouseleave="onRailMouseLeave"
+      @mouseenter="
+        onPeekEnter();
+        cancelFlyoutClose();
+      "
+      @mouseleave="
+        onRailMouseLeave();
+        onPeekLeave();
+        scheduleFlyoutClose();
+      "
     >
       <div
-        v-if="sidebarMode !== 'rail'"
+        v-if="mode !== 'rail'"
         class="sidebar-resize-handle"
         title="Drag to resize, double-click to reset"
         @mousedown="startResize"
@@ -171,50 +414,41 @@ async function handleLogout() {
         >
           Mock Data
         </span>
-      </div>
-
-      <ProfileMenu
-        v-if="currentUser"
-        class="sidebar-profile"
-        :initials="currentUser.username.slice(0, 2).toUpperCase()"
-      >
-        <span class="sidebar-profile-name">{{ currentUser.username }}</span>
-      </ProfileMenu>
-
-      <div class="sidebar-divider"></div>
-
-      <router-link
-        to="/"
-        class="sidebar-item"
-        :class="{ active: isActive('/') }"
-        @click="close"
-      >
-        <svg
-          viewBox="0 0 24 24"
-          width="18"
-          height="18"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        >
-          <path d="M4 11l8-7 8 7" />
-          <path d="M6 10v9a1 1 0 0 0 1 1h3v-5h4v5h3a1 1 0 0 0 1-1v-9" />
-        </svg>
-        <span>Home</span>
-      </router-link>
-
-      <div class="sidebar-group-label">
-        <span class="sidebar-group-label-text">Library</span>
-        <span class="sidebar-group-label-rule"></span>
-      </div>
-
-      <div class="sidebar-parent-row" :class="{ active: isActive('/games') }">
+        <ProfileMenu
+          v-if="currentUser"
+          class="sidebar-avatar"
+          :initials="currentUser.username.slice(0, 2).toUpperCase()"
+        />
         <button
+          v-if="peek"
           type="button"
-          class="sidebar-item sidebar-parent-link"
-          @click="gamesExpanded = !gamesExpanded"
+          class="peek-pin"
+          :class="{ on: peekPinned }"
+          :aria-pressed="peekPinned"
+          :title="peekPinned ? 'Let it hide again' : 'Keep it open'"
+          @click="peekPinned = !peekPinned"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            width="15"
+            height="15"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path :d="ICONS.pin" />
+          </svg>
+        </button>
+      </div>
+
+      <template v-if="sidebarStyle === 'library'">
+        <router-link
+          to="/"
+          class="sidebar-item"
+          :class="{ active: isActiveNav('/') }"
+          @click="close"
         >
           <svg
             viewBox="0 0 24 24"
@@ -226,109 +460,585 @@ async function handleLogout() {
             stroke-linecap="round"
             stroke-linejoin="round"
           >
-            <path
-              d="M6 6h12a3 3 0 0 1 3 3v1l1.3 7a2.2 2.2 0 0 1-4 1.7L17 16H7l-1.3 2.7a2.2 2.2 0 0 1-4-1.7L3 10v-1a3 3 0 0 1 3-3z"
-            />
-            <path d="M7.3 9.3v4M5.3 11.3h4" />
-            <circle cx="16" cy="9.5" r="0.9" fill="currentColor" />
-            <circle cx="18" cy="11.5" r="0.9" fill="currentColor" />
-            <circle cx="16" cy="13.5" r="0.9" fill="currentColor" />
-            <circle cx="14" cy="11.5" r="0.9" fill="currentColor" />
+            <path :d="ICONS.home" />
           </svg>
-          <span>Games</span>
-        </button>
+          <span>Home</span>
+        </router-link>
         <button
+          v-if="sidebarShowSearch"
           type="button"
-          class="sidebar-expand-toggle"
-          :class="{ expanded: gamesExpanded }"
-          :title="gamesExpanded ? 'Collapse' : 'Expand'"
-          @click="gamesExpanded = !gamesExpanded"
+          class="sidebar-search"
+          @click="openSearch"
         >
           <svg
             viewBox="0 0 24 24"
-            width="14"
-            height="14"
+            width="15"
+            height="15"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+          >
+            <path :d="ICONS.search" />
+          </svg>
+          <span class="sidebar-search-text">Search</span>
+          <kbd class="sidebar-search-kbd">Ctrl K</kbd>
+        </button>
+        <div class="lib-card">
+          <div class="lib-head">Your library</div>
+          <div class="lib-chips">
+            <button
+              v-for="f in LIBRARY_FILTERS"
+              :key="f.id"
+              type="button"
+              class="lib-chip"
+              :class="{ on: libraryFilter === f.id }"
+              @click="libraryFilter = f.id"
+            >
+              {{ f.label }}
+            </button>
+          </div>
+          <div class="lib-list">
+            <router-link
+              v-for="r in libraryList"
+              :key="r.key"
+              :to="r.to"
+              class="lib-row"
+              @click="close"
+            >
+              <img v-if="r.art" :src="r.art" alt="" />
+              <span v-else class="lib-blank"></span>
+              <span class="lib-text">
+                <b>{{ r.title }}</b>
+                <small>{{ r.sub }}</small>
+              </span>
+            </router-link>
+            <p v-if="!libraryList.length" class="lib-empty">
+              Nothing here yet.
+            </p>
+          </div>
+        </div>
+        <div class="lib-icons">
+          <router-link
+            v-for="p in navPages.slice(1)"
+            :key="p.id"
+            :to="p.to"
+            class="lib-icon"
+            :class="{ active: isActiveNav(p.to) }"
+            :title="p.label"
+            :aria-label="p.label"
+            @click="close"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              width="18"
+              height="18"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path :d="p.icon" />
+            </svg>
+          </router-link>
+          <router-link
+            to="/settings?section=upload"
+            class="lib-icon"
+            title="Upload"
+            aria-label="Upload"
+            @click="close"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              width="18"
+              height="18"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path :d="ICONS.upload" />
+            </svg>
+            <span v-if="inboxCount" class="lib-icon-badge">{{
+              inboxCount
+            }}</span>
+          </router-link>
+        </div>
+      </template>
+      <template v-else>
+        <button
+          v-if="sidebarShowSearch"
+          type="button"
+          class="sidebar-search"
+          @click="openSearch"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            width="15"
+            height="15"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+          >
+            <circle cx="11" cy="11" r="7" />
+            <path d="M20 20l-3.5-3.5" />
+          </svg>
+          <span class="sidebar-search-text">Search</span>
+          <kbd class="sidebar-search-kbd">Ctrl K</kbd>
+        </button>
+
+        <template v-if="sidebarStyle === 'minimal'">
+          <button
+            v-if="sidebarShowJump && jumpItems.length"
+            type="button"
+            class="sidebar-stackrow"
+            :class="{ on: flyout === 'jump' }"
+            :aria-expanded="flyout === 'jump'"
+            @click="toggleFlyout('jump', $event)"
+          >
+            <span class="sidebar-stackrow-label">Jump back in</span>
+            <span class="sidebar-stack">
+              <img
+                v-for="j in jumpItems.slice(0, 4)"
+                :key="j.key"
+                :src="j.art ?? undefined"
+                alt=""
+              />
+            </span>
+          </button>
+          <button
+            v-if="sidebarPins.length"
+            type="button"
+            class="sidebar-stackrow"
+            :class="{ on: flyout === 'pins' }"
+            :aria-expanded="flyout === 'pins'"
+            @click="toggleFlyout('pins', $event)"
+          >
+            <span class="sidebar-stackrow-label">Pinned</span>
+            <span class="sidebar-stack">
+              <img
+                v-for="p in sidebarPins.slice(0, 4)"
+                :key="p.key"
+                :src="p.art ?? undefined"
+                alt=""
+              />
+            </span>
+          </button>
+          <Teleport to="body">
+            <Transition name="sidebar-flyout">
+              <div
+                v-if="flyout"
+                class="sidebar-flyout"
+                :style="{ top: `${flyoutTop}px`, left: `${flyoutLeft}px` }"
+                @mouseenter="cancelFlyoutClose"
+                @mouseleave="scheduleFlyoutClose"
+              >
+                <div class="sidebar-group-label">
+                  <span class="sidebar-group-label-text">{{
+                    flyout === "jump" ? "Jump back in" : "Pinned"
+                  }}</span>
+                </div>
+                <button
+                  v-for="j in flyout === 'jump' ? jumpItems : sidebarPins"
+                  :key="j.key"
+                  type="button"
+                  class="sidebar-jump"
+                  @click="go(j.to)"
+                >
+                  <img v-if="j.art" :src="j.art" alt="" />
+                  <span v-else class="sidebar-jump-blank"></span>
+                  <span class="sidebar-jump-title">{{ j.title }}</span>
+                  <span v-if="'meta' in j" class="sidebar-jump-meta">{{
+                    j.meta
+                  }}</span>
+                </button>
+              </div>
+            </Transition>
+          </Teleport>
+          <div class="sidebar-divider"></div>
+        </template>
+
+        <router-link
+          to="/"
+          class="sidebar-item"
+          :class="{ active: isActive('/') }"
+          @click="close"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            width="18"
+            height="18"
             fill="none"
             stroke="currentColor"
             stroke-width="2"
             stroke-linecap="round"
             stroke-linejoin="round"
           >
-            <path d="M9 18l6-6-6-6" />
+            <path d="M4 11l8-7 8 7" />
+            <path d="M6 10v9a1 1 0 0 0 1 1h3v-5h4v5h3a1 1 0 0 0 1-1v-9" />
           </svg>
-        </button>
-      </div>
+          <span>Home</span>
+        </router-link>
 
-      <div v-if="gamesExpanded" class="sidebar-subitems">
-        <router-link
-          to="/games"
-          class="sidebar-item sidebar-subitem"
+        <template v-if="sidebarStyle === 'classic'">
+          <template v-if="sidebarShowJump && jumpItems.length">
+            <div class="sidebar-group-label">
+              <span class="sidebar-group-label-text">Jump back in</span>
+              <span class="sidebar-group-label-rule"></span>
+            </div>
+            <router-link
+              v-for="j in jumpItems"
+              :key="j.key"
+              :to="j.to"
+              class="sidebar-jump"
+              @click="close"
+            >
+              <img v-if="j.art" :src="j.art" alt="" />
+              <span v-else class="sidebar-jump-blank"></span>
+              <span class="sidebar-jump-title">{{ j.title }}</span>
+              <span class="sidebar-jump-meta">{{ j.meta }}</span>
+            </router-link>
+          </template>
+          <template v-if="sidebarPins.length">
+            <div class="sidebar-group-label">
+              <span class="sidebar-group-label-text">Pinned</span>
+              <span class="sidebar-group-label-rule"></span>
+            </div>
+            <router-link
+              v-for="p in sidebarPins"
+              :key="p.key"
+              :to="p.to"
+              class="sidebar-jump"
+              @click="close"
+            >
+              <img v-if="p.art" :src="p.art" alt="" />
+              <span v-else class="sidebar-jump-blank"></span>
+              <span class="sidebar-jump-title">{{ p.title }}</span>
+            </router-link>
+          </template>
+        </template>
+
+        <div class="sidebar-group-label">
+          <span class="sidebar-group-label-text">Library</span>
+          <span class="sidebar-group-label-rule"></span>
+        </div>
+
+        <div
+          class="sidebar-parent-row"
           :class="{
-            active: isActive('/games') && !isActive('/games/collections'),
+            active:
+              isActive('/games') &&
+              (!isActive('/games/collections') || !gamesExpanded),
+          }"
+        >
+          <button
+            type="button"
+            class="sidebar-item sidebar-parent-link"
+            @click="go('/games')"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              width="18"
+              height="18"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path
+                d="M6 6h12a3 3 0 0 1 3 3v1l1.3 7a2.2 2.2 0 0 1-4 1.7L17 16H7l-1.3 2.7a2.2 2.2 0 0 1-4-1.7L3 10v-1a3 3 0 0 1 3-3z"
+              />
+              <path d="M7.3 9.3v4M5.3 11.3h4" />
+              <circle cx="16" cy="9.5" r="0.9" fill="currentColor" />
+              <circle cx="18" cy="11.5" r="0.9" fill="currentColor" />
+              <circle cx="16" cy="13.5" r="0.9" fill="currentColor" />
+              <circle cx="14" cy="11.5" r="0.9" fill="currentColor" />
+            </svg>
+            <span>Games</span>
+            <span v-if="sidebarShowCounts && gameCount" class="sidebar-count">{{
+              gameCount
+            }}</span>
+          </button>
+          <button
+            type="button"
+            class="sidebar-expand-toggle"
+            :class="{ expanded: gamesExpanded }"
+            :title="gamesExpanded ? 'Collapse' : 'Expand'"
+            @click="gamesExpanded = !gamesExpanded"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              width="14"
+              height="14"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M9 18l6-6-6-6" />
+            </svg>
+          </button>
+        </div>
+
+        <div v-if="gamesExpanded" class="sidebar-subitems">
+          <router-link
+            to="/games/collections"
+            class="sidebar-item sidebar-subitem"
+            :class="{ active: isActive('/games/collections') }"
+            @click="close"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              width="16"
+              height="16"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M4 7l8-4 8 4-8 4-8-4z" />
+              <path d="M4 12l8 4 8-4M4 17l8 4 8-4" />
+            </svg>
+            <span>Collections</span>
+          </router-link>
+        </div>
+
+        <div
+          class="sidebar-parent-row"
+          :class="{
+            active:
+              !mediaExpanded &&
+              (isActive('/movies') ||
+                isActive('/tv') ||
+                isActive('/anime') ||
+                isActive('/media/collections')),
+          }"
+        >
+          <button
+            type="button"
+            class="sidebar-item sidebar-parent-link"
+            @click="go(mediaHome())"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              width="18"
+              height="18"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <circle cx="12" cy="12" r="9" />
+              <path d="M10 8.5l6 3.5-6 3.5z" />
+            </svg>
+            <span>Media</span>
+            <span
+              v-if="sidebarShowCounts && mediaCount"
+              class="sidebar-count"
+              >{{ mediaCount }}</span
+            >
+          </button>
+          <button
+            type="button"
+            class="sidebar-expand-toggle"
+            :class="{ expanded: mediaExpanded }"
+            :title="mediaExpanded ? 'Collapse' : 'Expand'"
+            @click="mediaExpanded = !mediaExpanded"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              width="14"
+              height="14"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M9 18l6-6-6-6" />
+            </svg>
+          </button>
+        </div>
+
+        <div v-if="mediaExpanded" class="sidebar-subitems">
+          <router-link
+            to="/movies"
+            class="sidebar-item sidebar-subitem"
+            :class="{ active: isActive('/movies') }"
+            @click="close"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              width="16"
+              height="16"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <rect x="3" y="3" width="18" height="18" rx="2" />
+              <line x1="3" y1="8" x2="21" y2="8" />
+              <rect
+                x="5.5"
+                y="4.5"
+                width="1.6"
+                height="1.6"
+                fill="currentColor"
+                stroke="none"
+              />
+              <rect
+                x="9.8"
+                y="4.5"
+                width="1.6"
+                height="1.6"
+                fill="currentColor"
+                stroke="none"
+              />
+              <rect
+                x="14.1"
+                y="4.5"
+                width="1.6"
+                height="1.6"
+                fill="currentColor"
+                stroke="none"
+              />
+              <rect
+                x="18.4"
+                y="4.5"
+                width="1.6"
+                height="1.6"
+                fill="currentColor"
+                stroke="none"
+              />
+            </svg>
+            <span>Movies</span>
+          </router-link>
+          <router-link
+            to="/tv"
+            class="sidebar-item sidebar-subitem"
+            :class="{ active: isActive('/tv') }"
+            @click="close"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              width="16"
+              height="16"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <rect x="2" y="5" width="20" height="13" rx="2" />
+              <path d="M8 21h8M12 18v3" />
+            </svg>
+            <span>TV</span>
+          </router-link>
+          <router-link
+            to="/anime"
+            class="sidebar-item sidebar-subitem"
+            :class="{ active: isActive('/anime') }"
+            @click="close"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              width="16"
+              height="16"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path
+                d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"
+              />
+              <path d="M19 15l0.7 2 2 0.7-2 0.7-0.7 2-0.7-2-2-0.7 2-0.7z" />
+            </svg>
+            <span>Anime</span>
+          </router-link>
+          <router-link
+            to="/media/collections"
+            class="sidebar-item sidebar-subitem"
+            :class="{ active: isActive('/media/collections') }"
+            @click="close"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              width="16"
+              height="16"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M4 7l8-4 8 4-8 4-8-4z" />
+              <path d="M4 12l8 4 8-4M4 17l8 4 8-4" />
+            </svg>
+            <span>Collections</span>
+          </router-link>
+        </div>
+
+        <div class="sidebar-group-label">
+          <span class="sidebar-group-label-text">Tools</span>
+          <span class="sidebar-group-label-rule"></span>
+        </div>
+
+        <router-link
+          to="/calendar"
+          class="sidebar-item"
+          :class="{ active: isActive('/calendar') }"
+          @click="close"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            width="18"
+            height="18"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <rect x="3" y="5" width="18" height="16" rx="2" />
+            <path d="M3 10h18M8 3v4M16 3v4" />
+            <circle cx="8" cy="14" r="1" fill="currentColor" />
+            <circle cx="12" cy="14" r="1" fill="currentColor" />
+          </svg>
+          <span>Calendar</span>
+        </router-link>
+        <router-link
+          to="/statistics"
+          class="sidebar-item"
+          :class="{ active: isActive('/statistics') }"
+          @click="close"
+        >
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+            <rect x="4" y="13" width="4" height="7" rx="1" />
+            <rect x="10" y="9" width="4" height="11" rx="1" />
+            <rect x="16" y="4" width="4" height="16" rx="1" />
+          </svg>
+          <span>Statistics</span>
+        </router-link>
+        <router-link
+          to="/settings?section=upload"
+          class="sidebar-item"
+          :class="{
+            active: isActive('/settings') && route.query.section === 'upload',
           }"
           @click="close"
         >
           <svg
             viewBox="0 0 24 24"
-            width="16"
-            height="16"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path
-              d="M6 6h12a3 3 0 0 1 3 3v1l1.3 7a2.2 2.2 0 0 1-4 1.7L17 16H7l-1.3 2.7a2.2 2.2 0 0 1-4-1.7L3 10v-1a3 3 0 0 1 3-3z"
-            />
-            <path d="M7.3 9.3v4M5.3 11.3h4" />
-            <circle cx="16" cy="9.5" r="0.9" fill="currentColor" />
-            <circle cx="18" cy="11.5" r="0.9" fill="currentColor" />
-            <circle cx="16" cy="13.5" r="0.9" fill="currentColor" />
-            <circle cx="14" cy="11.5" r="0.9" fill="currentColor" />
-          </svg>
-          <span>Games</span>
-        </router-link>
-        <router-link
-          to="/games/collections"
-          class="sidebar-item sidebar-subitem"
-          :class="{ active: isActive('/games/collections') }"
-          @click="close"
-        >
-          <svg
-            viewBox="0 0 24 24"
-            width="16"
-            height="16"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path d="M4 7l8-4 8 4-8 4-8-4z" />
-            <path d="M4 12l8 4 8-4M4 17l8 4 8-4" />
-          </svg>
-          <span>Collections</span>
-        </router-link>
-      </div>
-
-      <div
-        class="sidebar-parent-row"
-        :class="{
-          active:
-            isActive('/movies') ||
-            isActive('/tv') ||
-            isActive('/anime') ||
-            isActive('/media/collections'),
-        }"
-      >
-        <button
-          type="button"
-          class="sidebar-item sidebar-parent-link"
-          @click="mediaExpanded = !mediaExpanded"
-        >
-          <svg
-            viewBox="0 0 24 24"
             width="18"
             height="18"
             fill="none"
@@ -337,220 +1047,13 @@ async function handleLogout() {
             stroke-linecap="round"
             stroke-linejoin="round"
           >
-            <circle cx="12" cy="12" r="9" />
-            <path d="M10 8.5l6 3.5-6 3.5z" />
+            <path d="M12 16V4M8 8l4-4 4 4" />
+            <path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" />
           </svg>
-          <span>Media</span>
-        </button>
-        <button
-          type="button"
-          class="sidebar-expand-toggle"
-          :class="{ expanded: mediaExpanded }"
-          :title="mediaExpanded ? 'Collapse' : 'Expand'"
-          @click="mediaExpanded = !mediaExpanded"
-        >
-          <svg
-            viewBox="0 0 24 24"
-            width="14"
-            height="14"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path d="M9 18l6-6-6-6" />
-          </svg>
-        </button>
-      </div>
-
-      <div v-if="mediaExpanded" class="sidebar-subitems">
-        <router-link
-          to="/movies"
-          class="sidebar-item sidebar-subitem"
-          :class="{ active: isActive('/movies') }"
-          @click="close"
-        >
-          <svg
-            viewBox="0 0 24 24"
-            width="16"
-            height="16"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <rect x="3" y="3" width="18" height="18" rx="2" />
-            <line x1="3" y1="8" x2="21" y2="8" />
-            <rect
-              x="5.5"
-              y="4.5"
-              width="1.6"
-              height="1.6"
-              fill="currentColor"
-              stroke="none"
-            />
-            <rect
-              x="9.8"
-              y="4.5"
-              width="1.6"
-              height="1.6"
-              fill="currentColor"
-              stroke="none"
-            />
-            <rect
-              x="14.1"
-              y="4.5"
-              width="1.6"
-              height="1.6"
-              fill="currentColor"
-              stroke="none"
-            />
-            <rect
-              x="18.4"
-              y="4.5"
-              width="1.6"
-              height="1.6"
-              fill="currentColor"
-              stroke="none"
-            />
-          </svg>
-          <span>Movies</span>
+          <span>Upload</span>
+          <span v-if="inboxCount" class="inbox-badge">{{ inboxCount }}</span>
         </router-link>
-        <router-link
-          to="/tv"
-          class="sidebar-item sidebar-subitem"
-          :class="{ active: isActive('/tv') }"
-          @click="close"
-        >
-          <svg
-            viewBox="0 0 24 24"
-            width="16"
-            height="16"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <rect x="2" y="5" width="20" height="13" rx="2" />
-            <path d="M8 21h8M12 18v3" />
-          </svg>
-          <span>TV</span>
-        </router-link>
-        <router-link
-          to="/anime"
-          class="sidebar-item sidebar-subitem"
-          :class="{ active: isActive('/anime') }"
-          @click="close"
-        >
-          <svg
-            viewBox="0 0 24 24"
-            width="16"
-            height="16"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path
-              d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"
-            />
-            <path d="M19 15l0.7 2 2 0.7-2 0.7-0.7 2-0.7-2-2-0.7 2-0.7z" />
-          </svg>
-          <span>Anime</span>
-        </router-link>
-        <router-link
-          to="/media/collections"
-          class="sidebar-item sidebar-subitem"
-          :class="{ active: isActive('/media/collections') }"
-          @click="close"
-        >
-          <svg
-            viewBox="0 0 24 24"
-            width="16"
-            height="16"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path d="M4 7l8-4 8 4-8 4-8-4z" />
-            <path d="M4 12l8 4 8-4M4 17l8 4 8-4" />
-          </svg>
-          <span>Collections</span>
-        </router-link>
-      </div>
-
-      <div class="sidebar-group-label">
-        <span class="sidebar-group-label-text">Tools</span>
-        <span class="sidebar-group-label-rule"></span>
-      </div>
-
-      <router-link
-        to="/calendar"
-        class="sidebar-item"
-        :class="{ active: isActive('/calendar') }"
-        @click="close"
-      >
-        <svg
-          viewBox="0 0 24 24"
-          width="18"
-          height="18"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        >
-          <rect x="3" y="5" width="18" height="16" rx="2" />
-          <path d="M3 10h18M8 3v4M16 3v4" />
-          <circle cx="8" cy="14" r="1" fill="currentColor" />
-          <circle cx="12" cy="14" r="1" fill="currentColor" />
-        </svg>
-        <span>Calendar</span>
-      </router-link>
-      <router-link
-        to="/statistics"
-        class="sidebar-item"
-        :class="{ active: isActive('/statistics') }"
-        @click="close"
-      >
-        <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-          <rect x="4" y="13" width="4" height="7" rx="1" />
-          <rect x="10" y="9" width="4" height="11" rx="1" />
-          <rect x="16" y="4" width="4" height="16" rx="1" />
-        </svg>
-        <span>Statistics</span>
-      </router-link>
-      <router-link
-        to="/settings?section=upload"
-        class="sidebar-item"
-        :class="{
-          active: isActive('/settings') && route.query.section === 'upload',
-        }"
-        @click="close"
-      >
-        <svg
-          viewBox="0 0 24 24"
-          width="18"
-          height="18"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        >
-          <path d="M12 16V4M8 8l4-4 4 4" />
-          <path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" />
-        </svg>
-        <span>Upload</span>
-        <span v-if="inboxCount" class="inbox-badge">{{ inboxCount }}</span>
-      </router-link>
-
+      </template>
       <div class="sidebar-spacer"></div>
 
       <div class="sidebar-bottom">
@@ -577,10 +1080,121 @@ async function handleLogout() {
           </svg>
           <span>Settings</span>
         </router-link>
-        <button
-          type="button"
-          class="sidebar-item logout-item"
-          @click="handleLogout"
+      </div>
+    </aside>
+  </Transition>
+
+  <aside v-if="sidebarStyle === 'railpanel'" class="railpanel">
+    <nav class="rp-rail" aria-label="Main">
+      <span class="rp-brand">🎮</span>
+      <router-link
+        v-for="p in navPages"
+        :key="p.id"
+        :to="p.to"
+        class="rp-icon"
+        :class="{ active: isActiveNav(p.to) }"
+        :title="p.label"
+        :aria-label="p.label"
+      >
+        <svg
+          viewBox="0 0 24 24"
+          width="19"
+          height="19"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path :d="p.icon" />
+        </svg>
+      </router-link>
+      <router-link
+        to="/settings?section=upload"
+        class="rp-icon"
+        title="Upload"
+        aria-label="Upload"
+      >
+        <svg
+          viewBox="0 0 24 24"
+          width="19"
+          height="19"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path :d="ICONS.upload" />
+        </svg>
+        <span v-if="inboxCount" class="lib-icon-badge">{{ inboxCount }}</span>
+      </router-link>
+      <span class="rp-spacer"></span>
+      <router-link
+        to="/settings"
+        class="rp-icon"
+        :class="{ active: isActiveNav('/settings') }"
+        title="Settings"
+        aria-label="Settings"
+      >
+        <svg
+          viewBox="0 0 24 24"
+          width="19"
+          height="19"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path :d="ICONS.settings" />
+        </svg>
+      </router-link>
+      <ProfileMenu
+        v-if="currentUser"
+        class="rp-avatar"
+        :initials="currentUser.username.slice(0, 2).toUpperCase()"
+      />
+    </nav>
+    <div class="rp-panel">
+      <div class="rp-head">
+        <b>{{ panelTitle }}</b>
+        <span
+          v-if="sidebarShowCounts && railSection === 'games'"
+          class="sidebar-count"
+          >{{ counts.game }}</span
+        >
+      </div>
+      <button
+        v-if="sidebarShowSearch"
+        type="button"
+        class="sidebar-search"
+        @click="openSearch"
+      >
+        <svg
+          viewBox="0 0 24 24"
+          width="15"
+          height="15"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+        >
+          <path :d="ICONS.search" />
+        </svg>
+        <span class="sidebar-search-text">Search</span>
+        <kbd class="sidebar-search-kbd">Ctrl K</kbd>
+      </button>
+      <template v-if="railSection === 'media'">
+        <div class="sidebar-group-label">
+          <span class="sidebar-group-label-text">Libraries</span>
+        </div>
+        <router-link
+          v-for="m in MEDIA_PAGES"
+          :key="m.id"
+          :to="m.to"
+          class="sidebar-item"
+          :class="{ active: route.path.startsWith(m.to) }"
         >
           <svg
             viewBox="0 0 24 24"
@@ -592,18 +1206,268 @@ async function handleLogout() {
             stroke-linecap="round"
             stroke-linejoin="round"
           >
-            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-            <polyline points="16 17 21 12 16 7" />
-            <line x1="21" y1="12" x2="9" y2="12" />
+            <path :d="m.icon" />
           </svg>
-          <span>Log Out</span>
-        </button>
-      </div>
-    </aside>
-  </Transition>
+          <span>{{ m.label }}</span>
+          <span
+            v-if="sidebarShowCounts && m.id === 'anime'"
+            class="sidebar-count"
+            >{{ counts.anime }}</span
+          >
+          <span
+            v-else-if="sidebarShowCounts && m.id === 'movies'"
+            class="sidebar-count"
+            >{{ counts.movie }}</span
+          >
+          <span
+            v-else-if="sidebarShowCounts && m.id === 'tv'"
+            class="sidebar-count"
+            >{{ counts.tv }}</span
+          >
+        </router-link>
+      </template>
+      <template v-if="panelRecent.length">
+        <div class="sidebar-group-label">
+          <span class="sidebar-group-label-text">Jump back in</span>
+        </div>
+        <router-link
+          v-for="j in panelRecent"
+          :key="j.key"
+          :to="j.to"
+          class="sidebar-jump"
+        >
+          <img v-if="j.art" :src="j.art" alt="" />
+          <span v-else class="sidebar-jump-blank"></span>
+          <span class="sidebar-jump-title">{{ j.title }}</span>
+          <span class="sidebar-jump-meta">{{ j.meta }}</span>
+        </router-link>
+      </template>
+      <template v-if="sidebarPins.length">
+        <div class="sidebar-group-label">
+          <span class="sidebar-group-label-text">Pinned</span>
+        </div>
+        <router-link
+          v-for="p in sidebarPins"
+          :key="p.key"
+          :to="p.to"
+          class="sidebar-jump"
+        >
+          <img v-if="p.art" :src="p.art" alt="" />
+          <span v-else class="sidebar-jump-blank"></span>
+          <span class="sidebar-jump-title">{{ p.title }}</span>
+        </router-link>
+      </template>
+      <template v-if="railSection === 'games' && gameCollections.length">
+        <div class="sidebar-group-label">
+          <span class="sidebar-group-label-text">Collections</span>
+        </div>
+        <router-link
+          v-for="c in gameCollections.slice(0, 8)"
+          :key="c.name"
+          :to="`/games/collections/${encodeURIComponent(c.name)}`"
+          class="sidebar-jump"
+        >
+          <span class="sidebar-jump-blank rp-coll">
+            <svg
+              viewBox="0 0 24 24"
+              width="13"
+              height="13"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path :d="ICONS.collections" />
+            </svg>
+          </span>
+          <span class="sidebar-jump-title">{{ c.name }}</span>
+          <span class="sidebar-jump-meta">{{ c.count }}</span>
+        </router-link>
+        <router-link to="/games/collections" class="rp-more"
+          >All {{ gameCollections.length }} collections</router-link
+        >
+      </template>
+    </div>
+  </aside>
 </template>
 
 <style scoped>
+.sidebar-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0 0 8px;
+  padding: 7px 10px;
+  background: var(--ui-bg-2);
+  border: 1px solid var(--ui-border);
+  border-radius: 8px;
+  color: var(--ui-dim-2);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.sidebar-search:hover {
+  border-color: var(--ui-border-strong);
+  color: var(--ui-text-soft);
+}
+.sidebar-search svg {
+  flex-shrink: 0;
+}
+.sidebar-search-kbd {
+  margin-left: auto;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 10.5px;
+  background: var(--ui-surface-2);
+  border: 1px solid var(--ui-border-strong);
+  border-bottom-width: 2px;
+  border-radius: 6px;
+  padding: 1px 6px;
+  color: var(--ui-text-soft);
+}
+/* one line per title, so a long name never wraps or pushes the list about */
+.sidebar-jump {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  box-sizing: border-box;
+  height: 32px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  color: var(--ui-text-soft);
+  font: inherit;
+  text-decoration: none;
+  text-align: left;
+  cursor: pointer;
+  min-width: 0;
+}
+.sidebar-jump:hover {
+  background: color-mix(in srgb, var(--ui-wash-base) 6%, transparent);
+  color: var(--ui-heading);
+}
+.sidebar-jump img,
+.sidebar-jump-blank {
+  width: 18px;
+  height: 26px;
+  border-radius: 3px;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: var(--ui-surface-2);
+}
+.sidebar-jump-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sidebar-jump-meta {
+  flex-shrink: 0;
+  font-size: 11.5px;
+  color: var(--ui-faint-2);
+}
+.sidebar-count {
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--ui-faint-2);
+  font-variant-numeric: tabular-nums;
+}
+.sidebar-stackrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 9px 12px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--ui-text-soft);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.sidebar-stackrow:hover,
+.sidebar-stackrow.on {
+  background: color-mix(in srgb, var(--ui-wash-base) 6%, transparent);
+}
+.sidebar-stackrow-label {
+  flex: 1;
+  text-align: left;
+}
+.sidebar-stack {
+  display: flex;
+}
+.sidebar-stack img {
+  width: 20px;
+  height: 28px;
+  border-radius: 3px;
+  object-fit: cover;
+  box-shadow: 0 0 0 2px var(--ui-popover);
+  background: var(--ui-surface-2);
+}
+.sidebar-stack img + img {
+  margin-left: -6px;
+}
+.sidebar-flyout {
+  position: fixed;
+  width: 280px;
+  background: var(--ui-popover);
+  border: 1px solid var(--ui-border-strong);
+  border-radius: 12px;
+  box-shadow: 0 18px 40px
+    color-mix(in srgb, var(--ui-scrim-base) 60%, transparent);
+  padding: 6px;
+  z-index: 120;
+}
+.sidebar.style-minimal .sidebar-group-label {
+  display: none;
+}
+.sidebar.style-minimal .sidebar-flyout .sidebar-group-label {
+  display: flex;
+}
+.sidebar.style-minimal .sidebar-item {
+  padding-top: 10px;
+  padding-bottom: 10px;
+  font-size: 14.5px;
+}
+.sidebar.rail-mode:not(:hover):not(:focus-within) .sidebar-search-text,
+.sidebar.rail-mode:not(:hover):not(:focus-within) .sidebar-search-kbd,
+.sidebar.rail-mode:not(:hover):not(:focus-within) .sidebar-jump-title,
+.sidebar.rail-mode:not(:hover):not(:focus-within) .sidebar-jump-meta,
+.sidebar.rail-mode:not(:hover):not(:focus-within) .sidebar-count,
+.sidebar.rail-mode:not(:hover):not(:focus-within) .sidebar-stackrow-label {
+  opacity: 0;
+}
+/* collapsed rail: the search is just its icon, and Jump back in and Pinned
+   show their first cover, both centred in the strip */
+.sidebar.rail-mode:not(:hover):not(:focus-within) .sidebar-search {
+  justify-content: center;
+  padding: 0;
+  background: none;
+  border-color: transparent;
+}
+.sidebar.rail-mode:not(:hover):not(:focus-within) .sidebar-search-text,
+.sidebar.rail-mode:not(:hover):not(:focus-within) .sidebar-search-kbd,
+.sidebar.rail-mode:not(:hover):not(:focus-within) .sidebar-stackrow-label {
+  display: none;
+}
+.sidebar.rail-mode:not(:hover):not(:focus-within) .sidebar-stackrow {
+  justify-content: center;
+  padding-left: 0;
+  padding-right: 0;
+}
+.sidebar.rail-mode:not(:hover):not(:focus-within) .sidebar-stack img + img {
+  display: none;
+}
 .menu-toggle {
   position: fixed;
   top: 16px;
@@ -1024,22 +1888,7 @@ async function handleLogout() {
 .sidebar-spacer {
   flex: 1;
 }
-/* Log Out is a <button>, so without these it fell back to the browser's
-   default button face (grey fill, border, system font) — the "always
-   highlighted" look. It now matches every other row, tinted red. */
-.logout-item {
-  width: 100%;
-  background: none;
-  border: none;
-  font: inherit;
-  font-size: 14px;
-  text-align: left;
-  color: #e08585;
-}
-.logout-item:hover {
-  background: rgba(224, 133, 133, 0.12);
-  color: #f0a0a0;
-}
+
 .sidebar-bottom {
   display: flex;
   flex-direction: column;
@@ -1065,3 +1914,4 @@ async function handleLogout() {
   opacity: 0;
 }
 </style>
+<style scoped src="./SidebarStyles.css"></style>
