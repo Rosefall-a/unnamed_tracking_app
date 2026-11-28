@@ -10,6 +10,9 @@ export type GameStatus =
 
 export type AchievementTier = "bronze" | "silver" | "gold";
 
+export type SetAsideReason =
+  "not_a_game" | "online_only" | "not_interested" | "other";
+
 // how a provider classifies an achievement (RetroAchievements is the only
 // one that does today)
 export type AchievementKind = "progression" | "missable" | "win_condition";
@@ -88,6 +91,10 @@ export interface Game {
   // when this game was first 100%-completed (Mastered), set once
   // automatically, editable afterward like purchaseDate
   completionDate: string | null;
+  // Set aside: kept, but out of the library tabs, Home and counts. When it was
+  // set aside (null when it is not) and why.
+  setAsideAt?: string | null;
+  setAsideReason?: SetAsideReason | null;
   // a modpack/mod/expansion/DLC/total conversion is its own full Game row,
   // linked to the game it's a variant of, NOT a boolean is_modded, since
   // "modded" and "DLC/expansion" are related but distinct, and one base

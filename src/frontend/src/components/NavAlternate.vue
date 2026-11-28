@@ -632,12 +632,11 @@ kbd {
   color: var(--ui-heading);
 }
 
-/* shared drop-down look */
+/* shared drop-down look; solid, so big page text never shows through */
 .nav-menu {
   position: fixed;
   z-index: 130;
-  background: color-mix(in srgb, var(--ui-popover) 95%, transparent);
-  backdrop-filter: blur(18px) saturate(1.15);
+  background: var(--ui-popover);
   border: 1px solid var(--ui-border-strong);
   border-radius: 14px;
   box-shadow:

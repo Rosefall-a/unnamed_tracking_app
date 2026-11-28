@@ -297,6 +297,13 @@ class Game(Base):
         nullable=True,
     )
 
+    # Set aside: kept with everything it has, but out of the way (the library
+    # tabs, Home, counts) because it is not a real game, online only, or not
+    # wanted. When it was set aside; NULL means it is not.
+    set_aside_at: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    # "not_a_game" | "online_only" | "not_interested" | "other"
+    set_aside_reason: Mapped[str | None] = mapped_column(String(30), nullable=True)
+
     favorite: Mapped[bool] = mapped_column(
         Boolean,
         nullable=False,

@@ -19,9 +19,12 @@ import QuickAddDialog from "./QuickAddDialog.vue";
 import SegmentedTabs from "../SegmentedTabs.vue";
 import type { SegmentOption } from "../SegmentedTabs.vue";
 import { preferences } from "../../state/preferences";
+import { findInLibrary } from "../../utils/mediaDuplicates";
+import type { LibraryMatch } from "../../utils/mediaDuplicates";
 import { matchesFilters } from "../../utils/libraryFilters";
 import type { LibraryFilters } from "../../utils/libraryFilters";
 import { blurOnLeave } from "../../utils/blurOnLeave";
+import { useTabScroll } from "../../utils/tabScroll";
 import {
   STATUS_BUCKETS,
   bucketCounts,
@@ -247,6 +250,13 @@ function readSavedStatus(): string {
   return getUi<string>(statusKey, "all") || "all";
 }
 const activeStatus = ref<string>(readSavedStatus());
+// the tab row scrolls sideways when the tabs do not fit (utils/tabScroll.ts)
+const {
+  scroller: tabScroller,
+  moreLeft: tabsMoreLeft,
+  moreRight: tabsMoreRight,
+  measure: measureTabScroll,
+} = useTabScroll(activeStatus);
 watch(activeStatus, (v) => {
   setUi(statusKey, v);
 });
@@ -420,14 +430,23 @@ function computedRank(it: LibraryCardVM): number | null {
 }
 
 // the server counts by real status; the tabs are the five buckets
+// Library: the groups chosen in Settings › Library (by default all but Plan to Watch)
+const libraryBuckets = computed<string[]>(
+  () => preferences.value.library_statuses_media,
+);
 const statusCounts = computed<Record<string, number>>(() => {
   const counts = bucketCounts(props.statusCounts);
-  // Library: everything you have started or finished, so all but Plan to Watch
-  return { ...counts, library: (counts.all ?? 0) - (counts.plan ?? 0) };
+  const library = libraryBuckets.value.reduce(
+    (sum, b) => sum + (counts[b] ?? 0),
+    0,
+  );
+  return { ...counts, library };
 });
 function inTab(status: string, tab: string): boolean {
   const bucket = statusBucket(status);
-  return tab === "library" ? bucket !== "plan" : bucket === tab;
+  return tab === "library"
+    ? libraryBuckets.value.includes(bucket)
+    : bucket === tab;
 }
 
 function progressPct(it: LibraryCardVM): number {
@@ -541,7 +560,7 @@ const boardGroups = computed(() => {
       ? STATUSES
       : STATUSES.filter((s) =>
           activeStatus.value === "library"
-            ? s.key !== "plan"
+            ? libraryBuckets.value.includes(s.key)
             : s.key === activeStatus.value,
         );
   return statuses
@@ -809,9 +828,31 @@ function openQuickAdd() {
 function closeQuickAdd() {
   quickAddOpen.value = false;
   quickAddPick.value = null;
+  duplicateCheck++;
+  quickAddDuplicate.value = null;
+}
+// Already in the library? Said before adding, so the same title is not added
+// twice by accident; adding it anyway is still allowed (a second copy, a rewatch).
+const quickAddDuplicate = ref<LibraryMatch | null>(null);
+// only the latest pick's answer counts, if another was picked meanwhile
+let duplicateCheck = 0;
+async function checkDuplicate(result: SearchResultVM) {
+  const mine = ++duplicateCheck;
+  quickAddDuplicate.value = null;
+  try {
+    const found = await findInLibrary(
+      props.kind,
+      result.title,
+      result.releaseYear,
+    );
+    if (mine === duplicateCheck) quickAddDuplicate.value = found;
+  } catch {
+    // no warning if the check itself fails; adding still works
+  }
 }
 function pickQuickAddResult(result: SearchResultVM) {
   quickAddPick.value = result;
+  void checkDuplicate(result);
   quickAddForm.status = addStatus();
   quickAddForm.watched = 0;
   quickAddForm.seen = false;
@@ -1096,32 +1137,39 @@ defineExpose({ openQuickAdd });
       </div>
 
       <div class="status-tabs">
-        <button
-          type="button"
-          class="status-tab"
-          :class="{ active: activeStatus === 'all' }"
-          @click="activeStatus = 'all'"
+        <div
+          :ref="(el) => (tabScroller = el as HTMLElement | null)"
+          class="status-tabs-scroll"
+          :class="{ 'more-left': tabsMoreLeft, 'more-right': tabsMoreRight }"
+          @scroll.passive="measureTabScroll"
         >
-          All <span class="n">{{ statusCounts.all }}</span>
-        </button>
-        <button
-          type="button"
-          class="status-tab"
-          :class="{ active: activeStatus === 'library' }"
-          @click="activeStatus = 'library'"
-        >
-          Library <span class="n">{{ statusCounts.library }}</span>
-        </button>
-        <button
-          v-for="s in STATUSES"
-          :key="s.key"
-          type="button"
-          class="status-tab"
-          :class="{ active: activeStatus === s.key }"
-          @click="activeStatus = s.key"
-        >
-          {{ s.label }} <span class="n">{{ statusCounts[s.key] ?? 0 }}</span>
-        </button>
+          <button
+            type="button"
+            class="status-tab"
+            :class="{ active: activeStatus === 'all' }"
+            @click="activeStatus = 'all'"
+          >
+            All <span class="n">{{ statusCounts.all }}</span>
+          </button>
+          <button
+            type="button"
+            class="status-tab"
+            :class="{ active: activeStatus === 'library' }"
+            @click="activeStatus = 'library'"
+          >
+            Library <span class="n">{{ statusCounts.library }}</span>
+          </button>
+          <button
+            v-for="s in STATUSES"
+            :key="s.key"
+            type="button"
+            class="status-tab"
+            :class="{ active: activeStatus === s.key }"
+            @click="activeStatus = s.key"
+          >
+            {{ s.label }} <span class="n">{{ statusCounts[s.key] ?? 0 }}</span>
+          </button>
+        </div>
       </div>
 
       <div class="body">
@@ -1771,6 +1819,20 @@ defineExpose({ openQuickAdd });
         >
       </template>
       <template #fields="{ result }">
+        <div v-if="quickAddDuplicate" class="qa-duplicate qa-wide" role="alert">
+          <strong>Already in your library</strong>
+          <span
+            >{{ quickAddDuplicate.title
+            }}<template v-if="quickAddDuplicate.year">
+              ({{ quickAddDuplicate.year }})</template
+            >
+            is there as {{ quickAddDuplicate.status }}. Adding it again makes a
+            second copy.</span
+          >
+          <router-link :to="quickAddDuplicate.to" @click="closeQuickAdd"
+            >Open the one you have</router-link
+          >
+        </div>
         <label class="qa-field">
           <span>Status</span>
           <select v-model="quickAddForm.status">
@@ -2128,11 +2190,39 @@ defineExpose({ openQuickAdd });
 .status-tabs {
   margin-top: 14px;
   display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
   border-bottom: 1px solid var(--border-soft);
 }
+.status-tabs-scroll {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  /* the open tab's underline sits on the row's own line */
+  margin-bottom: -1px;
+}
+.status-tabs-scroll::-webkit-scrollbar {
+  display: none;
+}
+.status-tabs-scroll.more-right {
+  mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent);
+}
+.status-tabs-scroll.more-left {
+  mask-image: linear-gradient(to left, #000 calc(100% - 40px), transparent);
+}
+.status-tabs-scroll.more-left.more-right {
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    #000 40px,
+    #000 calc(100% - 40px),
+    transparent
+  );
+}
 .status-tab {
+  flex: 0 0 auto;
+  white-space: nowrap;
   background: transparent;
   border: none;
   color: var(--text-dim);
@@ -2959,6 +3049,30 @@ defineExpose({ openQuickAdd });
   justify-content: flex-end;
   gap: 8px;
   margin-top: 14px;
+}
+.qa-duplicate {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--ui-accent) 45%, transparent);
+  background: color-mix(in srgb, var(--ui-accent) 10%, transparent);
+  font-size: 13px;
+  color: var(--ui-text-soft);
+}
+.qa-duplicate strong {
+  color: var(--ui-accent-bright);
+  font-size: 13px;
+}
+.qa-duplicate a {
+  align-self: flex-start;
+  color: var(--ui-accent-bright);
+  font-weight: 600;
+  text-decoration: none;
+}
+.qa-duplicate a:hover {
+  text-decoration: underline;
 }
 .qa-wide {
   grid-column: 1 / -1;

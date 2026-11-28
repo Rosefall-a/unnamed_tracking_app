@@ -1,7 +1,7 @@
 import { mockGames } from "../data/mockGames";
 import { failedRequest } from "./apiError";
 import { denormalizeStatus, forgetGame, invalidateGameList } from "./games";
-import type { GameStatus } from "../types/game";
+import type { GameStatus, SetAsideReason } from "../types/game";
 
 export interface BulkEditFields {
   status?: GameStatus;
@@ -14,6 +14,8 @@ export interface BulkEditFields {
   priority?: string | null;
   tags?: string[];
   features?: string[];
+  setAside?: boolean;
+  setAsideReason?: SetAsideReason | null;
 }
 
 export async function bulkUpdateGames(
@@ -32,6 +34,9 @@ export async function bulkUpdateGames(
   if (fields.priority !== undefined) payload.priority = fields.priority;
   if (fields.tags !== undefined) payload.tags = fields.tags;
   if (fields.features !== undefined) payload.features = fields.features;
+  if (fields.setAside !== undefined) payload.set_aside = fields.setAside;
+  if (fields.setAsideReason !== undefined)
+    payload.set_aside_reason = fields.setAsideReason;
 
   if (import.meta.env.VITE_USE_MOCK_DATA === "true") {
     let count = 0;
@@ -45,6 +50,14 @@ export async function bulkUpdateGames(
       if (fields.ageRating !== undefined) game.ageRating = fields.ageRating;
       if (fields.tags !== undefined) game.tags = fields.tags;
       if (fields.features !== undefined) game.features = fields.features;
+      if (fields.setAside !== undefined) {
+        game.setAsideAt = fields.setAside
+          ? (game.setAsideAt ?? new Date().toISOString())
+          : null;
+        game.setAsideReason = fields.setAside
+          ? (fields.setAsideReason ?? null)
+          : null;
+      }
       count++;
     }
     return count;

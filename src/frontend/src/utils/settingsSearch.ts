@@ -167,6 +167,12 @@ const RAW: Raw[] = [
     "files size limit screenshots clips saves maximum inbox sort",
   ],
   [
+    "What Library shows",
+    "library",
+    "adding",
+    "library tab statuses dropped wishlist plan to watch hide which games shows",
+  ],
+  [
     "Status when you add",
     "library",
     "adding",

@@ -43,6 +43,8 @@ import { chosenHours } from "../utils/timeToBeat";
 import { displayTitle } from "../utils/displayTitle";
 import { progressPercent } from "../utils/watchProgress";
 import type { Anime } from "../types/anime";
+import { isSetAside } from "../utils/gameOrganize";
+import { claimedByTab } from "../state/gameTabs";
 import type { Game } from "../types/game";
 import type { Movie } from "../types/movie";
 import type { TVShow } from "../types/tv_show";
@@ -565,7 +567,10 @@ function animeTitle(a: Anime): HomeTitle {
 }
 
 export const titlesByKind = computed<Record<TitleKind, HomeTitle[]>>(() => ({
-  game: (games.value ?? []).map(gameTitle),
+  // a set-aside game, or one a tab keeps to itself, is kept out of Home entirely
+  game: (games.value ?? [])
+    .filter((g) => !isSetAside(g) && !claimedByTab(g))
+    .map(gameTitle),
   movie: (movies.value ?? []).map(movieTitle),
   tv: (tvShows.value ?? []).map(showTitle),
   anime: (anime.value ?? []).map(animeTitle),

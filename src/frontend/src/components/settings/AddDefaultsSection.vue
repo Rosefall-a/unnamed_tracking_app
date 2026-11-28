@@ -5,6 +5,7 @@
 import { ref } from "vue";
 import SettingsCard from "./SettingsCard.vue";
 import SettingsRow from "./SettingsRow.vue";
+import MultiSegment from "./MultiSegment.vue";
 import { queuePreferences } from "../../services/preferences";
 import type { Preferences } from "../../services/preferences";
 import { preferences } from "../../state/preferences";
@@ -43,7 +44,8 @@ const error = ref<string | null>(null);
 const saved = ref("");
 // only the newest save's answer is applied, so quick changes never undo each other
 let seq = 0;
-async function change(key: AddKey, value: string) {
+type ChangeKey = AddKey | "library_statuses_game" | "library_statuses_media";
+async function change(key: ChangeKey, value: string | string[]) {
   const mine = ++seq;
   const before = preferences.value;
   preferences.value = { ...before, [key]: value } as Preferences;
@@ -63,6 +65,26 @@ async function change(key: AddKey, value: string) {
 </script>
 
 <template>
+  <SettingsCard
+    title="What Library shows"
+    description="The Library tab holds the statuses you pick here. Everything else is still under All and its own tab."
+  >
+    <SettingsRow label="Games" stack>
+      <MultiSegment
+        :model-value="preferences.library_statuses_game"
+        :options="GAME_STATUSES"
+        @update:model-value="change('library_statuses_game', $event)"
+      />
+    </SettingsRow>
+    <SettingsRow label="Movies, TV and anime" stack>
+      <MultiSegment
+        :model-value="preferences.library_statuses_media"
+        :options="MEDIA_STATUSES"
+        @update:model-value="change('library_statuses_media', $event)"
+      />
+    </SettingsRow>
+  </SettingsCard>
+
   <SettingsCard
     title="Status when you add"
     description="What a new title starts as when you press Add to Library. You can still change it in the dialog before adding."

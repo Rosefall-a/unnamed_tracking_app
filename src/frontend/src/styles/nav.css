@@ -17,8 +17,26 @@ html[data-nav="topbar"] .media-topbar {
   -webkit-backdrop-filter: none;
   border-bottom: 0;
 }
+/* the profile picture's menu arrow sits on the corner, clear of the initials */
+html[data-nav="topbar"] .topnav .profile-menu-chevron-badge {
+  box-sizing: border-box;
+  width: 15px;
+  height: 15px;
+  right: -5px;
+  bottom: -5px;
+  border-color: var(--ui-bg);
+}
+html[data-nav="topbar"] .topnav .profile-menu-chevron {
+  width: 7px;
+  height: 7px;
+}
 html[data-nav="topbar"] .detail > .back-spot {
   top: 68px;
+}
+/* Settings' back arrow: below the bar, in line with the page's left edge */
+html[data-nav="topbar"] .back-button-fixed {
+  top: 68px;
+  left: 40px;
 }
 
 /* No menu button sits in the corner in these styles, so the header does not
@@ -50,9 +68,15 @@ html[data-nav="railpanel"] .media-topbar {
 html[data-nav="railpanel"] .app-content {
   margin-left: 300px;
 }
+html[data-nav="railpanel"] .back-button-fixed {
+  left: 340px;
+}
 @media (max-width: 760px) {
   html[data-nav="railpanel"] .app-content {
     margin-left: 58px;
+  }
+  html[data-nav="railpanel"] .back-button-fixed {
+    left: 74px;
   }
 }
 

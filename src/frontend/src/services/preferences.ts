@@ -24,6 +24,9 @@ export interface Preferences {
   notify_achievement_milestone: boolean;
   // a pop-up and a line in the bell when a game reaches 100%
   notify_game_complete: boolean;
+  // what the Library tab holds, for games (statuses) and media (groups)
+  library_statuses_game: GameStatus[];
+  library_statuses_media: StatusBucketKey[];
   // the status a title starts as when you press Add to Library
   add_status_game: GameStatus;
   add_status_movie: StatusBucketKey;
@@ -76,6 +79,16 @@ export const DEFAULT_PREFERENCES: Preferences = {
   notify_movie_released: true,
   notify_achievement_milestone: true,
   notify_game_complete: true,
+  library_statuses_game: [
+    "backlog",
+    "playing",
+    "on hold",
+    "played",
+    "beaten",
+    "mastered",
+    "dropped",
+  ],
+  library_statuses_media: ["watching", "completed", "hold", "dropped"],
   add_status_game: "backlog",
   add_status_movie: "plan",
   add_status_tv: "plan",

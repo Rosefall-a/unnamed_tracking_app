@@ -367,6 +367,20 @@ _NON_NULLABLE_UPDATE_FIELDS = frozenset(
 )
 
 
+def _apply_set_aside(game: Game, updates: dict) -> None:
+    """`set_aside` is a switch, not a column: on records when (once, so the date
+    stays the day it was first set aside), off clears it and its reason."""
+    if "set_aside" not in updates:
+        return
+    wanted = updates.pop("set_aside")
+    if wanted and game.set_aside_at is None:
+        game.set_aside_at = int(time.time())
+    elif wanted is False:
+        game.set_aside_at = None
+        game.set_aside_reason = None
+        updates.pop("set_aside_reason", None)
+
+
 def _drop_nulls_for_required_fields(updates: dict) -> dict:
     cleaned = {
         field: value
@@ -2342,6 +2356,7 @@ async def update_game(
         new_links = updates.pop("links") or []
         game.links = [GameLink(label=link["label"], url=link["url"]) for link in new_links]
 
+    _apply_set_aside(game, updates)
     played_before = (game.playtime_seconds, game.status)
     _record_field_changes(game, updates, db)
     apply_updates_with_locking(game, updates, frozenset(_GAME_METADATA_FIELDS))
@@ -2750,7 +2765,9 @@ async def bulk_update_games(
     )
     games = result.scalars().all()
     for game in games:
-        for field, value in updates.items():
+        own = dict(updates)
+        _apply_set_aside(game, own)
+        for field, value in own.items():
             setattr(game, field, value)
         if updates.get("status") == GameStatus.MASTERED and game.completion_date is None:
             game.completion_date = int(time.time())

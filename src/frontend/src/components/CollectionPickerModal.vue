@@ -6,9 +6,19 @@ import { preferences } from "../state/preferences";
 import { autoCollectionNames } from "../utils/autoCollections";
 import type { Game } from "../types/game";
 
+// one game, or several picked with Select
 const props = defineProps<{
-  game: Game;
+  game?: Game;
+  games?: Game[];
 }>();
+const targets = computed<Game[]>(
+  () => props.games ?? (props.game ? [props.game] : []),
+);
+const heading = computed(() =>
+  targets.value.length === 1
+    ? `Add "${targets.value[0].title}" to a collection`
+    : `Add ${targets.value.length} games to a collection`,
+);
 
 const emit = defineEmits<{
   close: [];
@@ -37,8 +47,11 @@ onMounted(async () => {
   }
 });
 
+// a collection every chosen game is already in has nothing left to add
 const availableNames = computed(() =>
-  allNames.value.filter((n) => !props.game.collections.includes(n)),
+  allNames.value.filter(
+    (n) => !targets.value.every((g) => g.collections.includes(n)),
+  ),
 );
 
 const filteredNames = computed(() => {
@@ -58,7 +71,11 @@ async function pick(name: string) {
   saving.value = true;
   error.value = null;
   try {
-    await addGameToCollection(props.game.id, name);
+    await Promise.all(
+      targets.value
+        .filter((g) => !g.collections.includes(name))
+        .map((g) => addGameToCollection(g.id, name)),
+    );
     emit("added");
     emit("close");
   } catch (err) {
@@ -79,7 +96,7 @@ function createAndAdd() {
 <template>
   <div class="picker-backdrop" @click.self="emit('close')">
     <div class="picker-modal">
-      <h3>Add "{{ game.title }}" to a collection</h3>
+      <h3>{{ heading }}</h3>
       <input
         v-model="query"
         type="text"
