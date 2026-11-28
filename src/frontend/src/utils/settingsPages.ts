@@ -123,12 +123,12 @@ export const SETTINGS_PAGES: SettingsPageDef[] = [
   {
     id: "library",
     label: "Library",
-    sub: "Upload, adding, tidy up, trash, import",
+    sub: "Upload, tabs, adding, tidy up, trash, import",
     lead: "Add files, clean up duplicates, get things back, and move your library in or out.",
     group: "Library",
     tabs: [
       { id: "upload", label: "Upload", parts: ["upload"] },
-      { id: "adding", label: "Adding", parts: ["add-defaults"] },
+      { id: "adding", label: "Tabs and adding", parts: ["add-defaults"] },
       {
         id: "tidy",
         label: "Tidy up",

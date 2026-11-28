@@ -15,6 +15,7 @@ from src.api.routes.media_common import (
     library_page,
     empty_trash,
     purge_row,
+    library_statuses,
     restore_row,
     soft_delete,
     title_search,
@@ -172,13 +173,16 @@ async def list_movies(
     """Return one page of the current user's movies and the total matching it."""
     status_values = None
     if status_bucket and status_bucket != "all":
-        status_values = {
+        buckets: dict[str, set] = {
             "plan": {MovieStatus.WISHLIST, MovieStatus.WATCHLIST}, "hold": {MovieStatus.BACKLOG},
-            # Library: everything you have started or finished, so all but Plan to Watch
-            "library": set(MovieStatus) - {MovieStatus.WISHLIST, MovieStatus.WATCHLIST},
             "watching": {MovieStatus.IN_PROGRESS, MovieStatus.REWATCH},
             "completed": {MovieStatus.WATCHED, MovieStatus.FAVORITE}, "dropped": {MovieStatus.DROPPED},
-        }.get(status_bucket)
+        }
+        status_values = (
+            await library_statuses(db, current_user.id, buckets)
+            if status_bucket == "library"
+            else buckets.get(status_bucket)
+        )
         if status_values is None: raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid status bucket.")
     return await library_page(
         db,

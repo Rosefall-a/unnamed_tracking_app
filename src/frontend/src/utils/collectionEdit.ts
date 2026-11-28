@@ -1,7 +1,8 @@
 // Saving an edit to a collection. A collection is only a tag on its games, so
 // renaming one means moving that tag on every member; a smart collection is a
 // rule, so it renames in place. Everything stored locally under the old name
-// (cover pick, order, description, pin) follows.
+// (cover pick, order, description, pin) follows, and so do the rules of
+// smart collections and library tabs that name it.
 import {
   addGameToCollection,
   removeGameFromCollection,
@@ -9,8 +10,10 @@ import {
 import type { Game } from "../types/game";
 import {
   removeSmartCollection,
+  renameCollectionInSmartCollections,
   updateSmartCollection,
 } from "../state/smartCollections";
+import { renameCollectionInTabs } from "../state/gameTabs";
 import {
   forgetCollectionKeys,
   renameCollectionKeys,
@@ -38,6 +41,10 @@ export async function saveCollectionEdit(args: {
     }
   }
   renameCollectionKeys(oldName, name);
+  if (name !== oldName) {
+    renameCollectionInSmartCollections(oldName, name);
+    renameCollectionInTabs(oldName, name);
+  }
   updateMeta(name, { description: payload.description ?? undefined });
 }
 

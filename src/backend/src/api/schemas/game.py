@@ -13,6 +13,8 @@ from src.database.models.game import (
 from src.core.page_settings import validate_page_settings
 from src.helpers.currency_codes import CURRENCY_CODES
 
+SetAsideReason = Literal["not_a_game", "online_only", "not_interested", "other"]
+
 GameRelationshipType = Literal[
     "mod", "modpack", "expansion", "dlc", "standalone_expansion", "total_conversion"
 ]
@@ -66,6 +68,7 @@ class GameBase(BaseModel):
     status: GameStatus = GameStatus.BACKLOG
     priority: str | None = Field(default=None, max_length=20)
     favorite: bool = False
+    set_aside_reason: SetAsideReason | None = None
     profiles_enabled: bool = Field(
         default=False,
         description="Per-game opt-in for the account/profile switcher (Notes checklist + Screenshots scoping).",
@@ -170,6 +173,9 @@ class GameUpdate(BaseModel):
     status: GameStatus | None = None
     priority: str | None = Field(default=None, max_length=20)
     favorite: bool | None = None
+    # true sets it aside (now), false brings it back
+    set_aside: bool | None = None
+    set_aside_reason: SetAsideReason | None = None
     profiles_enabled: bool | None = None
     page_settings: dict | None = None
 
@@ -240,6 +246,8 @@ class GameBulkUpdate(BaseModel):
     priority: str | None = Field(default=None, max_length=20)
     tags: list[str] | None = None
     features: list[str] | None = None
+    set_aside: bool | None = None
+    set_aside_reason: SetAsideReason | None = None
 
 
 class GameRead(GameBase):
@@ -263,6 +271,10 @@ class GameRead(GameBase):
     stale_since: int | None = Field(
         default=None,
         description="Unix timestamp in seconds since a library sync last noticed this game missing from the account's owned-games list. NULL means currently present (or never synced). Never causes deletion by itself, set for the user to review.",
+    )
+    set_aside_at: int | None = Field(
+        default=None,
+        description="Unix timestamp in seconds when the game was set aside; NULL when it is not.",
     )
 
 

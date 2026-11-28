@@ -26,7 +26,7 @@ const fixedLeft = computed(() => {
     type="button"
     class="back-button"
     :class="{ 'back-button-fixed': fixed }"
-    :style="fixed ? { left: fixedLeft } : undefined"
+    :style="fixed ? { '--back-left': fixedLeft } : undefined"
     title="Back"
     aria-label="Back"
     @click="$emit('click')"
@@ -67,9 +67,11 @@ const fixedLeft = computed(() => {
 .back-button:hover {
   background: rgba(40, 40, 40, 0.85);
 }
+/* styles/nav.css moves it for the navigation styles with no corner button */
 .back-button-fixed {
   position: fixed;
   top: 16px;
+  left: var(--back-left, 62px);
   z-index: 100;
   transition: left 0.18s ease;
 }

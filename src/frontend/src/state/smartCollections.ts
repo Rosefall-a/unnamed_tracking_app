@@ -21,14 +21,18 @@ export type SmartField =
   | "released_to"
   | "added_within_days"
   | "played_within_days"
-  | "not_played_days";
+  | "not_played_days"
+  | "collection";
 
-// one condition: unused value for 'favorite'; a GameStatus value for 'status';
-// free text for 'tag', 'source', 'platform' and 'series'; a number as text
-// for the rest (hours, a percentage, a year, a count of days, a priority)
+// one condition: unused value for 'favorite'; one or more GameStatus values
+// for 'status' (comma separated, any of them); free text for 'tag', 'source',
+// 'platform', 'series' and 'collection'; a number as text for the rest (hours,
+// a percentage, a year, a count of days, a priority)
 export interface SmartCondition {
   field: SmartField;
   value: string;
+  // "leave out": the games this condition matches are the ones it drops
+  not?: boolean;
 }
 
 export type SmartMatch = "all" | "any";
@@ -105,6 +109,27 @@ export function removeSmartCollection(id: string) {
   smartCollections.value = smartCollections.value.filter((c) => c.id !== id);
 }
 
+// "In collection" rules name the collection, so a rename has to follow into
+// every rule that used the old name or they would quietly match nothing
+export function renameCollectionInRules<T extends SmartCondition>(
+  rules: T[],
+  from: string,
+  to: string,
+): T[] {
+  return rules.map((r) =>
+    r.field === "collection" && same(r.value, from) ? { ...r, value: to } : r,
+  );
+}
+
+export function renameCollectionInSmartCollections(from: string, to: string) {
+  smartCollections.value = smartCollections.value.map((c) => {
+    const [top] = renameCollectionInRules([c], from, to);
+    return c.rules
+      ? { ...top, rules: renameCollectionInRules(c.rules, from, to) }
+      : top;
+  });
+}
+
 export function findSmartCollectionByName(
   name: string,
 ): SmartCollection | undefined {
@@ -138,10 +163,23 @@ export function matchesCondition(
   rule: SmartCondition,
   now = Date.now(),
 ): boolean {
+  const hit = conditionHits(game, rule, now);
+  return rule.not ? !hit : hit;
+}
+
+// the statuses a status rule names (one, or several separated by commas)
+export function statusesOf(value: string): string[] {
+  return value
+    .split(",")
+    .map((v) => v.trim())
+    .filter(Boolean);
+}
+
+function conditionHits(game: Game, rule: SmartCondition, now: number): boolean {
   const n = Number(rule.value);
   switch (rule.field) {
     case "status":
-      return game.status === rule.value;
+      return statusesOf(rule.value).includes(game.status);
     case "favorite":
       return game.favorite === true;
     case "source":
@@ -155,6 +193,9 @@ export function matchesCondition(
       );
     case "series":
       return same(game.series, rule.value);
+    // games you put there yourself, with Add to Collection
+    case "collection":
+      return game.collections.some((c) => same(c, rule.value));
     // 1 is the highest, so "priority 2" means 1 or 2
     case "priority": {
       const p = Number(game.priority);
@@ -229,11 +270,23 @@ export const SMART_FIELD_LABELS: Record<SmartField, string> = {
   added_within_days: "Added in the last (days)",
   played_within_days: "Played in the last (days)",
   not_played_days: "Not played in the last (days)",
+  collection: "In collection",
 };
 
 export function describeCondition(rule: SmartCondition): string {
+  const text = describeHit(rule);
+  return rule.not ? `Leaving out: ${text}` : text;
+}
+
+function describeHit(rule: SmartCondition): string {
   const v = rule.value;
   switch (rule.field) {
+    case "status": {
+      const names = statusesOf(v);
+      return names.length > 1
+        ? `Status is ${names.slice(0, -1).join(", ")} or ${names.at(-1)}`
+        : `Status is "${v}"`;
+    }
     case "favorite":
       return "Favorited";
     case "playtime_hours":

@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { getUi, removeUi, setUi } from "../state/uiState";
+import { getUi, removeUi, setUi, uiStateReady } from "../state/uiState";
 import "../styles/shared/sortHead.css";
 import { sizedAssetUrl } from "../utils/gameImages";
 import HeartIcon from "../components/HeartIcon.vue";
 import { ref, computed, onMounted, onUnmounted, watch } from "vue";
+import { useTabScroll } from "../utils/tabScroll";
+import { useTabTouchDrag } from "../utils/tabTouchDrag";
 import { useRoute, useRouter } from "vue-router";
 import { useWindowVirtualizer } from "@tanstack/vue-virtual";
 import GameCard from "../components/GameCard.vue";
@@ -24,7 +26,6 @@ import {
   setFavorite,
   fetchAchievementsSummary,
   applyAchievementSummary,
-  addGameToCollection,
   refreshGameMetadata,
 } from "../services/games";
 import { bulkDeleteGames } from "../services/gameBulk";
@@ -37,6 +38,18 @@ import {
 import { setLibraryNavOrder } from "../state/libraryNav";
 import { isCommandPaletteOpen } from "../state/commandPalette";
 import CollectionPickerModal from "../components/CollectionPickerModal.vue";
+import OrganizeDialog from "../components/OrganizeDialog.vue";
+import GameTabsDialog from "../components/GameTabsDialog.vue";
+import {
+  allTabStatuses,
+  claimedByTab,
+  customTabs,
+  matchesCustomTab,
+  placeTab,
+  shownTabs,
+} from "../state/gameTabs";
+import { preferences } from "../state/preferences";
+import { isSetAside } from "../utils/gameOrganize";
 import GameTopBar from "../components/GameTopBar.vue";
 import SegmentedTabs from "../components/SegmentedTabs.vue";
 import type { SegmentOption } from "../components/SegmentedTabs.vue";
@@ -72,8 +85,12 @@ const SORT_KEYS = [
 type SortBy = (typeof SORT_KEYS)[number];
 type AchievementsFilter =
   "all" | "has" | "none" | "in_progress" | "not_started" | "perfect";
-// "library" is every game you have, so everything except the wishlist
-type StatusTab = GameStatus | "all" | "library";
+// "library" is the statuses chosen in Settings › Library (by default every game
+// you have, so everything but the wishlist); "set aside" holds the games kept
+// out of the way
+// a tab you made is "custom:<id>"; see state/gameTabs.ts
+type StatusTab =
+  GameStatus | "all" | "library" | "set aside" | `custom:${string}`;
 type MissingFilter = "none" | "playtime" | "rating" | "tags" | "description";
 type CardDensity = "compact" | "cozy" | "large";
 
@@ -175,6 +192,34 @@ function onCardChanged(
   if (game) Object.assign(game, fields);
 }
 
+// ---- set aside, for one game from its card or every selected one ----
+const organizing = ref<{
+  games: Game[];
+  bulk: boolean;
+} | null>(null);
+function organizeSelected() {
+  if (!selectedIds.value.size) return;
+  organizing.value = {
+    games: games.value.filter((g) => selectedIds.value.has(g.id)),
+    bulk: true,
+  };
+}
+function organizeOne(game: Game) {
+  organizing.value = { games: [game], bulk: false };
+}
+function onOrganized(
+  ids: string[],
+  fields: Partial<Pick<Game, "setAsideAt" | "setAsideReason">>,
+) {
+  for (const g of games.value) if (ids.includes(g.id)) Object.assign(g, fields);
+  if (organizing.value?.bulk) {
+    bulkEditResultVerb.value = "Updated";
+    bulkEditResultCount.value = ids.length;
+    selectMode.value = false;
+    selectedIds.value = new Set();
+  }
+}
+
 function toggleSelect(game: Game, shiftKey = false) {
   const next = new Set(selectedIds.value);
   if (shiftKey && lastToggledId) {
@@ -246,21 +291,18 @@ async function bulkRemove() {
 // dragging cards onto a collection, which this codebase has no drag-and-drop
 // library to build (see the arrow-based reorder in CollectionDetail.vue for
 // the same tradeoff elsewhere)
+// opens the same picker one game's button does, so your collections are listed
 const bulkAddingToCollection = ref(false);
-async function bulkAddToCollection() {
+const bulkPickerGames = ref<Game[] | null>(null);
+function bulkAddToCollection() {
   if (!selectedIds.value.size) return;
-  const name = await prompt({
-    title: "Add to collection",
-    message: `Add ${selectedIds.value.size} selected game(s) to which collection?`,
-    confirmLabel: "Add",
-  });
-  if (!name || !name.trim()) return;
-  const trimmed = name.trim();
+  bulkPickerGames.value = games.value.filter((g) =>
+    selectedIds.value.has(g.id),
+  );
+}
+async function onBulkCollectionAdded() {
   bulkAddingToCollection.value = true;
   try {
-    await Promise.all(
-      [...selectedIds.value].map((id) => addGameToCollection(id, trimmed)),
-    );
     bulkEditResultCount.value = selectedIds.value.size;
     selectMode.value = false;
     selectedIds.value = new Set();
@@ -562,7 +604,116 @@ const statusOptions: StatusTab[] = [
   "dropped",
   "backlog",
   "wishlist",
+  "set aside",
 ];
+
+// A set-aside game is only shown on its own tab, and a game one of your
+// "only show these here" tabs holds is only shown on that tab.
+const shownGames = computed(() =>
+  games.value.filter((g) => !isSetAside(g) && !claimedByTab(g)),
+);
+const customById = computed(
+  () => new Map(customTabs.value.map((t) => [`custom:${t.id}`, t])),
+);
+// the games a tab you made holds; set-aside ones stay on their own tab
+function inCustomTab(id: string): Game[] {
+  const tab = customById.value.get(id);
+  if (!tab) return [];
+  return games.value.filter(
+    (g) =>
+      !isSetAside(g) &&
+      matchesCustomTab(g, tab) &&
+      (tab.hideElsewhere || !claimedByTab(g)),
+  );
+}
+// a tab you made can be picked by its id, like the built-in ones
+const isKnownTab = (id: string) =>
+  statusOptions.includes(id as StatusTab) || customById.value.has(id);
+const showTabsEditor = ref(false);
+// a tab that was deleted, or hidden, while it was open falls back to All
+watch(
+  () =>
+    [
+      statusFilter.value,
+      customById.value,
+      shownTabs.value,
+      uiStateReady.value,
+    ] as const,
+  ([current]) => {
+    // only once your tabs have loaded, or a reload would always fall back
+    if (!uiStateReady.value) return;
+    if (current !== "all" && !shownTabs.value.some((t) => t.id === current))
+      statusFilter.value = "all";
+  },
+);
+const GAME_STATUSES: GameStatus[] = [
+  "playing",
+  "beaten",
+  "mastered",
+  "played",
+  "on hold",
+  "dropped",
+  "backlog",
+  "wishlist",
+];
+// what the tab editor offers when you type a tag, a source or a collection
+const sortedUnique = (values: (string | null | undefined)[]) =>
+  [...new Set(values.filter((v): v is string => !!v))].sort((a, b) =>
+    a.localeCompare(b),
+  );
+const tabTagOptions = computed(() =>
+  sortedUnique(games.value.flatMap((g) => g.tags)),
+);
+const tabSourceOptions = computed(() =>
+  sortedUnique(games.value.map((g) => g.source)),
+);
+const tabCollectionOptions = computed(() =>
+  sortedUnique(games.value.flatMap((g) => g.collections)),
+);
+const inLibrary = (g: Game) =>
+  preferences.value.library_statuses_game.includes(g.status);
+// All shows every status unless you picked which ones in Edit tabs
+const inAllTab = (g: Game) =>
+  !allTabStatuses.value || allTabStatuses.value.includes(g.status);
+
+// the tab row scrolls sideways when the tabs do not fit (utils/tabScroll.ts)
+const {
+  scroller: tabScroller,
+  moreLeft: tabsMoreLeft,
+  moreRight: tabsMoreRight,
+  measure: measureTabScroll,
+} = useTabScroll(statusFilter);
+
+// dragging a tab along the tab bar to move it
+const draggingTab = ref<string | null>(null);
+const dropMark = ref<{ id: string; after: boolean } | null>(null);
+function tabDragStart(e: DragEvent, id: string) {
+  draggingTab.value = id;
+  e.dataTransfer?.setData("text/plain", id);
+  if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
+}
+function tabDragOver(e: DragEvent, id: string) {
+  if (!draggingTab.value) return;
+  e.preventDefault();
+  const box = (e.currentTarget as HTMLElement).getBoundingClientRect();
+  dropMark.value = { id, after: e.clientX > box.left + box.width / 2 };
+}
+function tabDrop(id: string) {
+  if (draggingTab.value && dropMark.value?.id === id)
+    placeTab(draggingTab.value, id, dropMark.value.after);
+  tabDragEnd();
+}
+function tabDragEnd() {
+  draggingTab.value = null;
+  dropMark.value = null;
+}
+const tabTouch = useTabTouchDrag({
+  scroller: tabScroller,
+  dragging: draggingTab,
+  dropMark,
+  drop: tabDrop,
+  end: tabDragEnd,
+});
 
 const VIEW_OPTIONS: SegmentOption[] = [
   {
@@ -584,18 +735,20 @@ const VIEW_OPTIONS: SegmentOption[] = [
 ];
 
 const statusCounts = computed(() => {
-  const counts: Record<string, number> = { all: games.value.length };
-  for (const g of games.value) counts[g.status] = (counts[g.status] ?? 0) + 1;
-  counts.library = games.value.length - (counts.wishlist ?? 0);
+  const shown = shownGames.value;
+  const counts: Record<string, number> = {
+    all: shown.filter(inAllTab).length,
+  };
+  for (const g of shown) counts[g.status] = (counts[g.status] ?? 0) + 1;
+  counts.library = shown.filter(inLibrary).length;
+  counts["set aside"] = games.value.filter(isSetAside).length;
+  for (const id of customById.value.keys()) counts[id] = inCustomTab(id).length;
   return counts;
 });
 
 // arriving from a Home Hub row link (?status=playing, ?sort=recent)
 const queryStatus = route.query.status;
-if (
-  typeof queryStatus === "string" &&
-  statusOptions.includes(queryStatus as StatusTab)
-) {
+if (typeof queryStatus === "string" && isKnownTab(queryStatus)) {
   statusFilter.value = queryStatus as StatusTab;
 }
 const querySort = route.query.sort;
@@ -799,6 +952,8 @@ function anyModalOpen(): boolean {
     !!deletingGame.value ||
     showBulkEditModal.value ||
     !!collectionPickerGame.value ||
+    !!bulkPickerGames.value ||
+    !!organizing.value ||
     isCommandPaletteOpen.value
   );
 }
@@ -1024,11 +1179,20 @@ function openGame(game: Game) {
 }
 
 const filteredGames = computed(() => {
-  let result = games.value;
+  let result = statusFilter.value.startsWith("custom:")
+    ? inCustomTab(statusFilter.value)
+    : statusFilter.value === "set aside"
+      ? games.value.filter(isSetAside)
+      : shownGames.value;
 
   if (statusFilter.value === "library") {
-    result = result.filter((g) => g.status !== "wishlist");
-  } else if (statusFilter.value !== "all") {
+    result = result.filter(inLibrary);
+  } else if (statusFilter.value === "all") {
+    result = result.filter(inAllTab);
+  } else if (
+    statusFilter.value !== "set aside" &&
+    !statusFilter.value.startsWith("custom:")
+  ) {
     result = result.filter((g) => g.status === statusFilter.value);
   }
   if (platformFilter.value !== "all") {
@@ -1551,6 +1715,15 @@ function cardsInRow(rowIndex: number): Game[] {
         <button
           type="button"
           class="btn-outline"
+          :disabled="!selectedIds.size"
+          title="Keep them, but out of your library tabs, Home and counts"
+          @click="organizeSelected"
+        >
+          Set aside
+        </button>
+        <button
+          type="button"
+          class="btn-outline"
           :disabled="!selectedIds.size || bulkRemoving"
           @click="bulkRemove"
         >
@@ -1832,9 +2005,7 @@ function cardsInRow(rowIndex: number): Game[] {
           <label>Hide statuses</label>
           <div class="tags-multiselect">
             <button
-              v-for="s in statusOptions.filter(
-                (o) => o !== 'all' && o !== 'library',
-              )"
+              v-for="s in GAME_STATUSES"
               :key="s"
               type="button"
               class="tag-chip hide-chip"
@@ -1907,18 +2078,77 @@ function cardsInRow(rowIndex: number): Game[] {
       </div>
 
       <div class="status-tabs">
-        <button
-          v-for="s in statusOptions"
-          :key="s"
-          type="button"
-          class="status-tab"
-          :class="{ active: statusFilter === s }"
-          @click="statusFilter = s"
+        <div
+          :ref="(el) => (tabScroller = el as HTMLElement | null)"
+          class="status-tabs-scroll"
+          :class="{ 'more-left': tabsMoreLeft, 'more-right': tabsMoreRight }"
+          @scroll.passive="measureTabScroll"
         >
-          {{ s === "all" ? "All" : s === "library" ? "Library" : s }}
-          <span class="n">{{ statusCounts[s] ?? 0 }}</span>
+          <button
+            v-for="t in shownTabs"
+            :key="t.id"
+            type="button"
+            class="status-tab"
+            :class="{
+              active: statusFilter === t.id,
+              custom: !!t.custom,
+              dragging: draggingTab === t.id,
+              'drop-before': dropMark?.id === t.id && !dropMark.after,
+              'drop-after': dropMark?.id === t.id && dropMark.after,
+            }"
+            :data-tab-id="t.id"
+            draggable="true"
+            title="Drag to move this tab. On a touch screen, hold it first."
+            @click="statusFilter = t.id as StatusTab"
+            @dragstart="tabDragStart($event, t.id)"
+            @dragover="tabDragOver($event, t.id)"
+            @dragleave="dropMark?.id === t.id && (dropMark = null)"
+            @drop.prevent="tabDrop(t.id)"
+            @dragend="tabDragEnd"
+            @touchstart.passive="tabTouch.touchStart($event, t.id)"
+            @touchmove="tabTouch.touchMove"
+            @touchend="tabTouch.touchEnd"
+            @touchcancel="tabTouch.touchCancel"
+            @contextmenu.prevent
+          >
+            {{ t.label }}
+            <span class="n">{{ statusCounts[t.id] ?? 0 }}</span>
+          </button>
+        </div>
+        <button
+          type="button"
+          class="tabs-edit"
+          title="Make your own tabs, pick what each one shows, hide ones you never use"
+          aria-label="Edit tabs"
+          @click="showTabsEditor = true"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            width="14"
+            height="14"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M12 20h9" />
+            <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+          </svg>
+          <span class="tabs-edit-label">Edit tabs</span>
         </button>
       </div>
+      <Teleport to="body">
+        <GameTabsDialog
+          v-if="showTabsEditor"
+          :tag-options="tabTagOptions"
+          :source-options="tabSourceOptions"
+          :collection-options="tabCollectionOptions"
+          :games="games"
+          @close="showTabsEditor = false"
+        />
+      </Teleport>
 
       <div v-if="activeFilterPills.length" class="active-filter-pills">
         <button
@@ -2035,6 +2265,7 @@ function cardsInRow(rowIndex: number): Game[] {
               @add-to-collection="handleAddToCollection"
               @toggle-select="toggleSelect"
               @changed="onCardChanged"
+              @organize="organizeOne"
             />
           </div>
         </div>
@@ -2440,46 +2671,62 @@ function cardsInRow(rowIndex: number): Game[] {
         </div>
       </template>
 
-      <GameQuickAdd
-        v-if="showQuickAdd"
-        @close="showQuickAdd = false"
-        @added="onQuickAdded"
-        @manual="openManualAdd"
-      />
-      <GameQuickEdit
-        v-if="quickEditGame"
-        :game="quickEditGame"
-        @close="quickEditGame = null"
-        @saved="onQuickEdited"
-        @more="openFullEdit"
-      />
-      <GameFormModal
-        v-if="showFormModal"
-        :game="editingGame"
-        @close="showFormModal = false"
-        @saved="onGameSaved"
-        @delete="onDeleteFromModal"
-      />
+      <!-- the page content is its own layer, so its windows go to the top of
+           the page or the page's header bar would cover them -->
+      <Teleport to="body">
+        <GameQuickAdd
+          v-if="showQuickAdd"
+          @close="showQuickAdd = false"
+          @added="onQuickAdded"
+          @manual="openManualAdd"
+        />
+        <GameQuickEdit
+          v-if="quickEditGame"
+          :game="quickEditGame"
+          @close="quickEditGame = null"
+          @saved="onQuickEdited"
+          @more="openFullEdit"
+        />
+        <GameFormModal
+          v-if="showFormModal"
+          :game="editingGame"
+          @close="showFormModal = false"
+          @saved="onGameSaved"
+          @delete="onDeleteFromModal"
+        />
 
-      <CollectionPickerModal
-        v-if="collectionPickerGame"
-        :game="collectionPickerGame"
-        @close="collectionPickerGame = null"
-        @added="onCollectionAdded"
-      />
+        <CollectionPickerModal
+          v-if="collectionPickerGame"
+          :game="collectionPickerGame"
+          @close="collectionPickerGame = null"
+          @added="onCollectionAdded"
+        />
+        <OrganizeDialog
+          v-if="organizing"
+          :games="organizing.games"
+          @close="organizing = null"
+          @saved="onOrganized"
+        />
+        <CollectionPickerModal
+          v-if="bulkPickerGames"
+          :games="bulkPickerGames"
+          @close="bulkPickerGames = null"
+          @added="onBulkCollectionAdded"
+        />
 
-      <BulkEditModal
-        v-if="showBulkEditModal"
-        :game-ids="Array.from(selectedIds)"
-        @close="showBulkEditModal = false"
-        @saved="onBulkEditSaved"
-      />
+        <BulkEditModal
+          v-if="showBulkEditModal"
+          :game-ids="Array.from(selectedIds)"
+          @close="showBulkEditModal = false"
+          @saved="onBulkEditSaved"
+        />
 
-      <RandomGamePicker
-        v-if="showRandomPicker"
-        :games="games"
-        @close="showRandomPicker = false"
-      />
+        <RandomGamePicker
+          v-if="showRandomPicker"
+          :games="games"
+          @close="showRandomPicker = false"
+        />
+      </Teleport>
 
       <div
         v-if="deletingGame"
@@ -2719,11 +2966,70 @@ function cardsInRow(rowIndex: number): Game[] {
   margin-top: 14px;
   margin-bottom: 20px;
   display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 8px;
   border-bottom: 1px solid var(--border-soft);
 }
+.status-tabs-scroll {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  /* the bottom border of the open tab sits on the row's own line */
+  margin-bottom: -1px;
+}
+.status-tabs-scroll::-webkit-scrollbar {
+  display: none;
+}
+.status-tabs-scroll.more-right {
+  mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent);
+}
+.status-tabs-scroll.more-left {
+  mask-image: linear-gradient(to left, #000 calc(100% - 40px), transparent);
+}
+.status-tabs-scroll.more-left.more-right {
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    #000 40px,
+    #000 calc(100% - 40px),
+    transparent
+  );
+}
+.tabs-edit {
+  flex: 0 0 auto;
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  margin-bottom: 4px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.tabs-edit:hover {
+  color: var(--text);
+  border-color: var(--border);
+}
+@media (max-width: 600px) {
+  .tabs-edit {
+    padding: 7px;
+  }
+  .tabs-edit-label {
+    display: none;
+  }
+}
 .status-tab {
+  flex: 0 0 auto;
+  white-space: nowrap;
   background: transparent;
   border: none;
   color: var(--text-dim);
@@ -2736,11 +3042,23 @@ function cardsInRow(rowIndex: number): Game[] {
   display: flex;
   align-items: center;
   gap: 7px;
+  /* holding a tab to move it should not select its text or open a menu */
+  user-select: none;
+  -webkit-touch-callout: none;
   text-transform: capitalize;
 }
 .status-tab.active {
   color: var(--text);
   border-bottom-color: var(--accent);
+}
+.status-tab.dragging {
+  opacity: 0.4;
+}
+.status-tab.drop-before {
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+.status-tab.drop-after {
+  box-shadow: inset -2px 0 0 var(--accent);
 }
 .status-tab .n {
   font-variant-numeric: tabular-nums;

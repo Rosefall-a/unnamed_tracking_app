@@ -31,6 +31,8 @@ const emit = defineEmits<{
   // a status or favorite changed from this card, so the library's own copy of
   // the game (its filters, counts and preview) can follow
   changed: [id: string, fields: { status?: GameStatus; favorite?: boolean }];
+  // set it aside, or bring it back
+  organize: [game: Game];
 }>();
 
 const router = useRouter();
@@ -379,6 +381,16 @@ function copyFolderPath() {
                 @click="statusSubmenuOpen = true"
               >
                 Change Status
+              </button>
+              <button
+                type="button"
+                class="menu-item"
+                @click="
+                  emit('organize', game);
+                  closeMenu();
+                "
+              >
+                {{ game.setAsideAt ? "Bring back…" : "Set aside…" }}
               </button>
               <button type="button" class="menu-item disabled" disabled>
                 Refresh Metadata

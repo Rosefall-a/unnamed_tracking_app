@@ -50,6 +50,17 @@ def season_progress(model: Any, season_model: Any) -> Any:
     )
 
 
+async def library_statuses(
+    db: AsyncSession, user_id: Any, buckets: dict[str, set[Any]]
+) -> set[Any]:
+    """The statuses the Library tab holds: the groups chosen in Settings ›
+    Library (by default everything but Plan to Watch)."""
+    from src.core.preferences import load_preferences
+
+    chosen = (await load_preferences(db, user_id))["library_statuses_media"]
+    return set().union(*(buckets.get(b, set()) for b in chosen))
+
+
 def library_order(
     model: Any, sort: str | None, year_column: Any | None, progress: Any | None = None
 ) -> list[Any]:
@@ -116,7 +127,8 @@ async def library_page(  # pylint: disable=too-many-arguments,too-many-positiona
         stmt = stmt.where(model.favorite == favorite)
     if search_clause is not None:
         stmt = stmt.where(search_clause)
-    if status_values:
+    # an empty choice (nothing ticked for Library) shows nothing, not everything
+    if status_values is not None:
         stmt = stmt.where(model.status.in_(status_values))
     if genres:
         genre_clauses = [model.genres.contains([genre]) for genre in genres]

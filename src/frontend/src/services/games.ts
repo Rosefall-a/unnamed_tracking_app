@@ -13,6 +13,7 @@ import type {
   GameLink,
   GameOwnership,
   GameRelationshipType,
+  SetAsideReason,
 } from "../types/game";
 
 // The exact shape FastAPI sends, snake_case, matching the Python model
@@ -62,6 +63,8 @@ export interface BackendGame {
   folder_location: string;
   last_played_at: number | null;
   stale_since: number | null;
+  set_aside_at?: number | null;
+  set_aside_reason?: SetAsideReason | null;
   profiles_enabled: boolean;
   page_settings?: PageOverrides | null;
   collections: string[];
@@ -143,6 +146,8 @@ export function mapBackendGame(raw: BackendGame): Game {
     resumeNote: raw.resume_note,
     lastPlayedAt: unixSecondsToIso(raw.last_played_at),
     staleSince: unixSecondsToIso(raw.stale_since),
+    setAsideAt: unixSecondsToIso(raw.set_aside_at ?? null),
+    setAsideReason: raw.set_aside_reason ?? null,
     profilesEnabled: raw.profiles_enabled,
     pageSettings: raw.page_settings ?? null,
     completionDate: unixSecondsToDateInput(raw.completion_date),
@@ -209,7 +214,7 @@ export const forgetGame = gameCache.remove;
 // draw at once and refresh behind it.
 export const peekAllGames = (): Game[] | null =>
   gameCache.listLoaded() ? gameCache.all() : null;
-function rememberGame(game: Game): Game {
+export function rememberGame(game: Game): Game {
   const before = gameCache.peek(game.id);
   // what a visit to the page loaded for this game (the achievements) is not
   // in the list, so keep it until the next visit replaces it

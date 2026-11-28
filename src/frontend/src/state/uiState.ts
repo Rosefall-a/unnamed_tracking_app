@@ -6,7 +6,7 @@
 // - how this device shows things (sidebar, view modes, sorts, filters, tabs,
 //   card sizes) stays in this browser, like the caches elsewhere in the app.
 // Pages use the same getUi/setUi for both; the name decides which.
-import { ref, shallowRef } from "vue";
+import { computed, ref, shallowRef } from "vue";
 
 const SERVER_NAMES = new Set([
   "manualCollections",
@@ -14,6 +14,7 @@ const SERVER_NAMES = new Set([
   "collectionCoverPicks",
   "collectionGameOrder",
   "smartCollections",
+  "gameTabs",
   "gameLibraryFilterPresets",
   "seenWelcomeTour",
   "seenBulkEditHint",
@@ -74,6 +75,8 @@ const serverValues = shallowRef<Record<string, unknown>>({});
 const loadedFor = ref<string | null>(null);
 // a failed save, so a page can say its choice did not stick
 export const uiSaveError = ref<string | null>(null);
+// true once this person's saved choices have arrived (always, in sample mode)
+export const uiStateReady = computed(() => MOCK || loadedFor.value !== null);
 
 async function send(
   method: "PUT" | "DELETE",

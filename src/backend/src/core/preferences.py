@@ -32,6 +32,18 @@ DEFAULTS: dict[str, Any] = {
     "notify_achievement_milestone": True,
     # a game you have every achievement for: a pop-up when it happens, and a line in the bell
     "notify_game_complete": True,
+    # what the Library tab holds: the statuses (games) and groups (films, shows
+    # and anime) that count as your library
+    "library_statuses_game": [
+        "backlog",
+        "playing",
+        "on hold",
+        "played",
+        "beaten",
+        "mastered",
+        "dropped",
+    ],
+    "library_statuses_media": ["watching", "completed", "hold", "dropped"],
     # the status a title starts as when you press Add to Library
     "add_status_game": "backlog",
     "add_status_movie": "plan",
@@ -105,6 +117,17 @@ _CHOICES: dict[str, tuple[Any, ...]] = {
 _SET_CHOICES: dict[str, tuple[str, ...]] = {
     "notify_statuses": ("watching", "plan", "hold"),
     "calendar_airing_statuses": ("watching", "plan", "hold"),
+    "library_statuses_game": (
+        "wishlist",
+        "backlog",
+        "playing",
+        "on hold",
+        "played",
+        "beaten",
+        "mastered",
+        "dropped",
+    ),
+    "library_statuses_media": ("watching", "completed", "hold", "dropped", "plan"),
     "notify_media_types": ("anime", "tv", "movie"),
     "completion_marks": ("caption", "seal", "gold_title", "sheen", "rarest_pin"),
 }
